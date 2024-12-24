@@ -1,0 +1,35 @@
+# direnv
+.direnv
+
+# python
+__pycache__
+
+# verilog builds
+.build
+
+# mac
+.DS_Store
+
+# Ideally these will get checked in, but
+# Diamond Programmer hardcodes the paths, and so,
+# don't work between OS's, different users, etc.
+*.xcf
+
+#
+# icecube2
+#
+# modified from:
+# https://github.com/npetersen2/iCE40_Template/blob/master/.gitignore
+#
+.vdbs
+*.log
+*.log.bak
+*.tcl
+*.twr
+*_prim.v
+*.arearep
+xxx_lse_cp_file_list
+xxx_lse_sign_file
+*.prd
+*.rpt
+*_Implmnt
