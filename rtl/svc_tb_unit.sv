@@ -30,6 +30,19 @@
     forever #(ns / 2) clk = ~clk;                             \
   end
 
+`define TEST_RST_N(clk, rst_n, cycles = 10)                   \
+  logic rst_n;                                                \
+  `TEST_TASK_RESET_N(clk, rst_n, cycles)
+
+`define TEST_TASK_RESET_N(clk, rst_n, cycles = 10)            \
+  task reset_``rst_n();                                       \
+    rst_n = 0;                                                \
+    repeat (cycles) @(posedge clk);                           \
+    rst_n = 1;                                                \
+    @(posedge clk);                                           \
+  endtask                                                     \
+  `define TEST_RESET_TASK reset_``rst_n();
+
 `define TEST_SUITE_BEGIN(tb_module_name)                      \
 `ifndef VERILATOR                                             \
   int line_num;                                               \
@@ -42,11 +55,20 @@
                                                               \
   initial begin
 
+`define TEST_SETUP(setup_task) \
+  `define TEST_SETUP_TASK setup_task();
+
 `define TEST_CASE(test_task)            \
 `ifndef VERILATOR                       \
   line_num = `__LINE__;                 \
 `endif                                  \
-  test_task();
+`ifdef TEST_SETUP_TASK                  \
+  `TEST_SETUP_TASK                      \
+`endif                                  \
+`ifdef TEST_RESET_TASK                  \
+  `TEST_RESET_TASK                      \
+`endif                                  \
+  test_task()
 
 `define TEST_SUITE_END(arg = "")        \
   #100;                                 \
