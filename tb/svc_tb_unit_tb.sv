@@ -16,6 +16,19 @@ module svc_tb_unit_tb;
     `ASSERT_EQ(clk_cnt, 4);
   endtask
 
+  logic setup_ran = 1'b0;
+  task setup();
+    setup_ran = 1'b1;
+  endtask
+
+  task test_no_setup();
+    `ASSERT_EQ(setup_ran, 1'b0);
+  endtask
+
+  task test_setup();
+    `ASSERT_EQ(setup_ran, 1'b1);
+  endtask
+
   task test_another();
     @(posedge clk);
     `ASSERT_EQ(1, 1);
@@ -23,8 +36,17 @@ module svc_tb_unit_tb;
 
   `TEST_SUITE_BEGIN(svc_tb_unit_tb);
 
+  // Must run first to know clock is at 0
   `TEST_CASE(test_clk);
+
+  // Must run before setup was defined
+  `TEST_CASE(test_no_setup);
+
+  `TEST_SETUP(setup);
+  `TEST_CASE(test_setup);
+
   `TEST_CASE(test_another);
 
   `TEST_SUITE_END();
+
 endmodule
