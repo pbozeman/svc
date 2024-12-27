@@ -35,13 +35,13 @@
   `TEST_TASK_RESET_N(clk, rst_n, cycles)
 
 `define TEST_TASK_RESET_N(clk, rst_n, cycles = 10)            \
-  task reset_``rst_n();                                       \
+  task reset_``rst_n``();                                     \
     rst_n = 0;                                                \
     repeat (cycles) @(posedge clk);                           \
     rst_n = 1;                                                \
     @(posedge clk);                                           \
   endtask                                                     \
-  `define TEST_RESET_TASK reset_``rst_n();
+  `define TEST_RESET_TASK reset_``rst_n``();
 
 `define TEST_SUITE_BEGIN(tb_module_name)                      \
 `ifndef VERILATOR                                             \
