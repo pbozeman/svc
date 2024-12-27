@@ -2,6 +2,7 @@
 `define SVC_AXIL_SRAM_IF_RD_SV
 
 `include "svc.sv"
+`include "svc_unused.sv"
 
 // This is a lightweight wrapper to convert byte based AXI-Lite AR channel
 // addresses to word based addresses used by SRAM interfaces. Responses are
@@ -49,13 +50,7 @@ module svc_axil_sram_if_rd #(
 
   assign s_axil_rresp       = '0;
 
-  // verilator lint_off UNUSEDSIGNAL
-  logic [LSB-1:0] unused_araddr;
-  assign unused_araddr = s_axil_araddr[LSB-1:0];
-
-  logic unused_clk = clk;
-  logic unused_rst_n = rst_n;
-  // verilator lint_on UNUSEDSIGNAL
+  `SVC_UNUSED({clk, rst_n, s_axil_araddr[LSB-1:0]});
 
 endmodule
 
