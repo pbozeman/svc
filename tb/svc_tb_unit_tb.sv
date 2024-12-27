@@ -10,10 +10,10 @@ module svc_tb_unit_tb;
 
   task test_clk();
     // This is dependent on being the first test case
-    `ASSERT_EQ(clk_cnt, 0);
+    `CHECK_EQ(clk_cnt, 0);
     repeat (4) @(posedge clk);
     #1;
-    `ASSERT_EQ(clk_cnt, 4);
+    `CHECK_EQ(clk_cnt, 4);
   endtask
 
   logic setup_ran = 1'b0;
@@ -22,16 +22,16 @@ module svc_tb_unit_tb;
   endtask
 
   task test_no_setup();
-    `ASSERT_EQ(setup_ran, 1'b0);
+    `CHECK_EQ(setup_ran, 1'b0);
   endtask
 
   task test_setup();
-    `ASSERT_EQ(setup_ran, 1'b1);
+    `CHECK_EQ(setup_ran, 1'b1);
   endtask
 
   task test_another();
     @(posedge clk);
-    `ASSERT_EQ(1, 1);
+    `CHECK_EQ(1, 1);
   endtask
 
   `TEST_SUITE_BEGIN(svc_tb_unit_tb);

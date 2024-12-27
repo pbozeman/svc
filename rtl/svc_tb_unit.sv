@@ -13,12 +13,12 @@
            op, file, line, a, a, b, b);                       \
   $fatal;
 
-`define ASSERT_EQ(a, b)                                       \
+`define CHECK_EQ(a, b)                                        \
   if (!(a === b)) begin                                       \
     `ASSERT_MSG("EQ", `__FILE__, `__LINE__, a, b);            \
   end
 
-`define ASSERT_NEQ(a, b)                                      \
+`define CHECK_NEQ(a, b)                                       \
   if (!(a !== b)) begin                                       \
     `ASSERT_MSG("NEQ", `__FILE__, `__LINE__, a, b);           \
   end
