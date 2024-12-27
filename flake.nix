@@ -24,8 +24,10 @@
           icestorm
           nextpnr
           pythonEnv
+          sby
           verilator
           verilog
+          yices
           yosys
         ];
 
