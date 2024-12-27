@@ -2,7 +2,7 @@
 
 module svc_tb_unit_reset_tb;
   `TEST_CLK_NS(clk, 10);
-  `TEST_RST_N(clk, rst_n, 10);
+  `TEST_RST_N(clk, rst_n);
 
   logic reset_happened = 1'b0;
   always @(posedge clk) begin
