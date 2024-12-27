@@ -20,7 +20,7 @@ module svc_tb_unit_asserts_tb;
       b               = $random();
 
       test_msg_called = 1'b0;
-      `ASSERT_EQ(a, b);
+      `CHECK_EQ(a, b);
       if (a === b) begin
         assert (!test_msg_called)
         else begin
@@ -29,21 +29,21 @@ module svc_tb_unit_asserts_tb;
       end
 
       test_msg_called = 1'b0;
-      `ASSERT_EQ(a, a);
+      `CHECK_EQ(a, a);
       assert (!test_msg_called)
       else begin
         $display("assert_eq failed for %d %d", a, a);
       end
 
       test_msg_called = 1'b0;
-      `ASSERT_EQ(a, 'bx);
+      `CHECK_EQ(a, 'bx);
       assert (test_msg_called)
       else begin
         $display("assert_eq failed for %d %d", a, 'bx);
       end
 
       test_msg_called = 1'b0;
-      `ASSERT_EQ(a, 'bz);
+      `CHECK_EQ(a, 'bz);
       assert (test_msg_called)
       else begin
         $display("assert_eq failed for %d %d", a, 'bz);
@@ -51,21 +51,21 @@ module svc_tb_unit_asserts_tb;
     end
 
     test_msg_called = 1'b0;
-    `ASSERT_EQ('bx, 'bx);
+    `CHECK_EQ('bx, 'bx);
     assert (!test_msg_called)
     else begin
       $display("assert_eq failed for %d %d", 'bx, 'bx);
     end
 
     test_msg_called = 1'b0;
-    `ASSERT_EQ('bz, 'bz);
+    `CHECK_EQ('bz, 'bz);
     assert (!test_msg_called)
     else begin
       $display("assert_eq failed for %d %d", 'bz, 'bz);
     end
 
     test_msg_called = 1'b0;
-    `ASSERT_EQ('bx, 'bz);
+    `CHECK_EQ('bx, 'bz);
     assert (test_msg_called)
     else begin
       $display("assert_eq failed for %d %d", 'bx, 'bz);
@@ -81,7 +81,7 @@ module svc_tb_unit_asserts_tb;
       b               = $random();
 
       test_msg_called = 1'b0;
-      `ASSERT_NEQ(a, b);
+      `CHECK_NEQ(a, b);
       if (a !== b) begin
         assert (!test_msg_called)
         else begin
@@ -90,21 +90,21 @@ module svc_tb_unit_asserts_tb;
       end
 
       test_msg_called = 1'b0;
-      `ASSERT_NEQ(a, a);
+      `CHECK_NEQ(a, a);
       assert (test_msg_called)
       else begin
         $display("assert_neq failed for %d %d", a, a);
       end
 
       test_msg_called = 1'b0;
-      `ASSERT_NEQ(a, 'bx);
+      `CHECK_NEQ(a, 'bx);
       assert (!test_msg_called)
       else begin
         $display("assert_neq failed for %d %d", a, 'bx);
       end
 
       test_msg_called = 1'b0;
-      `ASSERT_NEQ(a, 'bz);
+      `CHECK_NEQ(a, 'bz);
       assert (!test_msg_called)
       else begin
         $display("assert_neq failed for %d %d", a, 'bz);
@@ -112,21 +112,21 @@ module svc_tb_unit_asserts_tb;
     end
 
     test_msg_called = 1'b0;
-    `ASSERT_NEQ('bx, 'bx);
+    `CHECK_NEQ('bx, 'bx);
     assert (test_msg_called)
     else begin
       $display("assert_neq failed for %d %d", 'bx, 'bx);
     end
 
     test_msg_called = 1'b0;
-    `ASSERT_NEQ('bz, 'bz);
+    `CHECK_NEQ('bz, 'bz);
     assert (test_msg_called)
     else begin
       $display("assert_neq failed for %d %d", 'bz, 'bz);
     end
 
     test_msg_called = 1'b0;
-    `ASSERT_NEQ('bx, 'bz);
+    `CHECK_NEQ('bx, 'bz);
     assert (!test_msg_called)
     else begin
       $display("assert_neq failed for %d %d", 'bx, 'bz);
