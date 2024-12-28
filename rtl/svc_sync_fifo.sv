@@ -62,6 +62,57 @@ module svc_sync_fifo #(
   assign r_empty = (w_ptr == r_ptr);
   assign r_data  = mem[r_addr];
 
-endmodule
+`ifdef FORMAL
+  // TODO: it would be nice to add checks that the data read is what was
+  // written. It doesn't seem the system verilog queues are supported, so
+  // testing the reads of writes would pretty much need to reimplement the
+  // fifo logic, which would be pointless. Look into if there is some system
+  // verilog function or class that can be used.
+ 
+  `define ASSERT assert
+  `define ASSUME assume
 
+  // track how many elements are in the fifo
+  int f_count = 0;
+  int f_max_count = (1 << ADDR_WIDTH);
+  always @(posedge clk) begin
+    if (~rst_n) begin
+      f_count <= 0;
+    end else if ((w_inc && !w_full) && (!r_inc || r_empty)) begin
+      f_count <= f_count + 1;
+    end else if ((r_inc && !r_empty) && (!w_inc || w_full)) begin
+      f_count <= f_count - 1;
+    end
+  end
+
+  always @(posedge clk) begin
+    if ($rose(rst_n)) begin
+      a_reset_ptrs: `ASSERT(w_ptr == 0 && r_ptr == 0);
+      a_reset_flags: `ASSERT(r_empty && !w_full);
+    end
+  end
+
+  always @(posedge clk) begin
+    if (rst_n) begin
+      a_oflow: `ASSERT(f_count <= (f_max_count));
+
+      a_full:  `ASSERT(!w_full || f_count == f_max_count);
+      c_full:  cover (w_inc && !r_inc && f_count == f_max_count-1);
+
+      a_empty: `ASSERT (!r_empty || f_count == 0);
+      c_empty: cover  (r_inc && !w_inc && f_count == 1);
+
+      c_write_full: cover(w_inc && w_full);
+      c_write_empty: cover(w_inc && r_empty);
+      c_read_empty: cover(r_inc && r_empty);
+      c_read_full: cover(r_inc && w_full);
+      c_rw_simultaneous: cover(w_inc && r_inc);
+
+      c_nzero_write: cover (w_inc && |w_data);
+      c_nzero_read:  cover (r_inc && |r_data);
+    end
+  end
+`endif
+
+endmodule
 `endif
