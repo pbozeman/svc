@@ -3,22 +3,27 @@
 
 `include "svc.sv"
 
-`define COLOR_BLUE "\033[34m"
-`define COLOR_GREEN "\033[32m"
-`define COLOR_RED "\033[31m"
-`define COLOR_YELLOW "\033[33m"
-`define COLOR_RESET "\033[0m"
-
 // Super basic test framework that works with iverilog verible-verilog-format.
 // I would have just used vunit, but it uses sv class polymorphism which
 // isn't supported by iverilog. Also, verible-verilog-format does not parse
 // vunit's "`TEST_SUITE begin" syntax.
 
+`define COLOR_BLACK "\033[30m"
+`define COLOR_RED "\033[31m"
+`define COLOR_GREEN "\033[32m"
+`define COLOR_YELLOW "\033[33m"
+`define COLOR_BLUE "\033[34m"
+`define COLOR_MAGENTA "\033[34m"
+`define COLOR_CYAN "\033[36m"
+`define COLOR_WHITE "\033[36m"
+`define COLOR_RESET "\033[0m"
+
 `define ASSERT_MSG(op, file, line, a, b)                                     \
-  $display("%sFAIL%s\nASSERT_%s FAILURE: %s:%0d %0d(0x%0h) %0d(0x%0h)",      \
-           `COLOR_RED, `COLOR_RESET, op, file, line, a, a, b, b);            \
+  $display("%sFAIL%s\nASSERT_%s FAILURE: %s%s:%0d%s %0d(0x%0h) %0d(0x%0h)",  \
+           `COLOR_RED, `COLOR_RESET,                                         \
+            op, `COLOR_YELLOW, file, line, `COLOR_RESET,  a, a, b, b);       \
   $display("%smake %s RUN=%s%s",                                             \
-           `COLOR_BLUE, svc_tb_module_name, svc_tb_test_name, `COLOR_RESET); \
+           `COLOR_CYAN, svc_tb_module_name, svc_tb_test_name, `COLOR_RESET); \
   $display("%sgtkwave .build/%s.vcd%s",                                      \
            `COLOR_YELLOW, svc_tb_module_name, `COLOR_RESET);                 \
   $fatal;
