@@ -5,7 +5,7 @@ RTL_DIR   := rtl
 TB_DIR    := tb
 
 RTL := $(wildcard $(RTL_DIR)/*.sv)
-RTL_TB := $(wildcard $(TB_DIR)/*.sv)
+RTL_TB := $(wildcard $(TB_DIR)/*_tb.sv)
 
 # Test benches (just the module name)
 TEST_BENCHES := $(basename $(notdir $(RTL_TB)))
