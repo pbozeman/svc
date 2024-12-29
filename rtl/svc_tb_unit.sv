@@ -17,12 +17,10 @@
 `define ASSERT_MSG(op, file, line, a, b)                                     \
   $display("%sFAIL%s\nASSERT_%s FAILURE: %s:%0d %0d(0x%0h) %0d(0x%0h)",      \
            `COLOR_RED, `COLOR_RESET, op, file, line, a, a, b, b);            \
-`ifndef VERILATOR                                                            \
   $display("%smake %s RUN=%s%s",                                             \
            `COLOR_BLUE, svc_tb_module_name, svc_tb_test_name, `COLOR_RESET); \
   $display("%sgtkwave .build/%s.vcd%s",                                      \
            `COLOR_YELLOW, svc_tb_module_name, `COLOR_RESET);                 \
-`endif                                                                       \
   $fatal;
 
 `define CHECK_EQ(a, b)                                        \
@@ -58,6 +56,7 @@
 `define TEST_SUITE_BEGIN(tb_module_name)                                  \
 `ifndef VERILATOR                                                         \
   int line_num;                                                           \
+`endif                                                                    \
   string svc_tb_module_name;                                              \
   string svc_tb_test_name;                                                \
   string svc_tb_test_name_run;                                            \
@@ -65,7 +64,6 @@
   initial begin                                                           \
     svc_tb_module_name = `"tb_module_name`";                              \
   end                                                                     \
-`endif                                                                    \
                                                                           \
   initial begin                                                           \
     $dumpfile({".build/", `"tb_module_name`", ".vcd"});                   \
@@ -87,7 +85,6 @@
 `ifdef TEST_RESET_TASK                                                     \
   `TEST_RESET_TASK                                                         \
 `endif                                                                     \
-`ifndef VERILATOR                                                          \
   svc_tb_test_name = `"test_task`";                                        \
   if (!$value$plusargs("run=%s", svc_tb_test_name_run) ||                  \
       svc_tb_test_name_run == "" ||                                        \
@@ -96,9 +93,6 @@
     test_task();                                                           \
     $fwrite(1, "%sPASS%s\n", `COLOR_GREEN, `COLOR_RESET);                  \
   end                                                                      \
-`else                                                                      \
-    test_task();                                                           \
-`endif
 
 `define TEST_SUITE_END(arg = "")               \
   #100;                                        \
