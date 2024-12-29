@@ -68,9 +68,6 @@ module svc_sync_fifo #(
   // testing the reads of writes would pretty much need to reimplement the
   // fifo logic, which would be pointless. Look into if there is some system
   // verilog function or class that can be used.
- 
-  `define ASSERT assert
-  `define ASSUME assume
 
   // track how many elements are in the fifo
   int f_count = 0;
@@ -87,32 +84,33 @@ module svc_sync_fifo #(
 
   always @(posedge clk) begin
     if ($rose(rst_n)) begin
-      a_reset_ptrs: `ASSERT(w_ptr == 0 && r_ptr == 0);
-      a_reset_flags: `ASSERT(r_empty && !w_full);
+      a_reset_ptrs : assert (w_ptr == 0 && r_ptr == 0);
+      a_reset_flags : assert (r_empty && !w_full);
     end
   end
 
   always @(posedge clk) begin
     if (rst_n) begin
-      a_oflow: `ASSERT(f_count <= (f_max_count));
+      a_oflow : assert (f_count <= (f_max_count));
 
-      a_full:  `ASSERT(!w_full || f_count == f_max_count);
-      c_full:  cover (w_inc && !r_inc && f_count == f_max_count-1);
+      a_full : assert (!w_full || f_count == f_max_count);
+      c_full : cover (w_inc && !r_inc && f_count == f_max_count - 1);
 
-      a_empty: `ASSERT (!r_empty || f_count == 0);
-      c_empty: cover  (r_inc && !w_inc && f_count == 1);
+      a_empty : assert (!r_empty || f_count == 0);
+      c_empty : cover (r_inc && !w_inc && f_count == 1);
 
-      c_write_full: cover(w_inc && w_full);
-      c_write_empty: cover(w_inc && r_empty);
-      c_read_empty: cover(r_inc && r_empty);
-      c_read_full: cover(r_inc && w_full);
-      c_rw_simultaneous: cover(w_inc && r_inc);
+      c_write_full : cover (w_inc && w_full);
+      c_write_empty : cover (w_inc && r_empty);
+      c_read_empty : cover (r_inc && r_empty);
+      c_read_full : cover (r_inc && w_full);
+      c_rw_simultaneous : cover (w_inc && r_inc);
 
-      c_nzero_write: cover (w_inc && |w_data);
-      c_nzero_read:  cover (r_inc && |r_data);
+      c_nzero_write : cover (w_inc && |w_data);
+      c_nzero_read : cover (r_inc && |r_data);
     end
   end
 `endif
+  // verilog_format: on
 
 endmodule
 `endif
