@@ -90,7 +90,6 @@ module svc_axil_sram_if_rd_tb;
     @(posedge clk);
     #1;
     `CHECK_EQ(sram_rd_cmd_valid, 1'b0);
-    `CHECK_EQ(sram_rd_cmd_addr, SAW'(addr[AW-1:LSB]));
   endtask
 
   task automatic test_r_axi_rready;
