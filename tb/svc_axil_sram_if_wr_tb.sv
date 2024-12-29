@@ -79,7 +79,7 @@ module svc_axil_sram_if_wr_tb;
 
   task test_initial;
     `CHECK_EQ(sram_wr_cmd_valid, 1'b0);
-    `CHECK_EQ(m_axil_bvalid, 1'b1);
+    `CHECK_EQ(m_axil_bvalid, 1'b0);
     `CHECK_EQ(m_axil_bresp, '0);
   endtask
 
@@ -96,6 +96,10 @@ module svc_axil_sram_if_wr_tb;
     #1;
     `CHECK_EQ(sram_wr_cmd_valid, 1'b0);
     `CHECK_EQ(sram_wr_cmd_addr, SAW'(addr[AW-1:LSB]));
+
+    @(posedge clk);
+    #1;
+    `CHECK_EQ(m_axil_bvalid, 1'b0);
   endtask
 
   task automatic test_w_only;
@@ -113,6 +117,11 @@ module svc_axil_sram_if_wr_tb;
     `CHECK_EQ(sram_wr_cmd_valid, 1'b0);
     `CHECK_EQ(sram_wr_cmd_data, data);
     `CHECK_EQ(sram_wr_cmd_strb, '1);
+    `CHECK_EQ(m_axil_bvalid, 1'b0);
+
+    @(posedge clk);
+    #1;
+    `CHECK_EQ(m_axil_bvalid, 1'b0);
   endtask
 
   task automatic test_aw_w_delayed;
@@ -132,6 +141,7 @@ module svc_axil_sram_if_wr_tb;
     m_axil_wvalid = 1'b1;
     m_axil_wdata  = data;
     m_axil_wstrb  = '1;
+    m_axil_bready = 1'b1;
 
     // The cmd immediately goes valid when the inputs are both valid
     #1;
@@ -144,6 +154,11 @@ module svc_axil_sram_if_wr_tb;
     @(posedge clk);
     #1;
     `CHECK_EQ(sram_wr_cmd_valid, 1'b0);
+    `CHECK_EQ(m_axil_bvalid, 1'b1);
+
+    @(posedge clk);
+    #1;
+    `CHECK_EQ(m_axil_bvalid, 1'b0);
   endtask
 
   task automatic test_w_aw_delayed;
@@ -156,6 +171,7 @@ module svc_axil_sram_if_wr_tb;
     m_axil_wvalid     = 1'b1;
     m_axil_wdata      = data;
     m_axil_wstrb      = '1;
+    m_axil_bready     = 1'b1;
 
     @(posedge clk);
     #1;
@@ -174,6 +190,12 @@ module svc_axil_sram_if_wr_tb;
     @(posedge clk);
     #1;
     `CHECK_EQ(sram_wr_cmd_valid, 1'b0);
+    `CHECK_EQ(m_axil_bvalid, 1'b1);
+
+    @(posedge clk);
+    #1;
+    `CHECK_EQ(sram_wr_cmd_valid, 1'b0);
+    `CHECK_EQ(m_axil_bvalid, 1'b0);
   endtask
 
   task automatic test_sram_ready;
@@ -187,6 +209,7 @@ module svc_axil_sram_if_wr_tb;
     m_axil_wvalid  = 1'b1;
     m_axil_wdata   = data;
     m_axil_wstrb   = '1;
+    m_axil_bready  = 1'b1;
 
     repeat (3) begin
       @(posedge clk);
@@ -194,12 +217,19 @@ module svc_axil_sram_if_wr_tb;
       `CHECK_EQ(sram_wr_cmd_addr, SAW'(addr[AW-1:LSB]));
       `CHECK_EQ(sram_wr_cmd_data, data);
       `CHECK_EQ(sram_wr_cmd_strb, '1);
+      `CHECK_EQ(m_axil_bvalid, 1'b0);
     end
 
     sram_wr_cmd_ready = 1'b1;
     @(posedge clk);
     #1;
     `CHECK_EQ(sram_wr_cmd_valid, 1'b0);
+    `CHECK_EQ(m_axil_bvalid, 1'b1);
+
+    @(posedge clk);
+    #1;
+    `CHECK_EQ(sram_wr_cmd_valid, 1'b0);
+    `CHECK_EQ(m_axil_bvalid, 1'b0);
   endtask
 
   `TEST_SUITE_BEGIN(svc_axil_sram_if_wr_tb);

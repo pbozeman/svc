@@ -44,6 +44,9 @@ module svc_axil_sram_if_wr #(
     output logic [SRAM_DATA_WIDTH-1:0] sram_wr_cmd_data,
     output logic [SRAM_STRB_WIDTH-1:0] sram_wr_cmd_strb
 );
+  logic bvalid;
+  logic bvalid_next;
+
   assign sram_wr_cmd_valid = (s_axil_awvalid && s_axil_wvalid);
   assign sram_wr_cmd_addr  = s_axil_awaddr[AXIL_ADDR_WIDTH-1:LSB];
   assign sram_wr_cmd_strb  = s_axil_wstrb;
@@ -52,8 +55,25 @@ module svc_axil_sram_if_wr #(
   assign s_axil_awready    = (sram_wr_cmd_ready && sram_wr_cmd_valid);
   assign s_axil_wready     = (sram_wr_cmd_ready && sram_wr_cmd_valid);
 
-  assign s_axil_bvalid     = 1'b1;
-  assign s_axil_bresp      = '0;
+  assign s_axil_bvalid     = bvalid;
+  assign s_axil_bresp      = 2'b00;
+
+  always_comb begin
+    bvalid_next = bvalid;
+    if (sram_wr_cmd_valid && sram_wr_cmd_ready) begin
+      bvalid_next = 1'b1;
+    end else if (s_axil_bvalid && s_axil_bready) begin
+      bvalid_next = 1'b0;
+    end
+  end
+
+  always_ff @(posedge clk) begin
+    if (~rst_n) begin
+      bvalid <= 1'b0;
+    end else begin
+      bvalid <= bvalid_next;
+    end
+  end
 
   `SVC_UNUSED({clk, rst_n, s_axil_bready, s_axil_awaddr[LSB-1:0]});
 
