@@ -45,11 +45,11 @@
     forever #(ns / 2) clk = ~clk;                                            \
   end
 
-`define TEST_RST_N(clk, rst_n, cycles = 10)                                  \
+`define TEST_RST_N(clk, rst_n, cycles = 5)                                   \
   logic rst_n;                                                               \
   `TEST_TASK_RESET_N(clk, rst_n, cycles)
 
-`define TEST_TASK_RESET_N(clk, rst_n, cycles = 10)                           \
+`define TEST_TASK_RESET_N(clk, rst_n, cycles = 5)                            \
   task reset_``rst_n``();                                                    \
     rst_n = 0;                                                               \
     repeat (cycles) @(posedge clk);                                          \
