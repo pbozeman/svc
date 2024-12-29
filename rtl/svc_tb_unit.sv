@@ -84,17 +84,17 @@
 `ifndef VERILATOR                                                            \
   line_num = `__LINE__;                                                      \
 `endif                                                                       \
-`ifdef TEST_SETUP_TASK                                                       \
-  `TEST_SETUP_TASK                                                           \
-`endif                                                                       \
-`ifdef TEST_RESET_TASK                                                       \
-  `TEST_RESET_TASK                                                           \
-`endif                                                                       \
   svc_tb_test_name = `"test_task`";                                          \
   if (!$value$plusargs("run=%s", svc_tb_test_name_run) ||                    \
       svc_tb_test_name_run == "" ||                                          \
       svc_tb_test_name_run == svc_tb_test_name) begin                        \
     $fwrite(1, "%-50s: ", {svc_tb_module_name, ":", svc_tb_test_name});      \
+`ifdef TEST_SETUP_TASK                                                       \
+    `TEST_SETUP_TASK                                                         \
+`endif                                                                       \
+`ifdef TEST_RESET_TASK                                                       \
+    `TEST_RESET_TASK                                                         \
+`endif                                                                       \
     test_task();                                                             \
     $fwrite(1, "%sPASS%s\n", `COLOR_GREEN, `COLOR_RESET);                    \
   end                                                                        \
