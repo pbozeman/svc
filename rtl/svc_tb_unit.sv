@@ -23,80 +23,80 @@
            `COLOR_YELLOW, svc_tb_module_name, `COLOR_RESET);                 \
   $fatal;
 
-`define CHECK_EQ(a, b)                                        \
-  if (!(a === b)) begin                                       \
-    `ASSERT_MSG("EQ", `__FILE__, `__LINE__, a, b);            \
+`define CHECK_EQ(a, b)                                                       \
+  if (!(a === b)) begin                                                      \
+    `ASSERT_MSG("EQ", `__FILE__, `__LINE__, a, b);                           \
   end
 
-`define CHECK_NEQ(a, b)                                       \
-  if (!(a !== b)) begin                                       \
-    `ASSERT_MSG("NEQ", `__FILE__, `__LINE__, a, b);           \
+`define CHECK_NEQ(a, b)                                                      \
+  if (!(a !== b)) begin                                                      \
+    `ASSERT_MSG("NEQ", `__FILE__, `__LINE__, a, b);                          \
   end
 
-`define TEST_CLK_NS(clk, ns)                                  \
-  logic clk;                                                  \
-  initial begin                                               \
-    clk = 0;                                                  \
-    forever #(ns / 2) clk = ~clk;                             \
+`define TEST_CLK_NS(clk, ns)                                                 \
+  logic clk;                                                                 \
+  initial begin                                                              \
+    clk = 0;                                                                 \
+    forever #(ns / 2) clk = ~clk;                                            \
   end
 
-`define TEST_RST_N(clk, rst_n, cycles = 10)                   \
-  logic rst_n;                                                \
+`define TEST_RST_N(clk, rst_n, cycles = 10)                                  \
+  logic rst_n;                                                               \
   `TEST_TASK_RESET_N(clk, rst_n, cycles)
 
-`define TEST_TASK_RESET_N(clk, rst_n, cycles = 10)            \
-  task reset_``rst_n``();                                     \
-    rst_n = 0;                                                \
-    repeat (cycles) @(posedge clk);                           \
-    rst_n = 1;                                                \
-    @(posedge clk);                                           \
-  endtask                                                     \
+`define TEST_TASK_RESET_N(clk, rst_n, cycles = 10)                           \
+  task reset_``rst_n``();                                                    \
+    rst_n = 0;                                                               \
+    repeat (cycles) @(posedge clk);                                          \
+    rst_n = 1;                                                               \
+    @(posedge clk);                                                          \
+  endtask                                                                    \
   `define TEST_RESET_TASK reset_``rst_n``();
 
-`define TEST_SUITE_BEGIN(tb_module_name)                                  \
-`ifndef VERILATOR                                                         \
-  int line_num;                                                           \
-`endif                                                                    \
-  string svc_tb_module_name;                                              \
-  string svc_tb_test_name;                                                \
-  string svc_tb_test_name_run;                                            \
-                                                                          \
-  initial begin                                                           \
-    svc_tb_module_name = `"tb_module_name`";                              \
-  end                                                                     \
-                                                                          \
-  initial begin                                                           \
-    $dumpfile({".build/", `"tb_module_name`", ".vcd"});                   \
-    $dumpvars(0, tb_module_name);                                         \
-  end                                                                     \
-                                                                          \
+`define TEST_SUITE_BEGIN(tb_module_name)                                     \
+`ifndef VERILATOR                                                            \
+  int line_num;                                                              \
+`endif                                                                       \
+  string svc_tb_module_name;                                                 \
+  string svc_tb_test_name;                                                   \
+  string svc_tb_test_name_run;                                               \
+                                                                             \
+  initial begin                                                              \
+    svc_tb_module_name = `"tb_module_name`";                                 \
+  end                                                                        \
+                                                                             \
+  initial begin                                                              \
+    $dumpfile({".build/", `"tb_module_name`", ".vcd"});                      \
+    $dumpvars(0, tb_module_name);                                            \
+  end                                                                        \
+                                                                             \
   initial begin
 
 `define TEST_SETUP(setup_task) \
   `define TEST_SETUP_TASK setup_task();
 
-`define TEST_CASE(test_task)                                               \
-`ifndef VERILATOR                                                          \
-  line_num = `__LINE__;                                                    \
-`endif                                                                     \
-`ifdef TEST_SETUP_TASK                                                     \
-  `TEST_SETUP_TASK                                                         \
-`endif                                                                     \
-`ifdef TEST_RESET_TASK                                                     \
-  `TEST_RESET_TASK                                                         \
-`endif                                                                     \
-  svc_tb_test_name = `"test_task`";                                        \
-  if (!$value$plusargs("run=%s", svc_tb_test_name_run) ||                  \
-      svc_tb_test_name_run == "" ||                                        \
-      svc_tb_test_name_run == svc_tb_test_name) begin                      \
-    $fwrite(1, "%-50s: ", {svc_tb_module_name, ":", svc_tb_test_name});    \
-    test_task();                                                           \
-    $fwrite(1, "%sPASS%s\n", `COLOR_GREEN, `COLOR_RESET);                  \
-  end                                                                      \
+`define TEST_CASE(test_task)                                                 \
+`ifndef VERILATOR                                                            \
+  line_num = `__LINE__;                                                      \
+`endif                                                                       \
+`ifdef TEST_SETUP_TASK                                                       \
+  `TEST_SETUP_TASK                                                           \
+`endif                                                                       \
+`ifdef TEST_RESET_TASK                                                       \
+  `TEST_RESET_TASK                                                           \
+`endif                                                                       \
+  svc_tb_test_name = `"test_task`";                                          \
+  if (!$value$plusargs("run=%s", svc_tb_test_name_run) ||                    \
+      svc_tb_test_name_run == "" ||                                          \
+      svc_tb_test_name_run == svc_tb_test_name) begin                        \
+    $fwrite(1, "%-50s: ", {svc_tb_module_name, ":", svc_tb_test_name});      \
+    test_task();                                                             \
+    $fwrite(1, "%sPASS%s\n", `COLOR_GREEN, `COLOR_RESET);                    \
+  end                                                                        \
 
-`define TEST_SUITE_END(arg = "")               \
-  #100;                                        \
-  $finish(0);                                  \
+`define TEST_SUITE_END(arg = "")                                             \
+  #100;                                                                      \
+  $finish(0);                                                                \
   end
 
 `endif
