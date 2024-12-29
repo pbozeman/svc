@@ -3,17 +3,26 @@
 
 `include "svc.sv"
 
+`define COLOR_BLUE "\033[34m"
+`define COLOR_GREEN "\033[32m"
+`define COLOR_RED "\033[31m"
+`define COLOR_YELLOW "\033[33m"
+`define COLOR_RESET "\033[0m"
+
 // Super basic test framework that works with iverilog verible-verilog-format.
 // I would have just used vunit, but it uses sv class polymorphism which
 // isn't supported by iverilog. Also, verible-verilog-format does not parse
 // vunit's "`TEST_SUITE begin" syntax.
 
-`define ASSERT_MSG(op, file, line, a, b)                                   \
-  $display("FAIL\nASSERT_%s FAILURE: %s:%0d %0d(0x%0h) %0d(0x%0h)",        \
-           op, file, line, a, a, b, b);                                    \
-`ifndef VERILATOR                                                          \
-  $display("gtkwave .build/%s.vcd", svc_tb_module_name);                   \
-`endif                                                                     \
+`define ASSERT_MSG(op, file, line, a, b)                                     \
+  $display("%sFAIL%s\nASSERT_%s FAILURE: %s:%0d %0d(0x%0h) %0d(0x%0h)",      \
+           `COLOR_RED, `COLOR_RESET, op, file, line, a, a, b, b);            \
+`ifndef VERILATOR                                                            \
+  $display("%smake %s RUN=%s%s",                                             \
+           `COLOR_BLUE, svc_tb_module_name, svc_tb_test_name, `COLOR_RESET); \
+  $display("%sgtkwave .build/%s.vcd%s",                                      \
+           `COLOR_YELLOW, svc_tb_module_name, `COLOR_RESET);                 \
+`endif                                                                       \
   $fatal;
 
 `define CHECK_EQ(a, b)                                        \
@@ -51,6 +60,7 @@
   int line_num;                                                           \
   string svc_tb_module_name;                                              \
   string svc_tb_test_name;                                                \
+  string svc_tb_test_name_run;                                            \
                                                                           \
   initial begin                                                           \
     svc_tb_module_name = `"tb_module_name`";                              \
@@ -78,12 +88,13 @@
   `TEST_RESET_TASK                                                         \
 `endif                                                                     \
 `ifndef VERILATOR                                                          \
-  if (!$value$plusargs("run=%s", svc_tb_test_name) ||                      \
-      svc_tb_test_name == "" ||                                            \
-      svc_tb_test_name == `"test_task`") begin                             \
-    $fwrite(1, "%-50s: ", {svc_tb_module_name, ":", `"test_task`"});       \
+  svc_tb_test_name = `"test_task`";                                        \
+  if (!$value$plusargs("run=%s", svc_tb_test_name_run) ||                  \
+      svc_tb_test_name_run == "" ||                                        \
+      svc_tb_test_name_run == svc_tb_test_name) begin                      \
+    $fwrite(1, "%-50s: ", {svc_tb_module_name, ":", svc_tb_test_name});    \
     test_task();                                                           \
-    $fwrite(1, "PASS\n");                                                  \
+    $fwrite(1, "%sPASS%s\n", `COLOR_GREEN, `COLOR_RESET);                  \
   end                                                                      \
 `else                                                                      \
     test_task();                                                           \
