@@ -75,17 +75,16 @@ $(BUILD_DIR)/%: $(TB_DIR)/%.sv Makefile | $(BUILD_DIR)
 
 .PRECIOUS: $(BUILD_DIR)/%.vcd
 $(BUILD_DIR)/%.vcd: $(BUILD_DIR)/%
-	@$(VVP) $^ +SKIP_SLOW_TESTS=$(SKIP_SLOW_TESTS)
+	@$(VVP) $^ +SKIP_SLOW_TESTS=$(SKIP_SLOW_TESTS) +run=$(RUN)
 
 define run_test
-	@$(VVP) $1 +SKIP_SLOW_TESTS=$(SKIP_SLOW_TESTS) &&          \
-		echo "$1" >> $(BUILD_DIR)/tb_success.log     ||          \
+	@$(VVP) $1 +SKIP_SLOW_TESTS=$(SKIP_SLOW_TESTS) +run=$(RUN) && \
+		echo "$1" >> $(BUILD_DIR)/tb_success.log     ||             \
 		echo "make $(notdir $1)" >> $(BUILD_DIR)/tb_failure.log
 endef
 
 .PHONY: $(TEST_BENCHES)
 $(TEST_BENCHES): % : $(BUILD_DIR)/%
-	@echo make $@
 	$(call run_test,$<)
 
 # Run all test benches sequentially and show summary
