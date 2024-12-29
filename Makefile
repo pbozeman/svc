@@ -58,7 +58,6 @@ lint: $(addprefix lint_,$(TEST_BENCHES))
 LINT_TB_CMD=$(LINTER) -I$(RTL_DIR) -I$(TB_DIR) $(TEST_DIR)$(1).sv
 define lint_tb_rule
 lint_$(1):
-	@echo "make lint_$1"
 	@$(LINT_TB_CMD) || (echo $(LINT_TB_CMD); exit 1)
 endef
 
@@ -70,17 +69,22 @@ $(foreach tb, $(TEST_BENCHES), $(eval $(call lint_tb_rule,$(tb))))
 #
 ##############################################################################
 $(BUILD_DIR)/%: $(TB_DIR)/%.sv Makefile | $(BUILD_DIR)
-	$(IVERILOG) -M $(@).dep -I$(RTL_DIR) -I$(TB_DIR) -o $@ $(filter-out Makefile,$^)
+	@$(IVERILOG) -M $(@).dep -I$(RTL_DIR) -I$(TB_DIR) -o $@ $(filter-out Makefile,$^)
 	@echo "$@: $$(tr '\n' ' ' < $(@).dep)" > $(@).d
 
 .PRECIOUS: $(BUILD_DIR)/%.vcd
 $(BUILD_DIR)/%.vcd: $(BUILD_DIR)/%
-	@$(VVP) $^ +SKIP_SLOW_TESTS=$(SKIP_SLOW_TESTS) +run=$(RUN)
+	@$(VVP) $^ +SKIP_SLOW_TESTS=$(SKIP_SLOW_TESTS) +run=$(RUN) | grep -v "VCD info:"
 
 define run_test
-	@$(VVP) $1 +SKIP_SLOW_TESTS=$(SKIP_SLOW_TESTS) +run=$(RUN) && \
-		echo "$1" >> $(BUILD_DIR)/tb_success.log     ||             \
-		echo "make $(notdir $1)" >> $(BUILD_DIR)/tb_failure.log
+	@$(VVP) $1 +SKIP_SLOW_TESTS=$(SKIP_SLOW_TESTS) +run=$(RUN) 2>&1 |\
+		grep -v "VCD info:"; \
+		status=$${PIPESTATUS[0]}; \
+		if [ $$status -eq 0 ]; then \
+			echo "$1" >> $(BUILD_DIR)/tb_success.log; \
+		else \
+			echo "make $(notdir $1)" >> $(BUILD_DIR)/tb_failure.log; \
+		fi
 endef
 
 .PHONY: $(TEST_BENCHES)
@@ -90,9 +94,10 @@ $(TEST_BENCHES): % : $(BUILD_DIR)/%
 # Run all test benches sequentially and show summary
 unit: SKIP_SLOW_TESTS := 1
 unit: clean_logs $(TEST_BENCHES)
+	@echo ""
 	@echo "=============================="
-	@echo "Successful tests: $$(wc -l < $(BUILD_DIR)/tb_success.log)"
-	@echo "Failed tests: $$(wc -l < $(BUILD_DIR)/tb_failure.log)"
+	@echo "Successful suites: $$(wc -l < $(BUILD_DIR)/tb_success.log)"
+	@echo "Failed suites: $$(wc -l < $(BUILD_DIR)/tb_failure.log)"
 	@sed 's/^/    /' $(BUILD_DIR)/tb_failure.log
 	@echo "=============================="
 

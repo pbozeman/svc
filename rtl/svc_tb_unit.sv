@@ -9,8 +9,11 @@
 // vunit's "`TEST_SUITE begin" syntax.
 
 `define ASSERT_MSG(op, file, line, a, b)                                   \
-  $display("FAIL\n       ASSERT_%s FAILURE: %s:%0d %0d(0x%0h) %0d(0x%0h)", \
+  $display("FAIL\nASSERT_%s FAILURE: %s:%0d %0d(0x%0h) %0d(0x%0h)",        \
            op, file, line, a, a, b, b);                                    \
+`ifndef VERILATOR                                                          \
+  $display("gtkwave .build/%s.vcd", svc_tb_module_name);                   \
+`endif                                                                     \
   $fatal;
 
 `define CHECK_EQ(a, b)                                        \
@@ -88,7 +91,7 @@
 
 `define TEST_SUITE_END(arg = "")               \
   #100;                                        \
-  $finish;                                     \
+  $finish(0);                                  \
   end
 
 `endif
