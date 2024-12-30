@@ -129,35 +129,38 @@ module svc_axil_sram_if #(
   //
   // next read/write logic with fairness
   //
-  function state_t rw_pri_arb(logic pri_read);
+  logic   pri_read;
+  state_t fair_state;
+  always_comb begin
     if (pri_read) begin
       if (sram_rd_cmd_valid) begin
-        return STATE_READ;
+        fair_state = STATE_READ;
       end else if (sram_wr_cmd_valid) begin
-        return STATE_WRITE;
+        fair_state = STATE_WRITE;
       end else begin
-        return STATE_IDLE;
+        fair_state = STATE_IDLE;
       end
     end else begin
       if (sram_wr_cmd_valid) begin
-        return STATE_WRITE;
+        fair_state = STATE_WRITE;
       end else if (sram_rd_cmd_valid) begin
-        return STATE_READ;
+        fair_state = STATE_READ;
       end else begin
-        return STATE_IDLE;
+        fair_state = STATE_IDLE;
       end
     end
-  endfunction
+  end
 
   //
   // State machine
   //
   always_comb begin
+    pri_read   = 1'b0;
     state_next = state;
 
     case (state)
       STATE_IDLE: begin
-        state_next = rw_pri_arb(1'b0);
+        state_next = fair_state;
       end
 
       STATE_READ: begin
@@ -165,14 +168,14 @@ module svc_axil_sram_if #(
           if (!s_axil_rready) begin
             state_next = STATE_READ_RESP;
           end else begin
-            state_next = rw_pri_arb(1'b0);
+            state_next = fair_state;
           end
         end
       end
 
       STATE_READ_RESP: begin
         if (s_axil_rready) begin
-          state_next = rw_pri_arb(1'b0);
+          state_next = fair_state;
         end
       end
 
@@ -181,14 +184,16 @@ module svc_axil_sram_if #(
           if (!s_axil_bready) begin
             state_next = STATE_WRITE_RESP;
           end else begin
-            state_next = rw_pri_arb(1'b1);
+            pri_read   = 1'b1;
+            state_next = fair_state;
           end
         end
       end
 
       STATE_WRITE_RESP: begin
         if (s_axil_bready) begin
-          state_next = rw_pri_arb(1'b1);
+          pri_read   = 1'b1;
+          state_next = fair_state;
         end
       end
     endcase
@@ -228,6 +233,59 @@ module svc_axil_sram_if #(
       end
     endcase
   end
+
+`ifdef FORMAL
+  localparam F_LGDEPTH = 4;
+
+  // verilator lint_off: UNUSEDSIGNAL
+  wire [F_LGDEPTH-1:0] f_axil_rd_outstanding;
+  wire [F_LGDEPTH-1:0] f_axil_wr_outstanding;
+  wire [F_LGDEPTH-1:0] f_axil_awr_outstanding;
+  // verilator lint_on: UNUSEDSIGNAL
+
+  faxil_slave #(
+      .C_AXI_ADDR_WIDTH(AXIL_ADDR_WIDTH),
+      .C_AXI_DATA_WIDTH(AXIL_DATA_WIDTH),
+      .F_LGDEPTH       (F_LGDEPTH)
+  ) faxil_i (
+      .i_clk        (clk),
+      .i_axi_reset_n(rst_n),
+
+      .i_axi_awready(s_axil_awready),
+      .i_axi_awaddr (s_axil_awaddr),
+      .i_axi_awvalid(s_axil_awvalid),
+      .i_axi_awprot ('0),
+
+      .i_axi_wready(s_axil_wready),
+      .i_axi_wdata (s_axil_wdata),
+      .i_axi_wstrb (s_axil_wstrb),
+      .i_axi_wvalid(s_axil_wvalid),
+
+      .i_axi_bready(s_axil_bready),
+      .i_axi_bvalid(s_axil_bvalid),
+      .i_axi_bresp (s_axil_bresp),
+
+      .i_axi_araddr (s_axil_araddr),
+      .i_axi_arvalid(s_axil_arvalid),
+      .i_axi_arready(s_axil_arready),
+      .i_axi_arprot ('0),
+
+      .i_axi_rvalid(s_axil_rvalid),
+      .i_axi_rready(s_axil_rready),
+      .i_axi_rdata (s_axil_rdata),
+      .i_axi_rresp (s_axil_rresp),
+
+      .f_axi_rd_outstanding (f_axil_rd_outstanding),
+      .f_axi_wr_outstanding (f_axil_wr_outstanding),
+      .f_axi_awr_outstanding(f_axil_awr_outstanding)
+  );
+
+  // Look into properties to use induction and an unbounded check
+  // see
+  //   https://zipcpu.com/blog/2020/03/08/easyaxil.html
+  // and
+  //   https://github.com/ZipCPU/wb2axip/blob/master/rtl/demoaxi.v
+`endif
 
 endmodule
 `endif
