@@ -19,6 +19,7 @@
 // and then doing a $bits on that intermediate symbol works, whereas
 // doing $bits(signal) directly during module instantiation, did not.
 
+`ifndef FORMAL
 `define SVC_UNUSED(signal)                            \
   logic [$bits(signal)-1:0] svc_unused_sig_`__LINE__; \
   svc_unused #(                                       \
@@ -35,5 +36,8 @@ module svc_unused #(
     // verilator lint_on: UNUSEDSIGNAL
 );
 endmodule
+`else
+`define SVC_UNUSED(signal)
+`endif
 
 `endif
