@@ -1,6 +1,6 @@
-`include "svc_tb_unit.sv"
+`include "svc_unit.sv"
 
-module svc_tb_unit_tb;
+module svc_unit_tb;
   `TEST_CLK_NS(clk, 10);
 
   int clk_cnt = 0;
@@ -34,7 +34,7 @@ module svc_tb_unit_tb;
     `CHECK_EQ(1, 1);
   endtask
 
-  `TEST_SUITE_BEGIN(svc_tb_unit_tb);
+  `TEST_SUITE_BEGIN(svc_unit_tb);
 
   // Must run first to know clock is at 0
   `TEST_CASE(test_clk);
