@@ -44,7 +44,7 @@ module svc_axil_sram_if_wr #(
     output logic [SRAM_DATA_WIDTH-1:0] sram_wr_cmd_data,
     output logic [SRAM_STRB_WIDTH-1:0] sram_wr_cmd_strb
 );
-  logic bvalid;
+  logic bvalid = 1'b0;
   logic bvalid_next;
 
   assign sram_wr_cmd_valid = (s_axil_awvalid && s_axil_wvalid);
@@ -76,6 +76,36 @@ module svc_axil_sram_if_wr #(
   end
 
   `SVC_UNUSED({clk, rst_n, s_axil_bready, s_axil_awaddr[LSB-1:0]});
+
+`ifdef FORMAL
+  // This module gets formally verified up in the combined rd/wr interface, but
+  // we set the assumptions that the sram interface we are wrapping
+  // is well behaved here.
+
+  //
+  // The sram will accept a command in 0 to 3 cycles
+  //
+  logic [1:0] f_cmd_ready_delay;
+  always @(posedge clk) begin
+    if (!rst_n) begin
+      f_cmd_ready_delay <= 0;
+    end else begin
+      if ($rose(sram_wr_cmd_valid)) begin
+        f_cmd_ready_delay <= 0;
+      end
+
+      if (sram_wr_cmd_valid) begin
+        if (!sram_wr_cmd_ready) begin
+          f_cmd_ready_delay <= f_cmd_ready_delay + 1;
+        end
+      end
+
+      assume (f_cmd_ready_delay < 3 || sram_wr_cmd_ready);
+      cover (f_cmd_ready_delay == 2 && sram_wr_cmd_ready);
+      cover (f_cmd_ready_delay == 0 && sram_wr_cmd_ready);
+    end
+  end
+`endif
 
 endmodule
 `endif

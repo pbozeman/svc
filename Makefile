@@ -1,8 +1,9 @@
 # svc Makefile
 
-BUILD_DIR := .build
-RTL_DIR   := rtl
-TB_DIR    := tb
+BUILD_DIR  := .build
+RTL_DIR    := rtl
+TB_DIR     := tb
+FORMAL_DIR := formal
 
 RTL := $(wildcard $(RTL_DIR)/*.sv)
 RTL_TB := $(wildcard $(TB_DIR)/*_tb.sv)
@@ -25,7 +26,7 @@ IVERILOG_FLAGS_WARN := -Wall -Wno-portbind -Wno-timescale
 IVERILOG_FLAGS      := $(IVERILOG_FLAGS_SV) $(IVERILOG_FLAGS_DEFS) $(IVERILOG_FLAGS_WARN)
 IVERILOG            := iverilog $(IVERILOG_FLAGS)
 
-LINTER_FLAGS_DEFS := $(SYNTH_DEFS) -DFORMAL
+LINTER_FLAGS_DEFS := $(SYNTH_DEFS)
 LINTER_FLAGS_WARN := -Wall --Wno-PINCONNECTEMPTY --timing
 LINTER_FLAGS      := $(LINTER_FLAGS_DEFS) $(LINTER_FLAGS_WARN)
 LINTER            := verilator --lint-only --quiet $(LINTER_FLAGS)
@@ -55,7 +56,7 @@ $(BUILD_DIR):
 .PHONY: lint lint_% $(addprefix lint_, $(TEST_BENCHES))
 lint: $(addprefix lint_,$(TEST_BENCHES))
 
-LINT_TB_CMD=$(LINTER) -I$(RTL_DIR) -I$(TB_DIR) $(TEST_DIR)$(1).sv
+LINT_TB_CMD=$(LINTER) -I$(RTL_DIR) -I$(TB_DIR) -I$(FORMAL_DIR) $(TEST_DIR)$(1).sv
 define lint_tb_rule
 lint_$(1):
 	@$(LINT_TB_CMD) || (echo $(LINT_TB_CMD); exit 1)
