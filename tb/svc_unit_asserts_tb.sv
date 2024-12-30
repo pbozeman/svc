@@ -1,4 +1,4 @@
-`include "svc_tb_unit.sv"
+`include "svc_unit.sv"
 
 `undef ASSERT_MSG
 
@@ -6,7 +6,7 @@
   test_msg_called = 1'b1;
 
 
-module svc_tb_unit_asserts_tb;
+module svc_unit_asserts_tb;
   parameter NUM_CHECKS = 128;
 
   logic test_msg_called;
@@ -133,7 +133,7 @@ module svc_tb_unit_asserts_tb;
     end
   endtask
 
-  `TEST_SUITE_BEGIN(svc_tb_unit_asserts_tb);
+  `TEST_SUITE_BEGIN(svc_unit_asserts_tb);
 
   `TEST_CASE(test_assert_eq);
   `TEST_CASE(test_assert_neq);

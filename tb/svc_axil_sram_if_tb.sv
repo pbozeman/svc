@@ -1,4 +1,4 @@
-`include "svc_tb_unit.sv"
+`include "svc_unit.sv"
 
 `include "svc_axil_sram_if.sv"
 `include "svc_model_sram.sv"
