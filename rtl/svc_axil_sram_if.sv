@@ -1,8 +1,6 @@
 `ifndef SVC_AXIL_SRAM_IF_SV
 `define SVC_AXIL_SRAM_IF_SV
 
-// verilator lint_off: UNUSEDSIGNAL
-
 `include "svc.sv"
 `include "svc_axil_sram_if_rd.sv"
 `include "svc_axil_sram_if_wr.sv"
@@ -72,7 +70,6 @@ module svc_axil_sram_if #(
   logic                         sram_wr_cmd_valid;
   logic                         sram_wr_cmd_ready;
   logic   [SRAM_ADDR_WIDTH-1:0] sram_wr_cmd_addr;
-  logic   [SRAM_DATA_WIDTH-1:0] sram_wr_cmd_data;
 
   logic                         sram_rd_cmd_valid;
   logic                         sram_rd_cmd_ready;
