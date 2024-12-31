@@ -1,3 +1,5 @@
+// verilator lint_off: GENUNNAMED
+// verilator lint_off: TIMESCALEMOD
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Filename: 	faxil_slave.v (Formal properties of an AXI lite slave)
