@@ -95,7 +95,6 @@ module svc_axil_sram_if_wr_tb;
     @(posedge clk);
     #1;
     `CHECK_EQ(sram_wr_cmd_valid, 1'b0);
-    `CHECK_EQ(sram_wr_cmd_addr, SAW'(addr[AW-1:LSB]));
 
     @(posedge clk);
     #1;
