@@ -19,8 +19,8 @@ module svc_axi_sram_if #(
     parameter LSB             = $clog2(AXI_DATA_WIDTH) - 3,
     parameter SRAM_ADDR_WIDTH = AXI_ADDR_WIDTH - LSB,
     parameter SRAM_DATA_WIDTH = AXI_DATA_WIDTH,
-    parameter SRAM_ID_WIDTH   = AXI_ID_WIDTH,
-    parameter SRAM_STRB_WIDTH = AXI_STRB_WIDTH
+    parameter SRAM_STRB_WIDTH = AXI_STRB_WIDTH,
+    parameter SRAM_META_WIDTH = AXI_ID_WIDTH + 1
 ) (
     input logic clk,
     input logic rst_n,
@@ -56,7 +56,7 @@ module svc_axi_sram_if #(
     input  logic [               1:0] s_axi_arburst,
     output logic                      s_axi_rvalid,
     input  logic                      s_axi_rready,
-    input  logic [  AXI_ID_WIDTH-1:0] s_axi_rid,
+    output logic [  AXI_ID_WIDTH-1:0] s_axi_rid,
     output logic [AXI_DATA_WIDTH-1:0] s_axi_rdata,
     output logic [               1:0] s_axi_rresp,
     output logic                      s_axi_rlast,
@@ -68,17 +68,17 @@ module svc_axi_sram_if #(
     //
     output logic                       sram_cmd_valid,
     input  logic                       sram_cmd_ready,
-    output logic [  SRAM_ID_WIDTH-1:0] sram_cmd_id,
-    output logic [SRAM_ADDR_WIDTH-1:0] sram_cmd_addr,
     output logic                       sram_cmd_wr_en,
+    output logic [SRAM_ADDR_WIDTH-1:0] sram_cmd_addr,
+    output logic [SRAM_META_WIDTH-1:0] sram_cmd_meta,
     output logic [SRAM_DATA_WIDTH-1:0] sram_cmd_wr_data,
     output logic [SRAM_STRB_WIDTH-1:0] sram_cmd_wr_strb,
     // verilator lint_off: UNUSEDSIGNAL
     // verilator lint_off: UNDRIVEN
     input  logic                       sram_rd_resp_valid,
     output logic                       sram_rd_resp_ready,
-    input  logic [  SRAM_ID_WIDTH-1:0] sram_rd_resp_id,
-    input  logic [SRAM_DATA_WIDTH-1:0] sram_rd_resp_data
+    input  logic [SRAM_DATA_WIDTH-1:0] sram_rd_resp_data,
+    input  logic [SRAM_META_WIDTH-1:0] sram_rd_resp_meta
     // verilator lint_on: UNUSEDSIGNAL
     // verilator lint_on: UNDRIVEN
 );
@@ -91,6 +91,7 @@ module svc_axi_sram_if #(
   logic                       sram_rd_cmd_valid;
   logic                       sram_rd_cmd_ready;
   logic [SRAM_ADDR_WIDTH-1:0] sram_rd_cmd_addr;
+  logic [SRAM_META_WIDTH-1:0] sram_rd_cmd_meta;
   // verilator lint_on: UNUSEDSIGNAL
   // verilator lint_on: UNDRIVEN
 
@@ -98,6 +99,7 @@ module svc_axi_sram_if #(
   // the formal verifier to validate the write path.
   assign sram_cmd_valid    = sram_wr_cmd_valid;
   assign sram_cmd_addr     = sram_wr_cmd_addr;
+  assign sram_cmd_meta     = '0;
   assign sram_cmd_wr_en    = 1'b1;
   assign sram_wr_cmd_ready = sram_cmd_ready;
 
@@ -155,12 +157,12 @@ module svc_axi_sram_if #(
 
       .sram_rd_cmd_valid (sram_rd_cmd_valid),
       .sram_rd_cmd_ready (sram_rd_cmd_ready),
-      .sram_rd_cmd_id    (sram_cmd_id),
       .sram_rd_cmd_addr  (sram_rd_cmd_addr),
+      .sram_rd_cmd_meta  (sram_rd_cmd_meta),
       .sram_rd_resp_valid(sram_rd_resp_valid),
       .sram_rd_resp_ready(sram_rd_resp_ready),
-      .sram_rd_resp_id   (sram_rd_resp_id),
-      .sram_rd_resp_data (sram_rd_resp_data)
+      .sram_rd_resp_data (sram_rd_resp_data),
+      .sram_rd_resp_meta (sram_rd_resp_meta)
   );
 
 `ifdef FORMAL_BUT_FAXI_SLAVE_IS_BROKEN_SO_DONT_DO_THIS

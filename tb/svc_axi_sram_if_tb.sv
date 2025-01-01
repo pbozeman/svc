@@ -9,6 +9,7 @@ module svc_axi_sram_if_tb;
   parameter AW = 16;
   parameter DW = 16;
   parameter IW = 4;
+  parameter MW = IW + 1;
   parameter LSB = $clog2(DW) - 3;
   parameter SAW = AW - LSB;
   parameter STRBW = (DW / 8);
@@ -49,15 +50,15 @@ module svc_axi_sram_if_tb;
 
   logic             sram_cmd_valid;
   logic             sram_cmd_ready;
-  logic [   IW-1:0] sram_cmd_id;
-  logic [  SAW-1:0] sram_cmd_addr;
   logic             sram_cmd_wr_en;
+  logic [  SAW-1:0] sram_cmd_addr;
+  logic [   MW-1:0] sram_cmd_meta;
   logic [   DW-1:0] sram_cmd_wr_data;
   logic [STRBW-1:0] sram_cmd_wr_strb;
   logic             sram_rd_resp_valid;
   logic             sram_rd_resp_ready;
-  logic [   IW-1:0] sram_rd_resp_id;
   logic [   DW-1:0] sram_rd_resp_data;
+  logic [   MW-1:0] sram_rd_resp_meta;
 
   // if true, test cases don't have to manage dropping valid signals
   logic             auto_valid;
@@ -102,15 +103,15 @@ module svc_axi_sram_if_tb;
 
       .sram_cmd_valid    (sram_cmd_valid),
       .sram_cmd_ready    (sram_cmd_ready),
-      .sram_cmd_id       (sram_cmd_id),
       .sram_cmd_addr     (sram_cmd_addr),
+      .sram_cmd_meta     (sram_cmd_meta),
       .sram_cmd_wr_en    (sram_cmd_wr_en),
       .sram_cmd_wr_data  (sram_cmd_wr_data),
       .sram_cmd_wr_strb  (sram_cmd_wr_strb),
       .sram_rd_resp_valid(sram_rd_resp_valid),
       .sram_rd_resp_ready(sram_rd_resp_ready),
-      .sram_rd_resp_id   (sram_rd_resp_id),
-      .sram_rd_resp_data (sram_rd_resp_data)
+      .sram_rd_resp_data (sram_rd_resp_data),
+      .sram_rd_resp_meta (sram_rd_resp_meta)
   );
 
   svc_model_sram #(
