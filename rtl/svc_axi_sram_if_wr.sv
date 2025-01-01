@@ -114,24 +114,22 @@ module svc_axi_sram_if_wr #(
 
         if (s_axi_awvalid && s_axi_awready) begin
           state_next = STATE_BURST;
+          s_axi_awready_next = 1'b0;
 
           w_addr_next = s_axi_awaddr;
           w_addr_valid_next = 1'b1;
 
           w_id_next = s_axi_awid;
-
           w_remaining_next = s_axi_awlen;
           w_size_next = (s_axi_awsize < 3'($clog2(AXI_STRB_WIDTH)) ? s_axi_awsize :
                          3'($clog2(AXI_STRB_WIDTH)));
           w_burst_next = s_axi_awburst;
           w_last_next = s_axi_awlen == 0;
-
-          s_axi_awready_next = 1'b0;
         end
       end
 
       STATE_BURST: begin
-        if (s_axi_wready && s_axi_wvalid) begin
+        if (s_axi_wvalid && s_axi_wready) begin
           if (w_burst != 2'b00) begin
             w_addr_next = w_addr + (1 << w_size);
           end
