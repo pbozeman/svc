@@ -5,8 +5,6 @@
 `include "svc_axi_sram_if_rd.sv"
 `include "svc_axi_sram_if_wr.sv"
 
-// TODO: this only hooks up the write side and doesn't arbitrate yet
-
 // This is a lightweight wrapper to convert byte based AXI to an SRAM
 // interface. It arbitrates between reads and writes, as the SRAM can only
 // do 1 at a time. It also converts the addresses to be word rather than byte
