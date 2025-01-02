@@ -2,6 +2,9 @@
 
 `include "svc_axi_sram_if_rd.sv"
 
+// The bulk of the testing of the rd module is in the combined if module as
+// the test methods were being duplicated in both places.
+
 module svc_axi_sram_if_rd_tb;
   parameter AW = 20;
   parameter DW = 16;
@@ -13,6 +16,7 @@ module svc_axi_sram_if_rd_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
+  // verilator lint_off: UNUSEDSIGNAL
   logic           m_axi_arvalid;
   logic           m_axi_arready;
   logic [ IW-1:0] m_axi_arid;
@@ -34,7 +38,7 @@ module svc_axi_sram_if_rd_tb;
   logic           sram_rd_resp_valid;
   logic           sram_rd_resp_ready;
   logic [ DW-1:0] sram_rd_resp_data;
-  logic [ MW-1:0] sram_rd_resp_meta;
+  // verilator lint_on: UNUSEDSIGNAL
 
   svc_axi_sram_if_rd #(
       .AXI_ADDR_WIDTH(AW),
@@ -64,15 +68,8 @@ module svc_axi_sram_if_rd_tb;
       .sram_rd_resp_valid(sram_rd_resp_valid),
       .sram_rd_resp_ready(sram_rd_resp_ready),
       .sram_rd_resp_data (sram_rd_resp_data),
-      .sram_rd_resp_meta (sram_rd_resp_meta)
+      .sram_rd_resp_meta ()
   );
-
-  function automatic logic [SAW-1:0] a_to_sa(logic [AW-1:0] addr);
-    // verilator lint_off: UNUSEDSIGNAL
-    logic unused = |addr;
-    // verilator lint_on: UNUSEDSIGNAL
-    return SAW'(addr[AW-1:LSB]);
-  endfunction
 
   always_ff @(posedge clk) begin
     if (~rst_n) begin
@@ -124,146 +121,10 @@ module svc_axi_sram_if_rd_tb;
     `CHECK_EQ(sram_rd_cmd_valid, 1'b0);
   endtask
 
-  task automatic test_r_axi_rready;
-    logic [AW-1:0] addr = AW'(16'hA000);
-    logic [DW-1:0] data = DW'(16'hD000);
-
-    `CHECK_EQ(m_axi_rvalid, 1'b0);
-    m_axi_arvalid     = 1'b1;
-    m_axi_arid        = 4'hB;
-    m_axi_araddr      = addr;
-    sram_rd_cmd_ready = 1'b1;
-
-    @(posedge clk);
-    #1;
-    `CHECK_EQ(m_axi_rvalid, 1'b0);
-    `CHECK_EQ(sram_rd_resp_ready, 1'b0);
-
-    sram_rd_resp_valid = 1'b1;
-    sram_rd_resp_data  = data;
-    sram_rd_resp_meta  = {4'hB, 1'b1};
-
-    #1;
-    `CHECK_EQ(m_axi_rvalid, 1'b1);
-    `CHECK_EQ(m_axi_rid, 4'hB);
-    `CHECK_EQ(m_axi_rdata, data);
-    `CHECK_EQ(m_axi_rresp, 2'b00);
-    `CHECK_EQ(sram_rd_resp_ready, 1'b0);
-
-    repeat (3) begin
-      @(posedge clk);
-      `CHECK_EQ(m_axi_rvalid, 1'b1);
-      `CHECK_EQ(m_axi_rid, 4'hB);
-      `CHECK_EQ(m_axi_rdata, data);
-      `CHECK_EQ(m_axi_rresp, 2'b00);
-      `CHECK_EQ(sram_rd_resp_ready, 1'b0);
-    end
-
-    m_axi_rready = 1'b1;
-    `CHECK_EQ(sram_rd_resp_ready, 1'b1);
-  endtask
-
-  task automatic test_burst;
-    logic [AW-1:0] addr = AW'(16'hA000);
-    logic [DW-1:0] data = DW'(16'hD000);
-
-    // Length of 4 (N-1)
-    // INCR burst
-    // 2 bytes (16 bits)
-    m_axi_arvalid     = 1'b1;
-    m_axi_araddr      = addr;
-    m_axi_arid        = 4'hB;
-    m_axi_arlen       = 8'h3;
-    m_axi_arburst     = 2'b01;
-    m_axi_arsize      = 3'b001;
-
-    sram_rd_cmd_ready = 1'b1;
-    m_axi_rready      = 1'b1;
-
-    @(posedge clk);
-    #1;
-    `CHECK_EQ(sram_rd_cmd_valid, 1'b1);
-    `CHECK_EQ(sram_rd_cmd_addr, a_to_sa(addr));
-    `CHECK_EQ(sram_rd_cmd_meta, {4'hB, 1'b0});
-    sram_rd_resp_valid = 1'b1;
-    sram_rd_resp_data  = data;
-    sram_rd_resp_meta  = {4'hB, 1'b0};
-    #1;
-
-    `CHECK_EQ(m_axi_rvalid, 1'b1);
-    `CHECK_EQ(m_axi_rdata, data);
-    `CHECK_EQ(m_axi_rid, 4'hB);
-    `CHECK_EQ(m_axi_rresp, 2'b00);
-    `CHECK_EQ(m_axi_rlast, 1'b0);
-
-    // Second beat
-    @(posedge clk);
-    #1;
-    `CHECK_EQ(sram_rd_cmd_valid, 1'b1);
-    `CHECK_EQ(sram_rd_cmd_addr, a_to_sa(addr + 2));
-    `CHECK_EQ(sram_rd_cmd_meta, {4'hB, 1'b0});
-    sram_rd_resp_valid = 1'b1;
-    sram_rd_resp_data  = data + DW'(2);
-    sram_rd_resp_meta  = {4'hB, 1'b0};
-    #1;
-
-    `CHECK_EQ(m_axi_rvalid, 1'b1);
-    `CHECK_EQ(m_axi_rdata, data + DW'(2));
-    `CHECK_EQ(m_axi_rid, 4'hB);
-    `CHECK_EQ(m_axi_rresp, 2'b00);
-    `CHECK_EQ(m_axi_rlast, 1'b0);
-
-    // Third beat
-    @(posedge clk);
-    #1;
-    `CHECK_EQ(sram_rd_cmd_valid, 1'b1);
-    `CHECK_EQ(sram_rd_cmd_addr, a_to_sa(addr + 4));
-    `CHECK_EQ(sram_rd_cmd_meta, {4'hB, 1'b0});
-    sram_rd_resp_valid = 1'b1;
-    sram_rd_resp_data  = data + DW'(4);
-    sram_rd_resp_meta  = {4'hB, 1'b0};
-    #1;
-
-    `CHECK_EQ(m_axi_rvalid, 1'b1);
-    `CHECK_EQ(m_axi_rdata, data + DW'(4));
-    `CHECK_EQ(m_axi_rid, 4'hB);
-    `CHECK_EQ(m_axi_rresp, 2'b00);
-    `CHECK_EQ(m_axi_rlast, 1'b0);
-
-    // Fourth and last beat
-    @(posedge clk);
-    #1;
-    `CHECK_EQ(sram_rd_cmd_valid, 1'b1);
-    `CHECK_EQ(sram_rd_cmd_addr, a_to_sa(addr + 6));
-    `CHECK_EQ(sram_rd_cmd_meta, {4'hB, 1'b1});
-    sram_rd_resp_valid = 1'b1;
-    sram_rd_resp_data  = data + DW'(6);
-    sram_rd_resp_meta  = {4'hB, 1'b1};
-    #1;
-
-    `CHECK_EQ(m_axi_rvalid, 1'b1);
-    `CHECK_EQ(m_axi_rdata, data + DW'(6));
-    `CHECK_EQ(m_axi_rid, 4'hB);
-    `CHECK_EQ(m_axi_rresp, 2'b00);
-    `CHECK_EQ(m_axi_rlast, 1'b1);
-
-    @(posedge clk);
-    #1;
-    `CHECK_EQ(sram_rd_cmd_valid, 1'b0);
-    sram_rd_resp_valid = 1'b0;
-    #1;
-    `CHECK_EQ(m_axi_rvalid, 1'b0);
-
-    @(posedge clk);
-    #1;
-    `CHECK_EQ(m_axi_rvalid, 1'b0);
-  endtask
 
   `TEST_SUITE_BEGIN(svc_axi_sram_if_rd_tb);
   `TEST_CASE(test_initial);
   `TEST_CASE(test_ar_sram_ready);
-  `TEST_CASE(test_r_axi_rready);
-  `TEST_CASE(test_burst);
   `TEST_SUITE_END();
 
 endmodule
