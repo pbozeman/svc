@@ -18,7 +18,7 @@ module svc_axi_sram_if #(
     parameter SRAM_ADDR_WIDTH = AXI_ADDR_WIDTH - LSB,
     parameter SRAM_DATA_WIDTH = AXI_DATA_WIDTH,
     parameter SRAM_STRB_WIDTH = AXI_STRB_WIDTH,
-    parameter SRAM_META_WIDTH = AXI_ID_WIDTH + 1
+    parameter SRAM_META_WIDTH = AXI_ID_WIDTH
 ) (
     input logic clk,
     input logic rst_n,
@@ -65,12 +65,14 @@ module svc_axi_sram_if #(
     output logic                       sram_cmd_wr_en,
     output logic [SRAM_ADDR_WIDTH-1:0] sram_cmd_addr,
     output logic [SRAM_META_WIDTH-1:0] sram_cmd_meta,
+    output logic                       sram_cmd_last,
     output logic [SRAM_DATA_WIDTH-1:0] sram_cmd_wr_data,
     output logic [SRAM_STRB_WIDTH-1:0] sram_cmd_wr_strb,
     input  logic                       sram_rd_resp_valid,
     output logic                       sram_rd_resp_ready,
     input  logic [SRAM_DATA_WIDTH-1:0] sram_rd_resp_data,
-    input  logic [SRAM_META_WIDTH-1:0] sram_rd_resp_meta
+    input  logic [SRAM_META_WIDTH-1:0] sram_rd_resp_meta,
+    input  logic                       sram_rd_resp_last
 );
   typedef enum {
     STATE_IDLE,
@@ -91,6 +93,7 @@ module svc_axi_sram_if #(
   logic                         sram_rd_cmd_ready;
   logic   [SRAM_ADDR_WIDTH-1:0] sram_rd_cmd_addr;
   logic   [SRAM_META_WIDTH-1:0] sram_rd_cmd_meta;
+  logic                         sram_rd_cmd_last;
 
   svc_axi_sram_if_wr #(
       .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
@@ -148,10 +151,12 @@ module svc_axi_sram_if #(
       .sram_rd_cmd_ready (sram_rd_cmd_ready),
       .sram_rd_cmd_addr  (sram_rd_cmd_addr),
       .sram_rd_cmd_meta  (sram_rd_cmd_meta),
+      .sram_rd_cmd_last  (sram_rd_cmd_last),
       .sram_rd_resp_valid(sram_rd_resp_valid),
       .sram_rd_resp_ready(sram_rd_resp_ready),
       .sram_rd_resp_data (sram_rd_resp_data),
-      .sram_rd_resp_meta (sram_rd_resp_meta)
+      .sram_rd_resp_meta (sram_rd_resp_meta),
+      .sram_rd_resp_last (sram_rd_resp_last)
   );
 
   //
@@ -253,6 +258,7 @@ module svc_axi_sram_if #(
         sram_cmd_valid    = 1'b1;
         sram_cmd_addr     = sram_rd_cmd_addr;
         sram_cmd_meta     = sram_rd_cmd_meta;
+        sram_cmd_last     = sram_rd_cmd_last;
         sram_rd_cmd_ready = sram_cmd_ready;
       end
 

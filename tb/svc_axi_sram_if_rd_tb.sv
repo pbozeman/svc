@@ -9,7 +9,7 @@ module svc_axi_sram_if_rd_tb;
   parameter AW = 20;
   parameter DW = 16;
   parameter IW = 4;
-  parameter MW = IW + 1;
+  parameter MW = IW;
   parameter LSB = $clog2(DW) - 3;
   parameter SAW = AW - LSB;
 
@@ -35,6 +35,7 @@ module svc_axi_sram_if_rd_tb;
   logic           sram_rd_cmd_ready;
   logic [SAW-1:0] sram_rd_cmd_addr;
   logic [ MW-1:0] sram_rd_cmd_meta;
+  logic           sram_rd_cmd_last;
   logic           sram_rd_resp_valid;
   logic           sram_rd_resp_ready;
   logic [ DW-1:0] sram_rd_resp_data;
@@ -65,10 +66,12 @@ module svc_axi_sram_if_rd_tb;
       .sram_rd_cmd_ready (sram_rd_cmd_ready),
       .sram_rd_cmd_addr  (sram_rd_cmd_addr),
       .sram_rd_cmd_meta  (sram_rd_cmd_meta),
+      .sram_rd_cmd_last  (sram_rd_cmd_last),
       .sram_rd_resp_valid(sram_rd_resp_valid),
       .sram_rd_resp_ready(sram_rd_resp_ready),
       .sram_rd_resp_data (sram_rd_resp_data),
-      .sram_rd_resp_meta ()
+      .sram_rd_resp_meta (),
+      .sram_rd_resp_last ()
   );
 
   always_ff @(posedge clk) begin
@@ -111,7 +114,8 @@ module svc_axi_sram_if_rd_tb;
       @(posedge clk);
       #1;
       `CHECK_EQ(sram_rd_cmd_valid, 1'b1);
-      `CHECK_EQ(sram_rd_cmd_meta, {4'hB, 1'b1});
+      `CHECK_EQ(sram_rd_cmd_meta, 4'hB);
+      `CHECK_EQ(sram_rd_cmd_last, 1'b1);
       `CHECK_EQ(sram_rd_cmd_addr, SAW'(addr[AW-1:LSB]));
     end
 
