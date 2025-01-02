@@ -125,12 +125,14 @@ module svc_axi_sram_if_tb;
       .sram_cmd_valid    (sram_cmd_valid),
       .sram_cmd_ready    (sram_cmd_ready),
       .sram_cmd_addr     (sram_cmd_addr),
+      .sram_cmd_meta     (sram_cmd_meta),
       .sram_cmd_wr_en    (sram_cmd_wr_en),
       .sram_cmd_wr_data  (sram_cmd_wr_data),
       .sram_cmd_wr_strb  (sram_cmd_wr_strb),
       .sram_rd_resp_valid(sram_rd_resp_valid),
       .sram_rd_resp_ready(sram_rd_resp_ready),
-      .sram_rd_resp_data (sram_rd_resp_data)
+      .sram_rd_resp_data (sram_rd_resp_data),
+      .sram_rd_resp_meta (sram_rd_resp_meta)
   );
 
   always_ff @(posedge clk) begin
