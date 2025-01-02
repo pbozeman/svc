@@ -534,6 +534,12 @@ module svc_axi_sram_if_tb;
   `TEST_CASE(test_r_axi_rready);
   `TEST_CASE(test_r_burst);
 
+  // TODO: implement these with bursting
+  // `TEST_CASE(test_r_r);
+  // `TEST_CASE(test_r_w);
+  // `TEST_CASE(test_w_r);
+  // `TEST_CASE(test_w_w);
+
   `TEST_SUITE_END();
 
 endmodule
