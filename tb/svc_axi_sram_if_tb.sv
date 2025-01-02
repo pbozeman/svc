@@ -171,10 +171,6 @@ module svc_axi_sram_if_tb;
         m_axi_awvalid <= 1'b0;
       end
 
-      if (m_axi_wvalid && m_axi_wready) begin
-        m_axi_wvalid <= 1'b0;
-      end
-
       if (m_axi_arvalid && m_axi_arready) begin
         m_axi_arvalid <= 1'b0;
       end
@@ -394,11 +390,8 @@ module svc_axi_sram_if_tb;
     m_axi_awsize  = 3'b001;
     m_axi_bready  = 1'b1;
 
-    auto_valid    = 1'b0;
-
     @(posedge clk);
     `CHECK_EQ(m_axi_awready && m_axi_awvalid, 1'b1);
-    m_axi_awvalid = 1'b0;
     `CHECK_EQ(sram_cmd_valid, 1'b0);
 
     write_beats(addr, data);
@@ -507,7 +500,6 @@ module svc_axi_sram_if_tb;
 
   task automatic test_r_burst;
     logic [AW-1:0] addr = AW'(16'hA000);
-    logic [DW-1:0] data = DW'(16'hD000);
 
     // Length of 4 (N-1)
     // INCR burst
@@ -538,6 +530,96 @@ module svc_axi_sram_if_tb;
     `CHECK_EQ(m_axi_rvalid, 1'b0);
   endtask
 
+  task automatic test_r_r_burst;
+    logic [AW-1:0] addr0 = AW'(16'hA000);
+    logic [AW-1:0] addr1 = AW'(16'hB000);
+
+    // Length of 4 (N-1)
+    // INCR burst
+    // 2 bytes (16 bits)
+    m_axi_arvalid = 1'b1;
+    m_axi_araddr  = addr0;
+    m_axi_arid    = 4'hB;
+    m_axi_arlen   = 8'h3;
+    m_axi_arburst = 2'b01;
+    m_axi_arsize  = 3'b001;
+    m_axi_rready  = 1'b1;
+
+    auto_valid    = 1'b0;
+
+    @(posedge clk);
+    `CHECK_EQ(m_axi_arready && m_axi_arvalid, 1'b1);
+    // don't drop valid, read back to back
+    m_axi_araddr = addr1;
+    #1;
+    // let valid drop again when accepted
+    auto_valid = 1'b1;
+    read_beats(addr0);
+
+    @(posedge clk);
+    #1;
+    read_beats(addr1);
+
+    @(posedge clk);
+    #1;
+    `CHECK_EQ(sram_cmd_valid, 1'b0);
+    `CHECK_EQ(m_axi_rvalid, 1'b0);
+
+    @(posedge clk);
+    #1;
+    `CHECK_EQ(m_axi_rvalid, 1'b0);
+  endtask
+
+  task automatic test_r_w_burst;
+    logic [AW-1:0] addr0 = AW'(16'hA000);
+    logic [AW-1:0] addr1 = AW'(16'hB000);
+    logic [DW-1:0] data1 = DW'(16'hBABE);
+
+    // Length of 4 (N-1)
+    // INCR burst
+    // 2 bytes (16 bits)
+    m_axi_arvalid = 1'b1;
+    m_axi_araddr  = addr0;
+    m_axi_arid    = 4'hB;
+    m_axi_arlen   = 8'h3;
+    m_axi_arburst = 2'b01;
+    m_axi_arsize  = 3'b001;
+    m_axi_rready  = 1'b1;
+
+
+    @(posedge clk);
+    `CHECK_EQ(m_axi_arready && m_axi_arvalid, 1'b1);
+    // switch to write
+    #1;
+    m_axi_awvalid = 1'b1;
+    m_axi_awaddr  = addr1;
+    m_axi_awid    = 4'hB;
+    m_axi_awlen   = 8'h3;
+    m_axi_awburst = 2'b01;
+    m_axi_awsize  = 3'b001;
+    m_axi_bready  = 1'b1;
+
+    #1;
+    read_beats(addr0);
+
+    @(posedge clk);
+    // the write was accepted back while reading beats, so we should be able
+    // to just go.
+    #1;
+    write_beats(addr1, data1);
+
+    @(posedge clk);
+    #1;
+    `CHECK_EQ(sram_cmd_valid, 1'b0);
+    `CHECK_EQ(m_axi_rvalid, 1'b0);
+    `CHECK_EQ(m_axi_bvalid, 1'b1);
+
+    @(posedge clk);
+    #1;
+    `CHECK_EQ(m_axi_rvalid, 1'b0);
+    `CHECK_EQ(m_axi_bvalid, 1'b0);
+  endtask
+
   `TEST_SUITE_BEGIN(svc_axi_sram_if_tb);
 
   `TEST_CASE(test_initial);
@@ -551,8 +633,8 @@ module svc_axi_sram_if_tb;
   `TEST_CASE(test_r_burst);
 
   // TODO: implement these with bursting
-  // `TEST_CASE(test_r_r);
-  // `TEST_CASE(test_r_w);
+  `TEST_CASE(test_r_r_burst);
+  `TEST_CASE(test_r_w_burst);
   // `TEST_CASE(test_w_r);
   // `TEST_CASE(test_w_w);
 
