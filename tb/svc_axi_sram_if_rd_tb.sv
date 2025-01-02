@@ -2,7 +2,6 @@
 
 `include "svc_axi_sram_if_rd.sv"
 
-// verilator lint_off: UNUSEDSIGNAL
 module svc_axi_sram_if_rd_tb;
   parameter AW = 20;
   parameter DW = 16;
@@ -68,7 +67,10 @@ module svc_axi_sram_if_rd_tb;
       .sram_rd_resp_meta (sram_rd_resp_meta)
   );
 
-  function logic [SAW-1:0] a_to_sa(logic [AW-1:0] addr);
+  function automatic logic [SAW-1:0] a_to_sa(logic [AW-1:0] addr);
+    // verilator lint_off: UNUSEDSIGNAL
+    logic unused = |addr;
+    // verilator lint_on: UNUSEDSIGNAL
     return SAW'(addr[AW-1:LSB]);
   endfunction
 
@@ -145,6 +147,7 @@ module svc_axi_sram_if_rd_tb;
     `CHECK_EQ(m_axi_rvalid, 1'b1);
     `CHECK_EQ(m_axi_rid, 4'hB);
     `CHECK_EQ(m_axi_rdata, data);
+    `CHECK_EQ(m_axi_rresp, 2'b00);
     `CHECK_EQ(sram_rd_resp_ready, 1'b0);
 
     repeat (3) begin
@@ -152,6 +155,7 @@ module svc_axi_sram_if_rd_tb;
       `CHECK_EQ(m_axi_rvalid, 1'b1);
       `CHECK_EQ(m_axi_rid, 4'hB);
       `CHECK_EQ(m_axi_rdata, data);
+      `CHECK_EQ(m_axi_rresp, 2'b00);
       `CHECK_EQ(sram_rd_resp_ready, 1'b0);
     end
 
@@ -189,6 +193,7 @@ module svc_axi_sram_if_rd_tb;
     `CHECK_EQ(m_axi_rvalid, 1'b1);
     `CHECK_EQ(m_axi_rdata, data);
     `CHECK_EQ(m_axi_rid, 4'hB);
+    `CHECK_EQ(m_axi_rresp, 2'b00);
     `CHECK_EQ(m_axi_rlast, 1'b0);
 
     // Second beat
@@ -205,6 +210,7 @@ module svc_axi_sram_if_rd_tb;
     `CHECK_EQ(m_axi_rvalid, 1'b1);
     `CHECK_EQ(m_axi_rdata, data + DW'(2));
     `CHECK_EQ(m_axi_rid, 4'hB);
+    `CHECK_EQ(m_axi_rresp, 2'b00);
     `CHECK_EQ(m_axi_rlast, 1'b0);
 
     // Third beat
@@ -221,6 +227,7 @@ module svc_axi_sram_if_rd_tb;
     `CHECK_EQ(m_axi_rvalid, 1'b1);
     `CHECK_EQ(m_axi_rdata, data + DW'(4));
     `CHECK_EQ(m_axi_rid, 4'hB);
+    `CHECK_EQ(m_axi_rresp, 2'b00);
     `CHECK_EQ(m_axi_rlast, 1'b0);
 
     // Fourth and last beat
@@ -237,6 +244,7 @@ module svc_axi_sram_if_rd_tb;
     `CHECK_EQ(m_axi_rvalid, 1'b1);
     `CHECK_EQ(m_axi_rdata, data + DW'(6));
     `CHECK_EQ(m_axi_rid, 4'hB);
+    `CHECK_EQ(m_axi_rresp, 2'b00);
     `CHECK_EQ(m_axi_rlast, 1'b1);
 
     @(posedge clk);
