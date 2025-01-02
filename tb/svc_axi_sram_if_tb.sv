@@ -335,27 +335,8 @@ module svc_axi_sram_if_tb;
     `CHECK_EQ(m_axi_bvalid, 1'b0);
   endtask
 
-  task automatic test_w_burst;
-    logic [AW-1:0] addr = AW'(16'hA000);
-    logic [DW-1:0] data = DW'(16'hD000);
-
-    // Length of 4 (N-1)
-    // INCR burst
-    // 2 bytes (16 bits)
-    m_axi_awvalid = 1'b1;
-    m_axi_awaddr  = addr;
-    m_axi_awid    = 4'hB;
-    m_axi_awlen   = 8'h3;
-    m_axi_awburst = 2'b01;
-    m_axi_awsize  = 3'b001;
-    m_axi_bready  = 1'b1;
-
-    auto_valid    = 1'b0;
-
-    @(posedge clk);
-    `CHECK_EQ(m_axi_awready && m_axi_awvalid, 1'b1);
-    m_axi_awvalid = 1'b0;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
+  task automatic write_beats(logic [AW-1:0] addr, logic [DW-1:0] data);
+    // this assumes a 16 bit bus, 4 beats
 
     // First beat
     m_axi_wvalid = 1'b1;
@@ -395,6 +376,32 @@ module svc_axi_sram_if_tb;
     `CHECK_EQ(sram_cmd_valid, 1'b1);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr + 6));
     `CHECK_EQ(sram_cmd_wr_data, data + DW'(3));
+
+  endtask
+
+  task automatic test_w_burst;
+    logic [AW-1:0] addr = AW'(16'hA000);
+    logic [DW-1:0] data = DW'(16'hD000);
+
+    // Length of 4 (N-1)
+    // INCR burst
+    // 2 bytes (16 bits)
+    m_axi_awvalid = 1'b1;
+    m_axi_awaddr  = addr;
+    m_axi_awid    = 4'hB;
+    m_axi_awlen   = 8'h3;
+    m_axi_awburst = 2'b01;
+    m_axi_awsize  = 3'b001;
+    m_axi_bready  = 1'b1;
+
+    auto_valid    = 1'b0;
+
+    @(posedge clk);
+    `CHECK_EQ(m_axi_awready && m_axi_awvalid, 1'b1);
+    m_axi_awvalid = 1'b0;
+    `CHECK_EQ(sram_cmd_valid, 1'b0);
+
+    write_beats(addr, data);
 
     @(posedge clk);
     #1;
@@ -442,28 +449,13 @@ module svc_axi_sram_if_tb;
     `CHECK_EQ(sram_rd_resp_ready, 1'b1);
   endtask
 
-  task automatic test_r_burst;
-    logic [AW-1:0] addr = AW'(16'hA000);
-    logic [DW-1:0] data = DW'(16'hD000);
-
-    // Length of 4 (N-1)
-    // INCR burst
-    // 2 bytes (16 bits)
-    m_axi_arvalid = 1'b1;
-    m_axi_araddr  = addr;
-    m_axi_arid    = 4'hB;
-    m_axi_arlen   = 8'h3;
-    m_axi_arburst = 2'b01;
-    m_axi_arsize  = 3'b001;
-    m_axi_rready  = 1'b1;
-
-    @(posedge clk);
-    #1;
-    // First beat addr,  no beat data
+  task automatic read_beats(logic [AW-1:0] addr);
+    // this assumes a 16 bit bus, 4 beats
     `CHECK_EQ(sram_cmd_valid, 1'b1);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr));
     `CHECK_EQ(sram_cmd_meta, {4'hB, 1'b0});
 
+    // First beat addr, no data yet
     @(posedge clk);
     #1;
     `CHECK_EQ(m_axi_rvalid, 1'b1);
@@ -511,6 +503,30 @@ module svc_axi_sram_if_tb;
     `CHECK_EQ(m_axi_rid, 4'hB);
     `CHECK_EQ(m_axi_rresp, 2'b00);
     `CHECK_EQ(m_axi_rlast, 1'b1);
+  endtask
+
+  task automatic test_r_burst;
+    logic [AW-1:0] addr = AW'(16'hA000);
+    logic [DW-1:0] data = DW'(16'hD000);
+
+    // Length of 4 (N-1)
+    // INCR burst
+    // 2 bytes (16 bits)
+    m_axi_arvalid = 1'b1;
+    m_axi_araddr  = addr;
+    m_axi_arid    = 4'hB;
+    m_axi_arlen   = 8'h3;
+    m_axi_arburst = 2'b01;
+    m_axi_arsize  = 3'b001;
+    m_axi_rready  = 1'b1;
+
+    auto_valid    = 1'b0;
+
+    @(posedge clk);
+    `CHECK_EQ(m_axi_arready && m_axi_arvalid, 1'b1);
+    #1;
+    m_axi_arvalid = 1'b0;
+    read_beats(addr);
 
     @(posedge clk);
     #1;
