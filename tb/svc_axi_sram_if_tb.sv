@@ -143,8 +143,12 @@ module svc_axi_sram_if_tb;
       m_axi_wstrb   <= '0;
       m_axi_wvalid  <= 1'b0;
       m_axi_bready  <= 1'b0;
+
       m_axi_arvalid <= 1'b0;
       m_axi_araddr  <= '0;
+      m_axi_arlen   <= '0;
+      m_axi_arsize  <= '0;
+      m_axi_arburst <= '0;
       m_axi_rready  <= 1'b0;
 
       auto_valid    <= 1'b1;
@@ -331,7 +335,7 @@ module svc_axi_sram_if_tb;
     `CHECK_EQ(m_axi_bvalid, 1'b0);
   endtask
 
-  task automatic test_burst;
+  task automatic test_w_burst;
     logic [AW-1:0] addr = AW'(16'hA000);
     logic [DW-1:0] data = DW'(16'hD000);
 
@@ -349,7 +353,8 @@ module svc_axi_sram_if_tb;
     auto_valid    = 1'b0;
 
     @(posedge clk);
-    #1;
+    `CHECK_EQ(m_axi_awready && m_axi_awvalid, 1'b1);
+    m_axi_awvalid = 1'b0;
     `CHECK_EQ(sram_cmd_valid, 1'b0);
 
     // First beat
@@ -402,6 +407,121 @@ module svc_axi_sram_if_tb;
     `CHECK_EQ(m_axi_bvalid, 1'b0);
   endtask
 
+  task automatic test_r_axi_rready;
+    logic [AW-1:0] addr = AW'(16'hA000);
+    logic [DW-1:0] data = DW'(16'hD000);
+
+    `CHECK_EQ(m_axi_rvalid, 1'b0);
+    m_axi_arvalid = 1'b1;
+    m_axi_arid    = 4'hB;
+    m_axi_araddr  = addr;
+
+    @(posedge clk);
+    #1;
+    `CHECK_EQ(m_axi_rvalid, 1'b0);
+    `CHECK_EQ(sram_rd_resp_ready, 1'b0);
+
+    @(posedge clk);
+    #1;
+    `CHECK_EQ(m_axi_rvalid, 1'b1);
+    `CHECK_EQ(m_axi_rid, 4'hB);
+    `CHECK_EQ(m_axi_rdata, a_to_d(addr));
+    `CHECK_EQ(m_axi_rresp, 2'b00);
+    `CHECK_EQ(sram_rd_resp_ready, 1'b0);
+
+    repeat (3) begin
+      @(posedge clk);
+      `CHECK_EQ(m_axi_rvalid, 1'b1);
+      `CHECK_EQ(m_axi_rid, 4'hB);
+      `CHECK_EQ(m_axi_rdata, a_to_d(addr));
+      `CHECK_EQ(m_axi_rresp, 2'b00);
+      `CHECK_EQ(sram_rd_resp_ready, 1'b0);
+    end
+
+    m_axi_rready = 1'b1;
+    `CHECK_EQ(sram_rd_resp_ready, 1'b1);
+  endtask
+
+  task automatic test_r_burst;
+    logic [AW-1:0] addr = AW'(16'hA000);
+    logic [DW-1:0] data = DW'(16'hD000);
+
+    // Length of 4 (N-1)
+    // INCR burst
+    // 2 bytes (16 bits)
+    m_axi_arvalid = 1'b1;
+    m_axi_araddr  = addr;
+    m_axi_arid    = 4'hB;
+    m_axi_arlen   = 8'h3;
+    m_axi_arburst = 2'b01;
+    m_axi_arsize  = 3'b001;
+    m_axi_rready  = 1'b1;
+
+    @(posedge clk);
+    #1;
+    // First beat addr,  no beat data
+    `CHECK_EQ(sram_cmd_valid, 1'b1);
+    `CHECK_EQ(sram_cmd_addr, a_to_sa(addr));
+    `CHECK_EQ(sram_cmd_meta, {4'hB, 1'b0});
+
+    @(posedge clk);
+    #1;
+    `CHECK_EQ(m_axi_rvalid, 1'b1);
+    `CHECK_EQ(sram_cmd_addr, a_to_sa(addr + 2));
+
+    // Second beat addr, first beat data
+    `CHECK_EQ(m_axi_rdata, a_to_d(addr));
+    `CHECK_EQ(m_axi_rid, 4'hB);
+    `CHECK_EQ(m_axi_rresp, 2'b00);
+    `CHECK_EQ(m_axi_rlast, 1'b0);
+
+    // Third beat addr, second beat data
+    @(posedge clk);
+    #1;
+    `CHECK_EQ(sram_cmd_valid, 1'b1);
+    `CHECK_EQ(sram_cmd_addr, a_to_sa(addr + 4));
+    `CHECK_EQ(sram_cmd_meta, {4'hB, 1'b0});
+
+    `CHECK_EQ(m_axi_rvalid, 1'b1);
+    `CHECK_EQ(m_axi_rdata, a_to_d(addr + 2));
+    `CHECK_EQ(m_axi_rid, 4'hB);
+    `CHECK_EQ(m_axi_rresp, 2'b00);
+    `CHECK_EQ(m_axi_rlast, 1'b0);
+
+    // Fourth beat addr, third beat data
+    @(posedge clk);
+    #1;
+    `CHECK_EQ(sram_cmd_valid, 1'b1);
+    `CHECK_EQ(sram_cmd_addr, a_to_sa(addr + 6));
+    `CHECK_EQ(sram_cmd_meta, {4'hB, 1'b1});
+
+    `CHECK_EQ(m_axi_rvalid, 1'b1);
+    `CHECK_EQ(m_axi_rdata, a_to_d(addr + 4));
+    `CHECK_EQ(m_axi_rid, 4'hB);
+    `CHECK_EQ(m_axi_rresp, 2'b00);
+    `CHECK_EQ(m_axi_rlast, 1'b0);
+
+    // Addr done, fourth beat data
+    @(posedge clk);
+    #1;
+    `CHECK_EQ(sram_cmd_valid, 1'b0);
+
+    `CHECK_EQ(m_axi_rvalid, 1'b1);
+    `CHECK_EQ(m_axi_rdata, a_to_d(addr + 6));
+    `CHECK_EQ(m_axi_rid, 4'hB);
+    `CHECK_EQ(m_axi_rresp, 2'b00);
+    `CHECK_EQ(m_axi_rlast, 1'b1);
+
+    @(posedge clk);
+    #1;
+    `CHECK_EQ(sram_cmd_valid, 1'b0);
+    `CHECK_EQ(m_axi_rvalid, 1'b0);
+
+    @(posedge clk);
+    #1;
+    `CHECK_EQ(m_axi_rvalid, 1'b0);
+  endtask
+
   `TEST_SUITE_BEGIN(svc_axi_sram_if_tb);
 
   `TEST_CASE(test_initial);
@@ -409,9 +529,10 @@ module svc_axi_sram_if_tb;
   `TEST_CASE(test_w_only);
   `TEST_CASE(test_aw_w_delayed);
   `TEST_CASE(test_w_aw_delayed);
-  `TEST_CASE(test_burst);
+  `TEST_CASE(test_w_burst);
 
-  // TODO: read tests
+  `TEST_CASE(test_r_axi_rready);
+  `TEST_CASE(test_r_burst);
 
   `TEST_SUITE_END();
 

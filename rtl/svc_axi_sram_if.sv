@@ -45,8 +45,6 @@ module svc_axi_sram_if #(
     output logic [  AXI_ID_WIDTH-1:0] s_axi_bid,
     output logic [               1:0] s_axi_bresp,
 
-    // verilator lint_off: UNUSEDSIGNAL
-    // verilator lint_off: UNDRIVEN
     input  logic                      s_axi_arvalid,
     output logic                      s_axi_arready,
     input  logic [  AXI_ID_WIDTH-1:0] s_axi_arid,
@@ -60,8 +58,6 @@ module svc_axi_sram_if #(
     output logic [AXI_DATA_WIDTH-1:0] s_axi_rdata,
     output logic [               1:0] s_axi_rresp,
     output logic                      s_axi_rlast,
-    // verilator lint_on: UNUSEDSIGNAL
-    // verilator lint_on: UNDRIVEN
 
     //
     // SRAM interface
@@ -73,35 +69,30 @@ module svc_axi_sram_if #(
     output logic [SRAM_META_WIDTH-1:0] sram_cmd_meta,
     output logic [SRAM_DATA_WIDTH-1:0] sram_cmd_wr_data,
     output logic [SRAM_STRB_WIDTH-1:0] sram_cmd_wr_strb,
-    // verilator lint_off: UNUSEDSIGNAL
-    // verilator lint_off: UNDRIVEN
     input  logic                       sram_rd_resp_valid,
     output logic                       sram_rd_resp_ready,
     input  logic [SRAM_DATA_WIDTH-1:0] sram_rd_resp_data,
     input  logic [SRAM_META_WIDTH-1:0] sram_rd_resp_meta
-    // verilator lint_on: UNUSEDSIGNAL
-    // verilator lint_on: UNDRIVEN
 );
-  logic                       sram_wr_cmd_valid;
-  logic                       sram_wr_cmd_ready;
-  logic [SRAM_ADDR_WIDTH-1:0] sram_wr_cmd_addr;
+  typedef enum {
+    STATE_IDLE,
+    STATE_READ,
+    STATE_READ_RESP,
+    STATE_WRITE,
+    STATE_WRITE_RESP
+  } state_t;
 
-  // verilator lint_off: UNUSEDSIGNAL
-  // verilator lint_off: UNDRIVEN
-  logic                       sram_rd_cmd_valid;
-  logic                       sram_rd_cmd_ready;
-  logic [SRAM_ADDR_WIDTH-1:0] sram_rd_cmd_addr;
-  logic [SRAM_META_WIDTH-1:0] sram_rd_cmd_meta;
-  // verilator lint_on: UNUSEDSIGNAL
-  // verilator lint_on: UNDRIVEN
+  state_t                       state;
+  state_t                       state_next;
 
-  // TODO: muxing between reads and writes. For now, just try to get
-  // the formal verifier to validate the write path.
-  assign sram_cmd_valid    = sram_wr_cmd_valid;
-  assign sram_cmd_addr     = sram_wr_cmd_addr;
-  assign sram_cmd_meta     = '0;
-  assign sram_cmd_wr_en    = 1'b1;
-  assign sram_wr_cmd_ready = sram_cmd_ready;
+  logic                         sram_wr_cmd_valid;
+  logic                         sram_wr_cmd_ready;
+  logic   [SRAM_ADDR_WIDTH-1:0] sram_wr_cmd_addr;
+
+  logic                         sram_rd_cmd_valid;
+  logic                         sram_rd_cmd_ready;
+  logic   [SRAM_ADDR_WIDTH-1:0] sram_rd_cmd_addr;
+  logic   [SRAM_META_WIDTH-1:0] sram_rd_cmd_meta;
 
   svc_axi_sram_if_wr #(
       .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
@@ -164,6 +155,117 @@ module svc_axi_sram_if #(
       .sram_rd_resp_data (sram_rd_resp_data),
       .sram_rd_resp_meta (sram_rd_resp_meta)
   );
+
+  //
+  // next read/write logic with fairness
+  //
+  logic   pri_read;
+  state_t fair_state;
+  always_comb begin
+    if (pri_read) begin
+      if (sram_rd_cmd_valid) begin
+        fair_state = STATE_READ;
+      end else if (sram_wr_cmd_valid) begin
+        fair_state = STATE_WRITE;
+      end else begin
+        fair_state = STATE_IDLE;
+      end
+    end else begin
+      if (sram_wr_cmd_valid) begin
+        fair_state = STATE_WRITE;
+      end else if (sram_rd_cmd_valid) begin
+        fair_state = STATE_READ;
+      end else begin
+        fair_state = STATE_IDLE;
+      end
+    end
+  end
+
+  //
+  // State machine
+  //
+  always_comb begin
+    pri_read   = 1'b0;
+    state_next = state;
+
+    case (state)
+      STATE_IDLE: begin
+        state_next = fair_state;
+      end
+
+      STATE_READ: begin
+        if (sram_cmd_ready) begin
+          if (!s_axi_rready) begin
+            state_next = STATE_READ_RESP;
+          end else begin
+            state_next = fair_state;
+          end
+        end
+      end
+
+      STATE_READ_RESP: begin
+        if (s_axi_rready) begin
+          state_next = fair_state;
+        end
+      end
+
+      STATE_WRITE: begin
+        if (sram_cmd_ready) begin
+          if (!s_axi_bready) begin
+            state_next = STATE_WRITE_RESP;
+          end else begin
+            pri_read   = 1'b1;
+            state_next = fair_state;
+          end
+        end
+      end
+
+      STATE_WRITE_RESP: begin
+        if (s_axi_bready) begin
+          pri_read   = 1'b1;
+          state_next = fair_state;
+        end
+      end
+    endcase
+  end
+
+  always_ff @(posedge clk) begin
+    if (~rst_n) begin
+      state <= STATE_IDLE;
+    end else begin
+      state <= state_next;
+    end
+  end
+
+  //
+  // Mux the signals
+  //
+  always_comb begin
+    sram_cmd_valid    = 1'b0;
+    sram_cmd_addr     = '0;
+    sram_cmd_wr_en    = 1'b0;
+
+    sram_cmd_meta     = '0;
+
+    sram_rd_cmd_ready = 1'b0;
+    sram_wr_cmd_ready = 1'b0;
+
+    case (state_next)
+      STATE_READ: begin
+        sram_cmd_valid    = 1'b1;
+        sram_cmd_addr     = sram_rd_cmd_addr;
+        sram_cmd_meta     = sram_rd_cmd_meta;
+        sram_rd_cmd_ready = sram_cmd_ready;
+      end
+
+      STATE_WRITE: begin
+        sram_cmd_valid    = 1'b1;
+        sram_cmd_addr     = sram_wr_cmd_addr;
+        sram_cmd_wr_en    = 1'b1;
+        sram_wr_cmd_ready = sram_cmd_ready;
+      end
+    endcase
+  end
 
 `ifdef FORMAL_BUT_FAXI_SLAVE_IS_BROKEN_SO_DONT_DO_THIS
   // try to run read only at first

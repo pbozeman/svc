@@ -91,7 +91,6 @@ module svc_axi_sram_if_rd #(
   assign sram_rd_cmd_meta         = {r_id, r_last};
   assign sram_rd_resp_ready       = s_axi_rready;
 
-
   always_comb begin
     state_next         = state;
 

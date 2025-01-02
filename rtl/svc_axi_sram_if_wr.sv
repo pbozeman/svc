@@ -121,8 +121,8 @@ module svc_axi_sram_if_wr #(
 
           w_id_next = s_axi_awid;
           w_remaining_next = s_axi_awlen;
-          w_size_next = (s_axi_awsize < 3'($clog2(AXI_STRB_WIDTH)) ? s_axi_awsize :
-                         3'($clog2(AXI_STRB_WIDTH)));
+          w_size_next = (s_axi_awsize < 3'($clog2(AXI_STRB_WIDTH)) ?
+                         s_axi_awsize : 3'($clog2(AXI_STRB_WIDTH)));
           w_burst_next = s_axi_awburst;
           w_last_next = s_axi_awlen == 0;
         end
