@@ -14,7 +14,7 @@ module svc_axi_sram_if_rd #(
     parameter LSB             = $clog2(AXI_DATA_WIDTH) - 3,
     parameter SRAM_ADDR_WIDTH = AXI_ADDR_WIDTH - LSB,
     parameter SRAM_DATA_WIDTH = AXI_DATA_WIDTH,
-    parameter SRAM_META_WIDTH = AXI_ID_WIDTH + 1
+    parameter SRAM_META_WIDTH = AXI_ID_WIDTH
 ) (
     input logic clk,
     input logic rst_n,
@@ -43,11 +43,13 @@ module svc_axi_sram_if_rd #(
     input  logic                       sram_rd_cmd_ready,
     output logic [SRAM_ADDR_WIDTH-1:0] sram_rd_cmd_addr,
     output logic [SRAM_META_WIDTH-1:0] sram_rd_cmd_meta,
+    output logic                       sram_rd_cmd_last,
 
     input  logic                       sram_rd_resp_valid,
     output logic                       sram_rd_resp_ready,
     input  logic [SRAM_DATA_WIDTH-1:0] sram_rd_resp_data,
-    input  logic [SRAM_META_WIDTH-1:0] sram_rd_resp_meta
+    input  logic [SRAM_META_WIDTH-1:0] sram_rd_resp_meta,
+    input  logic                       sram_rd_resp_last
 );
   typedef enum {
     STATE_IDLE,
@@ -81,15 +83,18 @@ module svc_axi_sram_if_rd #(
   logic                        r_last;
   logic                        r_last_next;
 
-  assign s_axi_rvalid             = sram_rd_resp_valid;
-  assign s_axi_rdata              = sram_rd_resp_data;
-  assign s_axi_rresp              = 2'b00;
-  assign {s_axi_rid, s_axi_rlast} = sram_rd_resp_meta;
+  assign s_axi_rvalid       = sram_rd_resp_valid;
+  assign s_axi_rdata        = sram_rd_resp_data;
+  assign s_axi_rresp        = 2'b00;
+  assign s_axi_rid          = sram_rd_resp_meta;
+  assign s_axi_rlast        = sram_rd_resp_last;
 
-  assign sram_rd_cmd_valid        = r_addr_valid;
-  assign sram_rd_cmd_addr         = r_addr[AXI_ADDR_WIDTH-1:LSB];
-  assign sram_rd_cmd_meta         = {r_id, r_last};
-  assign sram_rd_resp_ready       = s_axi_rready;
+  assign sram_rd_cmd_valid  = r_addr_valid;
+  assign sram_rd_cmd_addr   = r_addr[AXI_ADDR_WIDTH-1:LSB];
+  assign sram_rd_cmd_meta   = r_id;
+  assign sram_rd_cmd_last   = r_last;
+
+  assign sram_rd_resp_ready = s_axi_rready;
 
   always_comb begin
     state_next         = state;

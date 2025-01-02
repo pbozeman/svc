@@ -8,7 +8,7 @@ module svc_model_sram #(
     parameter SRAM_ADDR_WIDTH      = 8,
     parameter SRAM_DATA_WIDTH      = 16,
     parameter SRAM_STRB_WIDTH      = (SRAM_DATA_WIDTH / 8),
-    parameter SRAM_META_WIDTH      = 5
+    parameter SRAM_META_WIDTH      = 4
 ) (
     input logic clk,
     input logic rst_n,
@@ -17,13 +17,15 @@ module svc_model_sram #(
     output logic                       sram_cmd_ready,
     input  logic [SRAM_ADDR_WIDTH-1:0] sram_cmd_addr,
     input  logic [SRAM_META_WIDTH-1:0] sram_cmd_meta,
+    input  logic                       sram_cmd_last,
     input  logic                       sram_cmd_wr_en,
     input  logic [SRAM_DATA_WIDTH-1:0] sram_cmd_wr_data,
     input  logic [SRAM_STRB_WIDTH-1:0] sram_cmd_wr_strb,
     output logic                       sram_rd_resp_valid,
     input  logic                       sram_rd_resp_ready,
     output logic [SRAM_DATA_WIDTH-1:0] sram_rd_resp_data,
-    output logic [SRAM_META_WIDTH-1:0] sram_rd_resp_meta
+    output logic [SRAM_META_WIDTH-1:0] sram_rd_resp_meta,
+    output logic                       sram_rd_resp_last
 );
   // Memory array to store data
   logic [SRAM_DATA_WIDTH-1:0] mem               [(1 << SRAM_ADDR_WIDTH)-1:0];
@@ -32,6 +34,7 @@ module svc_model_sram #(
   logic                       read_pending;
   logic [SRAM_DATA_WIDTH-1:0] pending_read_data;
   logic [SRAM_META_WIDTH-1:0] pending_meta;
+  logic                       pending_last;
 
   // Ready to accept new commands when not processing a read
   assign sram_cmd_ready = !read_pending || (read_pending && sram_rd_resp_ready);
@@ -79,12 +82,14 @@ module svc_model_sram #(
   always_ff @(posedge clk) begin
     if (sram_cmd_valid && sram_cmd_ready) begin
       pending_meta <= sram_cmd_meta;
+      pending_last <= sram_cmd_last;
     end
   end
 
   // Drive read response data
   assign sram_rd_resp_data = pending_read_data;
   assign sram_rd_resp_meta = pending_meta;
+  assign sram_rd_resp_last = pending_last;
 endmodule
 
 `endif
