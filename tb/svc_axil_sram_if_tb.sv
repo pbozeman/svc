@@ -3,8 +3,6 @@
 `include "svc_axil_sram_if.sv"
 `include "svc_model_sram.sv"
 
-// verilator lint_off: UNUSEDSIGNAL
-// verilator lint_off: UNDRIVEN
 module svc_axil_sram_if_tb;
   parameter AW = 16;
   parameter DW = 16;
@@ -120,11 +118,17 @@ module svc_axil_sram_if_tb;
   end
 
   // used in assertions with data returned by the fake sram above
-  function logic [DW-1:0] a_to_d(logic [AW-1:0] addr);
+  function automatic logic [DW-1:0] a_to_d(logic [AW-1:0] addr);
+    // verilator lint_off: UNUSEDSIGNAL
+    logic unused = |addr;
+    // verilator lint_on: UNUSEDSIGNAL
     return DW'(addr[AW-1:LSB]);
   endfunction
 
-  function logic [SAW-1:0] a_to_sa(logic [AW-1:0] addr);
+  function automatic logic [SAW-1:0] a_to_sa(logic [AW-1:0] addr);
+    // verilator lint_off: UNUSEDSIGNAL
+    logic unused = |addr;
+    // verilator lint_on: UNUSEDSIGNAL
     return SAW'(addr[AW-1:LSB]);
   endfunction
 
@@ -242,6 +246,7 @@ module svc_axil_sram_if_tb;
     `CHECK_EQ(m_axil_rvalid, 1'b0);
     m_axil_arvalid = 1'b1;
     m_axil_araddr  = addr;
+    `CHECK_EQ(m_axil_rresp, 2'b00);
 
     #1;
     `CHECK_EQ(m_axil_rvalid, 1'b0);
@@ -252,11 +257,13 @@ module svc_axil_sram_if_tb;
     `CHECK_EQ(m_axil_rvalid, 1'b1);
     `CHECK_EQ(m_axil_rdata, a_to_d(addr));
     `CHECK_EQ(sram_rd_resp_ready, 1'b0);
+    `CHECK_EQ(m_axil_rresp, 2'b00);
 
     repeat (3) begin
       @(posedge clk);
       `CHECK_EQ(m_axil_rvalid, 1'b1);
       `CHECK_EQ(m_axil_rdata, a_to_d(addr));
+      `CHECK_EQ(m_axil_rresp, 2'b00);
       `CHECK_EQ(sram_rd_resp_ready, 1'b0);
     end
 
@@ -287,6 +294,7 @@ module svc_axil_sram_if_tb;
     #1;
     `CHECK_EQ(m_axil_rvalid, 1'b1);
     `CHECK_EQ(m_axil_rdata, a_to_d(addr0));
+    `CHECK_EQ(m_axil_rresp, 2'b00);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr1));
 
     @(posedge clk);
@@ -295,6 +303,7 @@ module svc_axil_sram_if_tb;
     #1;
     `CHECK_EQ(m_axil_rvalid, 1'b1);
     `CHECK_EQ(m_axil_rdata, a_to_d(addr1));
+    `CHECK_EQ(m_axil_rresp, 2'b00);
     `CHECK_EQ(sram_cmd_valid, 1'b0);
 
     @(posedge clk);
@@ -327,6 +336,7 @@ module svc_axil_sram_if_tb;
     #1;
     `CHECK_EQ(m_axil_rvalid, 1'b1);
     `CHECK_EQ(m_axil_rdata, a_to_d(addr0));
+    `CHECK_EQ(m_axil_rresp, 2'b00);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr1));
     `CHECK_EQ(sram_cmd_wr_data, data1);
     `CHECK_EQ(sram_cmd_wr_en, 1'b1);
@@ -380,6 +390,7 @@ module svc_axil_sram_if_tb;
     #1;
     `CHECK_EQ(m_axil_bvalid, 1'b0);
     `CHECK_EQ(m_axil_rvalid, 1'b1);
+    `CHECK_EQ(m_axil_rresp, 2'b00);
 
     @(posedge clk);
     #1;
