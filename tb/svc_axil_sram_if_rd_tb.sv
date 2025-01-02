@@ -2,7 +2,6 @@
 
 `include "svc_axil_sram_if_rd.sv"
 
-// verilator lint_off: UNUSEDSIGNAL
 module svc_axil_sram_if_rd_tb;
   parameter AW = 20;
   parameter DW = 16;
@@ -110,12 +109,14 @@ module svc_axil_sram_if_rd_tb;
     sram_rd_resp_data  = data;
     `CHECK_EQ(m_axil_rvalid, 1'b1);
     `CHECK_EQ(m_axil_rdata, data);
+    `CHECK_EQ(m_axil_rresp, 2'b00);
     `CHECK_EQ(sram_rd_resp_ready, 1'b0);
 
     repeat (3) begin
       @(posedge clk);
       `CHECK_EQ(m_axil_rvalid, 1'b1);
       `CHECK_EQ(m_axil_rdata, data);
+      `CHECK_EQ(m_axil_rresp, 2'b00);
       `CHECK_EQ(sram_rd_resp_ready, 1'b0);
     end
 
