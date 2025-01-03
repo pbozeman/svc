@@ -3,8 +3,6 @@
 `include "svc_axi_sram_if.sv"
 `include "svc_model_sram.sv"
 
-// verilator lint_off: UNUSEDSIGNAL
-// verilator lint_off: UNDRIVEN
 module svc_axi_sram_if_tb;
   parameter AW = 16;
   parameter DW = 16;
@@ -162,11 +160,17 @@ module svc_axi_sram_if_tb;
   end
 
   // used in assertions with data returned by the fake sram above
-  function logic [DW-1:0] a_to_d(logic [AW-1:0] addr);
+  function automatic logic [DW-1:0] a_to_d(logic [AW-1:0] addr);
+    // verilator lint_off: UNUSEDSIGNAL
+    logic unused = |addr;
+    // verilator lint_on: UNUSEDSIGNAL
     return DW'(addr[AW-1:LSB]);
   endfunction
 
-  function logic [SAW-1:0] a_to_sa(logic [AW-1:0] addr);
+  function automatic logic [SAW-1:0] a_to_sa(logic [AW-1:0] addr);
+    // verilator lint_off: UNUSEDSIGNAL
+    logic unused = |addr;
+    // verilator lint_on: UNUSEDSIGNAL
     return SAW'(addr[AW-1:LSB]);
   endfunction
 
@@ -353,6 +357,7 @@ module svc_axi_sram_if_tb;
 
     // Second beat
     @(posedge clk);
+    `CHECK_EQ(m_axi_wready, 1'b1);
     m_axi_wdata = data + DW'(1);
 
     #1;
@@ -362,6 +367,7 @@ module svc_axi_sram_if_tb;
 
     // Third beat
     @(posedge clk);
+    `CHECK_EQ(m_axi_wready, 1'b1);
     m_axi_wdata = data + DW'(2);
 
     #1;
@@ -371,10 +377,12 @@ module svc_axi_sram_if_tb;
 
     // Fourth and last beat
     @(posedge clk);
+    `CHECK_EQ(m_axi_wready, 1'b1);
     m_axi_wdata = data + DW'(3);
     m_axi_wlast = 1'b1;
 
     @(posedge clk);
+    `CHECK_EQ(m_axi_wready, 1'b1);
     `CHECK_EQ(sram_cmd_valid, 1'b1);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr + 6));
     `CHECK_EQ(sram_cmd_wr_data, data + DW'(3));
@@ -410,7 +418,6 @@ module svc_axi_sram_if_tb;
 
   task automatic test_r_axi_rready;
     logic [AW-1:0] addr = AW'(16'hA000);
-    logic [DW-1:0] data = DW'(16'hD000);
 
     `CHECK_EQ(m_axi_rvalid, 1'b0);
     m_axi_arvalid = 1'b1;
