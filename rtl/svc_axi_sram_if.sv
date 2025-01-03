@@ -255,7 +255,7 @@ module svc_axi_sram_if #(
 
     case (state_next)
       STATE_READ: begin
-        sram_cmd_valid    = 1'b1;
+        sram_cmd_valid    = sram_rd_cmd_valid;
         sram_cmd_addr     = sram_rd_cmd_addr;
         sram_cmd_meta     = sram_rd_cmd_meta;
         sram_cmd_last     = sram_rd_cmd_last;
@@ -263,7 +263,7 @@ module svc_axi_sram_if #(
       end
 
       STATE_WRITE: begin
-        sram_cmd_valid    = 1'b1;
+        sram_cmd_valid    = sram_wr_cmd_valid;
         sram_cmd_addr     = sram_wr_cmd_addr;
         sram_cmd_wr_en    = 1'b1;
         sram_wr_cmd_ready = sram_cmd_ready;
