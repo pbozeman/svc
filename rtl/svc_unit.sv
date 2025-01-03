@@ -13,12 +13,24 @@
 `define COLOR_GREEN "\033[32m"
 `define COLOR_YELLOW "\033[33m"
 `define COLOR_BLUE "\033[34m"
-`define COLOR_MAGENTA "\033[34m"
+`define COLOR_MGENTA "\033[34m"
 `define COLOR_CYAN "\033[36m"
 `define COLOR_WHITE "\033[36m"
 `define COLOR_RESET "\033[0m"
 
-`define CHECK_MSG(op, file, line, a, b)                                      \
+`define CHECK_MSG_1(op, file, line, a)                                       \
+  $display("%sFAIL%s\n%s%s%s:%s%0d%s CHECK_%s(%s%s%s=0x%0h)",                \
+           `COLOR_RED, `COLOR_RESET,                                         \
+           `COLOR_YELLOW, file, `COLOR_RESET,                                \
+           `COLOR_RED, line, `COLOR_RESET,                                   \
+           op, `COLOR_YELLOW, `"a`", `COLOR_RESET,  a) ;                     \
+  $display("%smake %s RUN=%s%s",                                             \
+           `COLOR_CYAN, svc_tb_module_name, svc_tb_test_name, `COLOR_RESET); \
+  $display("%sgtkwave .build/%s.vcd%s",                                      \
+           `COLOR_YELLOW, svc_tb_module_name, `COLOR_RESET);                 \
+  $fatal;
+
+`define CHECK_MSG_2(op, file, line, a, b)                                    \
   $display("%sFAIL%s\n%s%s%s:%s%0d%s CHECK_%s(%s%s%s=0x%0h, %s=0x%0h)",      \
            `COLOR_RED, `COLOR_RESET,                                         \
            `COLOR_YELLOW, file, `COLOR_RESET,                                \
@@ -30,14 +42,44 @@
            `COLOR_YELLOW, svc_tb_module_name, `COLOR_RESET);                 \
   $fatal;
 
-`define CHECK_EQ(a, b)                                                       \
-  if (!(a === b)) begin                                                      \
-    `CHECK_MSG("EQ", `__FILE__, `__LINE__, a, b);                            \
+`define CHECK_TRUE(a)                                                         \
+  if (a !== 1) begin                                                          \
+    `CHECK_MSG_1("TRUE", `__FILE__, `__LINE__, a);                            \
   end
 
-`define CHECK_NEQ(a, b)                                                      \
-  if (!(a !== b)) begin                                                      \
-    `CHECK_MSG("NEQ", `__FILE__, `__LINE__, a, b);                           \
+`define CHECK_FALSE(a)                                                        \
+  if (a !== 0) begin                                                          \
+    `CHECK_MSG_1("FALSE", `__FILE__, `__LINE__, a);                           \
+  end
+
+`define CHECK_EQ(a, b)                                                        \
+  if (a !== b) begin                                                          \
+    `CHECK_MSG_2("EQ", `__FILE__, `__LINE__, a, b);                           \
+  end
+
+`define CHECK_NEQ(a, b)                                                       \
+  if (a === b) begin                                                          \
+    `CHECK_MSG_2("NEQ", `__FILE__, `__LINE__, a, b);                          \
+  end
+
+`define CHECK_LT(a, b)                                                        \
+  if ((a >= b) || (a === 'x) || (b === 'x) || (a === 'z) || (b === 'z)) begin \
+    `CHECK_MSG_2("LT", `__FILE__, `__LINE__, a, b);                           \
+  end
+
+`define CHECK_LTE(a, b)                                                       \
+  if ((a > b) || (a === 'x) || (b === 'x) || (a === 'z) || (b === 'z)) begin  \
+    `CHECK_MSG_2("LT", `__FILE__, `__LINE__, a, b);                           \
+  end
+
+`define CHECK_GT(a, b)                                                        \
+  if ((a <= b) || (a === 'x) || (b === 'x) || (a === 'z) || (b === 'z)) begin \
+    `CHECK_MSG_2("GT", `__FILE__, `__LINE__, a, b);                           \
+  end
+
+`define CHECK_GTE(a, b)                                                       \
+  if ((a < b) || (a === 'x) || (b === 'x) || (a === 'z) || (b === 'z)) begin  \
+    `CHECK_MSG_2("GTE", `__FILE__, `__LINE__, a, b);                          \
   end
 
 `define TEST_CLK_NS(clk, ns)                                                 \

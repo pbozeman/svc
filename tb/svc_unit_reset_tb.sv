@@ -15,11 +15,11 @@ module svc_unit_reset_tb;
   endtask
 
   task test_no_setup();
-    `CHECK_EQ(reset_happened, 1'b1);
+    `CHECK_TRUE(reset_happened);
   endtask
 
   task test_setup();
-    `CHECK_EQ(reset_happened, 1'b1);
+    `CHECK_TRUE(reset_happened);
   endtask
 
   `TEST_SUITE_BEGIN(svc_unit_reset_tb);
