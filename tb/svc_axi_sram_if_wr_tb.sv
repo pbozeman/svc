@@ -16,7 +16,6 @@ module svc_axi_sram_if_wr_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
-  // verilator lint_off: UNUSEDSIGNAL
   logic             m_axi_awvalid;
   logic             m_axi_awready;
   logic [   IW-1:0] m_axi_awid;
@@ -27,7 +26,10 @@ module svc_axi_sram_if_wr_tb;
   logic [   DW-1:0] m_axi_wdata;
   logic [STRBW-1:0] m_axi_wstrb;
   logic             m_axi_wvalid;
+  // verilator lint_off: UNUSEDSIGNAL
+  // we don't do write tests in this tb, those happen in the combined tb module
   logic             m_axi_wready;
+  // verilator lint_on: UNUSEDSIGNAL
   logic             m_axi_wlast;
   logic [      1:0] m_axi_bresp;
   logic             m_axi_bvalid;
@@ -39,7 +41,6 @@ module svc_axi_sram_if_wr_tb;
   logic [  SAW-1:0] sram_wr_cmd_addr;
   logic [   DW-1:0] sram_wr_cmd_data;
   logic [STRBW-1:0] sram_wr_cmd_strb;
-  // verilator lint_on: UNUSEDSIGNAL
 
   svc_axi_sram_if_wr #(
       .AXI_ADDR_WIDTH(AW),
