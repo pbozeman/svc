@@ -187,7 +187,7 @@ module svc_axi_sram_if #(
       end
 
       STATE_WRITE: begin
-        if (sram_cmd_ready) begin
+        if (s_axi_bvalid && s_axi_bready) begin
           if (sram_rd_cmd_valid) begin
             state_next = STATE_READ;
           end else if (sram_wr_cmd_valid) begin

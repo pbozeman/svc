@@ -370,11 +370,11 @@ module svc_axi_sram_if_tb;
     `CHECK_EQ(sram_cmd_wr_data, data + DW'(2));
 
     // Fourth and last beat
+    @(posedge clk);
     m_axi_wdata = data + DW'(3);
     m_axi_wlast = 1'b1;
 
     @(posedge clk);
-    #1;
     `CHECK_EQ(sram_cmd_valid, 1'b1);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr + 6));
     `CHECK_EQ(sram_cmd_wr_data, data + DW'(3));
@@ -405,11 +405,6 @@ module svc_axi_sram_if_tb;
     @(posedge clk);
     #1;
     `CHECK_EQ(sram_cmd_valid, 1'b0);
-    `CHECK_EQ(m_axi_bvalid, 1'b1);
-    `CHECK_EQ(m_axi_bid, 4'hB);
-
-    @(posedge clk);
-    #1;
     `CHECK_EQ(m_axi_bvalid, 1'b0);
   endtask
 
@@ -450,56 +445,67 @@ module svc_axi_sram_if_tb;
 
   task automatic read_beats(logic [AW-1:0] addr);
     // this assumes a 16 bit bus, 4 beats
+
+    // First beat
     `CHECK_EQ(sram_cmd_valid, 1'b1);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr));
     `CHECK_EQ(sram_cmd_meta, 4'hB);
     `CHECK_EQ(sram_cmd_last, 1'b0);
+    `CHECK_EQ(m_axi_rvalid, 1'b0);
 
-    // First beat addr, no data yet
-    @(posedge clk);
+    #1;
+    if (!m_axi_rvalid) begin
+      // This is kinda janky, but in order to manage the valid signal
+      // and do all the addr and data asserts, we enter this task in
+      // different relative positions to the acceptance of the txn when
+      // doing the back to back read tests.
+      // TODO: see if this can be cleaned up
+      @(posedge clk);
+    end
     #1;
     `CHECK_EQ(m_axi_rvalid, 1'b1);
-    `CHECK_EQ(sram_cmd_addr, a_to_sa(addr + 2));
-
-    // Second beat addr, first beat data
     `CHECK_EQ(m_axi_rdata, a_to_d(addr));
     `CHECK_EQ(m_axi_rid, 4'hB);
     `CHECK_EQ(m_axi_rresp, 2'b00);
     `CHECK_EQ(m_axi_rlast, 1'b0);
 
-    // Third beat addr, second beat data
+    // Second beat
     @(posedge clk);
-    #1;
     `CHECK_EQ(sram_cmd_valid, 1'b1);
-    `CHECK_EQ(sram_cmd_addr, a_to_sa(addr + 4));
+    `CHECK_EQ(sram_cmd_addr, a_to_sa(addr + 2));
     `CHECK_EQ(sram_cmd_meta, 4'hB);
     `CHECK_EQ(sram_cmd_last, 1'b0);
 
+    #1;
     `CHECK_EQ(m_axi_rvalid, 1'b1);
     `CHECK_EQ(m_axi_rdata, a_to_d(addr + 2));
     `CHECK_EQ(m_axi_rid, 4'hB);
     `CHECK_EQ(m_axi_rresp, 2'b00);
     `CHECK_EQ(m_axi_rlast, 1'b0);
 
-    // Fourth beat addr, third beat data
-    @(posedge clk);
-    #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b1);
-    `CHECK_EQ(sram_cmd_addr, a_to_sa(addr + 6));
-    `CHECK_EQ(sram_cmd_meta, 4'hB);
-    `CHECK_EQ(sram_cmd_last, 1'b1);
 
+    // Third beat addr
+    @(posedge clk);
+    `CHECK_EQ(sram_cmd_valid, 1'b1);
+    `CHECK_EQ(sram_cmd_addr, a_to_sa(addr + 4));
+    `CHECK_EQ(sram_cmd_meta, 4'hB);
+    `CHECK_EQ(sram_cmd_last, 1'b0);
+
+    #1;
     `CHECK_EQ(m_axi_rvalid, 1'b1);
     `CHECK_EQ(m_axi_rdata, a_to_d(addr + 4));
     `CHECK_EQ(m_axi_rid, 4'hB);
     `CHECK_EQ(m_axi_rresp, 2'b00);
     `CHECK_EQ(m_axi_rlast, 1'b0);
 
-    // Addr done, fourth beat data
+    // Fourth beat addr, third beat data
     @(posedge clk);
-    #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
+    `CHECK_EQ(sram_cmd_valid, 1'b1);
+    `CHECK_EQ(sram_cmd_addr, a_to_sa(addr + 6));
+    `CHECK_EQ(sram_cmd_meta, 4'hB);
+    `CHECK_EQ(sram_cmd_last, 1'b1);
 
+    #1;
     `CHECK_EQ(m_axi_rvalid, 1'b1);
     `CHECK_EQ(m_axi_rdata, a_to_d(addr + 6));
     `CHECK_EQ(m_axi_rid, 4'hB);
@@ -563,11 +569,16 @@ module svc_axi_sram_if_tb;
     #1;
     // let valid drop again when accepted
     auto_valid = 1'b1;
+    @(posedge clk);
     read_beats(addr0);
 
+    // TODO: remove this idle state
     @(posedge clk);
     #1;
+    `CHECK_EQ(m_axi_rvalid, 1'b0);
+
     read_beats(addr1);
+    `CHECK_EQ(m_axi_rvalid, 1'b1);
 
     @(posedge clk);
     #1;
@@ -582,7 +593,7 @@ module svc_axi_sram_if_tb;
   task automatic test_r_w_burst;
     logic [AW-1:0] addr0 = AW'(16'hA000);
     logic [AW-1:0] addr1 = AW'(16'hB000);
-    logic [DW-1:0] data1 = DW'(16'hBABE);
+    logic [DW-1:0] data1 = DW'(16'hD000);
 
     // Length of 4 (N-1)
     // INCR burst
@@ -621,11 +632,94 @@ module svc_axi_sram_if_tb;
     #1;
     `CHECK_EQ(sram_cmd_valid, 1'b0);
     `CHECK_EQ(m_axi_rvalid, 1'b0);
-    `CHECK_EQ(m_axi_bvalid, 1'b1);
+    `CHECK_EQ(m_axi_bvalid, 1'b0);
+  endtask
+
+  task automatic test_w_r_burst;
+    logic [AW-1:0] addr0 = AW'(16'hA000);
+    logic [DW-1:0] data0 = DW'(16'hD000);
+    logic [AW-1:0] addr1 = AW'(16'hB000);
+
+    // Length of 4 (N-1)
+    // INCR burst
+    // 2 bytes (16 bits)
+    m_axi_awvalid = 1'b1;
+    m_axi_awaddr  = addr0;
+    m_axi_awid    = 4'hB;
+    m_axi_awlen   = 8'h3;
+    m_axi_awburst = 2'b01;
+    m_axi_awsize  = 3'b001;
+    m_axi_bready  = 1'b1;
+
+    @(posedge clk);
+    #1;
+    // switch to read
+    m_axi_arvalid = 1'b1;
+    m_axi_araddr  = addr1;
+    m_axi_arid    = 4'hB;
+    m_axi_arlen   = 8'h3;
+    m_axi_arburst = 2'b01;
+    m_axi_arsize  = 3'b001;
+    m_axi_rready  = 1'b1;
+
+    #1;
+    write_beats(addr0, data0);
+
+    // the read was accepted back while reading beats, so we should be able
+    // to just go.
+    @(posedge clk);
+    read_beats(addr1);
+
+    @(posedge clk);
+    #1;
+    `CHECK_EQ(sram_cmd_valid, 1'b0);
+    `CHECK_EQ(m_axi_rvalid, 1'b0);
+    `CHECK_EQ(m_axi_bvalid, 1'b0);
 
     @(posedge clk);
     #1;
     `CHECK_EQ(m_axi_rvalid, 1'b0);
+    `CHECK_EQ(m_axi_bvalid, 1'b0);
+  endtask
+
+  task automatic test_w_w_burst;
+    logic [AW-1:0] addr0 = AW'(16'hA000);
+    logic [DW-1:0] data0 = DW'(16'hD000);
+    logic [AW-1:0] addr1 = AW'(16'hB000);
+    logic [DW-1:0] data1 = DW'(16'hE000);
+
+    // Length of 4 (N-1)
+    // INCR burst
+    // 2 bytes (16 bits)
+    m_axi_awvalid = 1'b1;
+    m_axi_awaddr  = addr0;
+    m_axi_awid    = 4'hB;
+    m_axi_awlen   = 8'h3;
+    m_axi_awburst = 2'b01;
+    m_axi_awsize  = 3'b001;
+    m_axi_bready  = 1'b1;
+
+    auto_valid    = 1'b0;
+
+    @(posedge clk);
+    `CHECK_EQ(m_axi_awvalid && m_axi_awready, 1'b1);
+    // don't drop valid, write back to back
+    m_axi_awaddr = addr1;
+    #1;
+    // let valid drop again when accepted
+    auto_valid = 1'b1;
+
+    @(posedge clk);
+    write_beats(addr0, data0);
+
+    // the read was accepted back while reading beats, so we should be able
+    // to just go.
+    @(posedge clk);
+    write_beats(addr1, data1);
+
+    @(posedge clk);
+    #1;
+    `CHECK_EQ(sram_cmd_valid, 1'b0);
     `CHECK_EQ(m_axi_bvalid, 1'b0);
   endtask
 
@@ -643,9 +737,8 @@ module svc_axi_sram_if_tb;
 
   `TEST_CASE(test_r_r_burst);
   `TEST_CASE(test_r_w_burst);
-  // TODO: implement these with bursting
-  // `TEST_CASE(test_w_r);
-  // `TEST_CASE(test_w_w);
+  `TEST_CASE(test_w_r_burst);
+  `TEST_CASE(test_w_w_burst);
 
   `TEST_SUITE_END();
 
