@@ -62,7 +62,7 @@ module svc_skidbuf_tb;
 
       @(posedge clk);
       #1;
-      `CHECK_EQ(s_valid, 1'b0);
+      `CHECK_FALSE(s_valid);
     end
   endtask
 
@@ -76,14 +76,14 @@ module svc_skidbuf_tb;
       #1;
       `CHECK_EQ(s_data, 8'h55);
       `CHECK_TRUE(s_valid);
-      `CHECK_EQ(m_ready, 1'b0);
+      `CHECK_FALSE(m_ready);
 
       m_valid = 1;
       m_data  = 8'hAA;
       @(posedge clk);
       #1;
       `CHECK_EQ(s_data, 8'h55);
-      `CHECK_EQ(m_ready, 1'b0);
+      `CHECK_FALSE(m_ready);
 
       s_ready = 1;
       @(posedge clk);
@@ -121,7 +121,7 @@ module svc_skidbuf_tb;
       rst_n = 0;
       @(posedge clk);
       #1;
-      `CHECK_EQ(s_valid, 1'b0);
+      `CHECK_FALSE(s_valid);
       `CHECK_TRUE(m_ready);
     end
   endtask

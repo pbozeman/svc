@@ -105,8 +105,8 @@ module svc_axi_sram_if_wr_tb;
   end
 
   task test_initial;
-    `CHECK_EQ(sram_wr_cmd_valid, 1'b0);
-    `CHECK_EQ(m_axi_bvalid, 1'b0);
+    `CHECK_FALSE(sram_wr_cmd_valid);
+    `CHECK_FALSE(m_axi_bvalid);
     `CHECK_EQ(m_axi_bresp, '0);
   endtask
 
@@ -114,7 +114,7 @@ module svc_axi_sram_if_wr_tb;
     logic [AW-1:0] addr = AW'(16'hA000);
     logic [DW-1:0] data = DW'(16'hD000);
 
-    `CHECK_EQ(sram_wr_cmd_valid, 1'b0);
+    `CHECK_FALSE(sram_wr_cmd_valid);
 
     m_axi_awvalid = 1'b1;
     m_axi_awaddr  = addr;
@@ -131,20 +131,20 @@ module svc_axi_sram_if_wr_tb;
       `CHECK_EQ(sram_wr_cmd_addr, a_to_sa(addr));
       `CHECK_EQ(sram_wr_cmd_data, data);
       `CHECK_EQ(sram_wr_cmd_strb, '1);
-      `CHECK_EQ(m_axi_bvalid, 1'b0);
+      `CHECK_FALSE(m_axi_bvalid);
     end
 
     sram_wr_cmd_ready = 1'b1;
     @(posedge clk);
     #1;
-    `CHECK_EQ(sram_wr_cmd_valid, 1'b0);
+    `CHECK_FALSE(sram_wr_cmd_valid);
     `CHECK_TRUE(m_axi_bvalid);
     `CHECK_EQ(m_axi_bid, 4'hB);
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(sram_wr_cmd_valid, 1'b0);
-    `CHECK_EQ(m_axi_bvalid, 1'b0);
+    `CHECK_FALSE(sram_wr_cmd_valid);
+    `CHECK_FALSE(m_axi_bvalid);
   endtask
 
   `TEST_SUITE_BEGIN(svc_axi_sram_if_wr_tb);

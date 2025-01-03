@@ -58,7 +58,7 @@ module svc_skidbuf_reg_tb;
 
       @(posedge clk);
       #1;
-      `CHECK_EQ(s_valid, 1'b0);
+      `CHECK_FALSE(s_valid);
     end
   endtask
 
@@ -115,7 +115,7 @@ module svc_skidbuf_reg_tb;
       rst_n = 0;
       @(posedge clk);
       #1;
-      `CHECK_EQ(s_valid, 1'b0);
+      `CHECK_FALSE(s_valid);
       `CHECK_TRUE(m_ready);
     end
   endtask

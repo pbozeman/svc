@@ -98,14 +98,14 @@ module svc_axi_sram_if_rd_tb;
   end
 
   task test_initial;
-    `CHECK_EQ(sram_rd_cmd_valid, 1'b0);
-    `CHECK_EQ(m_axi_rvalid, 1'b0);
+    `CHECK_FALSE(sram_rd_cmd_valid);
+    `CHECK_FALSE(m_axi_rvalid);
   endtask
 
   task automatic test_ar_sram_ready;
     logic [AW-1:0] addr = AW'(16'hA000);
 
-    `CHECK_EQ(sram_rd_cmd_valid, 1'b0);
+    `CHECK_FALSE(sram_rd_cmd_valid);
     m_axi_arvalid = 1'b1;
     m_axi_arid    = 4'hB;
     m_axi_araddr  = addr;
@@ -122,7 +122,7 @@ module svc_axi_sram_if_rd_tb;
     sram_rd_cmd_ready = 1'b1;
     @(posedge clk);
     #1;
-    `CHECK_EQ(sram_rd_cmd_valid, 1'b0);
+    `CHECK_FALSE(sram_rd_cmd_valid);
   endtask
 
 

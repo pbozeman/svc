@@ -188,33 +188,33 @@ module svc_axi_sram_if_tb;
   end
 
   task test_initial;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
-    `CHECK_EQ(m_axi_bvalid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
+    `CHECK_FALSE(m_axi_bvalid);
     `CHECK_EQ(m_axi_bresp, '0);
-    `CHECK_EQ(m_axi_rvalid, 1'b0);
+    `CHECK_FALSE(m_axi_rvalid);
   endtask
 
   task automatic test_aw_only;
     logic [AW-1:0] addr = AW'(16'hA000);
 
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
 
     m_axi_awvalid = 1'b1;
     m_axi_awaddr  = addr;
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(m_axi_bvalid, 1'b0);
+    `CHECK_FALSE(m_axi_bvalid);
   endtask
 
   task automatic test_w_only;
     logic [DW-1:0] data = DW'(16'hD000);
 
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
 
     m_axi_wvalid = 1'b1;
     m_axi_wdata  = data;
@@ -222,28 +222,28 @@ module svc_axi_sram_if_tb;
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
     `CHECK_EQ(sram_cmd_wr_data, data);
     `CHECK_EQ(sram_cmd_wr_strb, '1);
-    `CHECK_EQ(m_axi_bvalid, 1'b0);
+    `CHECK_FALSE(m_axi_bvalid);
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(m_axi_bvalid, 1'b0);
+    `CHECK_FALSE(m_axi_bvalid);
   endtask
 
   task automatic test_aw_w_delayed;
     logic [AW-1:0] addr = AW'(16'hA000);
     logic [DW-1:0] data = DW'(16'hD000);
 
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
     m_axi_awvalid = 1'b1;
     m_axi_awid    = 4'hB;
     m_axi_awaddr  = addr;
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
 
     m_axi_wvalid = 1'b1;
     m_axi_wdata  = data;
@@ -259,20 +259,20 @@ module svc_axi_sram_if_tb;
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
     `CHECK_TRUE(m_axi_bvalid);
     `CHECK_EQ(m_axi_bid, 4'hB);
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(m_axi_bvalid, 1'b0);
+    `CHECK_FALSE(m_axi_bvalid);
   endtask
 
   task automatic test_w_aw_delayed;
     logic [AW-1:0] addr = AW'(16'hA000);
     logic [DW-1:0] data = DW'(16'hD000);
 
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
     m_axi_wvalid = 1'b1;
     m_axi_wdata  = data;
     m_axi_wstrb  = '1;
@@ -280,7 +280,7 @@ module svc_axi_sram_if_tb;
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
 
     m_axi_awvalid = 1'b1;
     m_axi_awid    = 4'hB;
@@ -295,21 +295,21 @@ module svc_axi_sram_if_tb;
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
     `CHECK_TRUE(m_axi_bvalid);
     `CHECK_EQ(m_axi_bid, 4'hB);
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
-    `CHECK_EQ(m_axi_bvalid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
+    `CHECK_FALSE(m_axi_bvalid);
   endtask
 
   task automatic test_sram_ready;
     logic [AW-1:0] addr = AW'(16'hA000);
     logic [DW-1:0] data = DW'(16'hD000);
 
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
 
     m_axi_awvalid = 1'b1;
     m_axi_awaddr  = addr;
@@ -326,19 +326,19 @@ module svc_axi_sram_if_tb;
       `CHECK_EQ(sram_cmd_addr, a_to_sa(addr));
       `CHECK_EQ(sram_cmd_wr_data, data);
       `CHECK_EQ(sram_cmd_wr_strb, '1);
-      `CHECK_EQ(m_axi_bvalid, 1'b0);
+      `CHECK_FALSE(m_axi_bvalid);
     end
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
     `CHECK_TRUE(m_axi_bvalid);
     `CHECK_EQ(m_axi_bid, 4'hB);
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
-    `CHECK_EQ(m_axi_bvalid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
+    `CHECK_FALSE(m_axi_bvalid);
   endtask
 
   task automatic write_beats(logic [AW-1:0] addr, logic [DW-1:0] data);
@@ -406,28 +406,28 @@ module svc_axi_sram_if_tb;
 
     @(posedge clk);
     `CHECK_TRUE(m_axi_awready && m_axi_awvalid);
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
 
     write_beats(addr, data);
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
-    `CHECK_EQ(m_axi_bvalid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
+    `CHECK_FALSE(m_axi_bvalid);
   endtask
 
   task automatic test_r_axi_rready;
     logic [AW-1:0] addr = AW'(16'hA000);
 
-    `CHECK_EQ(m_axi_rvalid, 1'b0);
+    `CHECK_FALSE(m_axi_rvalid);
     m_axi_arvalid = 1'b1;
     m_axi_arid    = 4'hB;
     m_axi_araddr  = addr;
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(m_axi_rvalid, 1'b0);
-    `CHECK_EQ(sram_rd_resp_ready, 1'b0);
+    `CHECK_FALSE(m_axi_rvalid);
+    `CHECK_FALSE(sram_rd_resp_ready);
 
     @(posedge clk);
     #1;
@@ -435,7 +435,7 @@ module svc_axi_sram_if_tb;
     `CHECK_EQ(m_axi_rid, 4'hB);
     `CHECK_EQ(m_axi_rdata, a_to_d(addr));
     `CHECK_EQ(m_axi_rresp, 2'b00);
-    `CHECK_EQ(sram_rd_resp_ready, 1'b0);
+    `CHECK_FALSE(sram_rd_resp_ready);
 
     repeat (3) begin
       @(posedge clk);
@@ -443,7 +443,7 @@ module svc_axi_sram_if_tb;
       `CHECK_EQ(m_axi_rid, 4'hB);
       `CHECK_EQ(m_axi_rdata, a_to_d(addr));
       `CHECK_EQ(m_axi_rresp, 2'b00);
-      `CHECK_EQ(sram_rd_resp_ready, 1'b0);
+      `CHECK_FALSE(sram_rd_resp_ready);
     end
 
     m_axi_rready = 1'b1;
@@ -457,8 +457,8 @@ module svc_axi_sram_if_tb;
     `CHECK_TRUE(sram_cmd_valid);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr));
     `CHECK_EQ(sram_cmd_meta, 4'hB);
-    `CHECK_EQ(sram_cmd_last, 1'b0);
-    `CHECK_EQ(m_axi_rvalid, 1'b0);
+    `CHECK_FALSE(sram_cmd_last);
+    `CHECK_FALSE(m_axi_rvalid);
 
     #1;
     if (!m_axi_rvalid) begin
@@ -474,21 +474,21 @@ module svc_axi_sram_if_tb;
     `CHECK_EQ(m_axi_rdata, a_to_d(addr));
     `CHECK_EQ(m_axi_rid, 4'hB);
     `CHECK_EQ(m_axi_rresp, 2'b00);
-    `CHECK_EQ(m_axi_rlast, 1'b0);
+    `CHECK_FALSE(m_axi_rlast);
 
     // Second beat
     @(posedge clk);
     `CHECK_TRUE(sram_cmd_valid);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr + 2));
     `CHECK_EQ(sram_cmd_meta, 4'hB);
-    `CHECK_EQ(sram_cmd_last, 1'b0);
+    `CHECK_FALSE(sram_cmd_last);
 
     #1;
     `CHECK_TRUE(m_axi_rvalid);
     `CHECK_EQ(m_axi_rdata, a_to_d(addr + 2));
     `CHECK_EQ(m_axi_rid, 4'hB);
     `CHECK_EQ(m_axi_rresp, 2'b00);
-    `CHECK_EQ(m_axi_rlast, 1'b0);
+    `CHECK_FALSE(m_axi_rlast);
 
 
     // Third beat addr
@@ -496,14 +496,14 @@ module svc_axi_sram_if_tb;
     `CHECK_TRUE(sram_cmd_valid);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr + 4));
     `CHECK_EQ(sram_cmd_meta, 4'hB);
-    `CHECK_EQ(sram_cmd_last, 1'b0);
+    `CHECK_FALSE(sram_cmd_last);
 
     #1;
     `CHECK_TRUE(m_axi_rvalid);
     `CHECK_EQ(m_axi_rdata, a_to_d(addr + 4));
     `CHECK_EQ(m_axi_rid, 4'hB);
     `CHECK_EQ(m_axi_rresp, 2'b00);
-    `CHECK_EQ(m_axi_rlast, 1'b0);
+    `CHECK_FALSE(m_axi_rlast);
 
     // Fourth beat addr, third beat data
     @(posedge clk);
@@ -544,12 +544,12 @@ module svc_axi_sram_if_tb;
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
-    `CHECK_EQ(m_axi_rvalid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
+    `CHECK_FALSE(m_axi_rvalid);
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(m_axi_rvalid, 1'b0);
+    `CHECK_FALSE(m_axi_rvalid);
   endtask
 
   task automatic test_r_r_burst;
@@ -582,19 +582,19 @@ module svc_axi_sram_if_tb;
     // TODO: remove this idle state
     @(posedge clk);
     #1;
-    `CHECK_EQ(m_axi_rvalid, 1'b0);
+    `CHECK_FALSE(m_axi_rvalid);
 
     read_beats(addr1);
     `CHECK_TRUE(m_axi_rvalid);
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
-    `CHECK_EQ(m_axi_rvalid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
+    `CHECK_FALSE(m_axi_rvalid);
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(m_axi_rvalid, 1'b0);
+    `CHECK_FALSE(m_axi_rvalid);
   endtask
 
   task automatic test_r_w_burst;
@@ -637,9 +637,9 @@ module svc_axi_sram_if_tb;
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
-    `CHECK_EQ(m_axi_rvalid, 1'b0);
-    `CHECK_EQ(m_axi_bvalid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
+    `CHECK_FALSE(m_axi_rvalid);
+    `CHECK_FALSE(m_axi_bvalid);
   endtask
 
   task automatic test_w_r_burst;
@@ -679,14 +679,14 @@ module svc_axi_sram_if_tb;
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
-    `CHECK_EQ(m_axi_rvalid, 1'b0);
-    `CHECK_EQ(m_axi_bvalid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
+    `CHECK_FALSE(m_axi_rvalid);
+    `CHECK_FALSE(m_axi_bvalid);
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(m_axi_rvalid, 1'b0);
-    `CHECK_EQ(m_axi_bvalid, 1'b0);
+    `CHECK_FALSE(m_axi_rvalid);
+    `CHECK_FALSE(m_axi_bvalid);
   endtask
 
   task automatic test_w_w_burst;
@@ -726,8 +726,8 @@ module svc_axi_sram_if_tb;
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
-    `CHECK_EQ(m_axi_bvalid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
+    `CHECK_FALSE(m_axi_bvalid);
   endtask
 
   `TEST_SUITE_BEGIN(svc_axi_sram_if_tb);
