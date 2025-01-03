@@ -19,10 +19,11 @@
 `define COLOR_RESET "\033[0m"
 
 `define ASSERT_MSG(op, file, line, a, b)                                     \
-  $display("%sFAIL%s\n%s%s:%0d%s CHECK_%s(%s%s%s=0x%0h, %s=0x%0h)",          \
+  $display("%sFAIL%s\n%s%s%s:%s%0d%s CHECK_%s(%s%s%s=0x%0h, %s=0x%0h)",      \
            `COLOR_RED, `COLOR_RESET,                                         \
-            `COLOR_YELLOW, file, line, `COLOR_RESET,                         \
-            op, `COLOR_YELLOW, `"a`", `COLOR_RESET,  a, `"b`", b);           \
+           `COLOR_YELLOW, file, `COLOR_RESET,                                \
+           `COLOR_RED, line, `COLOR_RESET,                                   \
+           op, `COLOR_YELLOW, `"a`", `COLOR_RESET,  a, `"b`", b) ;           \
   $display("%smake %s RUN=%s%s",                                             \
            `COLOR_CYAN, svc_tb_module_name, svc_tb_test_name, `COLOR_RESET); \
   $display("%sgtkwave .build/%s.vcd%s",                                      \
