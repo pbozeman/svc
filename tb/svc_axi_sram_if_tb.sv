@@ -124,19 +124,19 @@ module svc_axi_sram_if_tb;
       .clk  (clk),
       .rst_n(rst_n),
 
-      .sram_cmd_valid    (sram_cmd_valid),
-      .sram_cmd_ready    (sram_cmd_ready),
-      .sram_cmd_addr     (sram_cmd_addr),
-      .sram_cmd_meta     (sram_cmd_meta),
-      .sram_cmd_last     (sram_cmd_last),
-      .sram_cmd_wr_en    (sram_cmd_wr_en),
-      .sram_cmd_wr_data  (sram_cmd_wr_data),
-      .sram_cmd_wr_strb  (sram_cmd_wr_strb),
-      .sram_rd_resp_valid(sram_rd_resp_valid),
-      .sram_rd_resp_ready(sram_rd_resp_ready),
-      .sram_rd_resp_data (sram_rd_resp_data),
-      .sram_rd_resp_meta (sram_rd_resp_meta),
-      .sram_rd_resp_last (sram_rd_resp_last)
+      .sram_cmd_valid   (sram_cmd_valid),
+      .sram_cmd_ready   (sram_cmd_ready),
+      .sram_cmd_addr    (sram_cmd_addr),
+      .sram_cmd_meta    (sram_cmd_meta),
+      .sram_cmd_last    (sram_cmd_last),
+      .sram_cmd_wr_en   (sram_cmd_wr_en),
+      .sram_cmd_wr_data (sram_cmd_wr_data),
+      .sram_cmd_wr_strb (sram_cmd_wr_strb),
+      .sram_resp_valid  (sram_rd_resp_valid),
+      .sram_resp_ready  (sram_rd_resp_ready),
+      .sram_resp_meta   (sram_rd_resp_meta),
+      .sram_resp_last   (sram_rd_resp_last),
+      .sram_resp_rd_data(sram_rd_resp_data)
   );
 
   always_ff @(posedge clk) begin

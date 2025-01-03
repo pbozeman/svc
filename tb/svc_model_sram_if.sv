@@ -21,11 +21,11 @@ module svc_model_sram_if #(
     input  logic                       sram_cmd_wr_en,
     input  logic [SRAM_DATA_WIDTH-1:0] sram_cmd_wr_data,
     input  logic [SRAM_STRB_WIDTH-1:0] sram_cmd_wr_strb,
-    output logic                       sram_rd_resp_valid,
-    input  logic                       sram_rd_resp_ready,
-    output logic [SRAM_DATA_WIDTH-1:0] sram_rd_resp_data,
-    output logic [SRAM_META_WIDTH-1:0] sram_rd_resp_meta,
-    output logic                       sram_rd_resp_last
+    output logic                       sram_resp_valid,
+    input  logic                       sram_resp_ready,
+    output logic [SRAM_META_WIDTH-1:0] sram_resp_meta,
+    output logic                       sram_resp_last,
+    output logic [SRAM_DATA_WIDTH-1:0] sram_resp_rd_data
 );
   // Memory array to store data
   logic [SRAM_DATA_WIDTH-1:0] mem               [(1 << SRAM_ADDR_WIDTH)-1:0];
@@ -37,14 +37,14 @@ module svc_model_sram_if #(
   logic                       pending_last;
 
   // Ready to accept new commands when not processing a read
-  assign sram_cmd_ready = !read_pending || (read_pending && sram_rd_resp_ready);
+  assign sram_cmd_ready = !read_pending || (read_pending && sram_resp_ready);
 
   // Read response handling
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      sram_rd_resp_valid <= '0;
-      read_pending       <= '0;
-      pending_read_data  <= '0;
+      sram_resp_valid   <= '0;
+      read_pending      <= '0;
+      pending_read_data <= '0;
 
       // Initialize memory to X
       for (int i = 0; i < (1 << SRAM_ADDR_WIDTH); i++) begin
@@ -57,12 +57,12 @@ module svc_model_sram_if #(
         end else begin
           pending_read_data <= mem[sram_cmd_addr];
         end
-        read_pending       <= 1'b1;
-        sram_rd_resp_valid <= 1'b1;
+        read_pending    <= 1'b1;
+        sram_resp_valid <= 1'b1;
       end else begin
-        if (sram_rd_resp_valid && sram_rd_resp_ready) begin
-          sram_rd_resp_valid <= 1'b0;
-          read_pending       <= 1'b0;
+        if (sram_resp_valid && sram_resp_ready) begin
+          sram_resp_valid <= 1'b0;
+          read_pending    <= 1'b0;
         end
       end
     end
@@ -87,9 +87,9 @@ module svc_model_sram_if #(
   end
 
   // Drive read response data
-  assign sram_rd_resp_data = pending_read_data;
-  assign sram_rd_resp_meta = pending_meta;
-  assign sram_rd_resp_last = pending_last;
+  assign sram_resp_rd_data = pending_read_data;
+  assign sram_resp_meta    = pending_meta;
+  assign sram_resp_last    = pending_last;
 endmodule
 
 `endif
