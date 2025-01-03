@@ -121,8 +121,12 @@ module svc_axi_sram_if_wr #(
 
           w_id_next = s_axi_awid;
           w_remaining_next = s_axi_awlen;
+          // verilog_format: off
+          // TODO: format under nvim and make are doing different things with
+          // these lines. Disable for now, but make them consistent.
           w_size_next = (s_axi_awsize < 3'($clog2(AXI_STRB_WIDTH)) ?
                          s_axi_awsize : 3'($clog2(AXI_STRB_WIDTH)));
+          // verilog_format: on
           w_burst_next = s_axi_awburst;
           w_last_next = s_axi_awlen == 0;
         end
