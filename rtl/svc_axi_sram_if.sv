@@ -158,52 +158,43 @@ module svc_axi_sram_if #(
   );
 
   //
-  // next read/write logic with fairness
-  //
-  logic   pri_read;
-  state_t fair_state;
-  always_comb begin
-    if (pri_read) begin
-      if (sram_rd_cmd_valid) begin
-        fair_state = STATE_READ;
-      end else if (sram_wr_cmd_valid) begin
-        fair_state = STATE_WRITE;
-      end else begin
-        fair_state = STATE_IDLE;
-      end
-    end else begin
-      if (sram_wr_cmd_valid) begin
-        fair_state = STATE_WRITE;
-      end else if (sram_rd_cmd_valid) begin
-        fair_state = STATE_READ;
-      end else begin
-        fair_state = STATE_IDLE;
-      end
-    end
-  end
-
-  //
   // State machine
   //
+  // Note the ordering of the read/write checks. They ensure fairness.
+  //
   always_comb begin
-    pri_read   = 1'b0;
     state_next = state;
 
     case (state)
       STATE_IDLE: begin
-        state_next = fair_state;
+        if (sram_rd_cmd_valid) begin
+          state_next = STATE_READ;
+        end else if (sram_wr_cmd_valid) begin
+          state_next = STATE_WRITE;
+        end
       end
 
       STATE_READ: begin
-        if (sram_cmd_ready) begin
-          state_next = fair_state;
+        if (sram_rd_resp_valid && sram_rd_resp_ready && sram_rd_resp_last) begin
+          if (sram_wr_cmd_valid) begin
+            state_next = STATE_WRITE;
+          end else if (sram_rd_cmd_valid) begin
+            state_next = STATE_READ;
+          end else begin
+            state_next = STATE_IDLE;
+          end
         end
       end
 
       STATE_WRITE: begin
         if (sram_cmd_ready) begin
-          pri_read   = 1'b1;
-          state_next = fair_state;
+          if (sram_rd_cmd_valid) begin
+            state_next = STATE_READ;
+          end else if (sram_wr_cmd_valid) begin
+            state_next = STATE_WRITE;
+          end else begin
+            state_next = STATE_IDLE;
+          end
         end
       end
     endcase
