@@ -18,7 +18,7 @@
 `define COLOR_WHITE "\033[36m"
 `define COLOR_RESET "\033[0m"
 
-`define ASSERT_MSG(op, file, line, a, b)                                     \
+`define CHECK_MSG(op, file, line, a, b)                                      \
   $display("%sFAIL%s\n%s%s%s:%s%0d%s CHECK_%s(%s%s%s=0x%0h, %s=0x%0h)",      \
            `COLOR_RED, `COLOR_RESET,                                         \
            `COLOR_YELLOW, file, `COLOR_RESET,                                \
@@ -32,12 +32,12 @@
 
 `define CHECK_EQ(a, b)                                                       \
   if (!(a === b)) begin                                                      \
-    `ASSERT_MSG("EQ", `__FILE__, `__LINE__, a, b);                           \
+    `CHECK_MSG("EQ", `__FILE__, `__LINE__, a, b);                            \
   end
 
 `define CHECK_NEQ(a, b)                                                      \
   if (!(a !== b)) begin                                                      \
-    `ASSERT_MSG("NEQ", `__FILE__, `__LINE__, a, b);                          \
+    `CHECK_MSG("NEQ", `__FILE__, `__LINE__, a, b);                           \
   end
 
 `define TEST_CLK_NS(clk, ns)                                                 \
