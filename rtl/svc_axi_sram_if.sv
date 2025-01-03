@@ -77,9 +77,7 @@ module svc_axi_sram_if #(
   typedef enum {
     STATE_IDLE,
     STATE_READ,
-    STATE_READ_RESP,
-    STATE_WRITE,
-    STATE_WRITE_RESP
+    STATE_WRITE
   } state_t;
 
   state_t                       state;
@@ -198,33 +196,12 @@ module svc_axi_sram_if #(
 
       STATE_READ: begin
         if (sram_cmd_ready) begin
-          if (!s_axi_rready) begin
-            state_next = STATE_READ_RESP;
-          end else begin
-            state_next = fair_state;
-          end
-        end
-      end
-
-      STATE_READ_RESP: begin
-        if (s_axi_rready) begin
           state_next = fair_state;
         end
       end
 
       STATE_WRITE: begin
         if (sram_cmd_ready) begin
-          if (!s_axi_bready) begin
-            state_next = STATE_WRITE_RESP;
-          end else begin
-            pri_read   = 1'b1;
-            state_next = fair_state;
-          end
-        end
-      end
-
-      STATE_WRITE_RESP: begin
-        if (s_axi_bready) begin
           pri_read   = 1'b1;
           state_next = fair_state;
         end
