@@ -1,9 +1,9 @@
-`ifndef SVC_MODEL_SRAM_SV
-`define SVC_MODEL_SRAM_SV
+`ifndef SVC_MODEL_SRAM_IF_SV
+`define SVC_MODEL_SRAM_IF_SV
 
 `include "svc.sv"
 
-module svc_model_sram #(
+module svc_model_sram_if #(
     parameter UNITIALIZED_READS_OK = 0,
     parameter SRAM_ADDR_WIDTH      = 8,
     parameter SRAM_DATA_WIDTH      = 16,
