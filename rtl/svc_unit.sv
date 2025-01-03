@@ -93,6 +93,21 @@
   logic rst_n;                                                               \
   `TEST_TASK_RESET_N(clk, rst_n, cycles)
 
+`ifndef VERILATOR
+`define CHECK_WAIT_FOR(clk, signal, max_cnt = 16)                            \
+    svc_wait_cnt = 0;                                                        \
+    while (!signal) begin                                                    \
+      @(posedge clk);                                                        \
+      svc_wait_cnt = svc_wait_cnt + 1;                                       \
+      `CHECK_LT(svc_wait_cnt, max_cnt);                                      \
+    end                                                                      \
+    if (signal !== 1) begin                                                  \
+      `CHECK_MSG_1("WAIT_FOR", `__FILE__, `__LINE__, signal);                \
+    end
+`else
+`define CHECK_WAIT_FOR(clk, signal, max_cnt = 16)
+`endif
+
 `define TEST_TASK_RESET_N(clk, rst_n, cycles = 5)                            \
   task reset_``rst_n``();                                                    \
     rst_n = 0;                                                               \
@@ -105,6 +120,7 @@
 `define TEST_SUITE_BEGIN(tb_module_name)                                     \
 `ifndef VERILATOR                                                            \
   int line_num;                                                              \
+  int svc_wait_cnt;                                                          \
 `endif                                                                       \
   string svc_tb_module_name;                                                 \
   string svc_tb_test_name;                                                   \
