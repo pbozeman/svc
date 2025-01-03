@@ -1,0 +1,18 @@
+[tasks]
+bmc
+cover
+
+[options]
+bmc: mode bmc
+cover: mode cover
+depth 16
+
+[engines]
+smtbmc
+
+[script]
+read_verilog -formal -DFORMAL_SVC_ICE40_SRAM_IO_IF -sv svc_ice40_sram_io_if.sv
+prep -top svc_ice40_sram_io_if
+
+[files]
+rtl/
