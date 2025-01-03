@@ -16,6 +16,7 @@ TEST_BENCHES := $(basename $(notdir $(RTL_TB)))
 VCD_FILES := $(addprefix $(BUILD_DIR)/,$(addsuffix .vcd, $(TEST_BENCHES)))
 
 SYNTH_DEFS := -DSYNTH_YOSYS
+ICE40_CELLS_SIM := $(shell yosys-config --datdir/ice40/cells_sim.v)
 
 # Tools
 FORMATTER := scripts/format-sv
@@ -69,7 +70,7 @@ $(foreach tb, $(TEST_BENCHES), $(eval $(call lint_tb_rule,$(tb))))
 # Verification
 #
 ##############################################################################
-$(BUILD_DIR)/%: $(TB_DIR)/%.sv Makefile | $(BUILD_DIR)
+$(BUILD_DIR)/%: $(TB_DIR)/%.sv $(ICE40_CELLS_SIM) Makefile | $(BUILD_DIR)
 	@$(IVERILOG) -M $(@).dep -I$(RTL_DIR) -I$(TB_DIR) -o $@ $(filter-out Makefile,$^)
 	@echo "$@: $$(tr '\n' ' ' < $(@).dep)" > $(@).d
 
