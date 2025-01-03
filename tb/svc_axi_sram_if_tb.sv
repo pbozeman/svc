@@ -1,7 +1,7 @@
 `include "svc_unit.sv"
 
 `include "svc_axi_sram_if.sv"
-`include "svc_model_sram.sv"
+`include "svc_model_sram_if.sv"
 
 module svc_axi_sram_if_tb;
   parameter AW = 16;
@@ -116,11 +116,11 @@ module svc_axi_sram_if_tb;
       .sram_rd_resp_last (sram_rd_resp_last)
   );
 
-  svc_model_sram #(
+  svc_model_sram_if #(
       .UNITIALIZED_READS_OK(1),
       .SRAM_ADDR_WIDTH     (SAW),
       .SRAM_DATA_WIDTH     (DW)
-  ) svc_model_sram_i (
+  ) svc_model_sram_if_i (
       .clk  (clk),
       .rst_n(rst_n),
 
