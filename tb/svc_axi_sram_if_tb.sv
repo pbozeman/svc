@@ -251,8 +251,8 @@ module svc_axi_sram_if_tb;
     m_axi_bready = 1'b1;
 
     #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b1);
-    `CHECK_EQ(sram_cmd_ready, 1'b1);
+    `CHECK_TRUE(sram_cmd_valid);
+    `CHECK_TRUE(sram_cmd_ready);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr));
     `CHECK_EQ(sram_cmd_wr_data, data);
     `CHECK_EQ(sram_cmd_wr_strb, '1);
@@ -260,7 +260,7 @@ module svc_axi_sram_if_tb;
     @(posedge clk);
     #1;
     `CHECK_EQ(sram_cmd_valid, 1'b0);
-    `CHECK_EQ(m_axi_bvalid, 1'b1);
+    `CHECK_TRUE(m_axi_bvalid);
     `CHECK_EQ(m_axi_bid, 4'hB);
 
     @(posedge clk);
@@ -288,15 +288,15 @@ module svc_axi_sram_if_tb;
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b1);
-    `CHECK_EQ(sram_cmd_ready, 1'b1);
+    `CHECK_TRUE(sram_cmd_valid);
+    `CHECK_TRUE(sram_cmd_ready);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr));
     `CHECK_EQ(sram_cmd_wr_data, data);
 
     @(posedge clk);
     #1;
     `CHECK_EQ(sram_cmd_valid, 1'b0);
-    `CHECK_EQ(m_axi_bvalid, 1'b1);
+    `CHECK_TRUE(m_axi_bvalid);
     `CHECK_EQ(m_axi_bid, 4'hB);
 
     @(posedge clk);
@@ -322,7 +322,7 @@ module svc_axi_sram_if_tb;
     repeat (3) begin
       @(posedge clk);
       #1;
-      `CHECK_EQ(sram_cmd_valid, 1'b1);
+      `CHECK_TRUE(sram_cmd_valid);
       `CHECK_EQ(sram_cmd_addr, a_to_sa(addr));
       `CHECK_EQ(sram_cmd_wr_data, data);
       `CHECK_EQ(sram_cmd_wr_strb, '1);
@@ -332,7 +332,7 @@ module svc_axi_sram_if_tb;
     @(posedge clk);
     #1;
     `CHECK_EQ(sram_cmd_valid, 1'b0);
-    `CHECK_EQ(m_axi_bvalid, 1'b1);
+    `CHECK_TRUE(m_axi_bvalid);
     `CHECK_EQ(m_axi_bid, 4'hB);
 
     @(posedge clk);
@@ -351,39 +351,39 @@ module svc_axi_sram_if_tb;
     m_axi_wlast  = 1'b0;
 
     #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b1);
+    `CHECK_TRUE(sram_cmd_valid);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr));
     `CHECK_EQ(sram_cmd_wr_data, data);
 
     // Second beat
     @(posedge clk);
-    `CHECK_EQ(m_axi_wready, 1'b1);
+    `CHECK_TRUE(m_axi_wready);
     m_axi_wdata = data + DW'(1);
 
     #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b1);
+    `CHECK_TRUE(sram_cmd_valid);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr + 2));
     `CHECK_EQ(sram_cmd_wr_data, data + DW'(1));
 
     // Third beat
     @(posedge clk);
-    `CHECK_EQ(m_axi_wready, 1'b1);
+    `CHECK_TRUE(m_axi_wready);
     m_axi_wdata = data + DW'(2);
 
     #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b1);
+    `CHECK_TRUE(sram_cmd_valid);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr + 4));
     `CHECK_EQ(sram_cmd_wr_data, data + DW'(2));
 
     // Fourth and last beat
     @(posedge clk);
-    `CHECK_EQ(m_axi_wready, 1'b1);
+    `CHECK_TRUE(m_axi_wready);
     m_axi_wdata = data + DW'(3);
     m_axi_wlast = 1'b1;
 
     @(posedge clk);
-    `CHECK_EQ(m_axi_wready, 1'b1);
-    `CHECK_EQ(sram_cmd_valid, 1'b1);
+    `CHECK_TRUE(m_axi_wready);
+    `CHECK_TRUE(sram_cmd_valid);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr + 6));
     `CHECK_EQ(sram_cmd_wr_data, data + DW'(3));
 
@@ -405,7 +405,7 @@ module svc_axi_sram_if_tb;
     m_axi_bready  = 1'b1;
 
     @(posedge clk);
-    `CHECK_EQ(m_axi_awready && m_axi_awvalid, 1'b1);
+    `CHECK_TRUE(m_axi_awready && m_axi_awvalid);
     `CHECK_EQ(sram_cmd_valid, 1'b0);
 
     write_beats(addr, data);
@@ -431,7 +431,7 @@ module svc_axi_sram_if_tb;
 
     @(posedge clk);
     #1;
-    `CHECK_EQ(m_axi_rvalid, 1'b1);
+    `CHECK_TRUE(m_axi_rvalid);
     `CHECK_EQ(m_axi_rid, 4'hB);
     `CHECK_EQ(m_axi_rdata, a_to_d(addr));
     `CHECK_EQ(m_axi_rresp, 2'b00);
@@ -439,7 +439,7 @@ module svc_axi_sram_if_tb;
 
     repeat (3) begin
       @(posedge clk);
-      `CHECK_EQ(m_axi_rvalid, 1'b1);
+      `CHECK_TRUE(m_axi_rvalid);
       `CHECK_EQ(m_axi_rid, 4'hB);
       `CHECK_EQ(m_axi_rdata, a_to_d(addr));
       `CHECK_EQ(m_axi_rresp, 2'b00);
@@ -447,14 +447,14 @@ module svc_axi_sram_if_tb;
     end
 
     m_axi_rready = 1'b1;
-    `CHECK_EQ(sram_rd_resp_ready, 1'b1);
+    `CHECK_TRUE(sram_rd_resp_ready);
   endtask
 
   task automatic read_beats(logic [AW-1:0] addr);
     // this assumes a 16 bit bus, 4 beats
 
     // First beat
-    `CHECK_EQ(sram_cmd_valid, 1'b1);
+    `CHECK_TRUE(sram_cmd_valid);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr));
     `CHECK_EQ(sram_cmd_meta, 4'hB);
     `CHECK_EQ(sram_cmd_last, 1'b0);
@@ -470,7 +470,7 @@ module svc_axi_sram_if_tb;
       @(posedge clk);
     end
     #1;
-    `CHECK_EQ(m_axi_rvalid, 1'b1);
+    `CHECK_TRUE(m_axi_rvalid);
     `CHECK_EQ(m_axi_rdata, a_to_d(addr));
     `CHECK_EQ(m_axi_rid, 4'hB);
     `CHECK_EQ(m_axi_rresp, 2'b00);
@@ -478,13 +478,13 @@ module svc_axi_sram_if_tb;
 
     // Second beat
     @(posedge clk);
-    `CHECK_EQ(sram_cmd_valid, 1'b1);
+    `CHECK_TRUE(sram_cmd_valid);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr + 2));
     `CHECK_EQ(sram_cmd_meta, 4'hB);
     `CHECK_EQ(sram_cmd_last, 1'b0);
 
     #1;
-    `CHECK_EQ(m_axi_rvalid, 1'b1);
+    `CHECK_TRUE(m_axi_rvalid);
     `CHECK_EQ(m_axi_rdata, a_to_d(addr + 2));
     `CHECK_EQ(m_axi_rid, 4'hB);
     `CHECK_EQ(m_axi_rresp, 2'b00);
@@ -493,13 +493,13 @@ module svc_axi_sram_if_tb;
 
     // Third beat addr
     @(posedge clk);
-    `CHECK_EQ(sram_cmd_valid, 1'b1);
+    `CHECK_TRUE(sram_cmd_valid);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr + 4));
     `CHECK_EQ(sram_cmd_meta, 4'hB);
     `CHECK_EQ(sram_cmd_last, 1'b0);
 
     #1;
-    `CHECK_EQ(m_axi_rvalid, 1'b1);
+    `CHECK_TRUE(m_axi_rvalid);
     `CHECK_EQ(m_axi_rdata, a_to_d(addr + 4));
     `CHECK_EQ(m_axi_rid, 4'hB);
     `CHECK_EQ(m_axi_rresp, 2'b00);
@@ -507,17 +507,17 @@ module svc_axi_sram_if_tb;
 
     // Fourth beat addr, third beat data
     @(posedge clk);
-    `CHECK_EQ(sram_cmd_valid, 1'b1);
+    `CHECK_TRUE(sram_cmd_valid);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr + 6));
     `CHECK_EQ(sram_cmd_meta, 4'hB);
-    `CHECK_EQ(sram_cmd_last, 1'b1);
+    `CHECK_TRUE(sram_cmd_last);
 
     #1;
-    `CHECK_EQ(m_axi_rvalid, 1'b1);
+    `CHECK_TRUE(m_axi_rvalid);
     `CHECK_EQ(m_axi_rdata, a_to_d(addr + 6));
     `CHECK_EQ(m_axi_rid, 4'hB);
     `CHECK_EQ(m_axi_rresp, 2'b00);
-    `CHECK_EQ(m_axi_rlast, 1'b1);
+    `CHECK_TRUE(m_axi_rlast);
   endtask
 
   task automatic test_r_burst;
@@ -537,7 +537,7 @@ module svc_axi_sram_if_tb;
     auto_valid    = 1'b0;
 
     @(posedge clk);
-    `CHECK_EQ(m_axi_arready && m_axi_arvalid, 1'b1);
+    `CHECK_TRUE(m_axi_arready && m_axi_arvalid);
     #1;
     m_axi_arvalid = 1'b0;
     read_beats(addr);
@@ -570,7 +570,7 @@ module svc_axi_sram_if_tb;
     auto_valid    = 1'b0;
 
     @(posedge clk);
-    `CHECK_EQ(m_axi_arready && m_axi_arvalid, 1'b1);
+    `CHECK_TRUE(m_axi_arready && m_axi_arvalid);
     // don't drop valid, read back to back
     m_axi_araddr = addr1;
     #1;
@@ -585,7 +585,7 @@ module svc_axi_sram_if_tb;
     `CHECK_EQ(m_axi_rvalid, 1'b0);
 
     read_beats(addr1);
-    `CHECK_EQ(m_axi_rvalid, 1'b1);
+    `CHECK_TRUE(m_axi_rvalid);
 
     @(posedge clk);
     #1;
@@ -615,7 +615,7 @@ module svc_axi_sram_if_tb;
 
 
     @(posedge clk);
-    `CHECK_EQ(m_axi_arready && m_axi_arvalid, 1'b1);
+    `CHECK_TRUE(m_axi_arready && m_axi_arvalid);
     // switch to write
     #1;
     m_axi_awvalid = 1'b1;
@@ -709,7 +709,7 @@ module svc_axi_sram_if_tb;
     auto_valid    = 1'b0;
 
     @(posedge clk);
-    `CHECK_EQ(m_axi_awvalid && m_axi_awready, 1'b1);
+    `CHECK_TRUE(m_axi_awvalid && m_axi_awready);
     // don't drop valid, write back to back
     m_axi_awaddr = addr1;
     #1;

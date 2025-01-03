@@ -63,7 +63,7 @@ module svc_sync_fifo_tb;
     @(posedge clk);
 
     #1;
-    `CHECK_EQ(r_empty, 1'b1);
+    `CHECK_TRUE(r_empty);
   endtask
 
   task automatic test_fill_fifo;
@@ -77,7 +77,7 @@ module svc_sync_fifo_tb;
     end
 
     w_inc = 0;
-    `CHECK_EQ(w_full, 1'b1);
+    `CHECK_TRUE(w_full);
   endtask
 
   task automatic test_read_full_fifo;
@@ -93,7 +93,7 @@ module svc_sync_fifo_tb;
     end
 
     r_inc = 0;
-    `CHECK_EQ(r_empty, 1'b1);
+    `CHECK_TRUE(r_empty);
   endtask
 
   task automatic test_write_read_same_clock;
@@ -124,7 +124,7 @@ module svc_sync_fifo_tb;
     @(posedge clk);
 
     #1;
-    `CHECK_EQ(r_empty, 1'b1);
+    `CHECK_TRUE(r_empty);
   endtask
 
   `TEST_SUITE_BEGIN(svc_sync_fifo_tb);

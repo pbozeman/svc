@@ -113,9 +113,9 @@ module svc_axi_sram_if_rd_tb;
     repeat (3) begin
       @(posedge clk);
       #1;
-      `CHECK_EQ(sram_rd_cmd_valid, 1'b1);
+      `CHECK_TRUE(sram_rd_cmd_valid);
       `CHECK_EQ(sram_rd_cmd_meta, 4'hB);
-      `CHECK_EQ(sram_rd_cmd_last, 1'b1);
+      `CHECK_TRUE(sram_rd_cmd_last);
       `CHECK_EQ(sram_rd_cmd_addr, SAW'(addr[AW-1:LSB]));
     end
 

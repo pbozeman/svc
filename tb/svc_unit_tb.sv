@@ -26,7 +26,7 @@ module svc_unit_tb;
   endtask
 
   task test_setup();
-    `CHECK_EQ(setup_ran, 1'b1);
+    `CHECK_TRUE(setup_ran);
   endtask
 
   task test_another();

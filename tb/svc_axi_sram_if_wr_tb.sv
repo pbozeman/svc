@@ -127,7 +127,7 @@ module svc_axi_sram_if_wr_tb;
     repeat (3) begin
       @(posedge clk);
       #1;
-      `CHECK_EQ(sram_wr_cmd_valid, 1'b1);
+      `CHECK_TRUE(sram_wr_cmd_valid);
       `CHECK_EQ(sram_wr_cmd_addr, a_to_sa(addr));
       `CHECK_EQ(sram_wr_cmd_data, data);
       `CHECK_EQ(sram_wr_cmd_strb, '1);
@@ -138,7 +138,7 @@ module svc_axi_sram_if_wr_tb;
     @(posedge clk);
     #1;
     `CHECK_EQ(sram_wr_cmd_valid, 1'b0);
-    `CHECK_EQ(m_axi_bvalid, 1'b1);
+    `CHECK_TRUE(m_axi_bvalid);
     `CHECK_EQ(m_axi_bid, 4'hB);
 
     @(posedge clk);
