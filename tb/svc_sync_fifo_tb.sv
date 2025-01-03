@@ -54,7 +54,7 @@ module svc_sync_fifo_tb;
     @(posedge clk);
 
     #1;
-    `CHECK_EQ(r_empty, 1'b0);
+    `CHECK_FALSE(r_empty);
     `CHECK_EQ(r_data, data);
     w_inc = 0;
 
@@ -106,7 +106,7 @@ module svc_sync_fifo_tb;
     @(posedge clk);
 
     #1;
-    `CHECK_EQ(r_empty, 1'b0);
+    `CHECK_FALSE(r_empty);
     `CHECK_EQ(r_data, data1);
 
     // second write with read
