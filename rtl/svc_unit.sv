@@ -42,42 +42,63 @@
            `COLOR_YELLOW, svc_tb_module_name, `COLOR_RESET);                 \
   $fatal;
 
+// Tiny tick lets async logic propagate after a clock before asserts.
+// The initial #0 makes sure other clocked blocks run first, and then,
+// we do a #0.1 on the first check so that async logic can propagate and
+// before we start doing assertion checks.
+`define SVC_TINY_TICK                                                         \
+`ifndef VERILATOR                                                             \
+  #0;                                                                         \
+  if (!svc_tiny_ticked) begin                                                 \
+    svc_tiny_ticked = 1'b1;                                                   \
+    #0.1;                                                                     \
+  end                                                                         \
+`endif
+
 `define CHECK_TRUE(a)                                                         \
+  `SVC_TINY_TICK;                                                             \
   if (a !== 1) begin                                                          \
     `CHECK_MSG_1("TRUE", `__FILE__, `__LINE__, a);                            \
   end
 
 `define CHECK_FALSE(a)                                                        \
+  `SVC_TINY_TICK;                                                             \
   if (a !== 0) begin                                                          \
     `CHECK_MSG_1("FALSE", `__FILE__, `__LINE__, a);                           \
   end
 
 `define CHECK_EQ(a, b)                                                        \
+  `SVC_TINY_TICK;                                                             \
   if (a !== b) begin                                                          \
     `CHECK_MSG_2("EQ", `__FILE__, `__LINE__, a, b);                           \
   end
 
 `define CHECK_NEQ(a, b)                                                       \
+  `SVC_TINY_TICK;                                                             \
   if (a === b) begin                                                          \
     `CHECK_MSG_2("NEQ", `__FILE__, `__LINE__, a, b);                          \
   end
 
 `define CHECK_LT(a, b)                                                        \
+  `SVC_TINY_TICK;                                                             \
   if ((a >= b) || (a === 'x) || (b === 'x) || (a === 'z) || (b === 'z)) begin \
     `CHECK_MSG_2("LT", `__FILE__, `__LINE__, a, b);                           \
   end
 
 `define CHECK_LTE(a, b)                                                       \
+  `SVC_TINY_TICK;                                                             \
   if ((a > b) || (a === 'x) || (b === 'x) || (a === 'z) || (b === 'z)) begin  \
     `CHECK_MSG_2("LT", `__FILE__, `__LINE__, a, b);                           \
   end
 
 `define CHECK_GT(a, b)                                                        \
+  `SVC_TINY_TICK;                                                             \
   if ((a <= b) || (a === 'x) || (b === 'x) || (a === 'z) || (b === 'z)) begin \
     `CHECK_MSG_2("GT", `__FILE__, `__LINE__, a, b);                           \
   end
 
 `define CHECK_GTE(a, b)                                                       \
+  `SVC_TINY_TICK;                                                             \
   if ((a < b) || (a === 'x) || (b === 'x) || (a === 'z) || (b === 'z)) begin  \
     `CHECK_MSG_2("GTE", `__FILE__, `__LINE__, a, b);                          \
   end
@@ -87,7 +108,10 @@
   initial begin                                                              \
     clk = 0;                                                                 \
     forever #(ns / 2) clk = ~clk;                                            \
-  end
+  end                                                                        \
+`ifndef VERILATOR                                                            \
+  always_ff @(posedge clk) svc_tiny_ticked = 1'b0;                           \
+`endif
 
 `define TEST_RST_N(clk, rst_n, cycles = 5)                                   \
   logic rst_n;                                                               \
@@ -95,6 +119,7 @@
 
 `ifndef VERILATOR
 `define CHECK_WAIT_FOR(clk, signal, max_cnt = 16)                            \
+   `SVC_TINY_TICK;                                                           \
     svc_wait_cnt = 0;                                                        \
     while (!signal) begin                                                    \
       @(posedge clk);                                                        \
@@ -121,6 +146,7 @@
 `ifndef VERILATOR                                                            \
   int line_num;                                                              \
   int svc_wait_cnt;                                                          \
+  logic svc_tiny_ticked;                                                     \
 `endif                                                                       \
   string svc_tb_module_name;                                                 \
   string svc_tb_test_name;                                                   \

@@ -53,7 +53,6 @@ module svc_sync_fifo_tb;
     w_inc  = 1;
     @(posedge clk);
 
-    #1;
     `CHECK_FALSE(r_empty);
     `CHECK_EQ(r_data, data);
     w_inc = 0;
@@ -62,7 +61,6 @@ module svc_sync_fifo_tb;
     r_inc = 1;
     @(posedge clk);
 
-    #1;
     `CHECK_TRUE(r_empty);
   endtask
 
@@ -72,7 +70,6 @@ module svc_sync_fifo_tb;
       w_inc  = 1;
       @(posedge clk);
 
-      #1;
       `CHECK_EQ(w_full, (i == MEM_DEPTH - 1));
     end
 
@@ -88,7 +85,6 @@ module svc_sync_fifo_tb;
       r_inc = 1;
       @(posedge clk);
 
-      #1;
       `CHECK_EQ(r_empty, (i == MEM_DEPTH - 1));
     end
 
@@ -105,7 +101,6 @@ module svc_sync_fifo_tb;
     w_inc  = 1;
     @(posedge clk);
 
-    #1;
     `CHECK_FALSE(r_empty);
     `CHECK_EQ(r_data, data1);
 
@@ -114,7 +109,6 @@ module svc_sync_fifo_tb;
     r_inc  = 1;
     @(posedge clk);
 
-    #1;
     `CHECK_EQ(r_empty, 1'b0)
     `CHECK_EQ(r_data, data2);
     w_inc = 0;
@@ -123,7 +117,6 @@ module svc_sync_fifo_tb;
     r_inc = 1;
     @(posedge clk);
 
-    #1;
     `CHECK_TRUE(r_empty);
   endtask
 
