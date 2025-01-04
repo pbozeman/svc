@@ -5,13 +5,13 @@ cover
 [options]
 bmc: mode bmc
 cover: mode cover
-depth 18
+depth 20
 
 [engines]
 smtbmc
 
 [script]
-read_verilog -formal -sv svc_sync_fifo.sv
+read_verilog -formal -DFORMAL_SVC_SYNC_FIFO -sv svc_sync_fifo.sv
 prep -top svc_sync_fifo
 
 [files]
