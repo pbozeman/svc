@@ -63,6 +63,16 @@ module svc_sync_fifo #(
   assign r_data  = mem[r_addr];
 
 `ifdef FORMAL
+`ifdef FORMAL_SVC_SYNC_FIFO
+  `define ASSERT(lable, a) lable: assert(a)
+  `define ASSUME(lable, a) lable: assume(a)
+  `define COVER(lable, a) lable: cover(a)
+`else
+  `define ASSERT(lable, a) lable: assume(a)
+  `define ASSUME(lable, a) lable: assert(a)
+  `define COVER(lable, a)
+`endif
+
   // TODO: it would be nice to add checks that the data read is what was
   // written. It doesn't seem the system verilog queues are supported, so
   // testing the reads of writes would pretty much need to reimplement the
@@ -84,29 +94,29 @@ module svc_sync_fifo #(
 
   always @(posedge clk) begin
     if ($rose(rst_n)) begin
-      a_reset_ptrs : assert (w_ptr == 0 && r_ptr == 0);
-      a_reset_flags : assert (r_empty && !w_full);
+      `ASSERT(a_reset_ptrs, w_ptr == 0 && r_ptr == 0);
+      `ASSERT(a_reset_flags, r_empty && !w_full);
     end
   end
 
   always @(posedge clk) begin
     if (rst_n) begin
-      a_oflow : assert (f_count <= (f_max_count));
+      `ASSERT(a_oflow, f_count <= f_max_count);
+      `ASSERT(a_full, !w_full || f_count == f_max_count);
 
-      a_full : assert (!w_full || f_count == f_max_count);
-      c_full : cover (w_inc && !r_inc && f_count == f_max_count - 1);
+      `COVER(c_full, w_inc && !r_inc && f_count == f_max_count - 1);
 
-      a_empty : assert (!r_empty || f_count == 0);
-      c_empty : cover (r_inc && !w_inc && f_count == 1);
+      `ASSERT(a_empty, !r_empty || f_count == 0);
+      `COVER(c_empty, r_inc && !w_inc && f_count == 1);
 
-      c_write_full : cover (w_inc && w_full);
-      c_write_empty : cover (w_inc && r_empty);
-      c_read_empty : cover (r_inc && r_empty);
-      c_read_full : cover (r_inc && w_full);
-      c_rw_simultaneous : cover (w_inc && r_inc);
+      `COVER(c_write_full, (w_inc && w_full));
+      `COVER(c_write_empty, (w_inc && r_empty));
+      `COVER(c_read_empty, (r_inc && r_empty));
+      `COVER(c_read_full, (r_inc && w_full));
+      `COVER(c_rw_simultaneous, (w_inc && r_inc));
 
-      c_nzero_write : cover (w_inc && |w_data);
-      c_nzero_read : cover (r_inc && |r_data);
+      `COVER(c_nzero_write, (w_inc && |w_data));
+      `COVER(c_nzero_read, (r_inc && |r_data));
     end
   end
 `endif
