@@ -3,7 +3,7 @@
 BUILD_DIR  := .build
 RTL_DIR    := rtl
 TB_DIR     := tb
-FORMAL_DIR := formal
+FORMAL_DIR := tb/formal
 
 RTL := $(wildcard $(RTL_DIR)/*.sv)
 RTL_TB := $(wildcard $(TB_DIR)/*_tb.sv)
@@ -14,6 +14,11 @@ TEST_BENCHES := $(basename $(notdir $(RTL_TB)))
 # Our simulation output files
 # These are also the default targets via quick_unit
 VCD_FILES := $(addprefix $(BUILD_DIR)/,$(addsuffix .vcd, $(TEST_BENCHES)))
+
+# Formal files
+SBY_FILES := $(wildcard $(FORMAL_DIR)/*.sby)
+FORMAL_BENCHES := $(basename $(notdir $(SBY_FILES)))
+FORMAL_TARGETS := $(addsuffix _f, $(FORMAL_BENCHES))
 
 SYNTH_DEFS := -DSYNTH_YOSYS
 ICE40_CELLS_SIM := $(shell yosys-config --datdir/ice40/cells_sim.v)
@@ -31,6 +36,8 @@ LINTER_FLAGS_DEFS := $(SYNTH_DEFS) -DFORMAL -Itb/formal
 LINTER_FLAGS_WARN := -Wall --Wno-PINCONNECTEMPTY --timing
 LINTER_FLAGS      := $(LINTER_FLAGS_DEFS) $(LINTER_FLAGS_WARN)
 LINTER            := verilator --lint-only --quiet $(LINTER_FLAGS)
+
+SBY := sby
 
 #
 # default target
@@ -105,6 +112,48 @@ unit: clean_logs $(TEST_BENCHES)
 
 ##############################################################################
 #
+# Formal
+#
+##############################################################################
+
+# TODO: this only takes a dependency on the immediate .sv file,
+# and does so in a brittle way at that since it assumes the .sby and .sv
+# file share the same name, which may not be true in the future if multiple
+# .sby files target the same .sv file.  The .d files built by iverilog for
+# normal verification don't provide sub module dependencies
+# here because they all go into a single _tb dependency. But, there is
+# surely some mechanism to generate the .d files using iverilog and then
+# making sure they are loaded here. The current solution is acceptable,
+# for now.
+.PRECIOUS: $(BUILD_DIR)/%/status
+$(BUILD_DIR)/%/status: $(FORMAL_DIR)/%.sby $(RTL_DIR)/%.sv
+	@$(SBY) --prefix .build/$(notdir $*) -f tb/formal/$*.sby
+	@touch $@
+
+define run_formal
+	@$(SBY) --prefix .build/$(notdir $*) -f tb/formal/$*.sby\
+		&& echo "$1" >> $(BUILD_DIR)/f_success.log\
+		|| echo "make $(notdir $1)_f" >> $(BUILD_DIR)/f_failure.log
+endef
+
+.PHONY: quick_formal
+quick_formal: $(foreach b,$(FORMAL_BENCHES),$(BUILD_DIR)/$(b)/status)
+
+.PHONY: $(FORMAL_TARGETS)
+$(FORMAL_TARGETS): %_f : $(BUILD_DIR)/%
+	$(call run_formal, $<)
+
+# Run all formal benches and show summary
+formal: clean_f_logs $(FORMAL_TARGETS)
+	@echo ""
+	@echo "=============================="
+	@echo "Successful formal: $$(wc -l < $(BUILD_DIR)/f_success.log)"
+	@echo "Failed formal: $$(wc -l < $(BUILD_DIR)/f_failure.log)"
+	@sed 's/^/    /' $(BUILD_DIR)/f_failure.log
+	@echo "=============================="
+
+##############################################################################
+#
 # Formatting
 #
 ##############################################################################
@@ -123,3 +172,20 @@ clean:
 clean_logs: $(BUILD_DIR)
 	@rm -f $(BUILD_DIR)/tb_success.log $(BUILD_DIR)/tb_failure.log
 	@touch $(BUILD_DIR)/tb_success.log $(BUILD_DIR)/tb_failure.log
+
+clean_f_logs: $(BUILD_DIR)
+	@rm -f $(BUILD_DIR)/f_success.log $(BUILD_DIR)/f_failure.log
+	@touch $(BUILD_DIR)/f_success.log $(BUILD_DIR)/f_failure.log
+
+##############################################################################
+#
+# Help
+#
+##############################################################################
+.PHONY: list
+list:
+	@echo "Available unit test targets:"
+	@$(foreach t,$(TEST_BENCHES),echo " $t";)
+	@echo
+	@echo "Available formal test targets:"
+	@$(foreach t,$(FORMAL_TARGETS),echo " $t";)
