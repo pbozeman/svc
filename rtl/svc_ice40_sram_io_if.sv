@@ -197,6 +197,10 @@ module svc_ice40_sram_io_if #(
   end
 
 `ifdef FORMAL
+  // TODO: this was a first pass. Think through other checks and cover
+  // statements, including cover statements for latency and bubble
+  // expectations.
+
 `ifdef FORMAL_SVC_ICE40_SRAM_IO_IF
   `define ASSERT(lable, a) lable: assert(a)
   `define ASSUME(lable, a) lable: assume(a)
@@ -247,12 +251,16 @@ module svc_ice40_sram_io_if #(
       if ($rose(pad_wr_done) || $rose(pad_rd_done)) begin
         `ASSERT(as_fifo_resp_data, !fifo_r_empty);
       end
+
+      // we shouldn't over flow the fifo
+      `ASSERT(as_overflow, !(fifo_w_full && fifo_w_inc));
     end
   end
 
   //
   // outstanding io tracking
   //
+  // TODO: add read outstanding check
   int f_num_writes_outstanding;
   always_ff @(posedge clk) begin
     if (!rst_n) begin
@@ -316,7 +324,7 @@ module svc_ice40_sram_io_if #(
   // ensure read data matches the most recent write for the address
   //
   always_ff @(posedge clk) begin
-    if (f_past_valid && $past(rst_n)) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
       if (sram_resp_valid && sram_resp_ready) begin
         if (f_written_valid[f_resp_addr]) begin
           if (f_resp_read) begin
@@ -331,11 +339,16 @@ module svc_ice40_sram_io_if #(
   // cover statements
   //
   always_ff @(posedge clk) begin
-    if (f_past_valid && $past(rst_n)) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
       `COVER(c_resp, sram_resp_valid && sram_resp_ready);
       `COVER(c_wr, sram_cmd_valid && sram_cmd_wr_en);
       `COVER(c_rd, sram_cmd_valid && !sram_cmd_wr_en);
       `COVER(c_rd_nz, sram_resp_valid && |sram_resp_rd_data);
+      `COVER(c_full, fifo_w_full && $stable(fifo_w_full) && sram_cmd_valid);
+      `COVER(c_full_held, !fifo_r_inc && fifo_w_full && $stable(fifo_w_full
+             ) && sram_cmd_valid);
+      `COVER(c_full_recover, fifo_r_inc && fifo_w_full && $stable(fifo_w_full
+             ) && sram_cmd_valid);
     end
   end
 `endif
