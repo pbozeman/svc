@@ -50,6 +50,9 @@ SBY := sby
 #
 # default target
 #
+.PHONY: quick
+quick: quick_unit quick_formal
+
 .PHONY: quick_unit
 quick_unit: SKIP_SLOW_TESTS := 1
 quick_unit: $(VCD_FILES)
@@ -139,7 +142,7 @@ $(BUILD_DIR)/%/status: $(FORMAL_DIR)/%.sby $(RTL_DIR)/%.sv
 	@touch $@
 
 define run_formal
-	@$(SBY) --prefix .build/$(notdir $*) -f tb/formal/$*.sby\
+	@$(SBY) --prefix .build/$(notdir $*)_f -f tb/formal/$*.sby\
 		&& echo "$1" >> $(BUILD_DIR)/f_success.log\
 		|| echo "make $(notdir $1)_f" >> $(BUILD_DIR)/f_failure.log
 endef
@@ -147,8 +150,11 @@ endef
 .PHONY: quick_formal
 quick_formal: $(foreach b,$(FORMAL_BENCHES),$(BUILD_DIR)/$(b)/status)
 
+$(BUILD_DIR)/%_f:
+	@mkdir -p $@
+
 .PHONY: $(FORMAL_TARGETS)
-$(FORMAL_TARGETS): %_f : $(BUILD_DIR)/%
+$(FORMAL_TARGETS): %_f : $(BUILD_DIR)/%_f
 	$(call run_formal, $<)
 
 # Run all formal benches and show summary

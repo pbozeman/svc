@@ -4,4 +4,4 @@
 cd $(dirname $(readlink -f $0))
 cd ..
 
-sby --prefix .build/${1} -f tb/formal/${1}.sby "${@:2}"
+sby --prefix .build/${1}_f -f tb/formal/${1}.sby "${@:2}"
