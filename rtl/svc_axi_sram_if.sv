@@ -217,6 +217,7 @@ module svc_axi_sram_if #(
     sram_cmd_wr_en    = 1'b0;
 
     sram_cmd_meta     = '0;
+    sram_cmd_last     = 1'b0;
 
     sram_rd_cmd_ready = 1'b0;
     sram_wr_cmd_ready = 1'b0;
@@ -238,6 +239,116 @@ module svc_axi_sram_if #(
       end
     endcase
   end
+
+`ifdef FORMAL_FIXME
+`ifdef ZIPCPU_PRIVATE
+  faxi_slave #(
+      .C_AXI_ID_WIDTH  (AXI_ID_WIDTH),
+      .C_AXI_DATA_WIDTH(AXI_DATA_WIDTH),
+      .C_AXI_ADDR_WIDTH(AXI_ADDR_WIDTH)
+  ) faxi_slave_i (
+      .i_clk        (clk),
+      .i_axi_reset_n(rst_n),
+
+      .i_axi_awvalid(s_axi_awvalid),
+      .i_axi_awready(s_axi_awready),
+      .i_axi_awid   (s_axi_awid),
+      .i_axi_awaddr (s_axi_awaddr),
+      .i_axi_awlen  (s_axi_awlen),
+      .i_axi_awsize (s_axi_awsize),
+      .i_axi_awburst(s_axi_awburst),
+      .i_axi_awlock (1'b0),
+      .i_axi_awcache('0),
+      .i_axi_awprot ('0),
+      .i_axi_awqos  ('0),
+
+      // Write Data
+      .i_axi_wdata (s_axi_wdata),
+      .i_axi_wstrb (s_axi_wstrb),
+      .i_axi_wlast (s_axi_wlast),
+      .i_axi_wvalid(s_axi_wvalid),
+      .i_axi_wready(s_axi_wready),
+
+      // Write response
+      .i_axi_bvalid(s_axi_bvalid),
+      .i_axi_bready(s_axi_bready),
+      .i_axi_bid   (s_axi_bid),
+      .i_axi_bresp (s_axi_bresp),
+
+      // Read address channel
+      .i_axi_arvalid(s_axi_arvalid),
+      .i_axi_arready(s_axi_arready),
+      .i_axi_arid   (s_axi_arid),
+      .i_axi_araddr (s_axi_araddr),
+      .i_axi_arlen  (s_axi_arlen),
+      .i_axi_arsize (s_axi_arsize),
+      .i_axi_arburst(s_axi_arburst),
+      .i_axi_arlock (1'b0),
+      .i_axi_arcache('0),
+      .i_axi_arprot ('0),
+      .i_axi_arqos  ('0),
+
+      // Read data return channel
+      .i_axi_rvalid(s_axi_rvalid),
+      .i_axi_rready(s_axi_rready),
+      .i_axi_rid   (s_axi_rid),
+      .i_axi_rdata (s_axi_rdata),
+      .i_axi_rresp (s_axi_rresp),
+      .i_axi_rlast (s_axi_rlast),
+
+      // Induction signals
+      .f_axi_awr_nbursts   (),
+      .f_axi_wr_pending    (),
+      .f_axi_rd_nbursts    (),
+      .f_axi_rd_outstanding(),
+
+      // wr count
+      .f_axi_wr_checkid  (),
+      .f_axi_wr_ckvalid  (),
+      .f_axi_wrid_nbursts(),
+      .f_axi_wr_addr     (),
+      .f_axi_wr_incr     (),
+      .f_axi_wr_burst    (),
+      .f_axi_wr_size     (),
+      .f_axi_wr_len      (),
+      .f_axi_wr_lockd    (),
+
+      // rd count
+      .f_axi_rd_checkid(),
+      .f_axi_rd_ckvalid(),
+      .f_axi_rd_cklen  (),
+      .f_axi_rd_ckaddr (),
+      .f_axi_rd_ckincr (),
+      .f_axi_rd_ckburst(),
+      .f_axi_rd_cksize (),
+      .f_axi_rd_ckarlen(),
+      .f_axi_rd_cklockd(),
+
+      .f_axi_rdid_nbursts          (),
+      .f_axi_rdid_outstanding      (),
+      .f_axi_rdid_ckign_nbursts    (),
+      .f_axi_rdid_ckign_outstanding(),
+
+      // Exclusive access handling
+      .f_axi_ex_state              (),
+      .f_axi_ex_checklock          (),
+      .f_axi_rdid_bursts_to_lock   (),
+      .f_axi_wrid_bursts_to_exwrite(),
+
+      .f_axi_exreq_addr  (),
+      .f_axi_exreq_len   (),
+      .f_axi_exreq_burst (),
+      .f_axi_exreq_size  (),
+      .f_axi_exreq_return(),
+
+      .i_active_lock (),
+      .i_exlock_addr (),
+      .i_exlock_len  (),
+      .i_exlock_burst(),
+      .i_exlock_size ()
+  );
+`endif
+`endif
 
 endmodule
 `endif

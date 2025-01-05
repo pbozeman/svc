@@ -107,6 +107,7 @@ module svc_axi_sram_if_wr #(
 
     s_axi_awready_next = 1'b0;
     s_axi_bvalid_next  = s_axi_bvalid && !s_axi_bready;
+    s_axi_bid_next     = s_axi_bid;
 
     case (state)
       STATE_IDLE: begin
