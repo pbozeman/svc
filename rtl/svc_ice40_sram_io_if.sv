@@ -4,6 +4,7 @@
 `include "svc.sv"
 `include "svc_ice40_sram_io.sv"
 `include "svc_sync_fifo.sv"
+`include "svc_unused.sv"
 
 module svc_ice40_sram_io_if #(
     parameter SRAM_ADDR_WIDTH = 4,
@@ -24,9 +25,8 @@ module svc_ice40_sram_io_if #(
     input  logic                       sram_cmd_last,
     input  logic                       sram_cmd_wr_en,
     input  logic [SRAM_DATA_WIDTH-1:0] sram_cmd_wr_data,
-    // verilator lint_off: UNUSEDSIGNAL
     input  logic [SRAM_STRB_WIDTH-1:0] sram_cmd_wr_strb,
-    // verilator lint_on: UNUSEDSIGNAL
+
     output logic                       sram_resp_valid,
     input  logic                       sram_resp_ready,
     output logic [SRAM_META_WIDTH-1:0] sram_resp_meta,
@@ -196,6 +196,8 @@ module svc_ice40_sram_io_if #(
     end
   end
 
+  `SVC_UNUSED({sram_cmd_wr_strb, fifo_r_empty});
+
 `ifdef FORMAL
   // TODO: this was a first pass. Think through other checks and cover
   // statements, including cover statements for latency and bubble
@@ -206,8 +208,13 @@ module svc_ice40_sram_io_if #(
   `define ASSUME(lable, a) lable: assume(a)
   `define COVER(lable, a) lable: cover(a)
 `else
+`ifdef FORMAL_SUBMODULE_ASSERTS
   `define ASSERT(lable, a) lable: assume(a)
   `define ASSUME(lable, a) lable: assert(a)
+`else
+  `define ASSERT(lable, a)
+  `define ASSUME(lable, a)
+`endif
   `define COVER(lable, a)
 `endif
   initial assume (!rst_n);
@@ -221,7 +228,7 @@ module svc_ice40_sram_io_if #(
   // assumptions
   //
   always_ff @(posedge clk) begin
-    if (f_past_valid && $past(rst_n)) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
       // assume incoming cmd signals are stable until accepted
       if ($past(sram_cmd_valid && !sram_cmd_ready)) begin
         `ASSUME(am_valid, sram_cmd_valid);
@@ -355,6 +362,10 @@ module svc_ice40_sram_io_if #(
     end
   end
   // verilog_format: on
+
+  `undef ASSERT
+  `undef ASSUME
+  `undef COVER
 `endif
 
 endmodule
