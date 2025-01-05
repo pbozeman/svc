@@ -117,7 +117,7 @@ unit: clean_logs $(TEST_BENCHES)
 	@echo ""
 	@echo "=============================="
 	@echo "Successful suites: $$(wc -l < $(BUILD_DIR)/tb_success.log)"
-	@echo "Failed suites: $$(wc -l < $(BUILD_DIR)/tb_failure.log)"
+	@echo "Failed suites:     $$(wc -l < $(BUILD_DIR)/tb_failure.log)"
 	@sed 's/^/    /' $(BUILD_DIR)/tb_failure.log
 	@echo "=============================="
 
@@ -162,7 +162,24 @@ formal: clean_f_logs $(FORMAL_TARGETS)
 	@echo ""
 	@echo "=============================="
 	@echo "Successful formal: $$(wc -l < $(BUILD_DIR)/f_success.log)"
-	@echo "Failed formal: $$(wc -l < $(BUILD_DIR)/f_failure.log)"
+	@echo "Failed     formal: $$(wc -l < $(BUILD_DIR)/f_failure.log)"
+	@sed 's/^/    /' $(BUILD_DIR)/f_failure.log
+	@echo "=============================="
+
+##############################################################################
+#
+# full: lint, unit, formal
+#
+##############################################################################
+full: lint clean_logs clean_f_logs $(FORMAL_TARGETS) $(TEST_BENCHES)
+	@echo ""
+	@echo "=============================="
+	@echo "Successful suites: $$(wc -l < $(BUILD_DIR)/tb_success.log)"
+	@echo "Failed suites:     $$(wc -l < $(BUILD_DIR)/tb_failure.log)"
+	@sed 's/^/    /' $(BUILD_DIR)/tb_failure.log
+	@echo ""
+	@echo "Successful formal: $$(wc -l < $(BUILD_DIR)/f_success.log)"
+	@echo "Failed formal:     $$(wc -l < $(BUILD_DIR)/f_failure.log)"
 	@sed 's/^/    /' $(BUILD_DIR)/f_failure.log
 	@echo "=============================="
 
