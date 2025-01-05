@@ -38,7 +38,7 @@ module svc_axi_sram_if_rd_tb;
   logic           sram_rd_cmd_last;
   logic           sram_rd_resp_valid;
   logic           sram_rd_resp_ready;
-  logic [ DW-1:0] sram_rd_resp_data;
+  logic [ DW-1:0] sram_rd_resp_rd_data;
   // verilator lint_on: UNUSEDSIGNAL
 
   svc_axi_sram_if_rd #(
@@ -62,32 +62,32 @@ module svc_axi_sram_if_rd_tb;
       .s_axi_rresp  (m_axi_rresp),
       .s_axi_rlast  (m_axi_rlast),
 
-      .sram_rd_cmd_valid (sram_rd_cmd_valid),
-      .sram_rd_cmd_ready (sram_rd_cmd_ready),
-      .sram_rd_cmd_addr  (sram_rd_cmd_addr),
-      .sram_rd_cmd_meta  (sram_rd_cmd_meta),
-      .sram_rd_cmd_last  (sram_rd_cmd_last),
-      .sram_rd_resp_valid(sram_rd_resp_valid),
-      .sram_rd_resp_ready(sram_rd_resp_ready),
-      .sram_rd_resp_data (sram_rd_resp_data),
-      .sram_rd_resp_meta (),
-      .sram_rd_resp_last ()
+      .sram_rd_cmd_valid   (sram_rd_cmd_valid),
+      .sram_rd_cmd_ready   (sram_rd_cmd_ready),
+      .sram_rd_cmd_addr    (sram_rd_cmd_addr),
+      .sram_rd_cmd_meta    (sram_rd_cmd_meta),
+      .sram_rd_cmd_last    (sram_rd_cmd_last),
+      .sram_rd_resp_valid  (sram_rd_resp_valid),
+      .sram_rd_resp_ready  (sram_rd_resp_ready),
+      .sram_rd_resp_rd_data(sram_rd_resp_rd_data),
+      .sram_rd_resp_meta   (),
+      .sram_rd_resp_last   ()
   );
 
   always_ff @(posedge clk) begin
     if (~rst_n) begin
-      m_axi_arvalid      <= 1'b0;
-      m_axi_arid         <= '0;
-      m_axi_araddr       <= '0;
-      m_axi_arlen        <= '0;
-      m_axi_arsize       <= '0;
-      m_axi_arburst      <= '0;
+      m_axi_arvalid        <= 1'b0;
+      m_axi_arid           <= '0;
+      m_axi_araddr         <= '0;
+      m_axi_arlen          <= '0;
+      m_axi_arsize         <= '0;
+      m_axi_arburst        <= '0;
 
-      m_axi_rready       <= 1'b0;
+      m_axi_rready         <= 1'b0;
 
-      sram_rd_cmd_ready  <= 1'b0;
-      sram_rd_resp_valid <= 1'b0;
-      sram_rd_resp_data  <= '0;
+      sram_rd_cmd_ready    <= 1'b0;
+      sram_rd_resp_valid   <= 1'b0;
+      sram_rd_resp_rd_data <= '0;
     end
   end
 

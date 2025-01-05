@@ -54,11 +54,11 @@ module svc_axi_sram_if_tb;
   logic             sram_cmd_last;
   logic [   DW-1:0] sram_cmd_wr_data;
   logic [STRBW-1:0] sram_cmd_wr_strb;
-  logic             sram_rd_resp_valid;
-  logic             sram_rd_resp_ready;
-  logic [   DW-1:0] sram_rd_resp_data;
-  logic [   MW-1:0] sram_rd_resp_meta;
-  logic             sram_rd_resp_last;
+  logic             sram_resp_valid;
+  logic             sram_resp_ready;
+  logic [   DW-1:0] sram_resp_rd_data;
+  logic [   MW-1:0] sram_resp_meta;
+  logic             sram_resp_last;
 
   // if true, test cases don't have to manage dropping valid signals
   logic             auto_valid;
@@ -101,19 +101,19 @@ module svc_axi_sram_if_tb;
       .s_axi_rresp  (m_axi_rresp),
       .s_axi_rlast  (m_axi_rlast),
 
-      .sram_cmd_valid    (sram_cmd_valid),
-      .sram_cmd_ready    (sram_cmd_ready),
-      .sram_cmd_addr     (sram_cmd_addr),
-      .sram_cmd_meta     (sram_cmd_meta),
-      .sram_cmd_last     (sram_cmd_last),
-      .sram_cmd_wr_en    (sram_cmd_wr_en),
-      .sram_cmd_wr_data  (sram_cmd_wr_data),
-      .sram_cmd_wr_strb  (sram_cmd_wr_strb),
-      .sram_rd_resp_valid(sram_rd_resp_valid),
-      .sram_rd_resp_ready(sram_rd_resp_ready),
-      .sram_rd_resp_data (sram_rd_resp_data),
-      .sram_rd_resp_meta (sram_rd_resp_meta),
-      .sram_rd_resp_last (sram_rd_resp_last)
+      .sram_cmd_valid   (sram_cmd_valid),
+      .sram_cmd_ready   (sram_cmd_ready),
+      .sram_cmd_addr    (sram_cmd_addr),
+      .sram_cmd_meta    (sram_cmd_meta),
+      .sram_cmd_last    (sram_cmd_last),
+      .sram_cmd_wr_en   (sram_cmd_wr_en),
+      .sram_cmd_wr_data (sram_cmd_wr_data),
+      .sram_cmd_wr_strb (sram_cmd_wr_strb),
+      .sram_resp_valid  (sram_resp_valid),
+      .sram_resp_ready  (sram_resp_ready),
+      .sram_resp_meta   (sram_resp_meta),
+      .sram_resp_last   (sram_resp_last),
+      .sram_resp_rd_data(sram_resp_rd_data)
   );
 
   svc_model_sram_if #(
@@ -132,11 +132,11 @@ module svc_axi_sram_if_tb;
       .sram_cmd_wr_en   (sram_cmd_wr_en),
       .sram_cmd_wr_data (sram_cmd_wr_data),
       .sram_cmd_wr_strb (sram_cmd_wr_strb),
-      .sram_resp_valid  (sram_rd_resp_valid),
-      .sram_resp_ready  (sram_rd_resp_ready),
-      .sram_resp_meta   (sram_rd_resp_meta),
-      .sram_resp_last   (sram_rd_resp_last),
-      .sram_resp_rd_data(sram_rd_resp_data)
+      .sram_resp_valid  (sram_resp_valid),
+      .sram_resp_ready  (sram_resp_ready),
+      .sram_resp_meta   (sram_resp_meta),
+      .sram_resp_last   (sram_resp_last),
+      .sram_resp_rd_data(sram_resp_rd_data)
   );
 
   always_ff @(posedge clk) begin
@@ -403,14 +403,14 @@ module svc_axi_sram_if_tb;
 
     @(posedge clk);
     `CHECK_FALSE(m_axi_rvalid);
-    `CHECK_FALSE(sram_rd_resp_ready);
+    `CHECK_FALSE(sram_resp_ready);
 
     @(posedge clk);
     `CHECK_TRUE(m_axi_rvalid);
     `CHECK_EQ(m_axi_rid, 4'hB);
     `CHECK_EQ(m_axi_rdata, a_to_d(addr));
     `CHECK_EQ(m_axi_rresp, 2'b00);
-    `CHECK_FALSE(sram_rd_resp_ready);
+    `CHECK_FALSE(sram_resp_ready);
 
     repeat (3) begin
       @(posedge clk);
@@ -418,11 +418,11 @@ module svc_axi_sram_if_tb;
       `CHECK_EQ(m_axi_rid, 4'hB);
       `CHECK_EQ(m_axi_rdata, a_to_d(addr));
       `CHECK_EQ(m_axi_rresp, 2'b00);
-      `CHECK_FALSE(sram_rd_resp_ready);
+      `CHECK_FALSE(sram_resp_ready);
     end
 
     m_axi_rready = 1'b1;
-    `CHECK_TRUE(sram_rd_resp_ready);
+    `CHECK_TRUE(sram_resp_ready);
   endtask
 
   task automatic read_beats(logic [AW-1:0] addr);

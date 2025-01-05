@@ -68,11 +68,11 @@ module svc_axi_sram_if #(
     output logic                       sram_cmd_last,
     output logic [SRAM_DATA_WIDTH-1:0] sram_cmd_wr_data,
     output logic [SRAM_STRB_WIDTH-1:0] sram_cmd_wr_strb,
-    input  logic                       sram_rd_resp_valid,
-    output logic                       sram_rd_resp_ready,
-    input  logic [SRAM_DATA_WIDTH-1:0] sram_rd_resp_data,
-    input  logic [SRAM_META_WIDTH-1:0] sram_rd_resp_meta,
-    input  logic                       sram_rd_resp_last
+    input  logic                       sram_resp_valid,
+    output logic                       sram_resp_ready,
+    input  logic [SRAM_META_WIDTH-1:0] sram_resp_meta,
+    input  logic                       sram_resp_last,
+    input  logic [SRAM_DATA_WIDTH-1:0] sram_resp_rd_data
 );
   typedef enum {
     STATE_IDLE,
@@ -145,16 +145,16 @@ module svc_axi_sram_if #(
       .s_axi_rresp  (s_axi_rresp),
       .s_axi_rlast  (s_axi_rlast),
 
-      .sram_rd_cmd_valid (sram_rd_cmd_valid),
-      .sram_rd_cmd_ready (sram_rd_cmd_ready),
-      .sram_rd_cmd_addr  (sram_rd_cmd_addr),
-      .sram_rd_cmd_meta  (sram_rd_cmd_meta),
-      .sram_rd_cmd_last  (sram_rd_cmd_last),
-      .sram_rd_resp_valid(sram_rd_resp_valid),
-      .sram_rd_resp_ready(sram_rd_resp_ready),
-      .sram_rd_resp_data (sram_rd_resp_data),
-      .sram_rd_resp_meta (sram_rd_resp_meta),
-      .sram_rd_resp_last (sram_rd_resp_last)
+      .sram_rd_cmd_valid   (sram_rd_cmd_valid),
+      .sram_rd_cmd_ready   (sram_rd_cmd_ready),
+      .sram_rd_cmd_addr    (sram_rd_cmd_addr),
+      .sram_rd_cmd_meta    (sram_rd_cmd_meta),
+      .sram_rd_cmd_last    (sram_rd_cmd_last),
+      .sram_rd_resp_valid  (sram_resp_valid),
+      .sram_rd_resp_ready  (sram_resp_ready),
+      .sram_rd_resp_meta   (sram_resp_meta),
+      .sram_rd_resp_last   (sram_resp_last),
+      .sram_rd_resp_rd_data(sram_resp_rd_data)
   );
 
   //
@@ -175,7 +175,7 @@ module svc_axi_sram_if #(
       end
 
       STATE_READ: begin
-        if (sram_rd_resp_valid && sram_rd_resp_ready && sram_rd_resp_last) begin
+        if (sram_resp_valid && sram_resp_ready && sram_resp_last) begin
           if (sram_wr_cmd_valid) begin
             state_next = STATE_WRITE;
           end else if (sram_rd_cmd_valid) begin
