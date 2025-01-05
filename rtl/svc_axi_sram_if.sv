@@ -242,10 +242,24 @@ module svc_axi_sram_if #(
 
 `ifdef FORMAL_FIXME
 `ifdef ZIPCPU_PRIVATE
+  logic f_past_valid;
+
+  initial f_past_valid = 0;
+  always @(posedge clk) begin
+    f_past_valid <= 1;
+  end
+
+  always @(*) begin
+    if (!f_past_valid) begin
+      assume (!rst_n);
+    end
+  end
+
   faxi_slave #(
       .C_AXI_ID_WIDTH  (AXI_ID_WIDTH),
       .C_AXI_DATA_WIDTH(AXI_DATA_WIDTH),
-      .C_AXI_ADDR_WIDTH(AXI_ADDR_WIDTH)
+      .C_AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
+      .F_OPT_INITIAL   (0)
   ) faxi_slave_i (
       .i_clk        (clk),
       .i_axi_reset_n(rst_n),
