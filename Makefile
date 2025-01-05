@@ -51,7 +51,7 @@ SBY := sby
 # default target
 #
 .PHONY: quick
-quick: quick_unit quick_formal
+quick: quick_formal .WAIT quick_unit
 
 .PHONY: quick_unit
 quick_unit: SKIP_SLOW_TESTS := 1
@@ -171,16 +171,16 @@ formal: clean_f_logs $(FORMAL_TARGETS)
 # full: lint, unit, formal
 #
 ##############################################################################
-full: lint clean_logs clean_f_logs $(FORMAL_TARGETS) $(TEST_BENCHES)
-	@echo ""
+full: lint clean_logs clean_f_logs $(FORMAL_TARGETS) .WAIT $(TEST_BENCHES)
 	@echo "=============================="
-	@echo "Successful suites: $$(wc -l < $(BUILD_DIR)/tb_success.log)"
-	@echo "Failed suites:     $$(wc -l < $(BUILD_DIR)/tb_failure.log)"
-	@sed 's/^/    /' $(BUILD_DIR)/tb_failure.log
 	@echo ""
 	@echo "Successful formal: $$(wc -l < $(BUILD_DIR)/f_success.log)"
 	@echo "Failed formal:     $$(wc -l < $(BUILD_DIR)/f_failure.log)"
 	@sed 's/^/    /' $(BUILD_DIR)/f_failure.log
+	@echo ""
+	@echo "Successful suites: $$(wc -l < $(BUILD_DIR)/tb_success.log)"
+	@echo "Failed suites:     $$(wc -l < $(BUILD_DIR)/tb_failure.log)"
+	@sed 's/^/    /' $(BUILD_DIR)/tb_failure.log
 	@echo "=============================="
 
 ##############################################################################
