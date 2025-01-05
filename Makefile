@@ -26,7 +26,7 @@ ICE40_CELLS_SIM := $(shell yosys-config --datdir/ice40/cells_sim.v)
 
 # Tools
 ifneq ($(wildcard tb/formal/private/*.v),)
-ZIPCPU_FLAGS := -DZIPCPU_FORMAL
+ZIPCPU_FLAGS := -DZIPCPU_PRIVATE
 endif
 
 FORMATTER := scripts/format-sv
