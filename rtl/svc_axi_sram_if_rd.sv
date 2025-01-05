@@ -47,9 +47,9 @@ module svc_axi_sram_if_rd #(
 
     input  logic                       sram_rd_resp_valid,
     output logic                       sram_rd_resp_ready,
-    input  logic [SRAM_DATA_WIDTH-1:0] sram_rd_resp_data,
     input  logic [SRAM_META_WIDTH-1:0] sram_rd_resp_meta,
-    input  logic                       sram_rd_resp_last
+    input  logic                       sram_rd_resp_last,
+    input  logic [SRAM_DATA_WIDTH-1:0] sram_rd_resp_rd_data
 );
   typedef enum {
     STATE_IDLE,
@@ -84,7 +84,7 @@ module svc_axi_sram_if_rd #(
   logic                        r_last_next;
 
   assign s_axi_rvalid       = sram_rd_resp_valid;
-  assign s_axi_rdata        = sram_rd_resp_data;
+  assign s_axi_rdata        = sram_rd_resp_rd_data;
   assign s_axi_rresp        = 2'b00;
   assign s_axi_rid          = sram_rd_resp_meta;
   assign s_axi_rlast        = sram_rd_resp_last;
