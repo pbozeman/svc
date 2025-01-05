@@ -75,24 +75,29 @@ module svc_ice40_sram_io_if_tb;
       .data_io(sram_io_data)
   );
 
+  logic auto_valid = 1'b1;
+
   always_ff @(posedge clk) begin
     if (~rst_n) begin
       sram_cmd_valid  <= 1'b0;
       sram_resp_ready <= 1'b1;
+      auto_valid      <= 1'b1;
     end else begin
-      if (sram_cmd_valid && sram_cmd_ready) begin
-        sram_cmd_valid <= 1'b0;
+      if (auto_valid) begin
+        if (sram_cmd_valid && sram_cmd_ready) begin
+          sram_cmd_valid <= 1'b0;
+        end
       end
     end
   end
 
-  task test_initial;
+  task automatic test_initial;
     `CHECK_FALSE(sram_io_ce_n);
     `CHECK_TRUE(sram_io_oe_n);
     `CHECK_TRUE(sram_io_we_n);
   endtask
 
-  task test_io;
+  task automatic test_io;
     sram_cmd_addr    = 16'hA000;
     sram_cmd_valid   = 1'b1;
     sram_cmd_meta    = 4'hB;
@@ -121,9 +126,34 @@ module svc_ice40_sram_io_if_tb;
     `CHECK_EQ(sram_resp_rd_data, 8'hD0);
   endtask
 
+  task automatic test_io_sustained;
+    time         time_start;
+    logic [15:0] base_addr = 16'hA000;
+
+    auto_valid = 1'b0;
+
+    time_start = $time;
+    for (int i = 0; i < 16; i++) begin
+      sram_cmd_addr    = base_addr + SRAM_ADDR_WIDTH'(i);
+      sram_cmd_valid   = 1'b1;
+      sram_cmd_meta    = 4'hB;
+      sram_cmd_last    = 1'b1;
+      sram_cmd_wr_en   = 1'b1;
+      sram_cmd_wr_data = 8'hD0;
+      sram_cmd_wr_strb = 1'b1;
+
+      `CHECK_WAIT_FOR(clk, sram_cmd_valid && sram_cmd_ready);
+      @(posedge clk);
+    end
+
+    // we should do an IO every 2 clocks
+    `CHECK_LTE($time - time_start, 16 * 20);
+  endtask
+
   `TEST_SUITE_BEGIN(svc_ice40_sram_io_if_tb);
   `TEST_CASE(test_initial);
   `TEST_CASE(test_io);
+  `TEST_CASE(test_io_sustained);
   `TEST_SUITE_END();
 
 endmodule

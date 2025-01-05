@@ -101,7 +101,7 @@ module svc_ice40_sram_io_if #(
   );
 
   svc_sync_fifo #(
-      .ADDR_WIDTH(3),
+      .ADDR_WIDTH(2),
       .DATA_WIDTH(FIFO_WIDTH)
   ) svc_sync_fifo_i (
       .clk    (clk),
