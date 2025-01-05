@@ -119,8 +119,10 @@ module svc_sync_fifo #(
       `COVER(c_nzero_read, (r_inc && |r_data));
     end
   end
-`endif
-  // verilog_format: on
 
+  `undef ASSERT
+  `undef ASSUME
+  `undef COVER
+`endif
 endmodule
 `endif
