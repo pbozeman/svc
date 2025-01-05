@@ -119,12 +119,12 @@
 
 `ifndef VERILATOR
 `define CHECK_WAIT_FOR(clk, signal, max_cnt = 16)                            \
-   `SVC_TINY_TICK;                                                           \
     svc_wait_cnt = 0;                                                        \
-    while (!signal) begin                                                    \
+    `SVC_TINY_TICK;                                                          \
+    while (signal === 0 && svc_wait_cnt < max_cnt) begin                     \
       @(posedge clk);                                                        \
       svc_wait_cnt = svc_wait_cnt + 1;                                       \
-      `CHECK_LT(svc_wait_cnt, max_cnt);                                      \
+      `SVC_TINY_TICK;                                                        \
     end                                                                      \
     if (signal !== 1) begin                                                  \
       `CHECK_MSG_1("WAIT_FOR", `__FILE__, `__LINE__, signal);                \
