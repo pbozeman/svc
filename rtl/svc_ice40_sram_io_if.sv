@@ -338,6 +338,7 @@ module svc_ice40_sram_io_if #(
   //
   // cover statements
   //
+  // verilog_format: off
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
       `COVER(c_resp, sram_resp_valid && sram_resp_ready);
@@ -345,12 +346,15 @@ module svc_ice40_sram_io_if #(
       `COVER(c_rd, sram_cmd_valid && !sram_cmd_wr_en);
       `COVER(c_rd_nz, sram_resp_valid && |sram_resp_rd_data);
       `COVER(c_full, fifo_w_full && $stable(fifo_w_full) && sram_cmd_valid);
-      `COVER(c_full_held, !fifo_r_inc && fifo_w_full && $stable(fifo_w_full
-             ) && sram_cmd_valid);
-      `COVER(c_full_recover, fifo_r_inc && fifo_w_full && $stable(fifo_w_full
-             ) && sram_cmd_valid);
+      `COVER(c_full_held,
+             !fifo_r_inc && fifo_w_full &&
+             $stable(fifo_w_full) && sram_cmd_valid);
+      `COVER(c_full_recover,
+             fifo_r_inc && fifo_w_full &&
+             $stable(fifo_w_full) && sram_cmd_valid);
     end
   end
+  // verilog_format: on
 `endif
 
 endmodule
