@@ -144,7 +144,7 @@ $(BUILD_DIR)/%/status: $(FORMAL_DIR)/%.sby $(RTL_DIR)/%.sv
 define run_formal
 	@$(SBY) --prefix .build/$(notdir $*)_f -f tb/formal/$*.sby\
 		&& echo "$1" >> $(BUILD_DIR)/f_success.log\
-		|| echo "make $(notdir $1)_f" >> $(BUILD_DIR)/f_failure.log
+		|| echo "make $(notdir $1)" >> $(BUILD_DIR)/f_failure.log
 endef
 
 .PHONY: quick_formal
