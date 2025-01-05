@@ -19,7 +19,7 @@ f_files = glob.glob("tb/formal/private/*.v")
 
 read_cmd = "read_verilog -DFORMAL "
 if f_files:
-    read_cmd += "-DZIPCPU_PRIVATE "
+  read_cmd += "-DZIPCPU_PRIVATE "
 read_cmd += "-DFORMAL_SVC_SRAM_IF -sv svc_axi_sram_if.sv\n"
 
 for f in f_files:
