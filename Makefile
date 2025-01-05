@@ -4,6 +4,7 @@ BUILD_DIR  := .build
 RTL_DIR    := rtl
 TB_DIR     := tb
 FORMAL_DIR := tb/formal
+ZIPCPU_FORMAL_DIR := tb/formal/private
 
 RTL := $(wildcard $(RTL_DIR)/*.sv)
 RTL_TB := $(wildcard $(TB_DIR)/*_tb.sv)
@@ -24,6 +25,10 @@ SYNTH_DEFS := -DSYNTH_YOSYS
 ICE40_CELLS_SIM := $(shell yosys-config --datdir/ice40/cells_sim.v)
 
 # Tools
+ifneq ($(wildcard tb/formal/private/*.v),)
+ZIPCPU_FLAGS := -DZIPCPU_FORMAL
+endif
+
 FORMATTER := scripts/format-sv
 
 IVERILOG_FLAGS_SV   := -g2012
@@ -32,11 +37,14 @@ IVERILOG_FLAGS_WARN := -Wall -Wno-portbind -Wno-timescale
 IVERILOG_FLAGS      := $(IVERILOG_FLAGS_SV) $(IVERILOG_FLAGS_DEFS) $(IVERILOG_FLAGS_WARN)
 IVERILOG            := iverilog $(IVERILOG_FLAGS)
 
-LINTER_FLAGS_DEFS := $(SYNTH_DEFS) -DFORMAL -Itb/formal
+LINTER_FLAGS_DEFS := $(SYNTH_DEFS) -DFORMAL $(ZIPCPU_FLAGS) -Itb/formal
 LINTER_FLAGS_WARN := -Wall --Wno-PINCONNECTEMPTY --timing
 LINTER_FLAGS      := $(LINTER_FLAGS_DEFS) $(LINTER_FLAGS_WARN)
 LINTER            := verilator --lint-only --quiet $(LINTER_FLAGS)
 
+# ZIPCPU_FORMAL can't be passed to sby as a flag, the .sby files check
+# themselves. But, we do define it above so that linting can be done
+# outside of sby
 SBY := sby
 
 #
@@ -64,7 +72,7 @@ $(BUILD_DIR):
 .PHONY: lint lint_% $(addprefix lint_, $(TEST_BENCHES))
 lint: $(addprefix lint_,$(TEST_BENCHES))
 
-LINT_TB_CMD=$(LINTER) -I$(RTL_DIR) -I$(TB_DIR) -I$(FORMAL_DIR) $(TEST_DIR)$(1).sv
+LINT_TB_CMD=$(LINTER) -I$(RTL_DIR) -I$(TB_DIR) -I$(FORMAL_DIR) -I$(ZIPCPU_FORMAL_DIR) $(TEST_DIR)$(1).sv
 define lint_tb_rule
 lint_$(1):
 	@$(LINT_TB_CMD) || (echo $(LINT_TB_CMD); exit 1)
