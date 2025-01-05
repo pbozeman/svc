@@ -17,10 +17,10 @@ import os
 
 f_files = glob.glob("tb/formal/private/*.v")
 
-read_cmd = "read_verilog -DFORMAL "
+read_cmd = "read_verilog -formal "
 if f_files:
   read_cmd += "-DZIPCPU_PRIVATE "
-read_cmd += "-DFORMAL_SVC_SRAM_IF -sv svc_axi_sram_if.sv\n"
+read_cmd += "-DFORMAL_SVC_AXI_ICE40_SRAM -sv svc_axi_ice40_sram.sv\n"
 
 for f in f_files:
   read_cmd += f"read_verilog -sv {os.path.basename(f)}\n"
@@ -28,7 +28,7 @@ for f in f_files:
 output(read_cmd)
 --pycode-end--
 
-prep -top svc_axi_sram_if
+prep -top svc_axi_ice40_sram
 
 [files]
 --pycode-begin--
