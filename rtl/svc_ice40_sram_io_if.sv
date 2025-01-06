@@ -27,10 +27,10 @@ module svc_ice40_sram_io_if #(
     input  logic [SRAM_DATA_WIDTH-1:0] sram_cmd_wr_data,
     input  logic [SRAM_STRB_WIDTH-1:0] sram_cmd_wr_strb,
 
-    output logic                       sram_resp_valid,
-    input  logic                       sram_resp_ready,
-    output logic [SRAM_META_WIDTH-1:0] sram_resp_meta,
-    output logic                       sram_resp_last,
+    output logic                       sram_resp_rd_valid,
+    input  logic                       sram_resp_rd_ready,
+    output logic [SRAM_META_WIDTH-1:0] sram_resp_rd_meta,
+    output logic                       sram_resp_rd_last,
     output logic [SRAM_DATA_WIDTH-1:0] sram_resp_rd_data,
 
     //
@@ -182,16 +182,16 @@ module svc_ice40_sram_io_if #(
 
   assign fifo_w_inc     = state_next != STATE_IDLE;
   assign fifo_w_data    = {sram_cmd_meta, sram_cmd_last};
-  assign fifo_r_inc     = sram_resp_valid && sram_resp_ready;
+  assign fifo_r_inc     = sram_resp_rd_valid && sram_resp_rd_ready;
 
   always_ff @(posedge clk) begin
     if (~rst_n) begin
-      sram_resp_valid <= 1'b0;
+      sram_resp_rd_valid <= 1'b0;
     end else begin
-      if (!sram_resp_valid || sram_resp_ready) begin
-        {sram_resp_meta, sram_resp_last} <= fifo_r_data;
-        sram_resp_rd_data                <= pad_rd_data;
-        sram_resp_valid                  <= pad_wr_done || pad_rd_done;
+      if (!sram_resp_rd_valid || sram_resp_rd_ready) begin
+        {sram_resp_rd_meta, sram_resp_rd_last} <= fifo_r_data;
+        sram_resp_rd_data                      <= pad_rd_data;
+        sram_resp_rd_valid                     <= pad_wr_done || pad_rd_done;
       end
     end
   end
@@ -247,16 +247,16 @@ module svc_ice40_sram_io_if #(
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
       // response signals should be stable until accepted
-      if ($past(sram_resp_valid && !sram_resp_ready)) begin
-        `ASSERT(as_stable_meta, $stable(sram_resp_meta));
-        `ASSERT(as_stable_last, $stable(sram_resp_last));
+      if ($past(sram_resp_rd_valid && !sram_resp_rd_ready)) begin
+        `ASSERT(as_stable_meta, $stable(sram_resp_rd_meta));
+        `ASSERT(as_stable_last, $stable(sram_resp_rd_last));
         `ASSERT(as_stable_data, $stable(sram_resp_rd_data));
       end
 
       // whenever an io completes, we should always have a matching fifo
       // entry for meta data
       if ($rose(pad_wr_done) || $rose(pad_rd_done)) begin
-        `ASSERT(as_fifo_resp_data, !fifo_r_empty);
+        `ASSERT(as_fifo_rd_resp_data, !fifo_r_empty);
       end
 
       // we shouldn't over flow the fifo
@@ -332,7 +332,7 @@ module svc_ice40_sram_io_if #(
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      if (sram_resp_valid && sram_resp_ready) begin
+      if (sram_resp_rd_valid && sram_resp_rd_ready) begin
         if (f_written_valid[f_resp_addr]) begin
           if (f_resp_read) begin
             assert (sram_resp_rd_data == f_written_data[f_resp_addr]);
@@ -348,10 +348,10 @@ module svc_ice40_sram_io_if #(
   // verilog_format: off
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      `COVER(c_resp, sram_resp_valid && sram_resp_ready);
+      `COVER(c_rd_resp, sram_resp_rd_valid && sram_resp_rd_ready);
       `COVER(c_wr, sram_cmd_valid && sram_cmd_wr_en);
       `COVER(c_rd, sram_cmd_valid && !sram_cmd_wr_en);
-      `COVER(c_rd_nz, sram_resp_valid && |sram_resp_rd_data);
+      `COVER(c_rd_nz, sram_resp_rd_valid && |sram_resp_rd_data);
       `COVER(c_full, fifo_w_full && $stable(fifo_w_full) && sram_cmd_valid);
       `COVER(c_full_held,
              !fifo_r_inc && fifo_w_full &&
