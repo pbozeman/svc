@@ -1,0 +1,20 @@
+[tasks]
+bmc
+cover
+
+[options]
+bmc: mode bmc
+cover: mode cover
+cover: depth 40
+
+[engines]
+smtbmc
+
+[script]
+read_verilog -formal -sv svc_axil_sram_if.sv
+read_verilog -formal faxil_slave.v
+prep -top svc_axil_sram_if
+
+[files]
+tb/formal/faxil_slave.v
+rtl/
