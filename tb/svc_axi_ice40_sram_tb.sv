@@ -102,7 +102,7 @@ module svc_axi_ice40_sram_tb;
       .ADDR_WIDTH(SAW),
       .DATA_WIDTH(DW)
   ) svc_model_sram_i (
-      .reset  (!rst_n),
+      .rst_n  (rst_n),
       .we_n   (sram_io_we_n),
       .oe_n   (sram_io_oe_n),
       .ce_n   (sram_io_ce_n),
