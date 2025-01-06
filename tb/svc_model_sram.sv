@@ -27,7 +27,7 @@ module svc_model_sram #(
 
     parameter BAD_DATA = 1'bx
 ) (
-    input logic reset,
+    input logic rst_n,
 
     input logic                  we_n,
     input logic                  oe_n,
@@ -133,7 +133,7 @@ module svc_model_sram #(
   logic                  writes_active = 0;
 
   always @(negedge oe_n) begin
-    // Do not add !reset to this check, we don't ever want this to happen as it
+    // Do not add rst_n to this check, we don't ever want this to happen as it
     // can damage the hardwaare
     if (data_io !== {DATA_WIDTH{1'bz}}) begin
       $display("oe_n low while fpga driving bus");
@@ -145,7 +145,7 @@ module svc_model_sram #(
 
   always @(posedge oe_n) begin
     if (reads_active) begin
-      if (oe_n_initial_addr != addr && !reset) begin
+      if (oe_n_initial_addr != addr && rst_n) begin
         $display("addr changed during read, old: %h new: %h",
                  oe_n_initial_addr, addr);
         $fatal;
@@ -161,12 +161,12 @@ module svc_model_sram #(
 
   always @(posedge we_n) begin
     if (writes_active) begin
-      if (we_n_initial_addr !== addr && !reset) begin
+      if (we_n_initial_addr !== addr && rst_n) begin
         $display("addr changed during write");
         $fatal;
       end
 
-      if (we_n_initial_data !== data_io && !reset) begin
+      if (we_n_initial_data !== data_io && rst_n) begin
         $display("data changed during write");
         $fatal;
       end

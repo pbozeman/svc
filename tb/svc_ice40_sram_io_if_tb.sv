@@ -67,7 +67,7 @@ module svc_ice40_sram_io_if_tb;
       .DATA_WIDTH               (SRAM_DATA_WIDTH),
       .UNINITIALIZED_READS_FATAL(1)
   ) svc_model_sram_i (
-      .reset  (!rst_n),
+      .rst_n  (rst_n),
       .we_n   (sram_io_we_n),
       .oe_n   (sram_io_oe_n),
       .ce_n   (sram_io_ce_n),
