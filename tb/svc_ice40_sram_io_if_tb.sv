@@ -107,20 +107,20 @@ module svc_ice40_sram_io_if_tb;
     sram_cmd_wr_strb = 1'b1;
     `CHECK_TRUE(sram_cmd_valid && sram_cmd_ready);
 
-    @(posedge clk);
+    `TICK(clk);
     `CHECK_FALSE(sram_cmd_valid);
     sram_cmd_valid = 1'b1;
     sram_cmd_wr_en = 1'b0;
     sram_cmd_meta  = 4'hC;
     `CHECK_FALSE(sram_resp_rd_valid);
 
-    @(posedge clk);
+    `TICK(clk);
     `CHECK_TRUE(sram_cmd_valid && sram_cmd_ready);
 
     `CHECK_WAIT_FOR(clk, sram_resp_rd_valid);
     `CHECK_EQ(sram_resp_rd_meta, 4'hB);
 
-    @(posedge clk);
+    `TICK(clk);
     `CHECK_WAIT_FOR(clk, sram_resp_rd_valid);
     `CHECK_EQ(sram_resp_rd_meta, 4'hC);
     `CHECK_EQ(sram_resp_rd_data, 8'hD0);
@@ -143,7 +143,7 @@ module svc_ice40_sram_io_if_tb;
       sram_cmd_wr_strb = 1'b1;
 
       `CHECK_WAIT_FOR(clk, sram_cmd_valid && sram_cmd_ready);
-      @(posedge clk);
+      `TICK(clk);
     end
 
     // we should do an IO every 2 clocks

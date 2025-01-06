@@ -117,6 +117,10 @@
   logic rst_n;                                                               \
   `TEST_TASK_RESET_N(clk, rst_n, cycles)
 
+`define TICK(clk)                                                            \
+  @(posedge clk);                                                            \
+  #0;
+
 `ifndef VERILATOR
 `define CHECK_WAIT_FOR(clk, signal, max_cnt = 16)                            \
     svc_wait_cnt = 0;                                                        \

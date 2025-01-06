@@ -51,7 +51,7 @@ module svc_sync_fifo_tb;
     // write
     w_data = data;
     w_inc  = 1;
-    @(posedge clk);
+    `TICK(clk);
 
     `CHECK_FALSE(r_empty);
     `CHECK_EQ(r_data, data);
@@ -59,7 +59,7 @@ module svc_sync_fifo_tb;
 
     // read
     r_inc = 1;
-    @(posedge clk);
+    `TICK(clk);
 
     `CHECK_TRUE(r_empty);
   endtask
@@ -68,7 +68,7 @@ module svc_sync_fifo_tb;
     for (int i = 0; i < MEM_DEPTH; i++) begin
       w_data = i[DATA_WIDTH-1:0];
       w_inc  = 1;
-      @(posedge clk);
+      `TICK(clk);
 
       `CHECK_EQ(w_full, (i == MEM_DEPTH - 1));
     end
@@ -83,7 +83,7 @@ module svc_sync_fifo_tb;
     for (int i = 0; i < MEM_DEPTH; i++) begin
       `CHECK_EQ(r_data, DATA_WIDTH'(i));
       r_inc = 1;
-      @(posedge clk);
+      `TICK(clk);
 
       `CHECK_EQ(r_empty, (i == MEM_DEPTH - 1));
     end
@@ -99,7 +99,7 @@ module svc_sync_fifo_tb;
     // write
     w_data = data1;
     w_inc  = 1;
-    @(posedge clk);
+    `TICK(clk);
 
     `CHECK_FALSE(r_empty);
     `CHECK_EQ(r_data, data1);
@@ -107,7 +107,7 @@ module svc_sync_fifo_tb;
     // second write with read
     w_data = data2;
     r_inc  = 1;
-    @(posedge clk);
+    `TICK(clk);
 
     `CHECK_EQ(r_empty, 1'b0)
     `CHECK_EQ(r_data, data2);
@@ -115,7 +115,7 @@ module svc_sync_fifo_tb;
 
     // read
     r_inc = 1;
-    @(posedge clk);
+    `TICK(clk);
 
     `CHECK_TRUE(r_empty);
   endtask

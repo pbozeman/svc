@@ -111,8 +111,7 @@ module svc_axi_sram_if_rd_tb;
     m_axi_araddr  = addr;
 
     repeat (3) begin
-      @(posedge clk);
-      #1;
+      `TICK(clk);
       `CHECK_TRUE(sram_rd_cmd_valid);
       `CHECK_EQ(sram_rd_cmd_meta, 4'hB);
       `CHECK_TRUE(sram_rd_cmd_last);
@@ -120,8 +119,7 @@ module svc_axi_sram_if_rd_tb;
     end
 
     sram_rd_cmd_ready = 1'b1;
-    @(posedge clk);
-    #1;
+    `TICK(clk);
     `CHECK_FALSE(sram_rd_cmd_valid);
   endtask
 

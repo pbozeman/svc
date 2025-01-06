@@ -50,12 +50,12 @@ module svc_skidbuf_reg_tb;
       s_ready = 1;
       m_valid = 1;
       m_data  = 8'hA5;
-      @(posedge clk);
+      `TICK(clk);
 
       `CHECK_EQ(s_data, 8'hA5);
       `CHECK_TRUE(s_valid);
 
-      @(posedge clk);
+      `TICK(clk);
       `CHECK_FALSE(s_valid);
     end
   endtask
@@ -66,18 +66,18 @@ module svc_skidbuf_reg_tb;
       s_ready = 0;
       m_valid = 1;
       m_data  = 8'h55;
-      @(posedge clk);
+      `TICK(clk);
       `CHECK_EQ(s_data, 8'h55);
       `CHECK_TRUE(s_valid);
       `CHECK_TRUE(m_ready);
 
       m_valid = 1;
       m_data  = 8'hAA;
-      @(posedge clk);
+      `TICK(clk);
       `CHECK_EQ(s_data, 8'h55);
 
       s_ready = 1;
-      @(posedge clk);
+      `TICK(clk);
       `CHECK_EQ(s_data, 8'hAA);
       `CHECK_TRUE(s_valid);
     end
@@ -91,7 +91,7 @@ module svc_skidbuf_reg_tb;
       for (int i = 0; i < 4; i++) begin
         m_valid = 1;
         m_data  = DATA_WIDTH'(i);
-        @(posedge clk);
+        `TICK(clk);
         `CHECK_EQ(s_data, DATA_WIDTH'(i));
       end
     end
@@ -103,10 +103,10 @@ module svc_skidbuf_reg_tb;
       s_ready = 0;
       m_valid = 1;
       m_data  = 8'h42;
-      @(posedge clk);
+      `TICK(clk);
 
       rst_n = 0;
-      @(posedge clk);
+      `TICK(clk);
       `CHECK_FALSE(s_valid);
       `CHECK_TRUE(m_ready);
     end

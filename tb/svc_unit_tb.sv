@@ -11,7 +11,7 @@ module svc_unit_tb;
   task test_clk();
     // This is dependent on being the first test case
     `CHECK_EQ(clk_cnt, 0);
-    repeat (4) @(posedge clk);
+    repeat (4) `TICK(clk);
     `CHECK_EQ(clk_cnt, 4);
   endtask
 
@@ -29,7 +29,7 @@ module svc_unit_tb;
   endtask
 
   task test_another();
-    @(posedge clk);
+    `TICK(clk);
     `CHECK_EQ(1, 1);
   endtask
 
