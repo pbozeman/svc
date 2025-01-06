@@ -218,7 +218,7 @@ module svc_ice40_axil_sram_io_if #(
       // whenever an io completes, we should always have a matching fifo
       // entry for meta data
       if ($rose(pad_wr_done) || $rose(pad_rd_done)) begin
-        `ASSERT(as_fifo_rd_resp_data, !fifo_r_empty);
+        `ASSERT(as_fifo_resp_rd_data, !fifo_r_empty);
       end
 
       // we shouldn't over flow the fifo
@@ -310,7 +310,7 @@ module svc_ice40_axil_sram_io_if #(
   // verilog_format: off
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      `COVER(c_rd_resp, sram_resp_rd_valid && sram_resp_rd_ready);
+      `COVER(c_resp_rd, sram_resp_rd_valid && sram_resp_rd_ready);
       `COVER(c_wr, sram_cmd_valid && sram_cmd_wr_en);
       `COVER(c_rd, sram_cmd_valid && !sram_cmd_wr_en);
       `COVER(c_rd_nz, sram_resp_rd_valid && |sram_resp_rd_data);

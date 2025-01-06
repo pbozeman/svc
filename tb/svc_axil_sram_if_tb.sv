@@ -38,9 +38,9 @@ module svc_axil_sram_if_tb;
   logic             sram_cmd_wr_en;
   logic [   DW-1:0] sram_cmd_wr_data;
   logic [STRBW-1:0] sram_cmd_wr_strb;
-  logic             sram_rd_resp_valid;
-  logic             sram_rd_resp_ready;
-  logic [   DW-1:0] sram_rd_resp_data;
+  logic             sram_resp_rd_valid;
+  logic             sram_resp_rd_ready;
+  logic [   DW-1:0] sram_resp_rd_data;
 
   // if true, test cases don't have to manage dropping valid signals
   logic             auto_valid;
@@ -77,9 +77,9 @@ module svc_axil_sram_if_tb;
       .sram_cmd_wr_en    (sram_cmd_wr_en),
       .sram_cmd_wr_data  (sram_cmd_wr_data),
       .sram_cmd_wr_strb  (sram_cmd_wr_strb),
-      .sram_rd_resp_valid(sram_rd_resp_valid),
-      .sram_rd_resp_ready(sram_rd_resp_ready),
-      .sram_rd_resp_data (sram_rd_resp_data)
+      .sram_resp_rd_valid(sram_resp_rd_valid),
+      .sram_resp_rd_ready(sram_resp_rd_ready),
+      .sram_resp_rd_data (sram_resp_rd_data)
   );
 
   svc_model_sram_if #(
@@ -98,9 +98,9 @@ module svc_axil_sram_if_tb;
       .sram_cmd_wr_en   (sram_cmd_wr_en),
       .sram_cmd_wr_data (sram_cmd_wr_data),
       .sram_cmd_wr_strb (sram_cmd_wr_strb),
-      .sram_resp_valid  (sram_rd_resp_valid),
-      .sram_resp_ready  (sram_rd_resp_ready),
-      .sram_resp_rd_data(sram_rd_resp_data),
+      .sram_resp_valid  (sram_resp_rd_valid),
+      .sram_resp_ready  (sram_resp_rd_ready),
+      .sram_resp_rd_data(sram_resp_rd_data),
       .sram_resp_meta   (),
       .sram_resp_last   ()
   );
@@ -254,13 +254,13 @@ module svc_axil_sram_if_tb;
 
     #1;
     `CHECK_EQ(m_axil_rvalid, 1'b0);
-    `CHECK_EQ(sram_rd_resp_ready, 1'b0);
+    `CHECK_EQ(sram_resp_rd_ready, 1'b0);
 
     @(posedge clk);
     #1;
     `CHECK_EQ(m_axil_rvalid, 1'b1);
     `CHECK_EQ(m_axil_rdata, a_to_d(addr));
-    `CHECK_EQ(sram_rd_resp_ready, 1'b0);
+    `CHECK_EQ(sram_resp_rd_ready, 1'b0);
     `CHECK_EQ(m_axil_rresp, 2'b00);
 
     repeat (3) begin
@@ -268,11 +268,11 @@ module svc_axil_sram_if_tb;
       `CHECK_EQ(m_axil_rvalid, 1'b1);
       `CHECK_EQ(m_axil_rdata, a_to_d(addr));
       `CHECK_EQ(m_axil_rresp, 2'b00);
-      `CHECK_EQ(sram_rd_resp_ready, 1'b0);
+      `CHECK_EQ(sram_resp_rd_ready, 1'b0);
     end
 
     m_axil_rready = 1'b1;
-    `CHECK_EQ(sram_rd_resp_ready, 1'b1);
+    `CHECK_EQ(sram_resp_rd_ready, 1'b1);
   endtask
 
   task automatic test_r_r;
