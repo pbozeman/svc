@@ -60,6 +60,14 @@ module svc_axi_sram_if #(
     //
     // SRAM interface
     //
+    // Note that the responses are truly only for reads. Write responses (bid,
+    // etc) bypass the sram interfaces. If these ever need to added, do so
+    // with a separate set of sram_resp_wr_valid, etc signals, or, if common
+    // signals are used, there needs to be a sram_resp_wr/rd to indicate the
+    // response is a write/read. If the signals are fully blended with no
+    // distinction, then the wr_if and rd_if modules will return responses
+    // prematurely/incorrectly.
+    //
     output logic                       sram_cmd_valid,
     input  logic                       sram_cmd_ready,
     output logic                       sram_cmd_wr_en,
@@ -68,11 +76,11 @@ module svc_axi_sram_if #(
     output logic                       sram_cmd_last,
     output logic [SRAM_DATA_WIDTH-1:0] sram_cmd_wr_data,
     output logic [SRAM_STRB_WIDTH-1:0] sram_cmd_wr_strb,
-    input  logic                       sram_resp_valid,
-    output logic                       sram_resp_ready,
-    input  logic [SRAM_META_WIDTH-1:0] sram_resp_meta,
-    input  logic                       sram_resp_last,
-    input  logic [SRAM_DATA_WIDTH-1:0] sram_resp_rd_data
+    input  logic                       sram_resp_rd_valid,
+    output logic                       sram_resp_rd_ready,
+    input  logic [SRAM_DATA_WIDTH-1:0] sram_resp_rd_data,
+    input  logic [SRAM_META_WIDTH-1:0] sram_resp_rd_meta,
+    input  logic                       sram_resp_rd_last
 );
   typedef enum {
     STATE_IDLE,
@@ -145,16 +153,16 @@ module svc_axi_sram_if #(
       .s_axi_rresp  (s_axi_rresp),
       .s_axi_rlast  (s_axi_rlast),
 
-      .sram_rd_cmd_valid   (sram_rd_cmd_valid),
-      .sram_rd_cmd_ready   (sram_rd_cmd_ready),
-      .sram_rd_cmd_addr    (sram_rd_cmd_addr),
-      .sram_rd_cmd_meta    (sram_rd_cmd_meta),
-      .sram_rd_cmd_last    (sram_rd_cmd_last),
-      .sram_rd_resp_valid  (sram_resp_valid),
-      .sram_rd_resp_ready  (sram_resp_ready),
-      .sram_rd_resp_meta   (sram_resp_meta),
-      .sram_rd_resp_last   (sram_resp_last),
-      .sram_rd_resp_rd_data(sram_resp_rd_data)
+      .sram_rd_cmd_valid (sram_rd_cmd_valid),
+      .sram_rd_cmd_ready (sram_rd_cmd_ready),
+      .sram_rd_cmd_addr  (sram_rd_cmd_addr),
+      .sram_rd_cmd_meta  (sram_rd_cmd_meta),
+      .sram_rd_cmd_last  (sram_rd_cmd_last),
+      .sram_resp_rd_valid(sram_resp_rd_valid),
+      .sram_resp_rd_ready(sram_resp_rd_ready),
+      .sram_resp_rd_data (sram_resp_rd_data),
+      .sram_resp_rd_meta (sram_resp_rd_meta),
+      .sram_resp_rd_last (sram_resp_rd_last)
   );
 
   //
@@ -175,7 +183,7 @@ module svc_axi_sram_if #(
       end
 
       STATE_READ: begin
-        if (sram_resp_valid && sram_resp_ready && sram_resp_last) begin
+        if (sram_resp_rd_valid && sram_resp_rd_ready && sram_resp_rd_last) begin
           if (sram_wr_cmd_valid) begin
             state_next = STATE_WRITE;
           end else if (sram_rd_cmd_valid) begin

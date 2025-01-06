@@ -45,11 +45,11 @@ module svc_axi_sram_if_rd #(
     output logic [SRAM_META_WIDTH-1:0] sram_rd_cmd_meta,
     output logic                       sram_rd_cmd_last,
 
-    input  logic                       sram_rd_resp_valid,
-    output logic                       sram_rd_resp_ready,
-    input  logic [SRAM_META_WIDTH-1:0] sram_rd_resp_meta,
-    input  logic                       sram_rd_resp_last,
-    input  logic [SRAM_DATA_WIDTH-1:0] sram_rd_resp_rd_data
+    input  logic                       sram_resp_rd_valid,
+    output logic                       sram_resp_rd_ready,
+    input  logic [SRAM_DATA_WIDTH-1:0] sram_resp_rd_data,
+    input  logic [SRAM_META_WIDTH-1:0] sram_resp_rd_meta,
+    input  logic                       sram_resp_rd_last
 );
   typedef enum {
     STATE_IDLE,
@@ -83,18 +83,18 @@ module svc_axi_sram_if_rd #(
   logic                        r_last;
   logic                        r_last_next;
 
-  assign s_axi_rvalid       = sram_rd_resp_valid;
-  assign s_axi_rdata        = sram_rd_resp_rd_data;
+  assign s_axi_rvalid       = sram_resp_rd_valid;
+  assign s_axi_rdata        = sram_resp_rd_data;
   assign s_axi_rresp        = 2'b00;
-  assign s_axi_rid          = sram_rd_resp_meta;
-  assign s_axi_rlast        = sram_rd_resp_last;
+  assign s_axi_rid          = sram_resp_rd_meta;
+  assign s_axi_rlast        = sram_resp_rd_last;
 
   assign sram_rd_cmd_valid  = r_addr_valid;
   assign sram_rd_cmd_addr   = r_addr[AXI_ADDR_WIDTH-1:LSB];
   assign sram_rd_cmd_meta   = r_id;
   assign sram_rd_cmd_last   = r_last;
 
-  assign sram_rd_resp_ready = s_axi_rready;
+  assign sram_resp_rd_ready = s_axi_rready;
 
   always_comb begin
     state_next         = state;

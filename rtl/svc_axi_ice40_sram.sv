@@ -74,10 +74,10 @@ module svc_axi_ice40_sram #(
   logic                       sram_cmd_wr_en;
   logic [SRAM_DATA_WIDTH-1:0] sram_cmd_wr_data;
   logic [SRAM_STRB_WIDTH-1:0] sram_cmd_wr_strb;
-  logic                       sram_resp_valid;
-  logic                       sram_resp_ready;
-  logic [SRAM_META_WIDTH-1:0] sram_resp_meta;
-  logic                       sram_resp_last;
+  logic                       sram_resp_rd_valid;
+  logic                       sram_resp_rd_ready;
+  logic [SRAM_META_WIDTH-1:0] sram_resp_rd_meta;
+  logic                       sram_resp_rd_last;
   logic [SRAM_DATA_WIDTH-1:0] sram_resp_rd_data;
 
   svc_ice40_sram_io_if #(
@@ -98,11 +98,11 @@ module svc_axi_ice40_sram #(
       .sram_cmd_wr_data(sram_cmd_wr_data),
       .sram_cmd_wr_strb(sram_cmd_wr_strb),
 
-      .sram_resp_valid  (sram_resp_valid),
-      .sram_resp_ready  (sram_resp_ready),
-      .sram_resp_meta   (sram_resp_meta),
-      .sram_resp_last   (sram_resp_last),
-      .sram_resp_rd_data(sram_resp_rd_data),
+      .sram_resp_rd_valid(sram_resp_rd_valid),
+      .sram_resp_rd_ready(sram_resp_rd_ready),
+      .sram_resp_rd_meta (sram_resp_rd_meta),
+      .sram_resp_rd_last (sram_resp_rd_last),
+      .sram_resp_rd_data (sram_resp_rd_data),
 
       .sram_io_addr(sram_io_addr),
       .sram_io_data(sram_io_data),
@@ -154,22 +154,22 @@ module svc_axi_ice40_sram #(
       .s_axi_rresp  (s_axi_rresp),
       .s_axi_rlast  (s_axi_rlast),
 
-      .sram_cmd_valid   (sram_cmd_valid),
-      .sram_cmd_ready   (sram_cmd_ready),
-      .sram_cmd_wr_en   (sram_cmd_wr_en),
-      .sram_cmd_addr    (sram_cmd_addr),
-      .sram_cmd_meta    (sram_cmd_meta),
-      .sram_cmd_last    (sram_cmd_last),
-      .sram_cmd_wr_data (sram_cmd_wr_data),
-      .sram_cmd_wr_strb (sram_cmd_wr_strb),
-      .sram_resp_valid  (sram_resp_valid),
-      .sram_resp_ready  (sram_resp_ready),
-      .sram_resp_meta   (sram_resp_meta),
-      .sram_resp_last   (sram_resp_last),
-      .sram_resp_rd_data(sram_resp_rd_data)
+      .sram_cmd_valid    (sram_cmd_valid),
+      .sram_cmd_ready    (sram_cmd_ready),
+      .sram_cmd_wr_en    (sram_cmd_wr_en),
+      .sram_cmd_addr     (sram_cmd_addr),
+      .sram_cmd_meta     (sram_cmd_meta),
+      .sram_cmd_last     (sram_cmd_last),
+      .sram_cmd_wr_data  (sram_cmd_wr_data),
+      .sram_cmd_wr_strb  (sram_cmd_wr_strb),
+      .sram_resp_rd_valid(sram_resp_rd_valid),
+      .sram_resp_rd_ready(sram_resp_rd_ready),
+      .sram_resp_rd_meta (sram_resp_rd_meta),
+      .sram_resp_rd_last (sram_resp_rd_last),
+      .sram_resp_rd_data (sram_resp_rd_data)
   );
 
-`ifdef FORMAL_BUT_THIS_IS_NOT_WORKING
+`ifdef FORMAL_NOT_PASSING
 `ifdef ZIPCPU_PRIVATE
   logic f_past_valid;
 

@@ -19,10 +19,10 @@ module svc_ice40_sram_io_if_tb;
   logic                       sram_cmd_wr_en;
   logic [SRAM_DATA_WIDTH-1:0] sram_cmd_wr_data;
   logic [SRAM_STRB_WIDTH-1:0] sram_cmd_wr_strb;
-  logic                       sram_resp_valid;
-  logic                       sram_resp_ready;
-  logic [SRAM_META_WIDTH-1:0] sram_resp_meta;
-  logic                       sram_resp_last;
+  logic                       sram_resp_rd_valid;
+  logic                       sram_resp_rd_ready;
+  logic [SRAM_META_WIDTH-1:0] sram_resp_rd_meta;
+  logic                       sram_resp_rd_last;
   logic [SRAM_DATA_WIDTH-1:0] sram_resp_rd_data;
 
   logic [SRAM_ADDR_WIDTH-1:0] sram_io_addr;
@@ -41,19 +41,19 @@ module svc_ice40_sram_io_if_tb;
       .clk  (clk),
       .rst_n(rst_n),
 
-      .sram_cmd_valid   (sram_cmd_valid),
-      .sram_cmd_ready   (sram_cmd_ready),
-      .sram_cmd_addr    (sram_cmd_addr),
-      .sram_cmd_meta    (sram_cmd_meta),
-      .sram_cmd_last    (sram_cmd_last),
-      .sram_cmd_wr_en   (sram_cmd_wr_en),
-      .sram_cmd_wr_data (sram_cmd_wr_data),
-      .sram_cmd_wr_strb (sram_cmd_wr_strb),
-      .sram_resp_valid  (sram_resp_valid),
-      .sram_resp_ready  (sram_resp_ready),
-      .sram_resp_meta   (sram_resp_meta),
-      .sram_resp_last   (sram_resp_last),
-      .sram_resp_rd_data(sram_resp_rd_data),
+      .sram_cmd_valid    (sram_cmd_valid),
+      .sram_cmd_ready    (sram_cmd_ready),
+      .sram_cmd_addr     (sram_cmd_addr),
+      .sram_cmd_meta     (sram_cmd_meta),
+      .sram_cmd_last     (sram_cmd_last),
+      .sram_cmd_wr_en    (sram_cmd_wr_en),
+      .sram_cmd_wr_data  (sram_cmd_wr_data),
+      .sram_cmd_wr_strb  (sram_cmd_wr_strb),
+      .sram_resp_rd_valid(sram_resp_rd_valid),
+      .sram_resp_rd_ready(sram_resp_rd_ready),
+      .sram_resp_rd_meta (sram_resp_rd_meta),
+      .sram_resp_rd_last (sram_resp_rd_last),
+      .sram_resp_rd_data (sram_resp_rd_data),
 
       .sram_io_addr(sram_io_addr),
       .sram_io_data(sram_io_data),
@@ -79,9 +79,9 @@ module svc_ice40_sram_io_if_tb;
 
   always_ff @(posedge clk) begin
     if (~rst_n) begin
-      sram_cmd_valid  <= 1'b0;
-      sram_resp_ready <= 1'b1;
-      auto_valid      <= 1'b1;
+      sram_cmd_valid     <= 1'b0;
+      sram_resp_rd_ready <= 1'b1;
+      auto_valid         <= 1'b1;
     end else begin
       if (auto_valid) begin
         if (sram_cmd_valid && sram_cmd_ready) begin
@@ -112,17 +112,17 @@ module svc_ice40_sram_io_if_tb;
     sram_cmd_valid = 1'b1;
     sram_cmd_wr_en = 1'b0;
     sram_cmd_meta  = 4'hC;
-    `CHECK_FALSE(sram_resp_valid);
+    `CHECK_FALSE(sram_resp_rd_valid);
 
     @(posedge clk);
     `CHECK_TRUE(sram_cmd_valid && sram_cmd_ready);
 
-    `CHECK_WAIT_FOR(clk, sram_resp_valid);
-    `CHECK_EQ(sram_resp_meta, 4'hB);
+    `CHECK_WAIT_FOR(clk, sram_resp_rd_valid);
+    `CHECK_EQ(sram_resp_rd_meta, 4'hB);
 
     @(posedge clk);
-    `CHECK_WAIT_FOR(clk, sram_resp_valid);
-    `CHECK_EQ(sram_resp_meta, 4'hC);
+    `CHECK_WAIT_FOR(clk, sram_resp_rd_valid);
+    `CHECK_EQ(sram_resp_rd_meta, 4'hC);
     `CHECK_EQ(sram_resp_rd_data, 8'hD0);
   endtask
 
