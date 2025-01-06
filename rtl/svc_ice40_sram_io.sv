@@ -15,6 +15,8 @@
 // understands them, but it complains about multiple clocks and takes
 // a very long time to run before exiting with the clock errors.
 
+// TODO: remove wr_done and change rd_done to rd_data_valid after the higher
+// level axi modules are removed.
 module svc_ice40_sram_io #(
     parameter integer SRAM_ADDR_WIDTH = 4,
     parameter integer SRAM_DATA_WIDTH = 16
