@@ -24,9 +24,9 @@ module svc_axil_sram_if_rd_tb;
   logic           sram_rd_cmd_valid;
   logic           sram_rd_cmd_ready;
   logic [SAW-1:0] sram_rd_cmd_addr;
-  logic           sram_rd_resp_valid;
-  logic           sram_rd_resp_ready;
-  logic [ DW-1:0] sram_rd_resp_data;
+  logic           sram_resp_rd_valid;
+  logic           sram_resp_rd_ready;
+  logic [ DW-1:0] sram_resp_rd_data;
 
   svc_axil_sram_if_rd #(
       .AXIL_ADDR_WIDTH(AW),
@@ -46,9 +46,9 @@ module svc_axil_sram_if_rd_tb;
       .sram_rd_cmd_valid (sram_rd_cmd_valid),
       .sram_rd_cmd_ready (sram_rd_cmd_ready),
       .sram_rd_cmd_addr  (sram_rd_cmd_addr),
-      .sram_rd_resp_valid(sram_rd_resp_valid),
-      .sram_rd_resp_ready(sram_rd_resp_ready),
-      .sram_rd_resp_data (sram_rd_resp_data)
+      .sram_resp_rd_valid(sram_resp_rd_valid),
+      .sram_resp_rd_ready(sram_resp_rd_ready),
+      .sram_resp_rd_data (sram_resp_rd_data)
   );
 
   always_ff @(posedge clk) begin
@@ -58,8 +58,8 @@ module svc_axil_sram_if_rd_tb;
       m_axil_rready      <= 1'b0;
 
       sram_rd_cmd_ready  <= 1'b0;
-      sram_rd_resp_valid <= 1'b0;
-      sram_rd_resp_data  <= '0;
+      sram_resp_rd_valid <= 1'b0;
+      sram_resp_rd_data  <= '0;
     end
   end
 
@@ -105,25 +105,25 @@ module svc_axil_sram_if_rd_tb;
     @(posedge clk);
     #1;
     `CHECK_EQ(m_axil_rvalid, 1'b0);
-    `CHECK_EQ(sram_rd_resp_ready, 1'b0);
+    `CHECK_EQ(sram_resp_rd_ready, 1'b0);
 
-    sram_rd_resp_valid = 1'b1;
-    sram_rd_resp_data  = data;
+    sram_resp_rd_valid = 1'b1;
+    sram_resp_rd_data  = data;
     `CHECK_EQ(m_axil_rvalid, 1'b1);
     `CHECK_EQ(m_axil_rdata, data);
     `CHECK_EQ(m_axil_rresp, 2'b00);
-    `CHECK_EQ(sram_rd_resp_ready, 1'b0);
+    `CHECK_EQ(sram_resp_rd_ready, 1'b0);
 
     repeat (3) begin
       @(posedge clk);
       `CHECK_EQ(m_axil_rvalid, 1'b1);
       `CHECK_EQ(m_axil_rdata, data);
       `CHECK_EQ(m_axil_rresp, 2'b00);
-      `CHECK_EQ(sram_rd_resp_ready, 1'b0);
+      `CHECK_EQ(sram_resp_rd_ready, 1'b0);
     end
 
     m_axil_rready = 1'b1;
-    `CHECK_EQ(sram_rd_resp_ready, 1'b1);
+    `CHECK_EQ(sram_resp_rd_ready, 1'b1);
   endtask
 
   `TEST_SUITE_BEGIN(svc_axil_sram_if_rd_tb);

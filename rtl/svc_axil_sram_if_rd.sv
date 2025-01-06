@@ -36,17 +36,17 @@ module svc_axil_sram_if_rd #(
     input  logic                       sram_rd_cmd_ready,
     output logic [SRAM_ADDR_WIDTH-1:0] sram_rd_cmd_addr,
 
-    input  logic                       sram_rd_resp_valid,
-    output logic                       sram_rd_resp_ready,
-    input  logic [SRAM_DATA_WIDTH-1:0] sram_rd_resp_data
+    input  logic                       sram_resp_rd_valid,
+    output logic                       sram_resp_rd_ready,
+    input  logic [SRAM_DATA_WIDTH-1:0] sram_resp_rd_data
 );
   assign sram_rd_cmd_valid  = s_axil_arvalid;
   assign s_axil_arready     = sram_rd_cmd_ready;
   assign sram_rd_cmd_addr   = s_axil_araddr[AXIL_ADDR_WIDTH-1:LSB];
 
-  assign s_axil_rvalid      = sram_rd_resp_valid;
-  assign s_axil_rdata       = sram_rd_resp_data;
-  assign sram_rd_resp_ready = s_axil_rready;
+  assign s_axil_rvalid      = sram_resp_rd_valid;
+  assign s_axil_rdata       = sram_resp_rd_data;
+  assign sram_resp_rd_ready = s_axil_rready;
 
   assign s_axil_rresp       = '0;
 
@@ -75,7 +75,7 @@ module svc_axil_sram_if_rd #(
         end
       end
 
-      if (sram_rd_resp_valid && !sram_rd_resp_ready) begin
+      if (sram_resp_rd_valid && !sram_resp_rd_ready) begin
         assume (!sram_rd_cmd_ready);
       end
 
@@ -91,7 +91,7 @@ module svc_axil_sram_if_rd #(
   logic f_resp_outstanding = 1'b0;
 
   always_comb begin
-    assume (sram_rd_resp_valid == f_resp_outstanding);
+    assume (sram_resp_rd_valid == f_resp_outstanding);
   end
 
   always @(posedge clk) begin
@@ -102,10 +102,10 @@ module svc_axil_sram_if_rd #(
         f_resp_outstanding <= sram_rd_cmd_valid && sram_rd_cmd_ready;
       end else begin
         if (sram_rd_cmd_valid && sram_rd_cmd_ready) begin
-          assert (!sram_rd_resp_valid || sram_rd_resp_ready);
+          assert (!sram_resp_rd_valid || sram_resp_rd_ready);
         end
 
-        if (sram_rd_resp_valid && sram_rd_resp_ready) begin
+        if (sram_resp_rd_valid && sram_resp_rd_ready) begin
           f_resp_outstanding <= sram_rd_cmd_valid && sram_rd_cmd_ready;
         end
       end
@@ -117,7 +117,7 @@ module svc_axil_sram_if_rd #(
   //
   always @(posedge clk) begin
     if (f_resp_outstanding && $past(f_resp_outstanding)) begin
-      assume ($stable(sram_rd_resp_data));
+      assume ($stable(sram_resp_rd_data));
     end
   end
 `endif

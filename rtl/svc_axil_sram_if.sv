@@ -52,9 +52,9 @@ module svc_axil_sram_if #(
     output logic                       sram_cmd_wr_en,
     output logic [SRAM_DATA_WIDTH-1:0] sram_cmd_wr_data,
     output logic [SRAM_STRB_WIDTH-1:0] sram_cmd_wr_strb,
-    input  logic                       sram_rd_resp_valid,
-    output logic                       sram_rd_resp_ready,
-    input  logic [SRAM_DATA_WIDTH-1:0] sram_rd_resp_data
+    input  logic                       sram_resp_rd_valid,
+    output logic                       sram_resp_rd_ready,
+    input  logic [SRAM_DATA_WIDTH-1:0] sram_resp_rd_data
 );
   typedef enum {
     STATE_IDLE,
@@ -118,9 +118,9 @@ module svc_axil_sram_if #(
       .sram_rd_cmd_valid (sram_rd_cmd_valid),
       .sram_rd_cmd_ready (sram_rd_cmd_ready),
       .sram_rd_cmd_addr  (sram_rd_cmd_addr),
-      .sram_rd_resp_valid(sram_rd_resp_valid),
-      .sram_rd_resp_ready(sram_rd_resp_ready),
-      .sram_rd_resp_data (sram_rd_resp_data)
+      .sram_resp_rd_valid(sram_resp_rd_valid),
+      .sram_resp_rd_ready(sram_resp_rd_ready),
+      .sram_resp_rd_data (sram_resp_rd_data)
   );
 
   //
