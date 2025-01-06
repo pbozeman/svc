@@ -179,16 +179,16 @@ module svc_axi_ice40_sram #(
   end
 
   always @(*) begin
-    if (!f_past_valid) begin
-      assume (!rst_n);
-    end
+    // assume reset at the start, and then, we don't reset randomly
+    assume (rst_n == f_past_valid);
   end
 
   faxi_slave #(
       .C_AXI_ID_WIDTH  (AXI_ID_WIDTH),
       .C_AXI_DATA_WIDTH(AXI_DATA_WIDTH),
       .C_AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
-      .F_OPT_INITIAL   (0)
+      .F_OPT_INITIAL   (0),
+      .F_AXI_MAXDELAY  (4)
   ) faxi_slave_i (
       .i_clk        (clk),
       .i_axi_reset_n(rst_n),
