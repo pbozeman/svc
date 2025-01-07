@@ -2,10 +2,11 @@
 `define SVC_MODEL_SRAM_IF_SV
 
 `include "svc.sv"
+`include "svc_sync_fifo.sv"
 
 module svc_model_sram_if #(
     parameter UNITIALIZED_READS_OK = 0,
-    parameter SRAM_ADDR_WIDTH      = 8,
+    parameter SRAM_ADDR_WIDTH      = 4,
     parameter SRAM_DATA_WIDTH      = 16,
     parameter SRAM_STRB_WIDTH      = (SRAM_DATA_WIDTH / 8),
     parameter SRAM_META_WIDTH      = 4
@@ -27,42 +28,53 @@ module svc_model_sram_if #(
     output logic                       sram_resp_last,
     output logic [SRAM_DATA_WIDTH-1:0] sram_resp_rd_data
 );
+  localparam FIFO_DATA_WIDTH = SRAM_DATA_WIDTH + SRAM_META_WIDTH + 1;
+
   // Memory array to store data
-  logic [SRAM_DATA_WIDTH-1:0] mem               [(1 << SRAM_ADDR_WIDTH)-1:0];
+  logic [SRAM_DATA_WIDTH-1:0] mem              [(1 << SRAM_ADDR_WIDTH)-1:0];
 
-  // Read response pipeline control
-  logic                       read_pending;
-  logic [SRAM_DATA_WIDTH-1:0] pending_read_data;
-  logic [SRAM_META_WIDTH-1:0] pending_meta;
-  logic                       pending_last;
+  // result fifo
+  logic                       fifo_w_inc;
+  logic [FIFO_DATA_WIDTH-1:0] fifo_w_data;
+  logic                       fifo_w_half_full;
 
-  // Ready to accept new commands when not processing a read
-  assign sram_cmd_ready = !read_pending || (read_pending && sram_resp_ready);
+  logic                       fifo_r_inc;
+  logic                       fifo_r_empty;
+  logic [FIFO_DATA_WIDTH-1:0] fifo_r_data;
+
+  svc_sync_fifo #(
+      .ADDR_WIDTH(3),
+      .DATA_WIDTH(FIFO_DATA_WIDTH)
+  ) svc_sync_fifo_i (
+      .clk        (clk),
+      .rst_n      (rst_n),
+      .w_inc      (fifo_w_inc),
+      .w_data     (fifo_w_data),
+      .w_full     (),
+      .w_half_full(fifo_w_half_full),
+      .r_inc      (fifo_r_inc),
+      .r_empty    (fifo_r_empty),
+      .r_data     (fifo_r_data)
+  );
+
+  assign fifo_w_inc = sram_cmd_valid && sram_cmd_ready && !sram_cmd_wr_en;
+  assign fifo_w_data = {mem[sram_cmd_addr], sram_cmd_meta, sram_cmd_last};
+  assign fifo_r_inc = sram_resp_valid && sram_resp_ready;
+
+  assign sram_cmd_ready = !fifo_w_half_full;
+
+  assign sram_resp_valid = !fifo_r_empty;
+  assign {sram_resp_rd_data, sram_resp_meta, sram_resp_last} = fifo_r_data;
 
   // Read response handling
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      sram_resp_valid   <= '0;
-      read_pending      <= '0;
-      pending_read_data <= '0;
-
-      // Initialize memory to X
+      // Initialize memory to X or addr
       for (int i = 0; i < (1 << SRAM_ADDR_WIDTH); i++) begin
-        mem[i] <= 'x;
-      end
-    end else begin
-      if (sram_cmd_valid && sram_cmd_ready && !sram_cmd_wr_en) begin
-        if (mem[sram_cmd_addr] === 'x && UNITIALIZED_READS_OK) begin
-          pending_read_data = SRAM_DATA_WIDTH'(sram_cmd_addr);
+        if (UNITIALIZED_READS_OK) begin
+          mem[i] <= SRAM_DATA_WIDTH'(i);
         end else begin
-          pending_read_data <= mem[sram_cmd_addr];
-        end
-        read_pending    <= 1'b1;
-        sram_resp_valid <= 1'b1;
-      end else begin
-        if (sram_resp_valid && sram_resp_ready) begin
-          sram_resp_valid <= 1'b0;
-          read_pending    <= 1'b0;
+          mem[i] <= 'x;
         end
       end
     end
@@ -79,17 +91,6 @@ module svc_model_sram_if #(
     end
   end
 
-  always_ff @(posedge clk) begin
-    if (sram_cmd_valid && sram_cmd_ready) begin
-      pending_meta <= sram_cmd_meta;
-      pending_last <= sram_cmd_last;
-    end
-  end
-
-  // Drive read response data
-  assign sram_resp_rd_data = pending_read_data;
-  assign sram_resp_meta    = pending_meta;
-  assign sram_resp_last    = pending_last;
 endmodule
 
 `endif
