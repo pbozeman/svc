@@ -11,7 +11,7 @@ cover: depth 40
 smtbmc
 
 [script]
-read_verilog -formal -sv svc_axil_sram_if.sv
+read_verilog -formal -DFORMAL_FAKE_AXIL_SRAM_IF -sv svc_axil_sram_if.sv
 read_verilog -formal faxil_slave.v
 prep -top svc_axil_sram_if
 

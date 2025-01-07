@@ -78,6 +78,7 @@ module svc_axil_sram_if_wr #(
   `SVC_UNUSED({clk, rst_n, s_axil_bready, s_axil_awaddr[LSB-1:0]});
 
 `ifdef FORMAL
+`ifdef FORMAL_FAKE_AXIL_SRAM_IF
   // This module gets formally verified up in the combined rd/wr interface, but
   // we set the assumptions that the sram interface we are wrapping
   // is well behaved here.
@@ -105,6 +106,7 @@ module svc_axil_sram_if_wr #(
       cover (f_cmd_ready_delay == 0 && sram_wr_cmd_ready);
     end
   end
+`endif
 `endif
 
 endmodule
