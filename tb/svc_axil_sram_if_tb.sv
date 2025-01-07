@@ -3,6 +3,8 @@
 `include "svc_axil_sram_if.sv"
 `include "svc_model_sram_if.sv"
 
+// The bulk of the testing happens with formal verification. This is just
+// a quick smoke test.
 module svc_axil_sram_if_tb;
   parameter AW = 16;
   parameter DW = 16;
@@ -154,313 +156,54 @@ module svc_axil_sram_if_tb;
   end
 
   task test_initial;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
-    `CHECK_EQ(m_axil_bvalid, 1'b0);
-    `CHECK_EQ(m_axil_bresp, '0);
-    `CHECK_EQ(m_axil_rvalid, 1'b0);
+    `CHECK_FALSE(sram_cmd_valid);
+    `CHECK_FALSE(m_axil_bvalid);
+    `CHECK_FALSE(m_axil_rvalid);
   endtask
 
-  task automatic test_aw_only;
-    logic [AW-1:0] addr = AW'(16'hA000);
 
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
+  task automatic test_io;
+    logic [AW-1:0] addr = AW'(16'hA000);
+    logic [DW-1:0] data = DW'(16'hBABE);
 
     m_axil_awvalid = 1'b1;
     m_axil_awaddr  = addr;
+    m_axil_wvalid  = 1'b1;
+    m_axil_wdata   = data;
+    m_axil_bready  = 1'b1;
 
-    @(posedge clk);
-    #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
-  endtask
-
-  task automatic test_w_only;
-    logic [DW-1:0] data = DW'(16'hD000);
-
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
-
-    m_axil_wvalid = 1'b1;
-    m_axil_wdata  = data;
-    m_axil_wstrb  = '1;
-
-    @(posedge clk);
-    #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
-  endtask
-
-  task automatic test_aw_w_delayed;
-    logic [AW-1:0] addr = AW'(16'hA000);
-    logic [DW-1:0] data = DW'(16'hD000);
-
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
-
-    m_axil_awvalid = 1'b1;
-    m_axil_awaddr  = addr;
-
-    @(posedge clk);
-    #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
-
-    m_axil_wvalid = 1'b1;
-    m_axil_wdata  = data;
-    m_axil_wstrb  = '1;
-
-    #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b1);
-    `CHECK_EQ(sram_cmd_ready, 1'b1);
+    `CHECK_WAIT_FOR(clk, sram_cmd_valid);
     `CHECK_EQ(sram_cmd_addr, a_to_sa(addr));
     `CHECK_EQ(sram_cmd_wr_data, data);
-    `CHECK_EQ(sram_cmd_wr_strb, '1);
+    `CHECK_TRUE(sram_cmd_wr_en);
 
-    @(posedge clk);
-    #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
-  endtask
+    `CHECK_WAIT_FOR(clk, m_axil_bvalid);
+    `CHECK_EQ(m_axil_bresp, 2'b00);
 
-  task automatic test_w_aw_delayed;
-    logic [AW-1:0] addr = AW'(16'hA000);
-    logic [DW-1:0] data = DW'(16'hD000);
+    `TICK(clk);
 
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
-
-    m_axil_wvalid = 1'b1;
-    m_axil_wdata  = data;
-    m_axil_wstrb  = '1;
-
-    @(posedge clk);
-    #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
-
-    m_axil_awvalid = 1'b1;
-    m_axil_awaddr  = addr;
-
-    #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b1);
-    `CHECK_EQ(sram_cmd_ready, 1'b1);
-    `CHECK_EQ(sram_cmd_addr, a_to_sa(addr));
-    `CHECK_EQ(sram_cmd_wr_data, data);
-
-    @(posedge clk);
-    #1;
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
-  endtask
-
-  task automatic test_r_axi_rready;
-    logic [AW-1:0] addr = AW'(16'hA000);
-
-    `CHECK_EQ(m_axil_rvalid, 1'b0);
     m_axil_arvalid = 1'b1;
     m_axil_araddr  = addr;
-    `CHECK_EQ(m_axil_rresp, 2'b00);
+    m_axil_rready  = 1'b1;
 
-    #1;
-    `CHECK_EQ(m_axil_rvalid, 1'b0);
-    `CHECK_EQ(sram_resp_rd_ready, 1'b0);
+    `CHECK_WAIT_FOR(clk, sram_cmd_valid);
+    `CHECK_EQ(sram_cmd_addr, a_to_sa(addr));
+    `CHECK_EQ(sram_cmd_wr_data, data);
+    `CHECK_FALSE(sram_cmd_wr_en);
 
-    @(posedge clk);
-    #1;
-    `CHECK_EQ(m_axil_rvalid, 1'b1);
+    `CHECK_WAIT_FOR(clk, m_axil_rvalid);
     `CHECK_EQ(m_axil_rdata, a_to_d(addr));
-    `CHECK_EQ(sram_resp_rd_ready, 1'b0);
     `CHECK_EQ(m_axil_rresp, 2'b00);
 
-    repeat (3) begin
-      @(posedge clk);
-      `CHECK_EQ(m_axil_rvalid, 1'b1);
-      `CHECK_EQ(m_axil_rdata, a_to_d(addr));
-      `CHECK_EQ(m_axil_rresp, 2'b00);
-      `CHECK_EQ(sram_resp_rd_ready, 1'b0);
-    end
-
-    m_axil_rready = 1'b1;
-    `CHECK_EQ(sram_resp_rd_ready, 1'b1);
-  endtask
-
-  task automatic test_r_r;
-    logic [AW-1:0] addr0 = AW'(16'hA000);
-    logic [AW-1:0] addr1 = AW'(16'hB000);
-
-    auto_valid     = 1'b0;
-
-    m_axil_arvalid = 1'b1;
-    m_axil_araddr  = addr0;
-    m_axil_rready  = 1'b1;
-    m_axil_rready  = 1'b1;
-
-    #1;
-    `CHECK_EQ(m_axil_arvalid && m_axil_arready, 1'b1);
-    `CHECK_EQ(sram_cmd_addr, a_to_sa(addr0));
-    `CHECK_EQ(m_axil_rvalid, 1'b0);
-
-    @(posedge clk);
-    // don't drop valid, read back to back
-    `CHECK_EQ(m_axil_arvalid && m_axil_arready, 1'b1);
-    m_axil_araddr = addr1;
-    #1;
-    `CHECK_EQ(m_axil_rvalid, 1'b1);
-    `CHECK_EQ(m_axil_rdata, a_to_d(addr0));
-    `CHECK_EQ(m_axil_rresp, 2'b00);
-    `CHECK_EQ(sram_cmd_addr, a_to_sa(addr1));
-
-    @(posedge clk);
-    `CHECK_EQ(m_axil_arvalid && m_axil_arready, 1'b1);
-    m_axil_arvalid = 1'b0;
-    #1;
-    `CHECK_EQ(m_axil_rvalid, 1'b1);
-    `CHECK_EQ(m_axil_rdata, a_to_d(addr1));
-    `CHECK_EQ(m_axil_rresp, 2'b00);
-    `CHECK_EQ(sram_cmd_valid, 1'b0);
-
-    @(posedge clk);
-    #1;
-    `CHECK_EQ(m_axil_rvalid, 1'b0);
-  endtask
-
-  task automatic test_r_w;
-    logic [AW-1:0] addr0 = AW'(16'hA000);
-    logic [AW-1:0] addr1 = AW'(16'hB000);
-    logic [DW-1:0] data1 = DW'(16'hBABE);
-
-    m_axil_arvalid = 1'b1;
-    m_axil_araddr  = addr0;
-    m_axil_rready  = 1'b1;
-
-    #1;
-    `CHECK_EQ(m_axil_arvalid && m_axil_arready, 1'b1);
-    `CHECK_EQ(sram_cmd_addr, a_to_sa(addr0));
-    `CHECK_EQ(m_axil_rvalid, 1'b0);
-
-    @(posedge clk);
-    // switch to write
-    `CHECK_EQ(m_axil_arvalid && m_axil_arready, 1'b1);
-    m_axil_awvalid = 1'b1;
-    m_axil_awaddr  = addr1;
-    m_axil_wvalid  = 1'b1;
-    m_axil_wdata   = data1;
-    m_axil_bready  = 1'b1;
-    #1;
-    `CHECK_EQ(m_axil_rvalid, 1'b1);
-    `CHECK_EQ(m_axil_rdata, a_to_d(addr0));
-    `CHECK_EQ(m_axil_rresp, 2'b00);
-    `CHECK_EQ(sram_cmd_addr, a_to_sa(addr1));
-    `CHECK_EQ(sram_cmd_wr_data, data1);
-    `CHECK_EQ(sram_cmd_wr_en, 1'b1);
-
-    @(posedge clk);
-    `CHECK_EQ(m_axil_awvalid && m_axil_awready, 1'b1);
-    #1;
-    `CHECK_EQ(m_axil_bvalid, 1'b1);
-    `CHECK_EQ(m_axil_rvalid, 1'b0);
-
-    @(posedge clk);
-    #1;
-    `CHECK_EQ(m_axil_bvalid, 1'b0);
-    `CHECK_EQ(m_axil_rvalid, 1'b0);
-  endtask
-
-  task automatic test_w_r;
-    logic [AW-1:0] addr0 = AW'(16'hA000);
-    logic [DW-1:0] data0 = DW'(16'hBABE);
-    logic [AW-1:0] addr1 = AW'(16'hB000);
-
-    m_axil_awvalid = 1'b1;
-    m_axil_awaddr  = addr0;
-    m_axil_wvalid  = 1'b1;
-    m_axil_wdata   = data0;
-    m_axil_bready  = 1'b1;
-
-    #1;
-    `CHECK_EQ(m_axil_awvalid && m_axil_awready, 1'b1);
-    `CHECK_EQ(m_axil_wvalid && m_axil_wready, 1'b1);
-    `CHECK_EQ(sram_cmd_addr, a_to_sa(addr0));
-    `CHECK_EQ(sram_cmd_wr_data, data0);
-    `CHECK_EQ(sram_cmd_wr_en, 1'b1);
-
-    @(posedge clk);
-    // switch to read
-    `CHECK_EQ(m_axil_awvalid && m_axil_awready, 1'b1);
-    `CHECK_EQ(m_axil_wvalid && m_axil_wready, 1'b1);
-
-    m_axil_arvalid = 1'b1;
-    m_axil_araddr  = addr1;
-    m_axil_rready  = 1'b1;
-
-    #1;
-    `CHECK_EQ(m_axil_arvalid && m_axil_arready, 1'b1);
-    `CHECK_EQ(sram_cmd_addr, a_to_sa(addr1));
-    `CHECK_EQ(m_axil_bvalid, 1'b1);
-    `CHECK_EQ(m_axil_rvalid, 1'b0);
-
-    @(posedge clk);
-    #1;
-    `CHECK_EQ(m_axil_bvalid, 1'b0);
-    `CHECK_EQ(m_axil_rvalid, 1'b1);
-    `CHECK_EQ(m_axil_rresp, 2'b00);
-
-    @(posedge clk);
-    #1;
-    `CHECK_EQ(m_axil_bvalid, 1'b0);
-    `CHECK_EQ(m_axil_rvalid, 1'b0);
-  endtask
-
-  task automatic test_w_w;
-    logic [AW-1:0] addr0 = AW'(16'hA000);
-    logic [DW-1:0] data0 = DW'(16'hBABE);
-    logic [AW-1:0] addr1 = AW'(16'hB000);
-    logic [AW-1:0] data1 = AW'(16'hCAFE);
-
-    auto_valid     = 1'b0;
-
-    m_axil_awvalid = 1'b1;
-    m_axil_awaddr  = addr0;
-    m_axil_wvalid  = 1'b1;
-    m_axil_wdata   = data0;
-    m_axil_bready  = 1'b1;
-
-    #1;
-    `CHECK_EQ(m_axil_awvalid && m_axil_awready, 1'b1);
-    `CHECK_EQ(m_axil_wvalid && m_axil_wready, 1'b1);
-    `CHECK_EQ(sram_cmd_addr, a_to_sa(addr0));
-    `CHECK_EQ(sram_cmd_wr_data, data0);
-    `CHECK_EQ(sram_cmd_wr_en, 1'b1);
-
-    @(posedge clk);
-    // don't drop valid, write back to back
-    `CHECK_EQ(m_axil_awvalid && m_axil_awready, 1'b1);
-    `CHECK_EQ(m_axil_wvalid && m_axil_wready, 1'b1);
-
-    m_axil_awaddr = addr1;
-    m_axil_wdata  = data1;
-
-    #1;
-    `CHECK_EQ(m_axil_awvalid && m_axil_awready, 1'b1);
-    `CHECK_EQ(m_axil_wvalid && m_axil_wready, 1'b1);
-    `CHECK_EQ(sram_cmd_addr, a_to_sa(addr1));
-    `CHECK_EQ(sram_cmd_wr_en, 1'b1);
-    `CHECK_EQ(m_axil_bvalid, 1'b1);
-
-    @(posedge clk);
-    m_axil_awvalid = 1'b0;
-    m_axil_wvalid  = 1'b0;
-    #1;
-    `CHECK_EQ(m_axil_bvalid, 1'b1);
-
-    @(posedge clk);
-    #1;
-    `CHECK_EQ(m_axil_bvalid, 1'b0);
+    `TICK(clk);
+    `CHECK_FALSE(m_axil_bvalid);
+    `CHECK_FALSE(m_axil_rvalid);
   endtask
 
   `TEST_SUITE_BEGIN(svc_axil_sram_if_tb);
 
   `TEST_CASE(test_initial);
-  `TEST_CASE(test_aw_only);
-  `TEST_CASE(test_w_only);
-  `TEST_CASE(test_aw_w_delayed);
-  `TEST_CASE(test_w_aw_delayed);
-  `TEST_CASE(test_r_axi_rready);
-  `TEST_CASE(test_r_r);
-  `TEST_CASE(test_r_w);
-  `TEST_CASE(test_w_r);
-  `TEST_CASE(test_w_w);
+  `TEST_CASE(test_io);
 
   `TEST_SUITE_END();
 
