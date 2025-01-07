@@ -22,14 +22,15 @@ module svc_sync_fifo_tb;
       .ADDR_WIDTH(ADDR_WIDTH),
       .DATA_WIDTH(DATA_WIDTH)
   ) uut (
-      .clk    (clk),
-      .rst_n  (rst_n),
-      .w_inc  (w_inc),
-      .w_data (w_data),
-      .w_full (w_full),
-      .r_inc  (r_inc),
-      .r_empty(r_empty),
-      .r_data (r_data)
+      .clk        (clk),
+      .rst_n      (rst_n),
+      .w_inc      (w_inc),
+      .w_data     (w_data),
+      .w_half_full(),
+      .w_full     (w_full),
+      .r_inc      (r_inc),
+      .r_empty    (r_empty),
+      .r_data     (r_data)
   );
 
   task automatic setup;

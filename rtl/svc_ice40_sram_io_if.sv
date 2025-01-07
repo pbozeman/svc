@@ -104,14 +104,15 @@ module svc_ice40_sram_io_if #(
       .ADDR_WIDTH(2),
       .DATA_WIDTH(FIFO_WIDTH)
   ) svc_sync_fifo_i (
-      .clk    (clk),
-      .rst_n  (rst_n),
-      .w_inc  (fifo_w_inc),
-      .w_data (fifo_w_data),
-      .w_full (fifo_w_full),
-      .r_inc  (fifo_r_inc),
-      .r_empty(fifo_r_empty),
-      .r_data (fifo_r_data)
+      .clk        (clk),
+      .rst_n      (rst_n),
+      .w_inc      (fifo_w_inc),
+      .w_data     (fifo_w_data),
+      .w_full     (fifo_w_full),
+      .w_half_full(),
+      .r_inc      (fifo_r_inc),
+      .r_empty    (fifo_r_empty),
+      .r_data     (fifo_r_data)
   );
 
   //
