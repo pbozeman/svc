@@ -16,6 +16,7 @@ module svc_sync_fifo #(
     input  logic                  w_inc,
     input  logic [DATA_WIDTH-1:0] w_data,
     output logic                  w_full,
+    output logic                  w_half_full,
 
     input  logic                  r_inc,
     output logic                  r_empty,
@@ -58,9 +59,11 @@ module svc_sync_fifo #(
     end
   end
 
-  assign w_full  = (w_ptr[ADDR_WIDTH] ^ r_ptr[ADDR_WIDTH]) && w_addr == r_addr;
+  assign w_full = (w_ptr[ADDR_WIDTH] ^ r_ptr[ADDR_WIDTH]) && w_addr == r_addr;
+  assign w_half_full = ((w_ptr[ADDR_WIDTH:0] - r_ptr[ADDR_WIDTH:0]) >= (MEM_DEPTH >> 1));
   assign r_empty = (w_ptr == r_ptr);
-  assign r_data  = mem[r_addr];
+  assign r_data = mem[r_addr];
+
 
 `ifdef FORMAL
 `ifdef FORMAL_SVC_SYNC_FIFO
@@ -117,6 +120,16 @@ module svc_sync_fifo #(
 
       `COVER(c_nzero_write, (w_inc && |w_data));
       `COVER(c_nzero_read, (r_inc && |r_data));
+
+      // Half-full verification
+      `ASSERT(a_half_full_count, w_half_full == (f_count >= (f_max_count >> 1)));
+      `COVER(c_half_full_rise, $rose(w_half_full));
+      `COVER(c_half_full_fall, $fell(w_half_full));
+
+      // Cover interesting half-full scenarios
+      `COVER(c_write_half_full, (w_inc && !w_half_full && f_count == (f_max_count >> 1) - 1));
+      `COVER(c_read_half_full, (r_inc && w_half_full && f_count == (f_max_count >> 1)));
+      `COVER(c_rw_half_full, (w_inc && r_inc && w_half_full));
     end
   end
 
