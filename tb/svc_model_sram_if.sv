@@ -43,7 +43,7 @@ module svc_model_sram_if #(
   logic [FIFO_DATA_WIDTH-1:0] fifo_r_data;
 
   svc_sync_fifo #(
-      .ADDR_WIDTH(3),
+      .ADDR_WIDTH(2),
       .DATA_WIDTH(FIFO_DATA_WIDTH)
   ) svc_sync_fifo_i (
       .clk        (clk),

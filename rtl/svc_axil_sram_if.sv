@@ -72,7 +72,7 @@ module svc_axil_sram_if #(
     output logic                       sram_resp_rd_ready,
     input  logic [SRAM_DATA_WIDTH-1:0] sram_resp_rd_data
 );
-  localparam FIFO_ADDR_WIDTH = 3;
+  localparam FIFO_ADDR_WIDTH = 2;
 
   localparam FIFO_AR_WIDTH = SRAM_ADDR_WIDTH;
   localparam FIFO_R_WIDTH = SRAM_DATA_WIDTH;
@@ -351,9 +351,9 @@ module svc_axil_sram_if #(
   // Since the sram can not run read and write at the same time,
   // the stall must be less than the delay, or else a stall on one channel can
   // cause max delay to be hit on the other, which would be the expected
-  // behavior. (12 was the default for both, so give only the smallest amount
+  // behavior. (12 was the default for both, so give a small amount of
   // of breathing room)
-  localparam F_AXI_MAXRSTALL = 11;
+  localparam F_AXI_MAXRSTALL = 8;
   localparam F_AXI_MAXDELAY = 12;
 
   // verilator lint_off: UNUSEDSIGNAL
@@ -443,7 +443,47 @@ module svc_axil_sram_if #(
   );
   // verilator lint_on: ASSIGNIN
 
+  // ensure we can do 5 io ops in a row, 1 every clock cycle.
+  // Why 5? Because our fifos are set to a depth of 4.
+  //
+  // ensure we can get 5 write responses in a row, 1 every clock cycle
+  always @(posedge clk) begin
+    if ((f_past_valid) && (rst_n))
+      c_write_per_clk :
+      cover ((s_axil_bvalid && s_axil_bready) && ($past(
+          (s_axil_bvalid && s_axil_bready), 1
+      )) && ($past(
+          (s_axil_bvalid && s_axil_bready), 2
+      )) && ($past(
+          (s_axil_bvalid && s_axil_bready), 3
+      )) && ($past(
+          (s_axil_bvalid && s_axil_bready), 4
+      )) && ($past(
+          (s_axil_bvalid && s_axil_bready), 5
+      )));
+  end
+
+  // ensure we can do 5 read responses in a row, 1 every clock cycle
+  always @(posedge clk) begin
+    c_read_per_clk :
+    cover ((s_axil_rvalid && s_axil_rready) && ($past(
+        (s_axil_rvalid && s_axil_rready), 1
+    )) && ($past(
+        (s_axil_rvalid && s_axil_rready), 2
+    )) && ($past(
+        (s_axil_rvalid && s_axil_rready), 3
+    )) && ($past(
+        (s_axil_rvalid && s_axil_rready), 4
+    )) && ($past(
+        (s_axil_rvalid && s_axil_rready), 5
+    )));
+  end
+
   // Look into properties to use induction and an unbounded check
+  //
+  // This is going to be a bit of a pain as it is going to require counting
+  // all the entries in the fifos.
+  //
   // see
   //   https://zipcpu.com/blog/2020/03/08/easyaxil.html
   // and
