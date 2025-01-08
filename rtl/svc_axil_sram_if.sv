@@ -129,9 +129,20 @@ module svc_axil_sram_if #(
   //
   logic                       pri_rd;
   logic                       pri_rd_next;
-  logic                       rd_ok;
-  logic                       wr_ok;
 
+  logic                       rd_ok;
+  logic                       rd_start;
+
+  logic                       wr_ok;
+  logic                       wr_start;
+
+  // signals pulled out of the w fifo (these are pretty much just to help with
+  // auto formatting, since the using concatenation when setting the sram
+  // outputs results in everything being aligned to the far right
+  logic [SRAM_DATA_WIDTH-1:0] fifo_w_r_data_data;
+  logic [SRAM_STRB_WIDTH-1:0] fifo_w_r_data_strb;
+
+  // SRAM outputs
   logic                       sram_cmd_valid_next;
   logic [SRAM_ADDR_WIDTH-1:0] sram_cmd_addr_next;
   logic                       sram_cmd_wr_en_next;
@@ -274,6 +285,33 @@ module svc_axil_sram_if #(
   assign wr_ok = (!fifo_aw_r_empty && !fifo_w_r_empty &&
                   (bcnt < (1 << (FIFO_ADDR_WIDTH - 1))));
 
+  // pull the common rd/wr arb logic out so that rd/wr signals
+  // don't have to be duplicated 2x each.
+  always_comb begin
+    wr_start = 1'b0;
+    rd_start = 1'b0;
+
+    if (!sram_cmd_valid || sram_cmd_ready) begin
+      if (pri_rd) begin
+        if (rd_ok) begin
+          rd_start = 1'b1;
+        end else if (wr_ok) begin
+          wr_start = 1'b1;
+        end
+      end else begin
+        if (wr_ok) begin
+          wr_start = 1'b1;
+        end else if (rd_ok) begin
+          rd_start = 1'b1;
+        end
+      end
+    end
+  end
+
+  // pull these out here so that things don't get pushed crazy far to align
+  // with the = sign in the block below
+  assign {fifo_w_r_data_data, fifo_w_r_data_strb} = fifo_w_r_data;
+
   always_comb begin
     sram_cmd_valid_next   = sram_cmd_valid && !sram_cmd_ready;
     sram_cmd_addr_next    = sram_cmd_addr;
@@ -286,38 +324,21 @@ module svc_axil_sram_if #(
     pri_rd_next           = pri_rd;
 
     if (!sram_cmd_valid || sram_cmd_ready) begin
-      if (pri_rd) begin
-        if (rd_ok) begin
-          sram_cmd_valid_next = 1'b1;
-          sram_cmd_addr_next  = fifo_ar_r_data;
-          sram_cmd_wr_en_next = 1'b0;
-          fifo_ar_r_inc       = 1'b1;
-          pri_rd_next         = 1'b0;
-        end else if (wr_ok) begin
-          sram_cmd_valid_next                            = 1'b1;
-          sram_cmd_addr_next                             = fifo_aw_r_data;
-          sram_cmd_wr_en_next                            = 1'b1;
-          {sram_cmd_wr_data_next, sram_cmd_wr_strb_next} = fifo_w_r_data;
-          fifo_aw_r_inc                                  = 1'b1;
-          fifo_w_r_inc                                   = 1'b1;
-          pri_rd_next                                    = 1'b1;
-        end
-      end else begin
-        if (wr_ok) begin
-          sram_cmd_valid_next                            = 1'b1;
-          sram_cmd_addr_next                             = fifo_aw_r_data;
-          sram_cmd_wr_en_next                            = 1'b1;
-          {sram_cmd_wr_data_next, sram_cmd_wr_strb_next} = fifo_w_r_data;
-          fifo_aw_r_inc                                  = 1'b1;
-          fifo_w_r_inc                                   = 1'b1;
-          pri_rd_next                                    = 1'b1;
-        end else if (rd_ok) begin
-          sram_cmd_valid_next = 1'b1;
-          sram_cmd_addr_next  = fifo_ar_r_data;
-          sram_cmd_wr_en_next = 1'b0;
-          fifo_ar_r_inc       = 1'b1;
-          pri_rd_next         = 1'b0;
-        end
+      if (rd_start) begin
+        sram_cmd_valid_next = 1'b1;
+        sram_cmd_addr_next  = fifo_ar_r_data;
+        sram_cmd_wr_en_next = 1'b0;
+        fifo_ar_r_inc       = 1'b1;
+        pri_rd_next         = 1'b0;
+      end else if (wr_start) begin
+        sram_cmd_valid_next   = 1'b1;
+        sram_cmd_addr_next    = fifo_aw_r_data;
+        sram_cmd_wr_en_next   = 1'b1;
+        sram_cmd_wr_data_next = fifo_w_r_data_data;
+        sram_cmd_wr_strb_next = fifo_w_r_data_strb;
+        fifo_aw_r_inc         = 1'b1;
+        fifo_w_r_inc          = 1'b1;
+        pri_rd_next           = 1'b1;
       end
     end
   end
