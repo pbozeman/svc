@@ -7,7 +7,7 @@
 // Synchronous FIFO with FWFT (first word fall through.)
 //
 module svc_sync_fifo #(
-    parameter ADDR_WIDTH = 4,
+    parameter ADDR_WIDTH = 3,
     parameter DATA_WIDTH = 8
 ) (
     input logic clk,
@@ -31,6 +31,8 @@ module svc_sync_fifo #(
 
   logic [  ADDR_WIDTH:0] r_ptr = 0;
   logic [ADDR_WIDTH-1:0] r_addr;
+
+  logic [  ADDR_WIDTH:0] used;
 
   // Extract addresses from pointers
   assign w_addr = w_ptr[ADDR_WIDTH-1:0];
@@ -59,12 +61,11 @@ module svc_sync_fifo #(
     end
   end
 
+  assign used = w_ptr - r_ptr;
   assign w_full = (w_ptr[ADDR_WIDTH] ^ r_ptr[ADDR_WIDTH]) && w_addr == r_addr;
-  assign w_half_full = ((w_ptr[ADDR_WIDTH:0] - r_ptr[ADDR_WIDTH:0]) >=
-                        (MEM_DEPTH >> 1));
+  assign w_half_full = used >= MEM_DEPTH >> 1;
   assign r_empty = (w_ptr == r_ptr);
   assign r_data = mem[r_addr];
-
 
 `ifdef FORMAL
 `ifdef FORMAL_SVC_SYNC_FIFO
@@ -105,6 +106,8 @@ module svc_sync_fifo #(
 
   always @(posedge clk) begin
     if (rst_n) begin
+      `ASSERT(a_used, f_count == int'(used));
+
       `ASSERT(a_oflow, f_count <= f_max_count);
       `ASSERT(a_full, !w_full || f_count == f_max_count);
 
