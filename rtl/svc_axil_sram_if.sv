@@ -10,21 +10,11 @@
 // do 1 at a time. It also converts the addresses to be word rather than byte
 // based. rresp and bresp are always marked as success.
 //
-// Reads and writes are passed to the SRAM via small fifos to absorb
-// backpressure since it takes 2 clocks per operation to the sram. Results
-// are similarly buffered to avoid dropping results from ready signal
-// propagation through the pipeline.
-//
-// Note: the fifos added a cycle of latency to both the incoming
-// and outgoing sides, i.e. we're now at 2 cycles of latency for this module,
-// and when used with the real sram chips, they will add 2 more. Granted, this
-// module is capable of an io every clock, but still, it might be nice
-// to look into some way of reducing this. It looks like "pipelined skid
-// buffers" (basically an n-deep skid buffer) might do the trick, but at first
-// glance it isn't clear if they provide zero latency like a normal skidbuf,
-// and even if they do, if the overhead is worth the latency drop. For now,
-// this little bit of extra latency is fine as the pipeline performance of
-// this module is great since it provides 100% throughput.
+// This might be doable with skibuffers rather than fifos, but fifos made the
+// logic to arbitrate between reads and writes very straight forward,
+// especially considering that the write has 2 incoming channels. This
+// initial version prioritized correctness, but the decision to use fifos
+// should be reconsidered in the future.
 module svc_axil_sram_if #(
     parameter AXIL_ADDR_WIDTH = 4,
     parameter AXIL_DATA_WIDTH = 16,
