@@ -451,12 +451,12 @@ module svc_axil_sram_if #(
   );
   // verilator lint_on: ASSIGNIN
 
-  // ensure we can do 5 io ops in a row, 1 every clock cycle.
-  // Why 5? Because our fifos are set to a depth of 4.
+  // ensure we can do 6 io ops in a row, 1 every clock cycle.
+  // Why 6? Because our fifos are set to a depth of 4.
   //
-  // ensure we can get 5 write responses in a row, 1 every clock cycle
+  // ensure we can get 6 write responses in a row, 1 every clock cycle
   always @(posedge clk) begin
-    if ((f_past_valid) && (rst_n))
+    if ((f_past_valid) && (rst_n)) begin
       c_write_per_clk :
       cover ((s_axil_bvalid && s_axil_bready) && ($past(
           (s_axil_bvalid && s_axil_bready), 1
@@ -469,22 +469,25 @@ module svc_axil_sram_if #(
       )) && ($past(
           (s_axil_bvalid && s_axil_bready), 5
       )));
+    end
   end
 
-  // ensure we can do 5 read responses in a row, 1 every clock cycle
+  // ensure we can do 6 read responses in a row, 1 every clock cycle
   always @(posedge clk) begin
-    c_read_per_clk :
-    cover ((s_axil_rvalid && s_axil_rready) && ($past(
-        (s_axil_rvalid && s_axil_rready), 1
-    )) && ($past(
-        (s_axil_rvalid && s_axil_rready), 2
-    )) && ($past(
-        (s_axil_rvalid && s_axil_rready), 3
-    )) && ($past(
-        (s_axil_rvalid && s_axil_rready), 4
-    )) && ($past(
-        (s_axil_rvalid && s_axil_rready), 5
-    )));
+    if ((f_past_valid) && (rst_n)) begin
+      c_read_per_clk :
+      cover ((s_axil_rvalid && s_axil_rready) && ($past(
+          (s_axil_rvalid && s_axil_rready), 1
+      )) && ($past(
+          (s_axil_rvalid && s_axil_rready), 2
+      )) && ($past(
+          (s_axil_rvalid && s_axil_rready), 3
+      )) && ($past(
+          (s_axil_rvalid && s_axil_rready), 4
+      )) && ($past(
+          (s_axil_rvalid && s_axil_rready), 5
+      )));
+    end
   end
 
   // Look into properties to use induction and an unbounded check
