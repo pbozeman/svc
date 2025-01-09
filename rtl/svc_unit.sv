@@ -57,49 +57,53 @@
 
 `define CHECK_TRUE(a)                                                         \
   `SVC_TINY_TICK;                                                             \
-  if (a !== 1) begin                                                          \
+  if ((a) !== 1) begin                                                        \
     `CHECK_MSG_1("TRUE", `__FILE__, `__LINE__, a);                            \
   end
 
 `define CHECK_FALSE(a)                                                        \
   `SVC_TINY_TICK;                                                             \
-  if (a !== 0) begin                                                          \
+  if ((a) !== 0) begin                                                        \
     `CHECK_MSG_1("FALSE", `__FILE__, `__LINE__, a);                           \
   end
 
 `define CHECK_EQ(a, b)                                                        \
   `SVC_TINY_TICK;                                                             \
-  if (a !== b) begin                                                          \
+  if ((a) !== (b)) begin                                                      \
     `CHECK_MSG_2("EQ", `__FILE__, `__LINE__, a, b);                           \
   end
 
 `define CHECK_NEQ(a, b)                                                       \
   `SVC_TINY_TICK;                                                             \
-  if (a === b) begin                                                          \
+  if ((a) === (b)) begin                                                      \
     `CHECK_MSG_2("NEQ", `__FILE__, `__LINE__, a, b);                          \
   end
 
 `define CHECK_LT(a, b)                                                        \
   `SVC_TINY_TICK;                                                             \
-  if ((a >= b) || (a === 'x) || (b === 'x) || (a === 'z) || (b === 'z)) begin \
+  if (((a) >= (b)) || ((a) === 'x) || ((b) === 'x) ||                         \
+      ((a) === 'z) || ((b) === 'z)) begin                                     \
     `CHECK_MSG_2("LT", `__FILE__, `__LINE__, a, b);                           \
   end
 
 `define CHECK_LTE(a, b)                                                       \
   `SVC_TINY_TICK;                                                             \
-  if ((a > b) || (a === 'x) || (b === 'x) || (a === 'z) || (b === 'z)) begin  \
+  if (((a) > (b)) || ((a) === 'x) || ((b) === 'x) ||                          \
+      ((a) === 'z) || ((b) === 'z)) begin                                     \
     `CHECK_MSG_2("LT", `__FILE__, `__LINE__, a, b);                           \
   end
 
 `define CHECK_GT(a, b)                                                        \
   `SVC_TINY_TICK;                                                             \
-  if ((a <= b) || (a === 'x) || (b === 'x) || (a === 'z) || (b === 'z)) begin \
+  if (((a) <= (b)) || ((a) === 'x) || ((b) === 'x) ||                         \
+      ((a) === 'z) || ((b) === 'z)) begin                                     \
     `CHECK_MSG_2("GT", `__FILE__, `__LINE__, a, b);                           \
   end
 
 `define CHECK_GTE(a, b)                                                       \
   `SVC_TINY_TICK;                                                             \
-  if ((a < b) || (a === 'x) || (b === 'x) || (a === 'z) || (b === 'z)) begin  \
+  if (((a) < (b)) || ((a) === 'x) || ((b) === 'x) ||                          \
+      ((a) === 'z) || ((b) === 'z)) begin                                     \
     `CHECK_MSG_2("GTE", `__FILE__, `__LINE__, a, b);                          \
   end
 
@@ -125,12 +129,12 @@
 `define CHECK_WAIT_FOR(clk, signal, max_cnt = 16)                            \
     svc_wait_cnt = 0;                                                        \
     `SVC_TINY_TICK;                                                          \
-    while (signal === 0 && svc_wait_cnt < max_cnt) begin                     \
+    while ((signal) === 0 && svc_wait_cnt < max_cnt) begin                   \
       @(posedge clk);                                                        \
       svc_wait_cnt = svc_wait_cnt + 1;                                       \
       `SVC_TINY_TICK;                                                        \
     end                                                                      \
-    if (signal !== 1) begin                                                  \
+    if ((signal) !== 1) begin                                                \
       `CHECK_MSG_1("WAIT_FOR", `__FILE__, `__LINE__, signal);                \
     end
 `else
