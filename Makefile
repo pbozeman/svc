@@ -72,7 +72,7 @@ $(BUILD_DIR):
 # Linting
 #
 ##############################################################################
-LINT_FORMAL_FLAGS := -DFORMAL $(ZIPCPU_FLAGS) -I$(FORMAL_DIR) -I$(ZIPCPU_FORMAL)
+LINT_FORMAL_FLAGS := -DFORMAL $(ZIPCPU_FLAGS) -I$(FORMAL_DIR) -I$(ZIPCPU_FORMAL_DIR)
 
 .PHONY: lint
 lint: s_lint f_lint
