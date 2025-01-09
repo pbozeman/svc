@@ -37,7 +37,7 @@ IVERILOG_FLAGS_WARN := -Wall -Wno-portbind -Wno-timescale
 IVERILOG_FLAGS      := $(IVERILOG_FLAGS_SV) $(IVERILOG_FLAGS_DEFS) $(IVERILOG_FLAGS_WARN)
 IVERILOG            := iverilog $(IVERILOG_FLAGS)
 
-LINTER_FLAGS_DEFS := $(SYNTH_DEFS) -DFORMAL $(ZIPCPU_FLAGS) -Itb/formal
+LINTER_FLAGS_DEFS := $(SYNTH_DEFS)
 LINTER_FLAGS_WARN := -Wall --Wno-PINCONNECTEMPTY --timing
 LINTER_FLAGS      := $(LINTER_FLAGS_DEFS) $(LINTER_FLAGS_WARN)
 LINTER            := verilator --lint-only --quiet $(LINTER_FLAGS)
@@ -72,13 +72,24 @@ $(BUILD_DIR):
 # Linting
 #
 ##############################################################################
-.PHONY: lint lint_% $(addprefix lint_, $(TEST_BENCHES))
-lint: $(addprefix lint_,$(TEST_BENCHES))
+LINT_FORMAL_FLAGS := -DFORMAL $(ZIPCPU_FLAGS) -I$(FORMAL_DIR) -I$(ZIPCPU_FORMAL)
 
-LINT_TB_CMD=$(LINTER) -I$(RTL_DIR) -I$(TB_DIR) -I$(FORMAL_DIR) -I$(ZIPCPU_FORMAL_DIR) $(TEST_DIR)$(1).sv
+.PHONY: lint
+lint: s_lint f_lint
+
+.PHONY: s_lint s_lint_% $(addprefix lint_, $(TEST_BENCHES))
+s_lint: $(addprefix lint_,$(TEST_BENCHES))
+
+.PHONY: f_lint f_lint_% $(addprefix lint_, $(TEST_BENCHES))
+f_lint: $(addprefix f_lint_,$(TEST_BENCHES))
+
+F_LINT_TB_CMD=$(LINTER) -I$(RTL_DIR) -I$(TB_DIR) $(LINT_FORMAL_FLAGS) $(TEST_DIR)$(1).sv
+LINT_TB_CMD=$(LINTER) -I$(RTL_DIR) -I$(TB_DIR) $(TEST_DIR)$(1).sv
 define lint_tb_rule
 lint_$(1):
 	@$(LINT_TB_CMD) || (echo $(LINT_TB_CMD); exit 1)
+f_lint_$(1):
+	@$(F_LINT_TB_CMD) || (echo $(F_LINT_TB_CMD); exit 1)
 endef
 
 $(foreach tb, $(TEST_BENCHES), $(eval $(call lint_tb_rule,$(tb))))
