@@ -1,8 +1,8 @@
-// verilator lint_off: GENUNNAMED
 // verilator lint_off: TIMESCALEMOD
+// verilator lint_off: GENUNNAMED
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Filename:	bench/formal/faxil_slave.v
+// Filename:	bench/formal/faxil_master.v
 // {{{
 // Project:	WB2AXIPSP: bus bridges and other odds and ends
 //
@@ -34,7 +34,7 @@
 //
 `default_nettype	none
 // }}}
-module faxil_slave #(
+module faxil_master #(
 	// {{{
 	parameter  C_AXI_DATA_WIDTH	= 32,// Fixed, width of the AXI R&W data
 	parameter  C_AXI_ADDR_WIDTH	= 28,// AXI Address width (log wordsize)
@@ -59,8 +59,8 @@ module faxil_slave #(
 	// existence of a correct reset, rather than asserting it.  It is
 	// appropriate anytime the reset logic is outside of the circuit being
 	// examined
-	parameter [0:0]			F_OPT_ASSUME_RESET = 1'b1,
-	parameter [0:0]			F_OPT_NO_RESET = 1'b1,
+	parameter [0:0]			F_OPT_ASSUME_RESET = 1'b0,
+	parameter [0:0]			F_OPT_NO_RESET = F_OPT_ASSUME_RESET,
 	//
 	// F_OPT_ASYNC_RESET is for those designs that will reset the channels
 	// using an asynchronous reset.  In these cases, the stability
@@ -166,8 +166,8 @@ module faxil_slave #(
 	// assign axi_rd_err = (axi_rd_ack)&&(i_axi_rresp[1]) && i_axi_reset_n;
 	// assign axi_wr_err = (axi_wr_ack)&&(i_axi_bresp[1]) && i_axi_reset_n;
 
-`define	SLAVE_ASSUME	assume
-`define	SLAVE_ASSERT	assert
+`define	SLAVE_ASSUME	assert
+`define	SLAVE_ASSERT	assume
 
 	//
 	// Setup
@@ -591,13 +591,13 @@ module faxil_slave #(
 	// That means that requests need to stop when we're almost full
 	always @(posedge i_clk)
 	if ((F_OPT_INITIAL || i_axi_reset_n) && f_axi_awr_outstanding == { {(F_LGDEPTH-1){1'b1}}, 1'b0} )
-		assert(!i_axi_awready);
+		assert(!i_axi_awvalid);
 	always @(posedge i_clk)
 	if ((F_OPT_INITIAL || i_axi_reset_n) && f_axi_wr_outstanding == { {(F_LGDEPTH-1){1'b1}}, 1'b0} )
-		assert(!i_axi_wready);
+		assert(!i_axi_wvalid);
 	always @(posedge i_clk)
 	if ((F_OPT_INITIAL || i_axi_reset_n) && f_axi_rd_outstanding == { {(F_LGDEPTH-1){1'b1}}, 1'b0} )
-		assert(!i_axi_arready);
+		assert(!i_axi_arvalid);
 
 	////////////////////////////////////////////////////////////////////////
 	//
