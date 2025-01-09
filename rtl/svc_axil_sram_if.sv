@@ -368,6 +368,8 @@ module svc_axil_sram_if #(
   localparam F_AXI_MAXDELAY = 12;
 
   // verilator lint_off: UNUSEDSIGNAL
+  // Remove the lint_off when these get used for induction. See the comment at
+  // the end of the formal section.
   wire  [F_LGDEPTH-1:0] f_axil_rd_outstanding;
   wire  [F_LGDEPTH-1:0] f_axil_wr_outstanding;
   wire  [F_LGDEPTH-1:0] f_axil_awr_outstanding;
@@ -378,11 +380,6 @@ module svc_axil_sram_if #(
   initial f_past_valid = 0;
   always @(posedge clk) begin
     f_past_valid <= 1;
-  end
-
-  always @(*) begin
-    // assume reset at the start, and then, we don't reset randomly
-    assume (rst_n == f_past_valid);
   end
 
   faxil_slave #(
