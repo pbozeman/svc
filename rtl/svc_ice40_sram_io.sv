@@ -10,13 +10,7 @@
 //
 // This has a heavy use of linter pragmas because the linter is unable
 // to understand what is happening inside SB_IO.
-//
-// Similarly, FORMAL is disabled for the SB_IO modules. sby almost
-// understands them, but it complains about multiple clocks and takes
-// a very long time to run before exiting with the clock errors.
 
-// TODO: remove wr_done and change rd_done to rd_data_valid after the higher
-// level axi modules are removed.
 module svc_ice40_sram_io #(
     parameter integer SRAM_ADDR_WIDTH = 4,
     parameter integer SRAM_DATA_WIDTH = 16
@@ -29,8 +23,7 @@ module svc_ice40_sram_io #(
     input  logic [SRAM_ADDR_WIDTH-1:0] pad_addr,
     input  logic                       pad_wr_en,
     input  logic [SRAM_DATA_WIDTH-1:0] pad_wr_data,
-    output logic                       pad_wr_done,
-    output logic                       pad_rd_done,
+    output logic                       pad_rd_valid,
     // verilator lint_off: UNDRIVEN
     output logic [SRAM_DATA_WIDTH-1:0] pad_rd_data,
     // verilator lint_on: UNDRIVEN
@@ -47,7 +40,9 @@ module svc_ice40_sram_io #(
 `ifndef FORMAL
     inout  wire  [SRAM_DATA_WIDTH-1:0] sram_io_data,
 `else
+    // verilator lint_off: MULTIDRIVEN
     input  wire  [SRAM_DATA_WIDTH-1:0] sram_io_data,
+    // verilator lint_on: MULTIDRIVEN
 `endif
     output logic                       sram_io_we_n,
     output logic                       sram_io_oe_n,
@@ -56,17 +51,13 @@ module svc_ice40_sram_io #(
     // verilator lint_on: UNUSEDSIGNAL
 );
 `ifndef FORMAL
-  // This module makes use of low level lattice IP. iverilog can simulate it
-  // using the yosys supplied cells_sim.v, but the dual DDR like clocking
-  // doesn't interact well with sby. Rather than trying to do formal
-  // assumptions on SB_IO, provide a formal version.
-
   //
   // cs_n (posedge)
   //
   // PIN_TYPE[5:2] = Output registered, (no enable)
   // PIN_TYPE[1:0] = Simple input pin (D_IN_0)
   //
+`ifndef VERILATOR
   SB_IO #(
       .PIN_TYPE   (6'b0101_01),
       .PULLUP     (1'b0),
@@ -77,6 +68,7 @@ module svc_ice40_sram_io #(
       .OUTPUT_CLK  (clk),
       .D_OUT_0     (pad_ce_n)
   );
+`endif
 
   //
   // we_n (negedge)
@@ -92,15 +84,24 @@ module svc_ice40_sram_io #(
   // verilator lint_on: UNUSEDSIGNAL
 
   always_ff @(posedge clk) begin
-    pad_we_n_p1 <= pad_we_n;
+    if (~rst_n) begin
+      pad_we_n_p1 <= 1'b1;
+    end else begin
+      pad_we_n_p1 <= pad_we_n;
+    end
   end
 
   always @(negedge clk) begin
-    pad_we_n_p2 <= pad_we_n_p1;
+    if (~rst_n) begin
+      pad_we_n_p2 <= 1'b1;
+    end else begin
+      pad_we_n_p2 <= pad_we_n_p1;
+    end
   end
 
   assign pad_we_n_ddr = {pad_we_n_p2, pad_we_n_p1};
 
+`ifndef VERILATOR
   SB_IO #(
       .PIN_TYPE   (6'b0100_01),
       .PULLUP     (1'b0),
@@ -112,6 +113,7 @@ module svc_ice40_sram_io #(
       .D_OUT_0     (pad_we_n_ddr[1]),
       .D_OUT_1     (pad_we_n_ddr[0])
   );
+`endif
 
   //
   // oe_n (negedge)
@@ -127,15 +129,24 @@ module svc_ice40_sram_io #(
   // verilator lint_on: UNUSEDSIGNAL
 
   always_ff @(posedge clk) begin
-    pad_oe_n_p1 <= pad_oe_n;
+    if (~rst_n) begin
+      pad_oe_n_p1 <= 1'b1;
+    end else begin
+      pad_oe_n_p1 <= pad_oe_n;
+    end
   end
 
   always @(negedge clk) begin
-    pad_oe_n_p2 <= pad_oe_n_p1;
+    if (~rst_n) begin
+      pad_oe_n_p2 <= 1'b1;
+    end else begin
+      pad_oe_n_p2 <= pad_oe_n_p1;
+    end
   end
 
   assign pad_oe_n_ddr = {pad_oe_n_p2, pad_oe_n_p1};
 
+`ifndef VERILATOR
   SB_IO #(
       .PIN_TYPE   (6'b0100_01),
       .PULLUP     (1'b0),
@@ -147,6 +158,7 @@ module svc_ice40_sram_io #(
       .D_OUT_0     (pad_oe_n_ddr[1]),
       .D_OUT_1     (pad_oe_n_ddr[0])
   );
+`endif
 
   //
   // addr (posedge)
@@ -154,6 +166,7 @@ module svc_ice40_sram_io #(
   // PIN_TYPE[5:2] = Output registered, (no enable)
   // PIN_TYPE[1:0] = Simple input pin (D_IN_0)
   //
+`ifndef VERILATOR
   SB_IO #(
       .PIN_TYPE   (6'b0101_01),
       .PULLUP     (1'b0),
@@ -164,6 +177,11 @@ module svc_ice40_sram_io #(
       .OUTPUT_CLK  (clk),
       .D_OUT_0     (pad_addr)
   );
+`endif
+
+  // verilator lint_off: UNDRIVEN
+  logic [SRAM_DATA_WIDTH-1:0] pad_rd_data_p1;
+  // verilator lint_on: UNDRIVEN
 
   //
   // data (posedge output, negedge input)
@@ -173,8 +191,7 @@ module svc_ice40_sram_io #(
   //                 and falling clock edges. Use the D_IN_0
   //                 and D_IN_1 pins for DDR operation.
   //
-  logic [SRAM_DATA_WIDTH-1:0] pad_rd_data_p1;
-
+`ifndef VERILATOR
   SB_IO #(
       .PIN_TYPE   (6'b1101_00),
       .PULLUP     (1'b0),
@@ -190,95 +207,111 @@ module svc_ice40_sram_io #(
       .D_OUT_1          (pad_wr_data),
       .D_IN_1           (pad_rd_data_p1)
   );
+`endif
 
   // oe non-neg version
   logic pad_oe_p2 = 1'b0;
 
   always_ff @(posedge clk) begin
-    if (pad_oe_p2) begin
-      pad_rd_data <= pad_rd_data_p1;
-      pad_rd_done <= 1'b1;
+    if (~rst_n) begin
+      pad_oe_p2    <= 1'b0;
+      pad_rd_valid <= 1'b0;
     end else begin
-      pad_rd_done <= 1'b0;
+      if (pad_oe_p2) begin
+        pad_rd_data  <= pad_rd_data_p1;
+        pad_rd_valid <= 1'b1;
+      end else begin
+        pad_rd_valid <= 1'b0;
+      end
+
+      pad_oe_p2 <= !pad_oe_n_p1;
     end
-
-    pad_oe_p2 <= !pad_oe_n_p1;
   end
-
-  // we non-neg version
-  logic pad_we_p2 = 1'b0;
-
-  always_ff @(posedge clk) begin
-    if (pad_we_p2) begin
-      pad_wr_done <= 1'b1;
-    end else begin
-      pad_wr_done <= 1'b0;
-    end
-
-    pad_we_p2 <= !pad_we_n_p1;
-  end
-
 `else  // FORMAL
   // This is strictly a fake/model for use with formal testing of a calling
   // module. Given the SB_IO cell simulation of lattice IP with DDR clocks,
   // tri-state IO, etc, it's likely that synthesizeable part of this module
   // is not easily formally tested, or at least, not worth the effort to
   // figure out.
+
   localparam DW = SRAM_DATA_WIDTH;
   localparam AW = SRAM_ADDR_WIDTH;
 
   // Memory array to store data
-  logic [DW-1:0] mem       [0:(1 << AW)-1];
+  logic [DW-1:0] mem            [0:(1 << AW)-1];
 
-  // Internal signals to match non-formal implementation timing
-  logic          pad_oe_p2;
-  logic          pad_we_p2;
+  logic [AW-1:0] pad_addr_p1;
+  logic          pad_wr_en_p1;
+  logic [DW-1:0] pad_wr_data_p1;
+  logic          pad_ce_n_p1;
+  logic          pad_we_n_p1;
+  logic          pad_oe_n_p1;
 
-  always @(negedge pad_we_n) begin
-    // verilator lint_off: BLKSEQ
-    mem[pad_addr] = pad_wr_data;
-    // verilator lint_on: BLKSEQ
-  end
+  logic [AW-1:0] pad_addr_p2;
+  logic          pad_wr_en_p2;
+  logic [DW-1:0] pad_wr_data_p2;
+  logic          pad_ce_n_p2;
+  logic          pad_we_n_p2;
+  logic          pad_oe_n_p2;
 
-  always @(negedge pad_oe_n) begin
-    // verilator lint_off: BLKSEQ
-    pad_rd_data = mem[pad_addr];
-    // verilator lint_on: BLKSEQ
-  end
-
-  // Register the negative enables to match main implementation
   always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      pad_oe_p2   <= 1'b0;
-      pad_we_p2   <= 1'b0;
-      pad_rd_done <= 1'b0;
-      pad_wr_done <= 1'b0;
+    if (~rst_n) begin
+      pad_wr_en_p1 <= 1'b1;
+      pad_ce_n_p1  <= 1'b1;
+      pad_we_n_p1  <= 1'b1;
+      pad_oe_n_p1  <= 1'b1;
+
+      pad_wr_en_p2 <= 1'b1;
+      pad_ce_n_p2  <= 1'b1;
+      pad_we_n_p2  <= 1'b1;
+      pad_oe_n_p2  <= 1'b1;
+
+      pad_rd_valid <= 1'b0;
     end else begin
-      // Match timing of main implementation
-      pad_oe_p2 <= !pad_oe_n;
-      pad_we_p2 <= !pad_we_n;
+      pad_addr_p1    <= pad_addr;
+      pad_wr_en_p1   <= pad_wr_en;
+      pad_wr_data_p1 <= pad_wr_data;
+      pad_ce_n_p1    <= pad_ce_n;
+      pad_we_n_p1    <= pad_we_n;
+      pad_oe_n_p1    <= pad_oe_n;
 
-      // Read completion logic
-      if (pad_oe_p2) begin
-        pad_rd_done <= 1'b1;
-      end else begin
-        pad_rd_done <= 1'b0;
-      end
+      pad_addr_p2    <= pad_addr_p1;
+      pad_wr_en_p2   <= pad_wr_en_p1;
+      pad_wr_data_p2 <= pad_wr_data_p1;
+      pad_ce_n_p2    <= pad_ce_n_p1;
+      pad_we_n_p2    <= pad_we_n_p1;
+      pad_oe_n_p2    <= pad_oe_n_p1;
 
-      // Write completion logic
-      if (pad_we_p2) begin
-        pad_wr_done <= 1'b1;
-      end else begin
-        pad_wr_done <= 1'b0;
-      end
+      pad_rd_valid   <= !pad_oe_n_p2;
+      pad_rd_data    <= sram_io_data;
     end
   end
 
   // Drive SRAM signals
-  assign sram_io_addr = pad_addr;
-  assign sram_io_we_n = pad_we_n;
-  assign sram_io_oe_n = pad_oe_n;
-  assign sram_io_ce_n = pad_ce_n;
+  assign sram_io_addr = pad_addr_p2;
+  assign sram_io_we_n = pad_we_n_p2;
+  assign sram_io_oe_n = pad_oe_n_p2;
+  assign sram_io_ce_n = pad_ce_n_p2;
+
+  always @(*) begin
+    // verilator lint_off: ASSIGNIN
+    if (pad_wr_en_p2) begin
+      sram_io_data = pad_wr_data_p2;
+    end else if (!pad_oe_n_p2) begin
+      sram_io_data = mem[sram_io_addr];
+    end else begin
+      sram_io_data = 'x;
+    end
+    // verilator lint_on: ASSIGNIN
+  end
+
+  always @(posedge clk) begin
+    // verilator lint_off: BLKSEQ
+    if ($fell(sram_io_we_n)) begin
+      mem[sram_io_addr] = sram_io_data;
+    end
+    // verilator lint_on: BLKSEQ
+  end
 
   // Assertions
   always @(posedge clk) begin
@@ -287,7 +320,7 @@ module svc_ice40_sram_io #(
       a_rd_or_wr : assert (pad_oe_n || pad_we_n);
     end
   end
-
 `endif
+
 endmodule
 `endif
