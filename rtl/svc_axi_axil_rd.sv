@@ -328,6 +328,28 @@ module svc_axi_axil_rd #(
       .f_axi_wr_outstanding (),
       .f_axi_awr_outstanding()
   );
+
+  // TODO: this can likely be reduced to 1 with a skidbuffer on the input
+  // to the adpater and then driving the axil side in the same clock as
+  // the axi addr inputs.
+  localparam F_FIRST_BEAT_LATENCY = 2;
+
+  // TODO: fix the beat latency and then do N of these checks in a row.
+  // Do this before the first beat latency, as the first beat latency is
+  // acceptable for my use cases, but this is not.
+  localparam F_BEAT_LATENCY = 2;
+  always @(posedge clk) begin
+    if ((f_past_valid) && (rst_n)) begin
+      c_beat_per_clk :
+      cover ((s_axi_rready && s_axi_rvalid) && $past(
+          s_axi_rready && s_axi_rvalid, F_BEAT_LATENCY
+      ) && $past(
+          (s_axi_arvalid && s_axi_arready && s_axi_arlen == 3),
+          F_FIRST_BEAT_LATENCY + F_BEAT_LATENCY
+      ));
+    end
+  end
+
 `endif
 `endif
 
