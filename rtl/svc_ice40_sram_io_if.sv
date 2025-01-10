@@ -195,6 +195,7 @@ module svc_ice40_sram_io_if #(
   // assumptions
   //
   always_ff @(posedge clk) begin
+    `ASSUME(am_strb, sram_cmd_wr_strb == 0);
     if (f_past_valid && $past(rst_n) && rst_n) begin
       // assume incoming cmd signals are stable until accepted
       if ($past(sram_cmd_valid && !sram_cmd_ready)) begin
