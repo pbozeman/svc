@@ -1,0 +1,18 @@
+[tasks]
+bmc
+cover
+
+[options]
+bmc: mode bmc
+cover: mode cover
+depth 16
+
+[engines]
+smtbmc
+
+[script]
+read_verilog -formal -sv -DFORMAL_SVC_BURST_ITER_AX svc_axi_burst_iter_ax.sv
+prep -top svc_axi_burst_iter_ax
+
+[files]
+rtl/
