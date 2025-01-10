@@ -78,12 +78,6 @@ module svc_sync_fifo #(
   `define COVER(lable, a)
 `endif
 
-  // TODO: it would be nice to add checks that the data read is what was
-  // written. It doesn't seem the system verilog queues are supported, so
-  // testing the reads of writes would pretty much need to reimplement the
-  // fifo logic, which would be pointless. Look into if there is some system
-  // verilog function or class that can be used.
-
   // track how many elements are in the fifo
   int f_count = 0;
   int f_max_count = (1 << ADDR_WIDTH);
@@ -137,6 +131,37 @@ module svc_sync_fifo #(
       `COVER(c_read_half_full,
              (r_inc && w_half_full && f_count == (f_max_count >> 1)));
       `COVER(c_rw_half_full, (w_inc && r_inc && w_half_full));
+    end
+  end
+
+  //
+  // data validation
+  //
+  localparam F_MAX_COUNT = (1 << ADDR_WIDTH);
+  logic [DATA_WIDTH-1:0] f_shadow_queue    [0:F_MAX_COUNT-1];
+  int                    f_shadow_rptr = 0;
+  int                    f_shadow_wptr = 0;
+
+  always @(posedge clk) begin
+    if (~rst_n) begin
+      f_shadow_rptr <= 0;
+      f_shadow_wptr <= 0;
+    end else begin
+      // Write operation
+      if (w_inc && !w_full) begin
+        f_shadow_queue[f_shadow_wptr] <= w_data;
+        f_shadow_wptr                 <= (f_shadow_wptr + 1) % f_max_count;
+      end
+      // Read operation
+      if (r_inc && !r_empty) begin
+        f_shadow_rptr <= (f_shadow_rptr + 1) % f_max_count;
+      end
+    end
+  end
+
+  always @(posedge clk) begin
+    if (r_inc && !r_empty) begin
+      `ASSERT(a_data_valid, r_data == f_shadow_queue[f_shadow_rptr]);
     end
   end
 
