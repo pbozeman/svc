@@ -134,9 +134,14 @@ module svc_sync_fifo #(
     end
   end
 
+`ifdef FORMAL_SVC_SYNC_FIFO_DATA
   //
   // data validation
   //
+  // This causes verification to take a long time to run, which is why
+  // its controlled by an ifdef. Calling modules almost certainly don't
+  // need this to be run during their verification. The ADDR_WIDTH should also
+  // be reduced when in this mode.
   localparam F_MAX_COUNT = (1 << ADDR_WIDTH);
   logic [DATA_WIDTH-1:0] f_shadow_queue    [0:F_MAX_COUNT-1];
   int                    f_shadow_rptr = 0;
@@ -164,6 +169,7 @@ module svc_sync_fifo #(
       `ASSERT(a_data_valid, r_data == f_shadow_queue[f_shadow_rptr]);
     end
   end
+`endif
 
   `undef ASSERT
   `undef ASSUME
