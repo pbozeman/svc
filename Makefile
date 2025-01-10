@@ -58,7 +58,7 @@ quick_unit: SKIP_SLOW_TESTS := 1
 quick_unit: $(VCD_FILES)
 
 .PHONY: check
-check: lint unit
+check: s_lint unit
 
 # Build dir
 $(BUILD_DIR):
@@ -169,7 +169,7 @@ $(FORMAL_TARGETS): %_f : $(BUILD_DIR)/%_f
 	$(call run_formal, $<)
 
 # Run all formal benches and show summary
-formal: clean_f_logs $(FORMAL_TARGETS)
+formal: f_lint clean_f_logs $(FORMAL_TARGETS)
 	@echo ""
 	@echo "=============================="
 	@echo "Successful formal: $$(wc -l < $(BUILD_DIR)/f_success.log)"
