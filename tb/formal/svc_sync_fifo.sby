@@ -1,18 +1,29 @@
 [tasks]
 bmc
+bmc_data
 cover
 
 [options]
-bmc: mode bmc
 cover: mode cover
-depth 16
+cover: depth 16
+bmc: mode bmc
+bmc: depth 32
+bmc_data: mode bmc
+bmc_data: depth 12
 
 [engines]
 smtbmc
 
 [script]
-read_verilog -formal -DFORMAL_SVC_SYNC_FIFO -sv svc_sync_fifo.sv
-prep -top svc_sync_fifo
+cover: read_verilog -formal -DFORMAL_SVC_SYNC_FIFO -sv svc_sync_fifo.sv
+cover: prep -top svc_sync_fifo
+
+bmc: read_verilog -formal -DFORMAL_SVC_SYNC_FIFO -sv svc_sync_fifo.sv
+bmc: prep -top svc_sync_fifo
+
+bmc_data: read_verilog -formal -DFORMAL_SVC_SYNC_FIFO -DFORMAL_SVC_SYNC_FIFO_DATA -sv svc_sync_fifo.sv
+bmc_data: chparam -set ADDR_WIDTH 4 svc_sync_fifo
+bmc_data: prep -top svc_sync_fifo
 
 [files]
 rtl/
