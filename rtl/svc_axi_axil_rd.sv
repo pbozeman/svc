@@ -236,7 +236,6 @@ module svc_axi_axil_rd #(
       .i_exlock_len  (),
       .i_exlock_burst(),
       .i_exlock_size ()
-
   );
 
   faxil_master #(

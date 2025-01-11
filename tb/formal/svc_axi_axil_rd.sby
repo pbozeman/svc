@@ -39,7 +39,6 @@ files += "\n"
 files += "\n".join(glob.glob("tb/formal/*.v"))
 files += "\n"
 files += "\n".join(glob.glob("rtl/*.sv"))
-print(files);
 output(files)
 --pycode-end--
 
