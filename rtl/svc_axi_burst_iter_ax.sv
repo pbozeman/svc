@@ -234,9 +234,10 @@ module svc_axi_burst_iter_ax #(
   // assumptions
   //
   always @(posedge clk) begin
-    `ASSUME(am_size_valid, s_size == 3'b00 || s_size == 3'b01);
-
     if (f_past_valid && $past(rst_n) && rst_n) begin
+      if (s_valid) begin
+        `ASSUME(am_size_valid, s_size == 3'b00 || s_size == 3'b01);
+      end
       // stability
       if ($past(s_valid && !s_ready)) begin
         `ASSUME(am_valid, s_valid);
