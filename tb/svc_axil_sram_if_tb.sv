@@ -95,16 +95,12 @@ module svc_axil_sram_if_tb;
       .sram_cmd_valid   (sram_cmd_valid),
       .sram_cmd_ready   (sram_cmd_ready),
       .sram_cmd_addr    (sram_cmd_addr),
-      .sram_cmd_meta    (),
-      .sram_cmd_last    (),
       .sram_cmd_wr_en   (sram_cmd_wr_en),
       .sram_cmd_wr_data (sram_cmd_wr_data),
       .sram_cmd_wr_strb (sram_cmd_wr_strb),
       .sram_resp_valid  (sram_resp_rd_valid),
       .sram_resp_ready  (sram_resp_rd_ready),
-      .sram_resp_rd_data(sram_resp_rd_data),
-      .sram_resp_meta   (),
-      .sram_resp_last   ()
+      .sram_resp_rd_data(sram_resp_rd_data)
   );
 
   always_ff @(posedge clk) begin
