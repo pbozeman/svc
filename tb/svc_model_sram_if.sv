@@ -4,11 +4,15 @@
 `include "svc.sv"
 `include "svc_sync_fifo.sv"
 
+`ifdef FORMAL
+// verilator lint_off: UNUSEDSIGNAL
+`endif
 module svc_model_sram_if #(
     parameter UNITIALIZED_READS_OK = 0,
     parameter SRAM_ADDR_WIDTH      = 4,
     parameter SRAM_DATA_WIDTH      = 16,
-    parameter SRAM_STRB_WIDTH      = (SRAM_DATA_WIDTH / 8)
+    parameter SRAM_STRB_WIDTH      = (SRAM_DATA_WIDTH / 8),
+    parameter READ_ONLY_ZERO       = 0
 ) (
     input logic clk,
     input logic rst_n,
@@ -53,34 +57,41 @@ module svc_model_sram_if #(
   );
 
   assign fifo_w_inc = sram_cmd_valid && sram_cmd_ready && !sram_cmd_wr_en;
-  assign fifo_w_data = mem[sram_cmd_addr];
-  assign fifo_r_inc = sram_resp_valid && sram_resp_ready;
+  if (READ_ONLY_ZERO) begin : gen_read_only_zero_w_data
+    assign fifo_w_data = 0;
+  end else begin : gen_w_data
+    assign fifo_w_data = mem[sram_cmd_addr];
+  end
 
-  assign sram_cmd_ready = !fifo_w_half_full;
+  assign fifo_r_inc        = sram_resp_valid && sram_resp_ready;
 
-  assign sram_resp_valid = !fifo_r_empty;
+  assign sram_cmd_ready    = !fifo_w_half_full;
+
+  assign sram_resp_valid   = !fifo_r_empty;
   assign sram_resp_rd_data = fifo_r_data;
 
-  // Read response handling
-  always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      // Initialize memory to X or addr
-      for (int i = 0; i < (1 << SRAM_ADDR_WIDTH); i++) begin
-        if (UNITIALIZED_READS_OK) begin
-          mem[i] <= SRAM_DATA_WIDTH'(i);
-        end else begin
-          mem[i] <= 'x;
+  if (!READ_ONLY_ZERO) begin : gen_read_only_zero_mem_sim
+    // Read response handling
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        // Initialize memory to X or addr
+        for (int i = 0; i < (1 << SRAM_ADDR_WIDTH); i++) begin
+          if (UNITIALIZED_READS_OK) begin
+            mem[i] <= SRAM_DATA_WIDTH'(i);
+          end else begin
+            mem[i] <= 'x;
+          end
         end
       end
     end
-  end
 
-  // Write handling - process writes byte by byte based on write strobe
-  always_ff @(posedge clk) begin
-    if (sram_cmd_valid && sram_cmd_ready && sram_cmd_wr_en) begin
-      for (int i = 0; i < SRAM_STRB_WIDTH; i++) begin
-        if (sram_cmd_wr_strb[i]) begin
-          mem[sram_cmd_addr][i*8+:8] <= sram_cmd_wr_data[i*8+:8];
+    // Write handling - process writes byte by byte based on write strobe
+    always_ff @(posedge clk) begin
+      if (sram_cmd_valid && sram_cmd_ready && sram_cmd_wr_en) begin
+        for (int i = 0; i < SRAM_STRB_WIDTH; i++) begin
+          if (sram_cmd_wr_strb[i]) begin
+            mem[sram_cmd_addr][i*8+:8] <= sram_cmd_wr_data[i*8+:8];
+          end
         end
       end
     end
