@@ -207,9 +207,15 @@ module svc_axi_burst_iter_ax #(
   `define ASSUME(lable, a) lable: assume(a)
   `define COVER(lable, a) lable: cover(a)
 `else
+`ifdef FORMAL_NO_SUBMODULES
+  `define ASSERT(lable, a)
+  `define ASSUME(lable, a)
+  `define COVER(lable, a)
+`else
   `define ASSERT(lable, a) lable: assume(a)
   `define ASSUME(lable, a) lable: assert(a)
   `define COVER(lable, a)
+`endif
 `endif
 
   // This could get a lot more comprehensive asserts.

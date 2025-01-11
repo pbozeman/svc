@@ -20,6 +20,9 @@ f_files = glob.glob("tb/formal/private/*.v")
 read_cmd = "read_verilog -formal "
 if f_files:
   read_cmd += "-DZIPCPU_PRIVATE "
+else:
+  read_cmd += " -DFORMAL_NO_SUBMODULES "
+
 read_cmd += "-sv svc_axi_axil_rd.sv\n"
 read_cmd += "read_verilog -formal -sv faxil_master.v\n"
 
