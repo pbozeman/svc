@@ -1,5 +1,5 @@
-`ifndef SVC_AXI_AXIL_ID_RD_SV
-`define SVC_AXI_AXIL_ID_RD_SV
+`ifndef SVC_AXI_AXIL_REFLECT_RD_SV
+`define SVC_AXI_AXIL_REFLECT_RD_SV
 
 `include "svc.sv"
 `include "svc_sync_fifo_zl.sv"
@@ -10,7 +10,7 @@
 //
 // This might be able to use less resources with skidbuffers, but
 // I went for simplicity and obvious correctness using the zl fifos.
-module svc_axi_axil_id_rd #(
+module svc_axi_axil_reflect_rd #(
     parameter AXI_ADDR_WIDTH          = 2,
     parameter AXI_DATA_WIDTH          = 16,
     parameter AXI_ID_WIDTH            = 4,
@@ -111,7 +111,7 @@ module svc_axi_axil_id_rd #(
   // See tb/formal/private/README.md
 `ifdef ZIPCPU_PRIVATE
 
-`ifdef FORMAL_SVC_AXI_AXIL_ID_RD
+`ifdef FORMAL_SVC_AXI_AXIL_REFLECT_RD
   `define ASSERT(lable, a) lable: assert(a)
   `define ASSUME(lable, a) lable: assume(a)
   `define COVER(lable, a) lable: cover(a)
