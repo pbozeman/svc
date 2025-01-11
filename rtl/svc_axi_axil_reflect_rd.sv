@@ -6,7 +6,7 @@
 `include "svc_unused.sv"
 
 // Takes an AXI to AXI-Lite read stream with single beat bursts and
-// reflects the IDs from the original AW request to the R returns.
+// reflects the IDs from the original AR request to the R returns.
 //
 // This might be able to use less resources with skidbuffers, but
 // I went for simplicity and obvious correctness using the zl fifos.
