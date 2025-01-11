@@ -17,10 +17,10 @@ import os
 
 f_files = glob.glob("tb/formal/private/*.v")
 
-read_cmd = "read_verilog -formal -DFORMAL_SVC_AXI_AXIL_ID_RD "
+read_cmd = "read_verilog -formal -DFORMAL_SVC_AXI_AXIL_REFLECT_RD "
 if f_files:
   read_cmd += "-DZIPCPU_PRIVATE "
-read_cmd += "-sv svc_axi_axil_id_rd.sv\n"
+read_cmd += "-sv svc_axi_axil_reflect_rd.sv\n"
 read_cmd += "read_verilog -formal -sv faxil_master.v\n"
 
 for f in f_files:
@@ -29,7 +29,7 @@ for f in f_files:
 output(read_cmd)
 --pycode-end--
 
-prep -top svc_axi_axil_id_rd
+prep -top svc_axi_axil_reflect_rd
 
 [files]
 --pycode-begin--
