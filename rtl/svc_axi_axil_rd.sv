@@ -287,26 +287,28 @@ module svc_axi_axil_rd #(
       .f_axi_awr_outstanding()
   );
 
-  // TODO: this can likely be reduced to 1 with a skidbuffer on the input
-  // to the adpater and then driving the axil side in the same clock as
-  // the axi addr inputs.
-  localparam F_FIRST_BEAT_LATENCY = 2;
-
-  // TODO: fix the beat latency and then do N of these checks in a row.
-  // Do this before the first beat latency, as the first beat latency is
-  // acceptable for my use cases, but this is not.
-  localparam F_BEAT_LATENCY = 2;
+  // Cover statement showing 0 latency axi to axi lite adapter. The arvalid to
+  // the axi lite module is raised in the same clock as our incoming axi arvalid.
+  // Read responses from the axi lite device are returned to the axi device
+  // in the same clock as well. This is sustained for a length of 6 (arlen 5).
+  // Burst type 01 is used to see the addrs changing at the axil device.
+  //
+  // verilog_format: off
   always @(posedge clk) begin
     if ((f_past_valid) && (rst_n)) begin
       c_beat_per_clk :
-      cover ((s_axi_rready && s_axi_rvalid) && $past(
-          s_axi_rready && s_axi_rvalid, F_BEAT_LATENCY
-      ) && $past(
-          (s_axi_arvalid && s_axi_arready && s_axi_arlen == 3),
-          F_FIRST_BEAT_LATENCY + F_BEAT_LATENCY
-      ));
+      cover ((s_axi_rready && s_axi_rvalid && s_axi_rlast) &&
+        $past(s_axi_rready && s_axi_rvalid, 1) &&
+        $past(s_axi_rready && s_axi_rvalid, 2) &&
+        $past(s_axi_rready && s_axi_rvalid, 3) &&
+        $past(s_axi_rready && s_axi_rvalid, 4) &&
+        $past(s_axi_rready && s_axi_rvalid, 5) &&
+        $past(s_axi_arvalid && s_axi_arready &&
+              s_axi_arlen == 5 && s_axi_arburst == 2'b01 &&
+              s_axi_arid != 0, 6));
     end
   end
+  // verilog_format: on
 
 `endif
 `endif
