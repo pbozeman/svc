@@ -8,8 +8,7 @@ module svc_model_sram_if #(
     parameter UNITIALIZED_READS_OK = 0,
     parameter SRAM_ADDR_WIDTH      = 4,
     parameter SRAM_DATA_WIDTH      = 16,
-    parameter SRAM_STRB_WIDTH      = (SRAM_DATA_WIDTH / 8),
-    parameter SRAM_META_WIDTH      = 4
+    parameter SRAM_STRB_WIDTH      = (SRAM_DATA_WIDTH / 8)
 ) (
     input logic clk,
     input logic rst_n,
@@ -17,18 +16,14 @@ module svc_model_sram_if #(
     input  logic                       sram_cmd_valid,
     output logic                       sram_cmd_ready,
     input  logic [SRAM_ADDR_WIDTH-1:0] sram_cmd_addr,
-    input  logic [SRAM_META_WIDTH-1:0] sram_cmd_meta,
-    input  logic                       sram_cmd_last,
     input  logic                       sram_cmd_wr_en,
     input  logic [SRAM_DATA_WIDTH-1:0] sram_cmd_wr_data,
     input  logic [SRAM_STRB_WIDTH-1:0] sram_cmd_wr_strb,
     output logic                       sram_resp_valid,
     input  logic                       sram_resp_ready,
-    output logic [SRAM_META_WIDTH-1:0] sram_resp_meta,
-    output logic                       sram_resp_last,
     output logic [SRAM_DATA_WIDTH-1:0] sram_resp_rd_data
 );
-  localparam FIFO_DATA_WIDTH = SRAM_DATA_WIDTH + SRAM_META_WIDTH + 1;
+  localparam FIFO_DATA_WIDTH = SRAM_DATA_WIDTH;
 
   // Memory array to store data
   logic [SRAM_DATA_WIDTH-1:0] mem              [(1 << SRAM_ADDR_WIDTH)-1:0];
@@ -58,13 +53,13 @@ module svc_model_sram_if #(
   );
 
   assign fifo_w_inc = sram_cmd_valid && sram_cmd_ready && !sram_cmd_wr_en;
-  assign fifo_w_data = {mem[sram_cmd_addr], sram_cmd_meta, sram_cmd_last};
+  assign fifo_w_data = mem[sram_cmd_addr];
   assign fifo_r_inc = sram_resp_valid && sram_resp_ready;
 
   assign sram_cmd_ready = !fifo_w_half_full;
 
   assign sram_resp_valid = !fifo_r_empty;
-  assign {sram_resp_rd_data, sram_resp_meta, sram_resp_last} = fifo_r_data;
+  assign sram_resp_rd_data = fifo_r_data;
 
   // Read response handling
   always_ff @(posedge clk) begin
