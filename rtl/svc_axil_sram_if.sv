@@ -428,9 +428,9 @@ module svc_axil_sram_if #(
   // used in normal unit tbs. This lets use use if for both use cases, but
   // maybe come back and address this.
   svc_model_sram_if #(
-      .SRAM_ADDR_WIDTH     (SRAM_ADDR_WIDTH),
-      .SRAM_DATA_WIDTH     (SRAM_DATA_WIDTH),
-      .UNITIALIZED_READS_OK(1)
+      .SRAM_ADDR_WIDTH(SRAM_ADDR_WIDTH),
+      .SRAM_DATA_WIDTH(SRAM_DATA_WIDTH),
+      .READ_ONLY_ZERO (1)
   ) svc_model_sram_if_i (
       .clk  (clk),
       .rst_n(rst_n),
