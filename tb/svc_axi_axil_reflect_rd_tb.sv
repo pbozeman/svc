@@ -95,22 +95,16 @@ module svc_axi_axil_reflect_rd_tb;
     if (m_axi_arvalid && m_axi_arready) begin
       m_axi_arvalid <= 1'b0;
     end
+
+    if (s_axil_rvalid && s_axil_rready) begin
+      s_axil_rvalid <= 1'b0;
+    end
   end
 
   task automatic test_initial;
     `CHECK_FALSE(s_axil_arvalid);
     `CHECK_FALSE(m_axi_rvalid);
   endtask
-
-  always_ff @(posedge clk) begin
-    if (m_axi_arvalid && m_axi_arready) begin
-      m_axi_arvalid <= 1'b0;
-    end
-
-    if (s_axil_rvalid && s_axil_rready) begin
-      s_axil_rvalid <= 1'b0;
-    end
-  end
 
   // Basic smoke test
   task automatic test_basic;
