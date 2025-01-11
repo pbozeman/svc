@@ -318,6 +318,10 @@ module svc_axi_axil_reflect_rd #(
       .f_axi_awr_outstanding()
   );
 
+`else  // ZIPCPU_PRIVATE
+  // verilator lint_off: UNUSEDSIGNAL
+  logic f_unused = |{s_axi_arlen, s_axi_arsize, s_axi_arburst, fifo_id_r_empty};
+  // verilator lint_on: UNUSEDSIGNAL
 `endif
 `endif
 
