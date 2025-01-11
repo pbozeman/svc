@@ -15,74 +15,74 @@ module svc_skidbuf #(
     input logic clk,
     input logic rst_n,
 
-    input  logic                  s_valid,
-    output logic                  s_ready,
-    input  logic [DATA_WIDTH-1:0] s_data,
+    input  logic                  i_valid,
+    input  logic [DATA_WIDTH-1:0] i_data,
+    output logic                  o_ready,
 
-    output logic                  m_valid,
-    input  logic                  m_ready,
-    output logic [DATA_WIDTH-1:0] m_data
+    output logic                  o_valid,
+    input  logic                  i_ready,
+    output logic [DATA_WIDTH-1:0] o_data
 );
-  logic                  skid_s_valid;
-  logic [DATA_WIDTH-1:0] skid_s_data;
+  logic                  skid_i_valid;
+  logic [DATA_WIDTH-1:0] skid_i_data;
 
   //
   // s side
   //
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      skid_s_valid <= 0;
+      skid_i_valid <= 0;
     end else begin
-      if ((s_valid && s_ready) && (m_valid && !m_ready))
+      if ((i_valid && o_ready) && (o_valid && !i_ready))
         // We have incoming data, but the output is stalled
-        skid_s_valid <= 1;
-      else if (m_ready) skid_s_valid <= 0;
+        skid_i_valid <= 1;
+      else if (i_ready) skid_i_valid <= 0;
     end
   end
 
   always_ff @(posedge clk) begin
-    if ((!OPT_OUTREG || s_valid) && s_ready) begin
-      skid_s_data <= s_data;
+    if ((!OPT_OUTREG || i_valid) && o_ready) begin
+      skid_i_data <= i_data;
     end
   end
 
-  assign s_ready = !skid_s_valid;
+  assign o_ready = !skid_i_valid;
 
   //
   // m side
   //
   if (!OPT_OUTREG) begin : gen_net_output
-    assign m_valid = rst_n && (s_valid || skid_s_valid);
+    assign o_valid = rst_n && (i_valid || skid_i_valid);
 
     always_comb begin
-      if (skid_s_valid) begin
-        m_data = skid_s_data;
-      end else if (s_valid) begin
-        m_data = s_data;
+      if (skid_i_valid) begin
+        o_data = skid_i_data;
+      end else if (i_valid) begin
+        o_data = i_data;
       end else begin
-        m_data = 0;
+        o_data = 0;
       end
     end
 
   end else begin : gen_reg_output
-    logic m_valid_reg;
+    logic o_valid_reg;
 
     always_ff @(posedge clk) begin
       if (!rst_n) begin
-        m_valid_reg <= 0;
-      end else if (!m_valid || m_ready) begin
-        m_valid_reg <= (s_valid || skid_s_valid);
+        o_valid_reg <= 0;
+      end else if (!o_valid || i_ready) begin
+        o_valid_reg <= (i_valid || skid_i_valid);
       end
     end
 
-    assign m_valid = m_valid_reg;
+    assign o_valid = o_valid_reg;
 
     always_ff @(posedge clk) begin
-      if (!m_valid || m_ready) begin
-        if (skid_s_valid) begin
-          m_data <= skid_s_data;
-        end else if (s_valid) begin
-          m_data <= s_data;
+      if (!o_valid || i_ready) begin
+        if (skid_i_valid) begin
+          o_data <= skid_i_data;
+        end else if (i_valid) begin
+          o_data <= i_data;
         end
       end
     end

@@ -8,13 +8,13 @@ module svc_skidbuf_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
-  logic                  s_valid;
-  logic                  s_ready;
-  logic [DATA_WIDTH-1:0] s_data;
+  logic                  i_valid;
+  logic                  o_ready;
+  logic [DATA_WIDTH-1:0] i_data;
 
-  logic                  m_valid;
-  logic                  m_ready;
-  logic [DATA_WIDTH-1:0] m_data;
+  logic                  o_valid;
+  logic                  i_ready;
+  logic [DATA_WIDTH-1:0] o_data;
 
   logic                  auto_valid;
 
@@ -24,26 +24,26 @@ module svc_skidbuf_tb;
   ) uut (
       .clk    (clk),
       .rst_n  (rst_n),
-      .s_valid(m_valid),
-      .s_ready(m_ready),
-      .s_data (m_data),
-      .m_valid(s_valid),
-      .m_ready(s_ready),
-      .m_data (s_data)
+      .i_valid(o_valid),
+      .o_ready(i_ready),
+      .i_data (o_data),
+      .o_valid(i_valid),
+      .i_ready(o_ready),
+      .o_data (i_data)
   );
 
   always_ff @(posedge clk) begin
     if (~rst_n) begin
-      m_valid <= 0;
-      m_data  <= 0;
-      s_ready <= 0;
+      o_valid <= 0;
+      o_data  <= 0;
+      o_ready <= 0;
     end
   end
 
   always @(posedge clk) begin
     if (auto_valid) begin
-      if (m_valid && m_ready) begin
-        m_valid <= 0;
+      if (o_valid && i_ready) begin
+        o_valid <= 0;
       end
     end
   end
@@ -51,41 +51,41 @@ module svc_skidbuf_tb;
   // Test basic data flow
   task test_basic_flow;
     begin
-      s_ready    = 1;
-      m_valid    = 1;
-      m_data     = 8'hA5;
+      o_ready    = 1;
+      o_valid    = 1;
+      o_data     = 8'hA5;
       auto_valid = 1;
 
-      `CHECK_EQ(s_data, 8'hA5);
-      `CHECK_TRUE(s_valid);
+      `CHECK_EQ(i_data, 8'hA5);
+      `CHECK_TRUE(i_valid);
 
       `TICK(clk);
-      `CHECK_FALSE(s_valid);
+      `CHECK_FALSE(i_valid);
     end
   endtask
 
   // Test back pressure handling
   task test_backpressure;
     begin
-      s_ready = 0;
-      m_valid = 1;
-      m_data  = 8'h55;
+      o_ready = 0;
+      o_valid = 1;
+      o_data  = 8'h55;
       `TICK(clk);
-      `CHECK_EQ(s_data, 8'h55);
-      `CHECK_TRUE(s_valid);
-      `CHECK_FALSE(m_ready);
+      `CHECK_EQ(i_data, 8'h55);
+      `CHECK_TRUE(i_valid);
+      `CHECK_FALSE(i_ready);
 
-      m_valid = 1;
-      m_data  = 8'hAA;
+      o_valid = 1;
+      o_data  = 8'hAA;
       `TICK(clk);
-      `CHECK_EQ(s_data, 8'h55);
-      `CHECK_FALSE(m_ready);
+      `CHECK_EQ(i_data, 8'h55);
+      `CHECK_FALSE(i_ready);
 
-      s_ready = 1;
+      o_ready = 1;
       `TICK(clk);
-      `CHECK_EQ(s_data, 8'hAA);
-      `CHECK_TRUE(s_valid);
-      `CHECK_TRUE(m_ready);
+      `CHECK_EQ(i_data, 8'hAA);
+      `CHECK_TRUE(i_valid);
+      `CHECK_TRUE(i_ready);
     end
   endtask
 
@@ -93,13 +93,13 @@ module svc_skidbuf_tb;
   task test_continious_flow;
     begin
       auto_valid = 0;
-      s_ready    = 1;
+      o_ready    = 1;
 
       for (int i = 0; i < 4; i++) begin
-        m_valid = 1;
-        m_data  = DATA_WIDTH'(i);
+        o_valid = 1;
+        o_data  = DATA_WIDTH'(i);
         `TICK(clk);
-        `CHECK_EQ(s_data, DATA_WIDTH'(i));
+        `CHECK_EQ(i_data, DATA_WIDTH'(i));
       end
     end
   endtask
@@ -107,15 +107,15 @@ module svc_skidbuf_tb;
   // Test reset behavior
   task test_reset;
     begin
-      s_ready = 0;
-      m_valid = 1;
-      m_data  = 8'h42;
+      o_ready = 0;
+      o_valid = 1;
+      o_data  = 8'h42;
       `TICK(clk);
 
       rst_n = 0;
       `TICK(clk);
-      `CHECK_FALSE(s_valid);
-      `CHECK_TRUE(m_ready);
+      `CHECK_FALSE(i_valid);
+      `CHECK_TRUE(i_ready);
     end
   endtask
 
