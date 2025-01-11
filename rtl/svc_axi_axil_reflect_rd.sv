@@ -14,6 +14,7 @@ module svc_axi_axil_reflect_rd #(
     parameter AXI_ADDR_WIDTH          = 2,
     parameter AXI_DATA_WIDTH          = 16,
     parameter AXI_ID_WIDTH            = 4,
+    parameter AXI_USER_WIDTH          = 1,
     parameter OUTSTANDING_READS_WIDTH = 1
 ) (
     input logic clk,
@@ -28,11 +29,13 @@ module svc_axi_axil_reflect_rd #(
     input  logic [               7:0] s_axi_arlen,
     input  logic [               2:0] s_axi_arsize,
     input  logic [               1:0] s_axi_arburst,
+    input  logic [AXI_USER_WIDTH-1:0] s_axi_aruser,
     output logic                      s_axi_arready,
     output logic                      s_axi_rvalid,
     output logic [  AXI_ID_WIDTH-1:0] s_axi_rid,
     output logic [AXI_DATA_WIDTH-1:0] s_axi_rdata,
     output logic [               1:0] s_axi_rresp,
+    output logic [AXI_USER_WIDTH-1:0] s_axi_ruser,
     output logic                      s_axi_rlast,
     input  logic                      s_axi_rready,
 
@@ -76,17 +79,17 @@ module svc_axi_axil_reflect_rd #(
   // (And there certainly will be on the real sram hw)
   svc_sync_fifo_zl #(
       .ADDR_WIDTH(OUTSTANDING_READS_WIDTH),
-      .DATA_WIDTH(AXI_ID_WIDTH)
+      .DATA_WIDTH(AXI_ID_WIDTH + AXI_USER_WIDTH)
   ) svc_sync_fifo_zl_id_i (
       .clk  (clk),
       .rst_n(rst_n),
 
       .w_inc      (s_axi_arvalid && s_axi_arready),
-      .w_data     (s_axi_arid),
+      .w_data     ({s_axi_arid, s_axi_aruser}),
       .w_full     (fifo_id_w_full),
       .w_half_full(),
       .r_inc      (s_axi_rvalid && s_axi_rready),
-      .r_data     (s_axi_rid),
+      .r_data     ({s_axi_rid, s_axi_ruser}),
       .r_empty    (fifo_id_r_empty)
   );
 

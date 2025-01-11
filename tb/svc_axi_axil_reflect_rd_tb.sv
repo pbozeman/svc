@@ -9,6 +9,7 @@ module svc_axi_axil_reflect_rd_tb;
   parameter AW = 20;
   parameter DW = 16;
   parameter IW = 4;
+  parameter UW = 2;
 
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
@@ -19,11 +20,13 @@ module svc_axi_axil_reflect_rd_tb;
   logic [   7:0] m_axi_arlen;
   logic [   2:0] m_axi_arsize;
   logic [   1:0] m_axi_arburst;
+  logic [UW-1:0] m_axi_aruser;
   logic          m_axi_arready;
   logic          m_axi_rvalid;
   logic [IW-1:0] m_axi_rid;
   logic [DW-1:0] m_axi_rdata;
   logic [   1:0] m_axi_rresp;
+  logic [UW-1:0] m_axi_ruser;
   logic          m_axi_rlast;
   logic          m_axi_rready;
 
@@ -38,7 +41,8 @@ module svc_axi_axil_reflect_rd_tb;
   svc_axi_axil_reflect_rd #(
       .AXI_ADDR_WIDTH(AW),
       .AXI_DATA_WIDTH(DW),
-      .AXI_ID_WIDTH  (IW)
+      .AXI_ID_WIDTH  (IW),
+      .AXI_USER_WIDTH(UW)
   ) uut (
       .clk  (clk),
       .rst_n(rst_n),
@@ -49,11 +53,13 @@ module svc_axi_axil_reflect_rd_tb;
       .s_axi_arlen  (m_axi_arlen),
       .s_axi_arsize (m_axi_arsize),
       .s_axi_arburst(m_axi_arburst),
+      .s_axi_aruser (m_axi_aruser),
       .s_axi_arready(m_axi_arready),
       .s_axi_rvalid (m_axi_rvalid),
       .s_axi_rid    (m_axi_rid),
       .s_axi_rdata  (m_axi_rdata),
       .s_axi_rresp  (m_axi_rresp),
+      .s_axi_ruser  (m_axi_ruser),
       .s_axi_rlast  (m_axi_rlast),
       .s_axi_rready (m_axi_rready),
 
@@ -74,6 +80,7 @@ module svc_axi_axil_reflect_rd_tb;
       m_axi_arlen    <= 8'h0;
       m_axi_arsize   <= 3'h1;
       m_axi_arburst  <= 2'h1;
+      m_axi_aruser   <= 0;
 
       m_axi_rready   <= 1'b0;
 
@@ -111,6 +118,7 @@ module svc_axi_axil_reflect_rd_tb;
       logic [AW-1:0] addr = AW'(16'hA000);
       logic [DW-1:0] data = DW'(16'hD000);
       logic [IW-1:0] id = IW'(4'h5);
+      logic [UW-1:0] user = UW'('1);
 
       m_axi_arvalid  = 1'b1;
       m_axi_arid     = id;
@@ -118,6 +126,7 @@ module svc_axi_axil_reflect_rd_tb;
       m_axi_arlen    = 8'h0;
       m_axi_arsize   = 3'h1;
       m_axi_arburst  = 2'h0;
+      m_axi_aruser   = user;
       m_axi_rready   = 1'b1;
 
       s_axil_arready = 1'b1;
@@ -131,6 +140,7 @@ module svc_axi_axil_reflect_rd_tb;
       `CHECK_EQ(m_axi_rdata, data);
       `CHECK_EQ(m_axi_rid, id);
       `CHECK_EQ(m_axi_rresp, 2'b00);
+      `CHECK_EQ(m_axi_ruser, user);
     end
   endtask
 
