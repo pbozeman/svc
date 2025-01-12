@@ -150,11 +150,16 @@ module svc_axi_axil_adapter_wr_tb;
         s_axil_bvalid = 1'b1;
 
         `CHECK_TRUE(s_axil_bready);
-        `CHECK_TRUE(m_axi_bvalid && m_axi_bready);
-        `CHECK_EQ(m_axi_bid, 4'hD);
-        `CHECK_EQ(m_axi_bresp, 2'b00);
+        if (i != 3) begin
+          `CHECK_FALSE(m_axi_bvalid);
+        end else begin
+          `CHECK_TRUE(m_axi_bvalid && m_axi_bready);
+          `CHECK_EQ(m_axi_bid, 4'hD);
+          `CHECK_EQ(m_axi_bresp, 2'b00);
+        end
         `TICK(clk);
       end
+
 
       m_axi_wvalid  = 1'b0;
       s_axil_bvalid = 1'b0;

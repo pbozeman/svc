@@ -148,6 +148,7 @@ module svc_axi_axil_reflect_rd #(
     end
   end
 
+`ifdef FORMAL_SVC_AXI_AXIL_REFLECT_RD
   faxi_slave #(
       .C_AXI_ID_WIDTH    (AXI_ID_WIDTH),
       .C_AXI_DATA_WIDTH  (AXI_DATA_WIDTH),
@@ -307,6 +308,7 @@ module svc_axi_axil_reflect_rd #(
       .f_axi_wr_outstanding (),
       .f_axi_awr_outstanding()
   );
+`endif
 
 `else  // ZIPCPU_PRIVATE
   // verilator lint_off: UNUSEDSIGNAL
