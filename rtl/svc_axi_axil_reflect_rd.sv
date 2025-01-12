@@ -2,14 +2,12 @@
 `define SVC_AXI_AXIL_REFLECT_RD_SV
 
 `include "svc.sv"
+`include "svc_skidbuf.sv"
 `include "svc_sync_fifo_zl.sv"
 `include "svc_unused.sv"
 
 // Takes an AXI to AXI-Lite read stream with single beat bursts and
 // reflects the IDs from the original AR request to the R returns.
-//
-// This might be able to use less resources with skidbuffers, but
-// I went for simplicity and obvious correctness using the zl fifos.
 module svc_axi_axil_reflect_rd #(
     parameter AXI_ADDR_WIDTH          = 2,
     parameter AXI_DATA_WIDTH          = 16,
@@ -49,34 +47,27 @@ module svc_axi_axil_reflect_rd #(
     input  logic [               1:0] m_axil_rresp,
     output logic                      m_axil_rready
 );
-  // TODO: the ar fifo can almost certainly be replaced with a skid buffer,
-  // but my initial take didn't pass formal verification and was a more
-  // complicated to get right. This is trivially easy with the zl fifo.
-  localparam FIFO_AR_ADDR_WIDTH = 1;
-  logic fifo_ar_w_full;
-  logic fifo_ar_r_empty;
+  logic sb_ar_valid;
+  logic sb_ar_ready;
 
   logic fifo_id_w_full;
   logic fifo_id_r_empty;
 
-  svc_sync_fifo_zl #(
-      .ADDR_WIDTH(FIFO_AR_ADDR_WIDTH),
+  svc_skidbuf #(
       .DATA_WIDTH(AXI_ADDR_WIDTH)
-  ) svc_sync_fifo_zl_ar_i (
+  ) svc_skidbuf_ar_i (
       .clk  (clk),
       .rst_n(rst_n),
 
-      .w_inc      (s_axi_arvalid && s_axi_arready),
-      .w_data     (s_axi_araddr),
-      .w_full     (fifo_ar_w_full),
-      .w_half_full(),
-      .r_inc      (m_axil_arvalid && m_axil_arready),
-      .r_data     (m_axil_araddr),
-      .r_empty    (fifo_ar_r_empty)
+      .i_valid(s_axi_arvalid && s_axi_arready),
+      .i_data (s_axi_araddr),
+      .o_ready(sb_ar_ready),
+
+      .i_ready(m_axil_arvalid && m_axil_arready),
+      .o_data (m_axil_araddr),
+      .o_valid(sb_ar_valid)
   );
 
-  // this needs to remain a fifo because there might be read response latency.
-  // (And there certainly will be on the real sram hw)
   svc_sync_fifo_zl #(
       .ADDR_WIDTH(OUTSTANDING_READS_WIDTH),
       .DATA_WIDTH(AXI_ID_WIDTH + AXI_USER_WIDTH)
@@ -93,9 +84,9 @@ module svc_axi_axil_reflect_rd #(
       .r_empty    (fifo_id_r_empty)
   );
 
-  assign s_axi_arready  = !fifo_ar_w_full && !fifo_id_w_full;
+  assign s_axi_arready  = sb_ar_ready && !fifo_id_w_full;
 
-  assign m_axil_arvalid = !fifo_ar_r_empty;
+  assign m_axil_arvalid = sb_ar_valid;
 
   assign s_axi_rvalid   = m_axil_rvalid;
   assign s_axi_rdata    = m_axil_rdata;
