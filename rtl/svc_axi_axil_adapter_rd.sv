@@ -1,5 +1,5 @@
-`ifndef SVC_AXI_AXIL_RD_SV
-`define SVC_AXI_AXIL_RD_SV
+`ifndef SVC_AXI_AXIL_ADAPTER_RD_SV
+`define SVC_AXI_AXIL_ADAPTER_SV
 
 `include "svc.sv"
 `include "svc_axi_axil_reflect_rd.sv"
@@ -7,7 +7,7 @@
 
 // AXI to AXI-Lite adapter for reads. Buses must be the same size.
 
-module svc_axi_axil_rd #(
+module svc_axi_axil_adapter_rd #(
     parameter AXI_ADDR_WIDTH = 4,
     parameter AXI_DATA_WIDTH = 16,
     parameter AXI_ID_WIDTH   = 4

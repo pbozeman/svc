@@ -1,5 +1,5 @@
-`ifndef SVC_AXI_AXIL_WR_SV
-`define SVC_AXI_AXIL_WR_SV
+`ifndef SVC_AXI_AXIL_ADAPTER_WR_SV
+`define SVC_AXI_AXIL_ADAPTER_WR_SV
 
 `include "svc.sv"
 `include "svc_axi_axil_reflect_wr.sv"
@@ -7,7 +7,7 @@
 
 // AXI to AXI-Lite adapter for writes. Buses must be the same size.
 
-module svc_axi_axil_wr #(
+module svc_axi_axil_adapter_wr #(
     parameter AXI_ADDR_WIDTH = 4,
     parameter AXI_DATA_WIDTH = 16,
     parameter AXI_STRB_WIDTH = AXI_DATA_WIDTH / 8,
@@ -307,28 +307,7 @@ module svc_axi_axil_wr #(
       .f_axi_awr_outstanding()
   );
 
-  // Cover statement showing 0 latency axi to axi lite adapter. The arvalid to
-  // the axi lite module is raised in the same clock as our incoming axi arvalid.
-  // Read responses from the axi lite device are returned to the axi device
-  // in the same clock as well. This is sustained for a length of 6 (arlen 5).
-  // Burst type 01 is used to see the addrs changing at the axil device.
-  //
-  // // verilog_format: off
-  // always @(posedge clk) begin
-  //   if ((f_past_valid) && (rst_n)) begin
-  //     c_beat_per_clk :
-  //     cover ((s_axi_rready && s_axi_rvalid && s_axi_rlast) &&
-  //       $past(s_axi_rready && s_axi_rvalid, 1) &&
-  //       $past(s_axi_rready && s_axi_rvalid, 2) &&
-  //       $past(s_axi_rready && s_axi_rvalid, 3) &&
-  //       $past(s_axi_rready && s_axi_rvalid, 4) &&
-  //       $past(s_axi_rready && s_axi_rvalid, 5) &&
-  //       $past(s_axi_arvalid && s_axi_arready &&
-  //             s_axi_arlen == 5 && s_axi_arburst == 2'b01 &&
-  //             s_axi_arid != 0, 6));
-  //   end
-  // end
-  // verilog_format: on
+  // TODO: perf coverage statement like the in the _rd version
 
 `else  // ZIPCPU_PRIVATE
   // verilator lint_off: UNUSEDSIGNAL
