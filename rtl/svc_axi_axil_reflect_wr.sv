@@ -7,7 +7,7 @@
 `include "svc_unused.sv"
 
 // Takes an AXI to AXI-Lite write stream with single beat bursts and
-// reflects the IDs from the original AW request to the R returns.
+// reflects the IDs from the original AW request to the B returns.
 //
 module svc_axi_axil_reflect_wr #(
     parameter AXI_ADDR_WIDTH           = 2,
