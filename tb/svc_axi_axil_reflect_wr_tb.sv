@@ -110,12 +110,6 @@ module svc_axi_axil_reflect_wr_tb;
     end
   end
 
-  task automatic test_initial;
-    `CHECK_FALSE(s_axil_awvalid);
-    `CHECK_FALSE(m_axi_wvalid);
-    `CHECK_FALSE(m_axi_bvalid);
-  endtask
-
   always_ff @(posedge clk) begin
     if (m_axi_awvalid && m_axi_awready) begin
       m_axi_awvalid <= 1'b0;
@@ -129,6 +123,12 @@ module svc_axi_axil_reflect_wr_tb;
       s_axil_bvalid <= 1'b0;
     end
   end
+
+  task automatic test_initial;
+    `CHECK_FALSE(s_axil_awvalid);
+    `CHECK_FALSE(m_axi_wvalid);
+    `CHECK_FALSE(m_axi_bvalid);
+  endtask
 
   // Basic smoke test
   task automatic test_basic;
