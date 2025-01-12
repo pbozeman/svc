@@ -1,10 +1,10 @@
 `include "svc_unit.sv"
 
-`include "svc_axi_axil_rd.sv"
+`include "svc_axi_axil_adapter_rd.sv"
 
 // This is just a quick smoke test
 
-module svc_axi_axil_rd_tb;
+module svc_axi_axil_adapter_rd_tb;
   parameter AW = 20;
   parameter DW = 16;
   parameter IDW = 4;
@@ -34,7 +34,7 @@ module svc_axi_axil_rd_tb;
   logic [    1:0] s_axil_rresp;
   logic           s_axil_rready;
 
-  svc_axi_axil_rd #(
+  svc_axi_axil_adapter_rd #(
       .AXI_ADDR_WIDTH(AW),
       .AXI_DATA_WIDTH(DW),
       .AXI_ID_WIDTH  (IDW)
@@ -136,7 +136,7 @@ module svc_axi_axil_rd_tb;
     end
   endtask
 
-  `TEST_SUITE_BEGIN(svc_axi_axil_rd_tb);
+  `TEST_SUITE_BEGIN(svc_axi_axil_adapter_rd_tb);
   `TEST_CASE(test_initial);
   `TEST_CASE(test_basic);
   `TEST_SUITE_END();
