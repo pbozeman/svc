@@ -8,7 +8,7 @@ cover: mode cover
 depth 14
 
 [engines]
-smtbmc
+smtbmc boolector
 
 [script]
 read_verilog -formal -DFORMAL_SVC_ICE40_SRAM_IO_IF -sv svc_ice40_sram_io_if.sv

@@ -8,7 +8,7 @@ cover: mode cover
 depth 12
 
 [engines]
-smtbmc
+smtbmc boolector
 
 [script]
 --pycode-begin--

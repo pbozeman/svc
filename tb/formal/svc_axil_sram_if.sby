@@ -8,7 +8,7 @@ cover: mode cover
 cover: depth 40
 
 [engines]
-smtbmc
+smtbmc boolector
 
 [script]
 read_verilog -formal -DFORMAL_FAKE_AXIL_SRAM_IF -sv svc_axil_sram_if.sv
