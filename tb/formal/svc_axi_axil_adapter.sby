@@ -1,0 +1,47 @@
+[tasks]
+bmc
+cover
+
+[options]
+bmc: mode bmc
+cover: mode cover
+depth 12
+
+[engines]
+smtbmc
+
+[script]
+--pycode-begin--
+import glob
+import os
+
+f_files = glob.glob("tb/formal/private/*.v")
+
+read_cmd = "read_verilog -formal -DFORMAL_SVC_AXI_AXIL_ADAPTER "
+if f_files:
+  read_cmd += "-DZIPCPU_PRIVATE "
+else:
+  read_cmd += " -DFORMAL_NO_SUBMODULES "
+
+read_cmd += "-sv svc_axi_axil_adapter.sv\n"
+read_cmd += "read_verilog -formal -sv faxil_master.v\n"
+
+for f in f_files:
+  read_cmd += f"read_verilog -formal -sv {os.path.basename(f)}\n"
+
+output(read_cmd)
+--pycode-end--
+
+prep -top svc_axi_axil_adapter
+
+[files]
+--pycode-begin--
+import glob
+files = "\n".join(glob.glob("tb/formal/private/*.v"))
+files += "\n"
+files += "\n".join(glob.glob("tb/formal/*.v"))
+files += "\n"
+files += "\n".join(glob.glob("rtl/*.sv"))
+output(files)
+--pycode-end--
+
