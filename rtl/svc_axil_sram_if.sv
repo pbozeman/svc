@@ -292,6 +292,7 @@ module svc_axil_sram_if #(
   `SVC_UNUSED({s_axil_awaddr[3:0], s_axil_araddr[3:0]});
 
 `ifdef FORMAL
+`ifdef FORMAL_SVC_AXIL_SRAM_IF
   // the number of bits necessary to count the maximum number
   // of items in flight.
   localparam F_LGDEPTH = 4;
@@ -440,6 +441,11 @@ module svc_axil_sram_if #(
   //   https://zipcpu.com/blog/2020/03/08/easyaxil.html
   // and
   //   https://github.com/ZipCPU/wb2axip/blob/master/rtl/demoaxi.v
+`else
+  // verilator lint_off: UNUSEDSIGNAL
+  logic unused = |{s_axil_awaddr[3:0], s_axil_araddr[3:0]};
+  // verilator lint_on: UNUSEDSIGNAL
+`endif
 `endif
 
 endmodule
