@@ -328,6 +328,8 @@ module svc_axil_sram_if #(
     assume (rst_n == f_past_valid);
   end
 
+  // NOTE: this is a protocol check only. We are not checking what IO is going
+  // to/from the right place.
   faxil_slave #(
       .C_AXI_ADDR_WIDTH(AXIL_ADDR_WIDTH),
       .C_AXI_DATA_WIDTH(AXIL_DATA_WIDTH),
@@ -394,7 +396,8 @@ module svc_axil_sram_if #(
   // verilator lint_on: ASSIGNIN
 
   // ensure we can do 6 io ops in a row, 1 every clock cycle.
-  // Why 6? Because our fifos are set to a depth of 4.
+  // Why 6? Because the module used to be implemented with fifos with a depth
+  // of 4, but now we might as well leave this at 6.
   //
   // ensure we can get 6 write responses in a row, 1 every clock cycle
   always @(posedge clk) begin
