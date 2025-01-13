@@ -2,6 +2,7 @@
 `define SVC_AXIL_SRAM_IF_SV
 
 `include "svc.sv"
+`include "svc_skidbuf.sv"
 `include "svc_sync_fifo.sv"
 `include "svc_unused.sv"
 
@@ -9,12 +10,6 @@
 // It arbitrates between reads and writes, as the SRAM can only
 // do 1 at a time. It also converts the addresses to be word rather than byte
 // based. rresp and bresp are always marked as success.
-//
-// This might be doable with skibuffers rather than fifos, but fifos made the
-// logic to arbitrate between reads and writes very straight forward,
-// especially considering that the write has 2 incoming channels. This
-// initial version prioritized correctness, but the decision to use fifos
-// should be reconsidered in the future.
 module svc_axil_sram_if #(
     parameter AXIL_ADDR_WIDTH = 4,
     parameter AXIL_DATA_WIDTH = 16,
@@ -62,58 +57,32 @@ module svc_axil_sram_if #(
     output logic                       sram_resp_rd_ready,
     input  logic [SRAM_DATA_WIDTH-1:0] sram_resp_rd_data
 );
-  localparam FIFO_ADDR_WIDTH = 2;
+  localparam SB_W_DATA_WIDTH = SRAM_DATA_WIDTH + SRAM_STRB_WIDTH;
 
-  localparam FIFO_AR_WIDTH = SRAM_ADDR_WIDTH;
-  localparam FIFO_R_WIDTH = SRAM_DATA_WIDTH;
+  // ar skidbuf
+  logic                       sb_ar_valid;
+  logic                       sb_ar_ready;
+  logic [SRAM_ADDR_WIDTH-1:0] sb_ar_addr;
 
-  localparam FIFO_AW_WIDTH = SRAM_ADDR_WIDTH;
-  localparam FIFO_W_WIDTH = SRAM_DATA_WIDTH + SRAM_STRB_WIDTH;
-
-  //
-  // ar channel fifo signals
-  //
-  logic                       fifo_ar_w_inc;
-  logic [  FIFO_AR_WIDTH-1:0] fifo_ar_w_data;
-  logic                       fifo_ar_w_half_full;
-
-  logic                       fifo_ar_r_inc;
-  logic                       fifo_ar_r_empty;
-  logic [  FIFO_AR_WIDTH-1:0] fifo_ar_r_data;
+  // r skidbuf
+  logic                       sb_r_ready;
 
   //
-  // r channel fifo signals
+  // aw skidbuf
   //
-  logic                       fifo_r_w_inc;
-  logic [   FIFO_R_WIDTH-1:0] fifo_r_w_data;
-  logic                       fifo_r_w_half_full;
-
-  logic                       fifo_r_r_inc;
-  logic                       fifo_r_r_empty;
-  logic [   FIFO_R_WIDTH-1:0] fifo_r_r_data;
+  logic                       sb_aw_valid;
+  logic                       sb_aw_ready;
+  logic [SRAM_ADDR_WIDTH-1:0] sb_aw_addr;
 
   //
-  // aw channel fifo signals
+  // w skidbuf
   //
-  logic                       fifo_aw_w_inc;
-  logic [  FIFO_AW_WIDTH-1:0] fifo_aw_w_data;
-  logic                       fifo_aw_w_half_full;
-
-  logic                       fifo_aw_r_inc;
-  logic                       fifo_aw_r_empty;
-  logic [  FIFO_AW_WIDTH-1:0] fifo_aw_r_data;
+  logic                       sb_w_valid;
+  logic                       sb_w_ready;
+  logic [SRAM_DATA_WIDTH-1:0] sb_w_data;
+  logic [SRAM_STRB_WIDTH-1:0] sb_w_strb;
 
   //
-  // w channel fifo signals
-  //
-  logic                       fifo_w_w_inc;
-  logic [   FIFO_W_WIDTH-1:0] fifo_w_w_data;
-  logic                       fifo_w_w_half_full;
-
-  logic                       fifo_w_r_inc;
-  logic                       fifo_w_r_empty;
-  logic [   FIFO_W_WIDTH-1:0] fifo_w_r_data;
-
   //
   // arbiter signals
   //
@@ -126,12 +95,6 @@ module svc_axil_sram_if #(
   logic                       wr_ok;
   logic                       wr_start;
 
-  // signals pulled out of the w fifo (these are pretty much just to help with
-  // auto formatting, since the using concatenation when setting the sram
-  // outputs results in everything being aligned to the far right
-  logic [SRAM_DATA_WIDTH-1:0] fifo_w_r_data_data;
-  logic [SRAM_STRB_WIDTH-1:0] fifo_w_r_data_strb;
-
   // SRAM outputs
   logic                       sram_cmd_valid_next;
   logic [SRAM_ADDR_WIDTH-1:0] sram_cmd_addr_next;
@@ -142,101 +105,89 @@ module svc_axil_sram_if #(
   //
   // ar channel
   //
-  assign fifo_ar_w_inc  = s_axil_arvalid && s_axil_arready;
-  assign fifo_ar_w_data = s_axil_araddr[AXIL_ADDR_WIDTH-1:LSB];
-  assign s_axil_arready = !(fifo_ar_w_half_full || fifo_r_w_half_full);
+  assign s_axil_arready = sb_ar_ready && sb_r_ready;
 
-  svc_sync_fifo #(
-      .ADDR_WIDTH(FIFO_ADDR_WIDTH),
-      .DATA_WIDTH(FIFO_AR_WIDTH)
-  ) svc_sync_fifo_ar_i (
-      .clk        (clk),
-      .rst_n      (rst_n),
-      .w_inc      (fifo_ar_w_inc),
-      .w_data     (fifo_ar_w_data),
-      .w_full     (),
-      .w_half_full(fifo_ar_w_half_full),
-      .r_inc      (fifo_ar_r_inc),
-      .r_empty    (fifo_ar_r_empty),
-      .r_data     (fifo_ar_r_data)
+  svc_skidbuf #(
+      .DATA_WIDTH(SRAM_ADDR_WIDTH)
+  ) svc_skidbuf_ar_i (
+      .clk  (clk),
+      .rst_n(rst_n),
+
+      .i_valid(s_axil_arvalid && s_axil_arready),
+      .i_data (s_axil_araddr[AXIL_ADDR_WIDTH-1:LSB]),
+      .o_ready(sb_ar_ready),
+
+      .i_ready(rd_start),
+      .o_data (sb_ar_addr),
+      .o_valid(sb_ar_valid)
   );
 
   //
   // r channel
   //
-  assign fifo_r_w_inc  = sram_resp_rd_valid && sram_resp_rd_ready;
-  assign fifo_r_w_data = sram_resp_rd_data;
+  assign s_axil_rresp = 2'b00;
 
-  assign s_axil_rvalid = !fifo_r_r_empty;
-  assign s_axil_rdata  = fifo_r_r_data;
-  assign s_axil_rresp  = 2'b00;
-  assign fifo_r_r_inc  = s_axil_rvalid && s_axil_rready;
+  svc_skidbuf #(
+      .DATA_WIDTH(SRAM_DATA_WIDTH)
+  ) svc_skidbuf_r_i (
+      .clk  (clk),
+      .rst_n(rst_n),
 
-  svc_sync_fifo #(
-      .ADDR_WIDTH(FIFO_ADDR_WIDTH),
-      .DATA_WIDTH(FIFO_R_WIDTH)
-  ) svc_sync_fifo_r_i (
-      .clk        (clk),
-      .rst_n      (rst_n),
-      .w_inc      (fifo_r_w_inc),
-      .w_data     (fifo_r_w_data),
-      .w_full     (),
-      .w_half_full(fifo_r_w_half_full),
-      .r_inc      (fifo_r_r_inc),
-      .r_empty    (fifo_r_r_empty),
-      .r_data     (fifo_r_r_data)
+      .i_valid(sram_resp_rd_valid && sram_resp_rd_ready),
+      .i_data (sram_resp_rd_data),
+      .o_ready(sb_r_ready),
+
+      .i_ready(s_axil_rvalid && s_axil_rready),
+      .o_data (s_axil_rdata),
+      .o_valid(s_axil_rvalid)
   );
 
   //
   // aw channel
   //
-  assign fifo_aw_w_inc  = s_axil_awvalid && s_axil_awready;
-  assign fifo_aw_w_data = s_axil_awaddr[AXIL_ADDR_WIDTH-1:LSB];
-  assign s_axil_awready = !fifo_aw_w_half_full;
+  assign s_axil_awready = sb_aw_ready;
 
-  svc_sync_fifo #(
-      .ADDR_WIDTH(FIFO_ADDR_WIDTH),
-      .DATA_WIDTH(FIFO_AW_WIDTH)
-  ) svc_sync_fifo_aw_i (
-      .clk        (clk),
-      .rst_n      (rst_n),
-      .w_inc      (fifo_aw_w_inc),
-      .w_data     (fifo_aw_w_data),
-      .w_full     (),
-      .w_half_full(fifo_aw_w_half_full),
-      .r_inc      (fifo_aw_r_inc),
-      .r_empty    (fifo_aw_r_empty),
-      .r_data     (fifo_aw_r_data)
+  svc_skidbuf #(
+      .DATA_WIDTH(SRAM_ADDR_WIDTH)
+  ) svc_skidbuf_aw_i (
+      .clk  (clk),
+      .rst_n(rst_n),
+
+      .i_valid(s_axil_awvalid && s_axil_awready),
+      .i_data (s_axil_awaddr[AXIL_ADDR_WIDTH-1:LSB]),
+      .o_ready(sb_aw_ready),
+
+      .i_ready(wr_start),
+      .o_data (sb_aw_addr),
+      .o_valid(sb_aw_valid)
   );
 
   //
   // w channel
   //
-  assign fifo_w_w_inc = s_axil_wvalid && s_axil_wready;
-  assign fifo_w_w_data = {s_axil_wdata, s_axil_wstrb};
-  assign s_axil_wready =
-      !(fifo_w_w_half_full || (s_axil_bvalid && !s_axil_bready));
+  assign s_axil_wready = sb_w_ready && (!s_axil_bvalid || s_axil_bready);
 
-  svc_sync_fifo #(
-      .ADDR_WIDTH(FIFO_ADDR_WIDTH),
-      .DATA_WIDTH(FIFO_W_WIDTH)
-  ) svc_sync_fifo_w_i (
-      .clk        (clk),
-      .rst_n      (rst_n),
-      .w_inc      (fifo_w_w_inc),
-      .w_data     (fifo_w_w_data),
-      .w_full     (),
-      .w_half_full(fifo_w_w_half_full),
-      .r_inc      (fifo_w_r_inc),
-      .r_empty    (fifo_w_r_empty),
-      .r_data     (fifo_w_r_data)
+  svc_skidbuf #(
+      .DATA_WIDTH(SB_W_DATA_WIDTH)
+  ) svc_skidbuf_w_i (
+      .clk  (clk),
+      .rst_n(rst_n),
+
+      .i_valid(s_axil_wvalid && s_axil_wready),
+      .i_data ({s_axil_wstrb, s_axil_wdata}),
+      .o_ready(sb_w_ready),
+
+      .i_ready(wr_start),
+      .o_data ({sb_w_strb, sb_w_data}),
+      .o_valid(sb_w_valid)
   );
 
   //
   // b channel
   //
-  logic [FIFO_ADDR_WIDTH-1:0] bcnt;
-  logic [FIFO_ADDR_WIDTH-1:0] bcnt_next;
+  // a max of 2 is equivalent to the skidbufs
+  logic [1:0] bcnt;
+  logic [1:0] bcnt_next;
   assign s_axil_bresp = 2'b00;
 
   always_comb begin
@@ -271,9 +222,8 @@ module svc_axil_sram_if #(
   //
   // arbiter
   //
-  assign rd_ok = !fifo_ar_r_empty && !fifo_r_w_half_full;
-  assign wr_ok = (!fifo_aw_r_empty && !fifo_w_r_empty &&
-                  (bcnt < (1 << (FIFO_ADDR_WIDTH - 1))));
+  assign rd_ok = sb_ar_valid && sb_r_ready;
+  assign wr_ok = sb_aw_valid && sb_w_valid && bcnt < 2'b10;
 
   // pull the common rd/wr arb logic out so that rd/wr signals
   // don't have to be duplicated 2x each.
@@ -298,36 +248,26 @@ module svc_axil_sram_if #(
     end
   end
 
-  // pull these out here so that things don't get pushed crazy far to align
-  // with the = sign in the block below
-  assign {fifo_w_r_data_data, fifo_w_r_data_strb} = fifo_w_r_data;
-
   always_comb begin
     sram_cmd_valid_next   = sram_cmd_valid && !sram_cmd_ready;
     sram_cmd_addr_next    = sram_cmd_addr;
     sram_cmd_wr_en_next   = sram_cmd_wr_en;
     sram_cmd_wr_data_next = sram_cmd_wr_data;
     sram_cmd_wr_strb_next = sram_cmd_wr_strb;
-    fifo_ar_r_inc         = 1'b0;
-    fifo_aw_r_inc         = 1'b0;
-    fifo_w_r_inc          = 1'b0;
     pri_rd_next           = pri_rd;
 
     if (!sram_cmd_valid || sram_cmd_ready) begin
       if (rd_start) begin
         sram_cmd_valid_next = 1'b1;
-        sram_cmd_addr_next  = fifo_ar_r_data;
+        sram_cmd_addr_next  = sb_ar_addr;
         sram_cmd_wr_en_next = 1'b0;
-        fifo_ar_r_inc       = 1'b1;
         pri_rd_next         = 1'b0;
       end else if (wr_start) begin
         sram_cmd_valid_next   = 1'b1;
-        sram_cmd_addr_next    = fifo_aw_r_data;
+        sram_cmd_addr_next    = sb_aw_addr;
+        sram_cmd_wr_data_next = sb_w_data;
+        sram_cmd_wr_strb_next = sb_w_strb;
         sram_cmd_wr_en_next   = 1'b1;
-        sram_cmd_wr_data_next = fifo_w_r_data_data;
-        sram_cmd_wr_strb_next = fifo_w_r_data_strb;
-        fifo_aw_r_inc         = 1'b1;
-        fifo_w_r_inc          = 1'b1;
         pri_rd_next           = 1'b1;
       end
     end
@@ -347,7 +287,7 @@ module svc_axil_sram_if #(
     end
   end
 
-  assign sram_resp_rd_ready = !fifo_r_w_half_full;
+  assign sram_resp_rd_ready = sb_r_ready;
 
   `SVC_UNUSED({s_axil_awaddr[3:0], s_axil_araddr[3:0]});
 
@@ -380,6 +320,11 @@ module svc_axil_sram_if #(
   initial f_past_valid = 0;
   always @(posedge clk) begin
     f_past_valid <= 1;
+  end
+
+  always @(*) begin
+    // assume reset at the start, and then, we don't reset randomly
+    assume (rst_n == f_past_valid);
   end
 
   faxil_slave #(
