@@ -135,13 +135,13 @@ module svc_axi_axil_adapter_wr #(
   // See tb/formal/private/README.md
 `ifdef ZIPCPU_PRIVATE
 
-  logic [8:0] f_axi_wr_pending;
-
-  logic       f_past_valid = 1'b0;
+`ifdef FORMAL_SVC_AXI_AXIL_ADAPTER_WR
+  logic f_past_valid = 1'b0;
   always @(posedge clk) begin
     f_past_valid <= 1'b1;
   end
 
+  logic [8:0] f_axi_wr_pending;
   always @(*) begin
     // assume reset at the start, and then, we don't reset randomly
     assume (rst_n == f_past_valid);
@@ -312,6 +312,7 @@ module svc_axi_axil_adapter_wr #(
       .f_axi_wr_outstanding (),
       .f_axi_awr_outstanding()
   );
+`endif
 
   // TODO: perf coverage statement like the in the _rd version
 
