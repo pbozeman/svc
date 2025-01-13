@@ -184,6 +184,7 @@ module svc_ice40_sram_io_if #(
   `define ASSUME(lable, a) lable: assert(a)
   `define COVER(lable, a)
 `endif
+`ifdef FORMAL_SVC_ICE40_SRAM_IO_IF
   initial assume (!rst_n);
 
   logic f_past_valid = 1'b0;
@@ -323,6 +324,11 @@ module svc_ice40_sram_io_if #(
   `undef ASSERT
   `undef ASSUME
   `undef COVER
+`else
+  // verilator lint_off: UNUSEDSIGNAL
+  logic unused = sram_cmd_wr_strb;
+  // verilator lint_on: UNUSEDSIGNAL
+`endif
 `endif
 
 endmodule
