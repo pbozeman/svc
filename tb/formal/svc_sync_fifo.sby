@@ -12,7 +12,7 @@ bmc_data: mode bmc
 bmc_data: depth 12
 
 [engines]
-smtbmc
+smtbmc boolector
 
 [script]
 cover: read_verilog -formal -DFORMAL_SVC_SYNC_FIFO -sv svc_sync_fifo.sv

@@ -8,7 +8,7 @@ cover: mode cover
 depth 16
 
 [engines]
-smtbmc
+smtbmc boolector
 
 [script]
 read_verilog -formal -DFORMAL_SVC_SYNC_FIFO -DFORMAL_SVC_SYNC_FIFO_ZL -sv svc_sync_fifo_zl.sv
