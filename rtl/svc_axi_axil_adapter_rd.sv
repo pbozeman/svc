@@ -1,5 +1,5 @@
 `ifndef SVC_AXI_AXIL_ADAPTER_RD_SV
-`define SVC_AXI_AXIL_ADAPTER_SV
+`define SVC_AXI_AXIL_ADAPTER_RD_SV
 
 `include "svc.sv"
 `include "svc_axi_axil_reflect_rd.sv"
