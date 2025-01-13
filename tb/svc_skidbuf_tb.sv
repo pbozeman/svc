@@ -27,6 +27,7 @@ module svc_skidbuf_tb;
       .i_valid(o_valid),
       .o_ready(i_ready),
       .i_data (o_data),
+
       .o_valid(i_valid),
       .i_ready(o_ready),
       .o_data (i_data)
