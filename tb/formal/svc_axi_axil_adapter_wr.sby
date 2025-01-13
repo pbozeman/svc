@@ -17,7 +17,7 @@ import os
 
 f_files = glob.glob("tb/formal/private/*.v")
 
-read_cmd = "read_verilog -formal "
+read_cmd = "read_verilog -formal -DFORMAL_SVC_AXI_AXIL_ADAPTER_WR "
 if f_files:
   read_cmd += "-DZIPCPU_PRIVATE "
 else:

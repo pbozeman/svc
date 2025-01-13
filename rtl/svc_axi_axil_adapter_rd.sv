@@ -116,6 +116,7 @@ module svc_axi_axil_adapter_rd #(
   // See tb/formal/private/README.md
 `ifdef ZIPCPU_PRIVATE
 
+`ifdef FORMAL_SVC_AXI_AXIL_ADAPTER_RD
   logic f_past_valid = 1'b0;
   always @(posedge clk) begin
     f_past_valid <= 1'b1;
@@ -308,6 +309,7 @@ module svc_axi_axil_adapter_rd #(
     end
   end
   // verilog_format: on
+`endif
 
 `endif
 `endif
