@@ -160,7 +160,6 @@ module svc_axi_axil_adapter_wr_tb;
         `TICK(clk);
       end
 
-
       m_axi_wvalid  = 1'b0;
       s_axil_bvalid = 1'b0;
 
