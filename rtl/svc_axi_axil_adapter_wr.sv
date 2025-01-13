@@ -57,7 +57,11 @@ module svc_axi_axil_adapter_wr #(
   logic [               7:0] split_awlen;
   logic [               2:0] split_awsize;
   logic [               1:0] split_awburst;
+  logic                      split_awlast;
   logic                      split_awready;
+
+  logic                      b_valid;
+  logic                      b_user;
 
   svc_axi_burst_iter_ax #(
       .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
@@ -80,7 +84,7 @@ module svc_axi_axil_adapter_wr #(
       .m_len  (split_awlen),
       .m_size (split_awsize),
       .m_burst(split_awburst),
-      .m_last (),
+      .m_last (split_awlast),
       .m_ready(split_awready)
   );
 
@@ -99,17 +103,17 @@ module svc_axi_axil_adapter_wr #(
       .s_axi_awlen  (split_awlen),
       .s_axi_awsize (split_awsize),
       .s_axi_awburst(split_awburst),
-      .s_axi_awuser (),
+      .s_axi_awuser (split_awlast),
       .s_axi_awready(split_awready),
       .s_axi_wvalid (s_axi_wvalid),
       .s_axi_wdata  (s_axi_wdata),
       .s_axi_wstrb  (s_axi_wstrb),
       .s_axi_wlast  (s_axi_wlast),
       .s_axi_wready (s_axi_wready),
-      .s_axi_bvalid (s_axi_bvalid),
+      .s_axi_bvalid (b_valid),
       .s_axi_bid    (s_axi_bid),
       .s_axi_bresp  (s_axi_bresp),
-      .s_axi_buser  (),
+      .s_axi_buser  (b_user),
       .s_axi_bready (s_axi_bready),
 
       .m_axil_awaddr (m_axil_awaddr),
@@ -123,6 +127,8 @@ module svc_axi_axil_adapter_wr #(
       .m_axil_bvalid (m_axil_bvalid),
       .m_axil_bready (m_axil_bready)
   );
+
+  assign s_axi_bvalid = b_valid && b_user;
 
 `ifdef FORMAL
   // This uses faxi_* files in tb/formal/private.
@@ -311,8 +317,7 @@ module svc_axi_axil_adapter_wr #(
 
 `else  // ZIPCPU_PRIVATE
   // verilator lint_off: UNUSEDSIGNAL
-  logic f_unused =
-      |{s_axi_awlen, s_axi_awsize, s_axi_awburst, s_axi_wlaat, fifo_id_r_empty};
+  logic f_unused = |{s_axi_awlen, s_axi_awsize, s_axi_awburst, fifo_id_r_empty};
   // verilator lint_on: UNUSEDSIGNAL
 `endif
 `endif
