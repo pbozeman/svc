@@ -90,7 +90,8 @@ $(BUILD_DIR):
 	@mkdir -p $(BUILD_DIR)
 
 # Load previous deps
--include $(wildcard $(BUILD_DIR)/*.d)
+DEPS := $(wildcard $(BUILD_DIR)/*.d) $(wildcard $(BUILD_DIR)/**/*.d)
+-include $(DEPS)
 
 ##############################################################################
 #
@@ -163,18 +164,17 @@ unit: clean_logs $(TEST_BENCHES)
 # Formal
 #
 ##############################################################################
+.PRECIOUS: $(BUILD_DIR)/%_f/ran.dep
+$(BUILD_DIR)/%_f/ran.dep: $(RTL_DIR)/%.sv $(ICE40_CELLS_SIM)
+	@mkdir -p $(dir $(@))
+	@$(IVERILOG) -M $(@) -I$(RTL_DIR) -I$(TB_DIR) -o /dev/null $^
 
-# TODO: this only takes a dependency on the immediate .sv file,
-# and does so in a brittle way at that since it assumes the .sby and .sv
-# file share the same name, which may not be true in the future if multiple
-# .sby files target the same .sv file.  The .d files built by iverilog for
-# normal verification don't provide sub module dependencies
-# here because they all go into a single _tb dependency. But, there is
-# surely some mechanism to generate the .d files using iverilog and then
-# making sure they are loaded here. The current solution is acceptable,
-# for now.
+.PRECIOUS: $(BUILD_DIR)/%_f/ran.d
+$(BUILD_DIR)/%_f/ran.d: $(BUILD_DIR)/%_f/ran.dep
+	@echo "$(BUILD_DIR)/$*_f/ran: $$(tr '\n' ' ' < $(BUILD_DIR)/$*_f/ran.dep)" > $(@)
+
 .PRECIOUS: $(BUILD_DIR)/%_f/ran
-$(BUILD_DIR)/%_f/ran: $(FORMAL_DIR)/%.sby $(RTL_DIR)/%.sv
+$(BUILD_DIR)/%_f/ran: $(FORMAL_DIR)/%.sby $(BUILD_DIR)/%_f/ran.d
 	$(call run_formal, $*)
 
 define run_formal
