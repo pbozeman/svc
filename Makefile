@@ -125,6 +125,7 @@ $(foreach tb, $(TEST_BENCHES), $(eval $(call lint_tb_rule,$(tb))))
 # Verification
 #
 ##############################################################################
+.PRECIOUS: $(BUILD_DIR)/%
 $(BUILD_DIR)/%: $(TB_DIR)/%.sv $(ICE40_CELLS_SIM) Makefile | $(BUILD_DIR)
 	@$(IVERILOG) -M $(@).dep -I$(RTL_DIR) -I$(TB_DIR) -o $@ $(filter-out Makefile,$^)
 	@echo "$@: $$(tr '\n' ' ' < $(@).dep)" > $(@).d
