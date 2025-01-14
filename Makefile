@@ -15,6 +15,7 @@ TEST_BENCHES := $(basename $(notdir $(RTL_TB)))
 # Our simulation output files
 # These are also the default targets via quick_unit
 VCD_FILES := $(addprefix $(BUILD_DIR)/,$(addsuffix .vcd, $(TEST_BENCHES)))
+TB_PASS_FILES := $(addprefix $(BUILD_DIR)/,$(addsuffix .pass, $(TEST_BENCHES)))
 
 # Formal files
 SBY_FILES := $(wildcard $(FORMAL_DIR)/*.sby)
@@ -51,20 +52,35 @@ SBY := sby
 # default target
 #
 .PHONY: quick
-quick: quick_formal .WAIT quick_unit_run
-
-.PHONY: quick_unit_run
-quick_unit_run: SKIP_SLOW_TESTS := 1
-quick_unit_run: clean_logs $(VCD_FILES)
-
-.PHONY: quick_unit
-quick_unit: SKIP_SLOW_TESTS := 1
-quick_unit: quick_unit_run
+quick: quick_unit quick_formal_run
 	@echo "=============================="
 	@echo "TB suites re-run: $$(wc -l < $(BUILD_DIR)/tb_run.log)"
 	@echo "TB suites failed: $$(wc -l < $(BUILD_DIR)/tb_failure.log)"
 	@sed 's/^/    /' $(BUILD_DIR)/tb_failure.log
 	@echo "=============================="
+	@echo "Formal    re-run: $$(wc -l < $(BUILD_DIR)/f_run.log)"
+	@echo "Formal    failed: $$(wc -l < $(BUILD_DIR)/f_failure.log)"
+	@sed 's/^/    /' $(BUILD_DIR)/f_failure.log
+	@echo "=============================="
+
+.PHONY: quick_unit_run
+quick_unit: SKIP_SLOW_TESTS := 1
+quick_unit: clean_logs $(TB_PASS_FILES)
+	@if [ -s $(BUILD_DIR)/tb_failure.log ]; then \
+	  echo "=============================="; \
+	  echo "TB suites re-run: $$(wc -l < $(BUILD_DIR)/tb_run.log)"; \
+	  echo "TB suites failed: $$(wc -l < $(BUILD_DIR)/tb_failure.log)"; \
+	  sed 's/^/    /' $(BUILD_DIR)/tb_failure.log; \
+	  echo "=============================="; \
+		exit 1; \
+	fi
+
+$(BUILD_DIR)/quick_unit_pass: $(TB_PASS_FILES)
+	@if [ ! -s $(BUILD_DIR)/tb_failure.log ]; then \
+	  touch $(BUILD_DIR)/quick_unit_pass; \
+	else \
+	  exit 1; \
+	fi
 
 .PHONY: check
 check: s_lint unit
@@ -118,14 +134,14 @@ define run_test
 		grep -v "VCD info:"; \
 		status=$${PIPESTATUS[0]}; \
 		if [ $$status -eq 0 ]; then \
+			touch "$1".pass; \
 			echo "$1" >> $(BUILD_DIR)/tb_success.log; \
 		else \
 			echo "make $(notdir $1)" >> $(BUILD_DIR)/tb_failure.log; \
 		fi
 endef
 
-.PRECIOUS: $(BUILD_DIR)/%.vcd
-$(BUILD_DIR)/%.vcd: $(BUILD_DIR)/%
+$(BUILD_DIR)/%.pass: $(BUILD_DIR)/%
 	$(call run_test,$<)
 
 .PHONY: $(TEST_BENCHES)
@@ -157,26 +173,37 @@ unit: clean_logs $(TEST_BENCHES)
 # surely some mechanism to generate the .d files using iverilog and then
 # making sure they are loaded here. The current solution is acceptable,
 # for now.
-.PRECIOUS: $(BUILD_DIR)/%/status
-$(BUILD_DIR)/%/status: $(FORMAL_DIR)/%.sby $(RTL_DIR)/%.sv
-	@$(SBY) --prefix .build/$(notdir $*) -f tb/formal/$*.sby
-	@touch $@
+.PRECIOUS: $(BUILD_DIR)/%_f/ran
+$(BUILD_DIR)/%_f/ran: $(FORMAL_DIR)/%.sby $(RTL_DIR)/%.sv
+	$(call run_formal, $*)
 
 define run_formal
-	@$(SBY) --prefix .build/$(notdir $*)_f -f tb/formal/$*.sby\
-		&& echo "$1" >> $(BUILD_DIR)/f_success.log\
-		|| echo "make $(notdir $1)" >> $(BUILD_DIR)/f_failure.log
+	@mkdir -p $(BUILD_DIR)/$(strip $1)_f
+	@echo "$1" >> $(BUILD_DIR)/f_run.log
+	@$(SBY) --prefix $(BUILD_DIR)/$(strip $1)_f -f tb/formal/$(strip $1).sby\
+	  && echo "$1" >> $(BUILD_DIR)/f_success.log\
+		|| echo "make $(strip $1)_f" >> $(BUILD_DIR)/f_failure.log
+	@touch $(BUILD_DIR)/$(strip $1)_f/ran
 endef
 
+.PHONY: quick_formal_run
+quick_formal_run: clean_f_logs $(BUILD_DIR)/quick_unit_pass .WAIT $(foreach b,$(FORMAL_TARGETS),$(BUILD_DIR)/$(b)/ran)
+
 .PHONY: quick_formal
-quick_formal: $(foreach b,$(FORMAL_BENCHES),$(BUILD_DIR)/$(b)/status)
+quick_formal: quick_formal_run
+	@echo ""
+	@echo "=============================="
+	@echo "Formal re-run: $$(wc -l < $(BUILD_DIR)/f_run.log)"
+	@echo "Formal failed: $$(wc -l < $(BUILD_DIR)/f_failure.log)"
+	@sed 's/^/    /' $(BUILD_DIR)/f_failure.log
+	@echo "=============================="
 
 $(BUILD_DIR)/%_f:
 	@mkdir -p $@
 
 .PHONY: $(FORMAL_TARGETS)
 $(FORMAL_TARGETS): %_f : $(BUILD_DIR)/%_f
-	$(call run_formal, $<)
+	$(call run_formal, $*)
 
 # Run all formal benches and show summary
 formal: f_lint clean_f_logs $(FORMAL_TARGETS)
@@ -196,11 +223,11 @@ full: lint clean_logs clean_f_logs $(FORMAL_TARGETS) .WAIT $(TEST_BENCHES)
 	@echo "=============================="
 	@echo ""
 	@echo "Successful formal: $$(wc -l < $(BUILD_DIR)/f_success.log)"
-	@echo "Failed formal:     $$(wc -l < $(BUILD_DIR)/f_failure.log)"
+	@echo "Failed     formal: $$(wc -l < $(BUILD_DIR)/f_failure.log)"
 	@sed 's/^/    /' $(BUILD_DIR)/f_failure.log
 	@echo ""
 	@echo "Successful suites: $$(wc -l < $(BUILD_DIR)/tb_success.log)"
-	@echo "Failed suites:     $$(wc -l < $(BUILD_DIR)/tb_failure.log)"
+	@echo "Failed     suites: $$(wc -l < $(BUILD_DIR)/tb_failure.log)"
 	@sed 's/^/    /' $(BUILD_DIR)/tb_failure.log
 	@echo "=============================="
 
@@ -226,8 +253,8 @@ clean_logs: $(BUILD_DIR)
 	@touch $(BUILD_DIR)/tb_run.log $(BUILD_DIR)/tb_success.log $(BUILD_DIR)/tb_failure.log
 
 clean_f_logs: $(BUILD_DIR)
-	@rm -f $(BUILD_DIR)/f_success.log $(BUILD_DIR)/f_failure.log
-	@touch $(BUILD_DIR)/f_success.log $(BUILD_DIR)/f_failure.log
+	@rm -f $(BUILD_DIR)/f_run.log $(BUILD_DIR)/f_success.log $(BUILD_DIR)/f_failure.log
+	@touch $(BUILD_DIR)/f_run.log $(BUILD_DIR)/f_success.log $(BUILD_DIR)/f_failure.log
 
 ##############################################################################
 #
