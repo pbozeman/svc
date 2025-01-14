@@ -8,7 +8,7 @@
 // AXI to AXI-Lite adapter. Buses must be the same size.
 
 module svc_axi_axil_adapter #(
-    parameter AXI_ADDR_WIDTH       = 4,
+    parameter AXI_ADDR_WIDTH       = 8,
     parameter AXI_DATA_WIDTH       = 16,
     parameter AXI_STRB_WIDTH       = AXI_DATA_WIDTH / 8,
     parameter AXI_ID_WIDTH         = 4,

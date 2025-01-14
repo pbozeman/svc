@@ -11,7 +11,7 @@
 // do 1 at a time. It also converts the addresses to be word rather than byte
 // based. rresp and bresp are always marked as success.
 module svc_axil_sram_if #(
-    parameter AXIL_ADDR_WIDTH = 4,
+    parameter AXIL_ADDR_WIDTH = 8,
     parameter AXIL_DATA_WIDTH = 16,
     parameter AXIL_STRB_WIDTH = (AXIL_DATA_WIDTH / 8),
     parameter LSB             = $clog2(AXIL_DATA_WIDTH) - 3,

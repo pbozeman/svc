@@ -10,7 +10,7 @@
 // reflects the IDs from the original AW request to the B returns.
 //
 module svc_axi_axil_reflect_wr #(
-    parameter AXI_ADDR_WIDTH           = 2,
+    parameter AXI_ADDR_WIDTH           = 8,
     parameter AXI_DATA_WIDTH           = 16,
     parameter AXI_STRB_WIDTH           = AXI_DATA_WIDTH / 8,
     parameter AXI_ID_WIDTH             = 4,

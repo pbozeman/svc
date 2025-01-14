@@ -9,7 +9,7 @@
 // Takes an AXI to AXI-Lite read stream with single beat bursts and
 // reflects the IDs from the original AR request to the R returns.
 module svc_axi_axil_reflect_rd #(
-    parameter AXI_ADDR_WIDTH          = 2,
+    parameter AXI_ADDR_WIDTH          = 8,
     parameter AXI_DATA_WIDTH          = 16,
     parameter AXI_ID_WIDTH            = 4,
     parameter AXI_USER_WIDTH          = 1,
