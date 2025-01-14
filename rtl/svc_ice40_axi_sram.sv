@@ -6,7 +6,7 @@
 `include "svc_ice40_axil_sram.sv"
 
 module svc_ice40_axi_sram #(
-    parameter AXI_ADDR_WIDTH       = 4,
+    parameter AXI_ADDR_WIDTH       = 8,
     parameter AXI_DATA_WIDTH       = 16,
     parameter OUTSTANDING_IO_WIDTH = 2,
     parameter AXI_STRB_WIDTH       = AXI_DATA_WIDTH / 8,

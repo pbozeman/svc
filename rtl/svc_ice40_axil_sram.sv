@@ -6,7 +6,7 @@
 `include "svc_ice40_sram_io_if.sv"
 
 module svc_ice40_axil_sram #(
-    parameter AXIL_ADDR_WIDTH = 4,
+    parameter AXIL_ADDR_WIDTH = 8,
     parameter AXIL_DATA_WIDTH = 16,
     parameter AXIL_STRB_WIDTH = (AXIL_DATA_WIDTH / 8),
     parameter LSB             = $clog2(AXIL_DATA_WIDTH) - 3,
