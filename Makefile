@@ -51,11 +51,20 @@ SBY := sby
 # default target
 #
 .PHONY: quick
-quick: quick_formal .WAIT quick_unit
+quick: quick_formal .WAIT quick_unit_run
+
+.PHONY: quick_unit_run
+quick_unit_run: SKIP_SLOW_TESTS := 1
+quick_unit_run: clean_logs $(VCD_FILES)
 
 .PHONY: quick_unit
 quick_unit: SKIP_SLOW_TESTS := 1
-quick_unit: $(VCD_FILES)
+quick_unit: quick_unit_run
+	@echo "=============================="
+	@echo "TB suites re-run: $$(wc -l < $(BUILD_DIR)/tb_run.log)"
+	@echo "TB suites failed: $$(wc -l < $(BUILD_DIR)/tb_failure.log)"
+	@sed 's/^/    /' $(BUILD_DIR)/tb_failure.log
+	@echo "=============================="
 
 .PHONY: check
 check: s_lint unit
@@ -103,11 +112,8 @@ $(BUILD_DIR)/%: $(TB_DIR)/%.sv $(ICE40_CELLS_SIM) Makefile | $(BUILD_DIR)
 	@$(IVERILOG) -M $(@).dep -I$(RTL_DIR) -I$(TB_DIR) -o $@ $(filter-out Makefile,$^)
 	@echo "$@: $$(tr '\n' ' ' < $(@).dep)" > $(@).d
 
-.PRECIOUS: $(BUILD_DIR)/%.vcd
-$(BUILD_DIR)/%.vcd: $(BUILD_DIR)/%
-	@$(VVP) $^ +SKIP_SLOW_TESTS=$(SKIP_SLOW_TESTS) +run=$(RUN) | grep -v "VCD info:"
-
 define run_test
+	@echo "$1" >> $(BUILD_DIR)/tb_run.log;
 	@$(VVP) $1 +SKIP_SLOW_TESTS=$(SKIP_SLOW_TESTS) +run=$(RUN) 2>&1 |\
 		grep -v "VCD info:"; \
 		status=$${PIPESTATUS[0]}; \
@@ -118,6 +124,10 @@ define run_test
 		fi
 endef
 
+.PRECIOUS: $(BUILD_DIR)/%.vcd
+$(BUILD_DIR)/%.vcd: $(BUILD_DIR)/%
+	$(call run_test,$<)
+
 .PHONY: $(TEST_BENCHES)
 $(TEST_BENCHES): % : $(BUILD_DIR)/%
 	$(call run_test,$<)
@@ -127,8 +137,8 @@ unit: SKIP_SLOW_TESTS := 1
 unit: clean_logs $(TEST_BENCHES)
 	@echo ""
 	@echo "=============================="
-	@echo "Successful suites: $$(wc -l < $(BUILD_DIR)/tb_success.log)"
-	@echo "Failed suites:     $$(wc -l < $(BUILD_DIR)/tb_failure.log)"
+	@echo "TB suites passed: $$(wc -l < $(BUILD_DIR)/tb_success.log)"
+	@echo "TB suites failed: $$(wc -l < $(BUILD_DIR)/tb_failure.log)"
 	@sed 's/^/    /' $(BUILD_DIR)/tb_failure.log
 	@echo "=============================="
 
@@ -212,8 +222,8 @@ clean:
 	@rm -rf $(BUILD_DIR)
 
 clean_logs: $(BUILD_DIR)
-	@rm -f $(BUILD_DIR)/tb_success.log $(BUILD_DIR)/tb_failure.log
-	@touch $(BUILD_DIR)/tb_success.log $(BUILD_DIR)/tb_failure.log
+	@rm -f $(BUILD_DIR)/tb_run.log $(BUILD_DIR)/tb_success.log $(BUILD_DIR)/tb_failure.log
+	@touch $(BUILD_DIR)/tb_run.log $(BUILD_DIR)/tb_success.log $(BUILD_DIR)/tb_failure.log
 
 clean_f_logs: $(BUILD_DIR)
 	@rm -f $(BUILD_DIR)/f_success.log $(BUILD_DIR)/f_failure.log
