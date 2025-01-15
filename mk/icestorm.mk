@@ -6,26 +6,45 @@ include mk/dirs.mk
 #
 # Synthesis, P&R, bitstream gen and programming for lattice ice40 boards.
 #
+ifeq ($(ICE40_DEV_BOARD),)
+$(error ICE40_DEV_BOARD is not set)
+endif
 
-#
-# tooling
-#
+ifeq ($(ICE40_DEVICE),)
+$(error ICE40_DEVICE is not set)
+endif
+
+ifeq ($(ICE40_PACKAGE),)
+$(error ICE40_PACKAGE is not set)
+endif
+
+ifeq ($(CONSTRAINTS_DIR),)
+$(error CONSTRAINTS_DIR is not set)
+endif
+
+BITS_DIR = $(BUILD_DIR)/$(ICE40_DEV_BOARD)-$(ICE40_DEVICE)-$(ICE40_PACKAGE)
+PCF_FILE := $(CONSTRAINTS_DIR)/$(ICE40_DEV_BOARD)-$(ICE40_DEVICE)-$(ICE40_PACKAGE).pcf
 
 # Yosys
 #
 # SYNTH_YOSYS allows for varying code based on synthesis under
 # icecube2 or yosys
-YOSYS_TARGET_DEP = $(BUILD_DIR)/$(notdir $(basename $(@))).dep
-YOSYS_TARGET_D   = $(BUILD_DIR)/$(notdir $(basename $(@))).d
+YOSYS_TARGET_DEP = $(basename $(@)).dep
+YOSYS_TARGET_D   = $(basename $(@)).d
 
-YOSYS_FLAGS_DEFS    = -DSYNTH_YOSYS
-YOSYS_FLAGS_DEP_GEN = -E $(YOSYS_TARGET_DEP)
-YOSYS_FLAGS         = $(YOSYS_FLAGS_DEFS) $(YOSYS_FLAGS_DEP_GEN)
-YOSYS               = yosys $(YOSYS_FLAGS)
+YOSYS_FLAGS  = -DSYNTH_YOSYS
+YOSYS_FLAGS += -E $(YOSYS_TARGET_DEP)
+YOSYS_FLAGS += $(YOSYS_FLAGS_DEFS) $(YOSYS_FLAGS_DEP_GEN)
+YOSYS = yosys $(YOSYS_FLAGS)
 
-NEXTPNR := nextpnr-ice40
-ICEPACK := icepack
-ICEPROG := iceprog
+#
+# Nextprn
+#
+NEXTPNR_FLAGS  = --$(ICE40_DEVICE) --package $(ICE40_PACKAGE)
+NEXTPNR_FLAGS += --freq $(ICE40_CLK_FREQ)
+NEXTPNR_FLAGS += --top $(notdir $(basename $@))
+NEXTPNR_FLAGS += --pcf $(PCF_FILE)
+NEXTPNR = nextpnr-ice40 $(NEXTPNR_FLAGS) --json $< --asc $@
 
 ##############################################################################
 #
@@ -33,12 +52,14 @@ ICEPROG := iceprog
 #
 ##############################################################################
 SYNTH_MODULES := $(basename $(notdir $(TOP_MODULES)))
-SYNTH_TARGETS := $(addprefix synth_, $(SYNTH_MODULES))
+SYNTH_TARGETS := $(addsuffix _synth, $(SYNTH_MODULES))
 
 # humanize the targets rather than .build/bla.json
 .PHONY: $(SYNTH_TARGETS)
-$(SYNTH_TARGETS): synth_% : $(BUILD_DIR)/%.json
+$(SYNTH_TARGETS): %_synth : $(BUILD_DIR)/%.json
 
+# synthesize and generate d files
+.PRECIOUS: $(BUILD_DIR)/%.json
 $(BUILD_DIR)/%.json: | $(BUILD_DIR)
 	$(YOSYS) -p '$(strip $(call YOSYS_CMD,$(*)))'
 	@cat $(YOSYS_TARGET_DEP) | tr ' ' '\n' | grep -v '^/' | tr '\n' ' ' | \
@@ -65,5 +86,25 @@ synth: $(SYNTH_TARGETS)
 # aliases
 .PHONY: synthesis
 synthesis: synth
+
+##############################################################################
+#
+# P&R
+#
+##############################################################################
+SYNTH_MODULES := $(basename $(notdir $(TOP_MODULES)))
+PNR_TARGETS := $(addsuffix _pnr, $(SYNTH_MODULES))
+
+# humanize the targets
+.PHONY: $(PNR_TARGETS)
+$(PNR_TARGETS): %_pnr : $(BITS_DIR)/%.asc
+
+# pnr
+$(BITS_DIR)/%.asc: $(BUILD_DIR)/%.json
+	@mkdir -p $(BITS_DIR)
+	$(NEXTPNR)
+
+.PHONY: pnr
+pnr: $(PNR_TARGETS)
 
 endif
