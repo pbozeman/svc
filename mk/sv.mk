@@ -1,5 +1,7 @@
 ifndef SV_MK
 
+MAKEFLAGS += -I$(dir $(realpath $(lastword $(MAKEFILE_LIST))))/..
+
 include mk/formal.mk
 include mk/format.mk
 include mk/iverilog.mk
