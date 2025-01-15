@@ -68,6 +68,8 @@ clean_logs: $(BUILD_DIR)
 # Help
 #
 ##############################################################################
+.PHONY: list_tb list_f list_prog
+
 .PHONY: list
 list: list_tb .WAIT list_f .WAIT list_prog
 endif
