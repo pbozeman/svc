@@ -35,33 +35,30 @@ format_f:
 # Add all the combos of conditional flags for linting as it's easy
 # to mess up in the modules and leave out a condition and have an unused
 # or undriven signal
+.PHONY: lint_f lint_fm lint_fz lint_fzm
 lint: lint_f lint_fm lint_fz lint_fzm
-
-.PHONY: lint_f lint_f_% $(addprefix lint_f_, $(F_MODULES))
-lint_f: $(addprefix lint_f_,$(F_MODULES))
-
-.PHONY: lint_fm lint_fm_% $(addprefix lint_fm_, $(F_MODULES))
-lint_fm: $(addprefix lint_fm_,$(F_MODULES))
-
-.PHONY: lint_fz lint_fz_% $(addprefix lint_fz_, $(F_MODULES))
-lint_fz: $(addprefix lint_fz_,$(F_MODULES))
-
-.PHONY: lint_fzm lint_fzm_% $(addprefix lint_fz_, $(F_MODULES))
-lint_fzm: $(addprefix lint_fzm_,$(F_MODULES))
 
 LINT_FLAGS_FORMAL = $(SVC_FORMAL_DIR)/verilator.vlt -DFORMAL $(I_TB) $(I_FORMAL)
 LINT_FLAGS_FORMAL_ZIPCPU = $(LINT_FLAGS_FORMAL) $(ZIPCPU_FLAGS) -I$(ZIPCPU_FORMAL_DIR)
 
 define lint_f_rule
+.PHONY: lint_f_$(1)
+lint_f: lint_f_$(1)
 lint_f_$(1):
 	$$(LINTER) $$(LINT_FLAGS_FORMAL) $1
 
+.PHONY: lint_fm_$(1)
+lint_fm: lint_fm_$(1)
 lint_fm_$(1):
 	$$(LINTER) $$(LINT_FLAGS_FORMAL) -DFORMAL_$(shell echo "$1" | tr a-z A-Z) $1
 
+.PHONY: lint_fz_$(1)
+lint_fz: lint_fz_$(1)
 lint_fz_$(1):
 	$$(LINTER) $$(LINT_FLAGS_FORMAL_ZIPCPU) $1
 
+.PHONY: lint_fzm_$(1)
+lint_fzm: lint_fzm_$(1)
 lint_fzm_$(1):
 	$$(LINTER) $$(LINT_FLAGS_FORMAL_ZIPCPU) -DFORMAL_$(shell echo "$1" | tr a-z A-Z) $1
 endef

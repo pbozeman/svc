@@ -30,12 +30,11 @@ format: format_tb
 format_tb:
 	@$(FORMATTER) $(TB_SV)
 
+.PHONY: lint_tb
 lint: lint_tb
 
-.PHONY: lint_tb lint_% $(addsuffix lint_, $(TB_MODULES))
-lint_tb: $(addprefix lint_, $(TB_MODULES))
-
 define lint_tb_rule
+lint_tb: lint_$(1)
 lint_$(1):
 	@$$(LINTER) $(I_TB) $(1).sv
 endef
