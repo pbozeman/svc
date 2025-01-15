@@ -320,15 +320,14 @@ module svc_ice40_sram_io_if #(
     end
   end
   // verilog_format: on
-
+`else
+  // verilator lint_off: UNUSEDSIGNAL
+  logic unused = |sram_cmd_wr_strb;
+  // verilator lint_on: UNUSEDSIGNAL
+`endif
   `undef ASSERT
   `undef ASSUME
   `undef COVER
-`else
-  // verilator lint_off: UNUSEDSIGNAL
-  logic unused = sram_cmd_wr_strb;
-  // verilator lint_on: UNUSEDSIGNAL
-`endif
 `endif
 
 endmodule

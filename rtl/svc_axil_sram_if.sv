@@ -3,7 +3,6 @@
 
 `include "svc.sv"
 `include "svc_skidbuf.sv"
-`include "svc_sync_fifo.sv"
 `include "svc_unused.sv"
 
 // This is a wrapper to convert byte based AXI-Lite to an SRAM interface.
@@ -370,11 +369,7 @@ module svc_axil_sram_if #(
       .f_axi_awr_outstanding(f_axil_awr_outstanding)
   );
 
-  // verilator lint_off: ASSIGNIN
-  // allowing these assignments via ASSIGNIN is a bit janky, but otherwise, I need to
-  // change the model to be assume rather than assign based, and it's already
-  // used in normal unit tbs. This lets use use if for both use cases, but
-  // maybe come back and address this.
+`ifndef VERILATOR
   svc_model_sram_if #(
       .SRAM_ADDR_WIDTH(SRAM_ADDR_WIDTH),
       .SRAM_DATA_WIDTH(SRAM_DATA_WIDTH),
@@ -393,7 +388,7 @@ module svc_axil_sram_if #(
       .sram_resp_ready  (sram_resp_rd_ready),
       .sram_resp_rd_data(sram_resp_rd_data)
   );
-  // verilator lint_on: ASSIGNIN
+`endif
 
   // ensure we can do 6 io ops in a row, 1 every clock cycle.
   // Why 6? Because the module used to be implemented with fifos with a depth
@@ -452,4 +447,5 @@ module svc_axil_sram_if #(
 `endif
 
 endmodule
+
 `endif
