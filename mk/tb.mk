@@ -8,7 +8,7 @@ include mk/lint.mk
 ICE40_CELLS_SIM := $(shell yosys-config --datdir/ice40/cells_sim.v)
 
 # TB sources and modules
-TB_SV := $(wildcard $(TB_DIR)/*_tb.sv)
+TB_SV := $(wildcard $(PRJ_TB_DIR)/*_tb.sv)
 TB_MODULES := $(basename $(notdir $(TB_SV)))
 
 # TB output
@@ -37,7 +37,7 @@ lint_tb: $(addprefix lint_, $(TB_MODULES))
 
 define lint_tb_rule
 lint_$(1):
-	@$$(LINTER) -I$(TB_DIR) $(1).sv
+	@$$(LINTER) $(I_TB) $(1).sv
 endef
 
 $(foreach tb, $(TB_MODULES), $(eval $(call lint_tb_rule,$(tb))))
@@ -86,8 +86,8 @@ $(TB_BUILD_DIR)/%.pass: $(TB_BUILD_DIR)/%
 
 # simulation "synthesis"
 .PRECIOUS: $(TB_BUILD_DIR)/%
-$(TB_BUILD_DIR)/%: $(TB_DIR)/%.sv $(ICE40_CELLS_SIM) Makefile | $(TB_BUILD_DIR)
-	@$(IVERILOG) -M $(@).dep -I$(RTL_DIR) -I$(TB_DIR) -o $@ $(filter-out Makefile,$^)
+$(TB_BUILD_DIR)/%: $(PRJ_TB_DIR)/%.sv $(ICE40_CELLS_SIM) Makefile | $(TB_BUILD_DIR)
+	@$(IVERILOG) -M $(@).dep $(I_RTL) $(I_TB) -o $@ $(filter-out Makefile,$^)
 	@echo "$@: $$(tr '\n' ' ' < $(@).dep)" > $(@).d
 
 # run a tb and do results tracking

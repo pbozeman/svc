@@ -7,8 +7,8 @@ include mk/iverilog.mk
 include mk/lint.mk
 
 # Formal sources and modules
-F_SV := $(wildcard $(FORMAL_DIR)/*.sv)
-F_SBY := $(wildcard $(FORMAL_DIR)/*.sby)
+F_SV := $(wildcard $(PRJ_FORMAL_DIR)/*.sv)
+F_SBY := $(wildcard $(PRJ_FORMAL_DIR)/*.sby)
 F_MODULES := $(basename $(notdir $(F_SBY)))
 F_TARGETS := $(addsuffix _f, $(F_MODULES))
 
@@ -49,7 +49,7 @@ lint_fz: $(addprefix lint_fz_,$(F_MODULES))
 .PHONY: lint_fzm lint_fzm_% $(addprefix lint_fz_, $(F_MODULES))
 lint_fzm: $(addprefix lint_fzm_,$(F_MODULES))
 
-LINT_FLAGS_FORMAL = $(FORMAL_DIR)/verilator.vlt -I$(TB_DIR) -DFORMAL -I$(FORMAL_DIR)
+LINT_FLAGS_FORMAL = $(SVC_FORMAL_DIR)/verilator.vlt -DFORMAL $(I_TB) $(I_FORMAL)
 LINT_FLAGS_FORMAL_ZIPCPU = $(LINT_FLAGS_FORMAL) $(ZIPCPU_FLAGS) -I$(ZIPCPU_FORMAL_DIR)
 
 define lint_f_rule
@@ -97,7 +97,7 @@ f_report:
 	@echo "==============================";
 
 .PRECIOUS: $(F_BUILD_DIR)/%_f/ran
-$(F_BUILD_DIR)/%_f/ran: $(FORMAL_DIR)/%.sby $(F_BUILD_DIR)/%_f $(F_BUILD_DIR)/%_f/ran.d
+$(F_BUILD_DIR)/%_f/ran: $(PRJ_FORMAL_DIR)/%.sby $(F_BUILD_DIR)/%_f $(F_BUILD_DIR)/%_f/ran.d
 	$(call f_run_formal,$*)
 
 .PHONY: $(F_TARGETS)
@@ -106,7 +106,7 @@ $(F_TARGETS): %_f : $(F_BUILD_DIR)/%_f
 
 define f_run_formal
 	@echo "$1" >> $(F_BUILD_DIR)/f_run.log
-	@$(SBY) --prefix $(F_BUILD_DIR)/$1_f -f $(FORMAL_DIR)/$1.sby\
+	@$(SBY) --prefix $(F_BUILD_DIR)/$1_f -f $(PRJ_FORMAL_DIR)/$1.sby\
 		&& echo "$1" >> $(F_BUILD_DIR)/f_success.log\
 		|| echo "make $1_f" >> $(F_BUILD_DIR)/f_failure.log
 	@touch $(F_BUILD_DIR)/$1_f/ran
@@ -114,9 +114,9 @@ endef
 
 # create dependencies for future runs
 .PRECIOUS: $(F_BUILD_DIR)/%_f/ran.dep
-$(F_BUILD_DIR)/%_f/ran.dep: $(RTL_DIR)/%.sv
+$(F_BUILD_DIR)/%_f/ran.dep: $(PRJ_RTL_DIR)/%.sv
 	@mkdir -p $(dir $(@))
-	@$(IVERILOG) -M $(@) -DNO_SB_IO -I$(RTL_DIR) -I$(TB_DIR) -o /dev/null $^
+	@$(IVERILOG) -M $(@) -DNO_SB_IO $(I_RTL) $(I_TB) -o /dev/null $^
 
 .PRECIOUS: $(F_BUILD_DIR)/%_f/ran.d
 $(F_BUILD_DIR)/%_f/ran.d: $(F_BUILD_DIR)/%_f/ran.dep
