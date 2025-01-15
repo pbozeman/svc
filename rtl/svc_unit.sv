@@ -108,6 +108,7 @@
   end
 
 `define TEST_CLK_NS(clk, ns)                                                 \
+`define SVC_CLK clk                                                          \
   logic clk;                                                                 \
   initial begin                                                              \
     clk = 0;                                                                 \
@@ -145,8 +146,10 @@
   task reset_``rst_n``();                                                    \
     rst_n = 0;                                                               \
     repeat (cycles) @(posedge clk);                                          \
-    rst_n = 1;                                                               \
-    @(posedge clk);                                                          \
+`ifndef VERILATOR                                                            \
+    rst_n <= 1;                                                              \
+`endif                                                                       \
+    #0.1;                                                                    \
   endtask                                                                    \
   `define TEST_RESET_TASK reset_``rst_n``();
 
@@ -190,6 +193,9 @@
     `TEST_RESET_TASK                                                         \
 `endif                                                                       \
     test_task();                                                             \
+`ifdef SVC_CLK                                                               \
+    @(posedge `SVC_CLK);                                                     \
+`endif                                                                       \
     $fwrite(1, "%sPASS%s\n", `COLOR_GREEN, `COLOR_RESET);                    \
   end                                                                        \
 
