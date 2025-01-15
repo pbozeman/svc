@@ -136,7 +136,6 @@ module svc_axi_axil_adapter_wr #(
   // This uses faxi_* files in tb/formal/private.
   // See tb/formal/private/README.md
 `ifdef ZIPCPU_PRIVATE
-
 `ifdef FORMAL_SVC_AXI_AXIL_ADAPTER_WR
   logic f_past_valid = 1'b0;
   always @(posedge clk) begin
@@ -320,7 +319,7 @@ module svc_axi_axil_adapter_wr #(
 
 `else  // ZIPCPU_PRIVATE
   // verilator lint_off: UNUSEDSIGNAL
-  logic f_unused = |{s_axi_awlen, s_axi_awsize, s_axi_awburst, fifo_id_r_empty};
+  logic f_unused = |{s_axi_awlen, s_axi_awsize, s_axi_awburst};
   // verilator lint_on: UNUSEDSIGNAL
 `endif
 `endif
