@@ -31,11 +31,18 @@ PCF_FILE = $(CONSTRAINTS_DIR)/$(ICE40_DEV_BOARD)-$(ICE40_DEVICE)-$(ICE40_PACKAGE
 # icecube2 or yosys
 YOSYS_TARGET_DEP = $(basename $(@)).dep
 YOSYS_TARGET_D   = $(basename $(@)).d
+YOSYS_SV         = $(filter %/$*.sv, $(TOP_MODULES))
 
 YOSYS_FLAGS  = -DSYNTH_YOSYS
 YOSYS_FLAGS += -E $(YOSYS_TARGET_DEP)
 YOSYS_FLAGS += $(YOSYS_FLAGS_DEFS) $(YOSYS_FLAGS_DEP_GEN)
 YOSYS = yosys $(YOSYS_FLAGS)
+
+# the synth target pcf is kind of a hack to avoid the fact
+# that we can't disable warnings from nextpnr about not
+# using all the set_io definitions in a pcf file. We filter
+# out the lines not used by the module.
+SYNTH_TARGET_PCF = $(BIN_DIR)/$(notdir $(basename $(@))).pcf
 
 #
 # Nextprn
@@ -43,7 +50,7 @@ YOSYS = yosys $(YOSYS_FLAGS)
 NEXTPNR_FLAGS  = --$(ICE40_DEVICE) --package $(ICE40_PACKAGE)
 NEXTPNR_FLAGS += --freq $(ICE40_CLK_FREQ)
 NEXTPNR_FLAGS += --top $(notdir $(basename $@))
-NEXTPNR_FLAGS += --pcf $(PCF_FILE)
+NEXTPNR_FLAGS += --pcf $(basename $(@)).pcf
 NEXTPNR = nextpnr-ice40 $(NEXTPNR_FLAGS) --json $< --asc
 
 #
@@ -64,25 +71,23 @@ SYNTH_TARGETS := $(addsuffix _synth, $(SYNTH_MODULES))
 .PHONY: $(SYNTH_TARGETS)
 $(SYNTH_TARGETS): %_synth : $(BUILD_DIR)/%.json
 
-# synthesize and generate d files
+# synthesize and generate custom pcf d files
+# (the pcf and d generation might be better in a script)
 .PRECIOUS: $(BUILD_DIR)/%.json
 $(BUILD_DIR)/%.json: | $(BUILD_DIR)
-	$(YOSYS) -p '$(strip $(call YOSYS_CMD,$(*)))'
+	$(YOSYS) -p '$(call YOSYS_CMD,$(*))'
+	@mkdir -p $(BIN_DIR)
+	@grep -E "input|output|inout" $(YOSYS_SV) | \
+		awk '{gsub(",", "", $$3); print $$3}' | \
+		grep -v '^$$' | while read -r signal; do \
+			grep "set_io $$signal" $(PCF_FILE); \
+	done > $(SYNTH_TARGET_PCF)
 	@cat $(YOSYS_TARGET_DEP) | tr ' ' '\n' | grep -v '^/' | tr '\n' ' ' | \
 		awk '{$$1=$$1":"; print}' > $(YOSYS_TARGET_D)
 
-# looking the module back up in top modules is a bit weird, but it
-# vastly simplifies the rules before this. The alternative is to iterate
-# over the top modules and use a define to generate rules dynamically,
-# but that approach greatly complicates the path management logic,
-# rather than isolating the wonkiness to a single place as is done here.
-# The trade off is that top modules have to have unique names,
-# even if they are in different directories.
 define YOSYS_CMD
-read_verilog -sv $(I_RTL)                          \
-  -I$(dir $(filter %/$*.sv, $(TOP_MODULES)))       \
-  $(filter %/$*.sv, $(TOP_MODULES));               \
-synth_ice40 -top $(1);                             \
+read_verilog -sv $(I_RTL) -I$(dir $(YOSYS_SV)) $(YOSYS_SV); \
+synth_ice40 -top $(1); \
 write_json $@
 endef
 
