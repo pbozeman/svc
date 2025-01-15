@@ -1,7 +1,7 @@
 ifndef RTL_MK
 RTL_MK := 1
 
-RTL_SV := $(wildcard $(RTL_DIR)/*.sv)
+RTL_SV := $(wildcard $(PRJ_RTL_DIR)/*.sv)
 
 ##############################################################################
 #
