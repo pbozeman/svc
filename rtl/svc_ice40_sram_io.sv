@@ -50,6 +50,12 @@ module svc_ice40_sram_io #(
     // verilator lint_on: UNDRIVEN
     // verilator lint_on: UNUSEDSIGNAL
 );
+`ifdef VERILATOR
+`ifndef NO_SB_IO
+  `define NO_SB_IO
+`endif
+`endif
+
 `ifndef FORMAL
   //
   // cs_n (posedge)
@@ -57,7 +63,7 @@ module svc_ice40_sram_io #(
   // PIN_TYPE[5:2] = Output registered, (no enable)
   // PIN_TYPE[1:0] = Simple input pin (D_IN_0)
   //
-`ifndef VERILATOR
+`ifndef NO_SB_IO
   SB_IO #(
       .PIN_TYPE   (6'b0101_01),
       .PULLUP     (1'b0),
@@ -101,7 +107,7 @@ module svc_ice40_sram_io #(
 
   assign pad_we_n_ddr = {pad_we_n_p2, pad_we_n_p1};
 
-`ifndef VERILATOR
+`ifndef NO_SB_IO
   SB_IO #(
       .PIN_TYPE   (6'b0100_01),
       .PULLUP     (1'b0),
@@ -146,7 +152,7 @@ module svc_ice40_sram_io #(
 
   assign pad_oe_n_ddr = {pad_oe_n_p2, pad_oe_n_p1};
 
-`ifndef VERILATOR
+`ifndef NO_SB_IO
   SB_IO #(
       .PIN_TYPE   (6'b0100_01),
       .PULLUP     (1'b0),
@@ -166,7 +172,7 @@ module svc_ice40_sram_io #(
   // PIN_TYPE[5:2] = Output registered, (no enable)
   // PIN_TYPE[1:0] = Simple input pin (D_IN_0)
   //
-`ifndef VERILATOR
+`ifndef NO_SB_IO
   SB_IO #(
       .PIN_TYPE   (6'b0101_01),
       .PULLUP     (1'b0),
@@ -191,7 +197,7 @@ module svc_ice40_sram_io #(
   //                 and falling clock edges. Use the D_IN_0
   //                 and D_IN_1 pins for DDR operation.
   //
-`ifndef VERILATOR
+`ifndef NO_SB_IO
   SB_IO #(
       .PIN_TYPE   (6'b1101_00),
       .PULLUP     (1'b0),
