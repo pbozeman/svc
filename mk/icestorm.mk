@@ -22,8 +22,8 @@ ifeq ($(CONSTRAINTS_DIR),)
 $(error CONSTRAINTS_DIR is not set)
 endif
 
-BITS_DIR = $(BUILD_DIR)/$(ICE40_DEV_BOARD)-$(ICE40_DEVICE)-$(ICE40_PACKAGE)
-PCF_FILE := $(CONSTRAINTS_DIR)/$(ICE40_DEV_BOARD)-$(ICE40_DEVICE)-$(ICE40_PACKAGE).pcf
+BIN_DIR  = $(BUILD_DIR)/$(ICE40_DEV_BOARD)-$(ICE40_DEVICE)-$(ICE40_PACKAGE)
+PCF_FILE = $(CONSTRAINTS_DIR)/$(ICE40_DEV_BOARD)-$(ICE40_DEVICE)-$(ICE40_PACKAGE).pcf
 
 # Yosys
 #
@@ -44,7 +44,13 @@ NEXTPNR_FLAGS  = --$(ICE40_DEVICE) --package $(ICE40_PACKAGE)
 NEXTPNR_FLAGS += --freq $(ICE40_CLK_FREQ)
 NEXTPNR_FLAGS += --top $(notdir $(basename $@))
 NEXTPNR_FLAGS += --pcf $(PCF_FILE)
-NEXTPNR = nextpnr-ice40 $(NEXTPNR_FLAGS) --json $< --asc $@
+NEXTPNR = nextpnr-ice40 $(NEXTPNR_FLAGS) --json $< --asc
+
+#
+# Icepack/prog
+#
+ICEPACK := icepack
+ICEPROG := iceprog
 
 ##############################################################################
 #
@@ -92,19 +98,56 @@ synthesis: synth
 # P&R
 #
 ##############################################################################
-SYNTH_MODULES := $(basename $(notdir $(TOP_MODULES)))
 PNR_TARGETS := $(addsuffix _pnr, $(SYNTH_MODULES))
 
 # humanize the targets
 .PHONY: $(PNR_TARGETS)
-$(PNR_TARGETS): %_pnr : $(BITS_DIR)/%.asc
+$(PNR_TARGETS): %_pnr : $(BIN_DIR)/%.asc
 
 # pnr
-$(BITS_DIR)/%.asc: $(BUILD_DIR)/%.json
-	@mkdir -p $(BITS_DIR)
-	$(NEXTPNR)
+.PRECIOUS: $(BIN_DIR)/%.asc
+$(BIN_DIR)/%.asc: $(BUILD_DIR)/%.json
+	@mkdir -p $(BIN_DIR)
+	$(NEXTPNR) $@
 
 .PHONY: pnr
 pnr: $(PNR_TARGETS)
 
+##############################################################################
+#
+# Bitstream
+#
+##############################################################################
+BIN_TARGETS := $(addsuffix _bin, $(SYNTH_MODULES))
+
+# humanize the targets
+.PHONY: $(BIN_TARGETS)
+$(BIN_TARGETS): %_bin : $(BIN_DIR)/%.bin
+
+# bistream gen
+.PRECIOUS: $(BIN_DIR)/%.bin
+$(BIN_DIR)/%.bin: $(BIN_DIR)/%.asc
+	$(ICEPACK) $< $@
+
+.PHONY: bin
+bin: $(BIN_TARGETS)
+
+# alias
+.PHONY: bits
+bits: bin
+
+##############################################################################
+#
+# Programming
+#
+##############################################################################
+PROG_TARGETS := $(addsuffix _prog,$(SYNTH_MODULES))
+
+%_prog: $(BIN_DIR)/%.bin
+	$(ICEPROG) $<
+
+.PHONY: list_prog
+list_prog:
+	@echo "Available prog targets:"
+	@$(foreach t,$(PROG_TARGETS),echo " $t";)
 endif
