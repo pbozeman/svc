@@ -69,5 +69,5 @@ clean_logs: $(BUILD_DIR)
 #
 ##############################################################################
 .PHONY: list
-list: list_tb .WAIT list_f
+list: list_tb .WAIT list_f .WAIT list_prog
 endif
