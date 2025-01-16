@@ -78,10 +78,10 @@ $(BUILD_DIR)/%.json: | $(BUILD_DIR)
 	$(YOSYS) -p '$(call YOSYS_CMD,$(*))'
 	@mkdir -p $(BIN_DIR)
 	@grep -E "input|output|inout" $(YOSYS_SV) | \
-		awk '{gsub(",", "", $$3); print $$3}' | \
+		awk '{gsub(",", "", $$NF); print $$NF}' | \
 		grep -v '^$$' | while read -r signal; do \
-			grep "set_io $$signal" $(PCF_FILE); \
-	done > $(SYNTH_TARGET_PCF)
+			grep -E "set_io $${signal}[[:space:]]|set_io $${signal}\\[[0-9:]*\\][[:space:]]" $(PCF_FILE); \
+		done > $(SYNTH_TARGET_PCF)
 	@cat $(YOSYS_TARGET_DEP) | tr ' ' '\n' | grep -v '^/' | tr '\n' ' ' | \
 		awk '{$$1=$$1":"; print}' > $(YOSYS_TARGET_D)
 
