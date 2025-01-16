@@ -108,7 +108,9 @@
   end
 
 `define TEST_CLK_NS(clk, ns)                                                 \
+`ifndef SVC_CLK                                                              \
 `define SVC_CLK clk                                                          \
+`endif                                                                       \
   logic clk;                                                                 \
   initial begin                                                              \
     clk = 0;                                                                 \
