@@ -1,0 +1,10 @@
+#! /bin/sh -e
+
+# FIXME: this should be dynamic
+PRJ_RTL_LIB="rtl"
+SVC_RTL_LIB="svc/rtl"
+
+cmd="verilator --lint-only --quiet -Wall --Wno-PINCONNECTEMPTY --timing -I${PRJ_RTL_LIB} -I${SVC_RTL_LIB} $1"
+
+echo $cmd
+$cmd
