@@ -7,7 +7,10 @@ cp ${SVC_TOP}/flake.nix ${DEST_DIR}
 cp ${SVC_TOP}/flake.lock ${DEST_DIR}
 cp ${SVC_TOP}/.envrc ${DEST_DIR}
 cp ${SVC_TOP}/.gitignore ${DEST_DIR}
-cp ${SVC_TOP}/mk/makefile.template ${DEST_DIR}/Makefile
+
+if [! -f ${DEST_DIR}/Makefile]; then
+  cp ${SVC_TOP}/mk/makefile.template ${DEST_DIR}/Makefile
+fi
 
 mkdir -p ${DEST_DIR}/rtl
 mkdir -p ${DEST_DIR}/tb
