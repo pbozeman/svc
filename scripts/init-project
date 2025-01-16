@@ -1,14 +1,14 @@
 #! /bin/sh
 
-SVC_TOP=$(cd $(dirname $(readlink -f $0))/.. && pwd)
 DEST_DIR=${1:-$(pwd)}
+SVC_TOP=$(cd $(dirname $(readlink -f $0))/.. && pwd)
 
 cp ${SVC_TOP}/flake.nix ${DEST_DIR}
 cp ${SVC_TOP}/flake.lock ${DEST_DIR}
 cp ${SVC_TOP}/.envrc ${DEST_DIR}
 cp ${SVC_TOP}/.gitignore ${DEST_DIR}
 
-if [! -f ${DEST_DIR}/Makefile]; then
+if [ ! -f ${DEST_DIR}/Makefile ]; then
   cp ${SVC_TOP}/mk/makefile.template ${DEST_DIR}/Makefile
 fi
 
@@ -16,4 +16,6 @@ mkdir -p ${DEST_DIR}/rtl
 mkdir -p ${DEST_DIR}/tb
 
 mkdir -p ${DEST_DIR}/scripts
-ln -sf ${SVC_TOP}/scripts/* ${DEST_DIR}/scripts
+cd scripts
+SCRIPT_REL=$(realpath --relative-to=. ${SVC_TOP}/scripts)
+ln -sf ${SCRIPT_REL}/* .
