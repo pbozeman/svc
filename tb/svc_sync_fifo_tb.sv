@@ -42,8 +42,8 @@ module svc_sync_fifo_tb;
   endtask
 
   task automatic test_init;
-    `CHECK_EQ(r_empty, 1'b1)
-    `CHECK_EQ(w_full, 1'b0)
+    `CHECK_TRUE(r_empty);
+    `CHECK_FALSE(w_full);
   endtask
 
   task automatic test_single_write_read;
