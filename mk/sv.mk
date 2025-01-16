@@ -7,6 +7,7 @@ include mk/format.mk
 include mk/iverilog.mk
 include mk/rtl.mk
 include mk/tb.mk
+include mk/top.mk
 
 ##############################################################################
 #
