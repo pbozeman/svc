@@ -130,7 +130,7 @@ module svc_ice40_sram_io_if_tb;
 
   task automatic test_io_sustained_read;
     time         time_start;
-    logic [15:0] base_addr = 16'hA000;
+    logic [15:0] base_addr = 16'hC000;
     logic [ 7:0] expected_data = SRAM_DATA_WIDTH'(base_addr);
 
     auto_valid = 1'b0;
