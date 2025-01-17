@@ -42,6 +42,14 @@
            `COLOR_YELLOW, svc_tb_module_name, `COLOR_RESET);                 \
   $fatal;
 
+`define FATAL_MSG(msg)                                                       \
+  $display("%sFAIL%s\n%s", `COLOR_RED, `COLOR_RESET, msg);                   \
+  $display("%smake %s RUN=%s%s",                                             \
+           `COLOR_CYAN, svc_tb_module_name, svc_tb_test_name, `COLOR_RESET); \
+  $display("%sgtkwave .build/%s.vcd%s",                                      \
+           `COLOR_YELLOW, svc_tb_module_name, `COLOR_RESET);                 \
+  $fatal;
+
 // Tiny tick lets async logic propagate after a clock before asserts.
 // The initial #0 makes sure other clocked blocks run first, and then,
 // we do a #0.1 on the first check so that async logic can propagate and
@@ -159,6 +167,7 @@
 `ifndef VERILATOR                                                            \
   int line_num;                                                              \
   int svc_wait_cnt;                                                          \
+  int svc_watchdog_cnt = 10000;                                              \
   logic svc_tiny_ticked;                                                     \
 `endif                                                                       \
   string svc_tb_module_name;                                                 \
@@ -173,6 +182,17 @@
     $dumpfile({".build/", `"tb_module_name`", ".vcd"});                      \
     $dumpvars(0, tb_module_name);                                            \
   end                                                                        \
+                                                                             \
+`ifndef VERILATOR                                                            \
+`ifdef SVC_CLK                                                               \
+  always @(posedge `SVC_CLK) begin                                           \
+    svc_watchdog_cnt <= svc_watchdog_cnt - 1;                                \
+    if (svc_watchdog_cnt == 0) begin                                         \
+      `FATAL_MSG("watchdog timeout");                                        \
+    end                                                                      \
+  end                                                                        \
+`endif                                                                       \
+`endif                                                                       \
                                                                              \
   initial begin
 
