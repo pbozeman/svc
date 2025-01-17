@@ -96,7 +96,9 @@ define tb_run_test
 		grep -v "VCD info:"; \
 		status=$${PIPESTATUS[0]}; \
 		if [ $$status -eq 0 ]; then \
-			touch "$1".pass; \
+			if [ -z "$(RUN)" ]; then \
+				touch "$1".pass; \
+			fi; \
 			echo "$1" >> $(TB_BUILD_DIR)/tb_success.log; \
 		else \
 			echo "make $(notdir $1)" >> $(TB_BUILD_DIR)/tb_failure.log; \
