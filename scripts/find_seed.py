@@ -62,6 +62,7 @@ def find_working_seed(
             else:
                 print(f"Seed {seed} failed")
 
+    print(f"\n{nextpnr_cmd} {" ".join(nextpnr_args)}")
     print(f"\nNo seeds meet timing after trying {max_seeds} seeds")
     return 1
 
