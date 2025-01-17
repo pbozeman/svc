@@ -74,7 +74,7 @@ F_RUN_FILES := $(addprefix $(F_BUILD_DIR)/,$(addsuffix _f/ran, $(F_MODULES)))
 
 .PHONY: formal
 formal: f_clean_logs $(F_RUN_FILES)
-	@if [ -s $(F_BUILD_DIR)/f_failure.log ] || [ -z "$(SILENT_SUCCESS)" ]; then \
+	@if [ -s $(F_BUILD_DIR)/f_failure.log ] && [ -z "$(F_SILENT)" ]; then \
 	  echo "=============================="; \
 	  $(call f_quick_report)                 \
 	  echo "=============================="; \

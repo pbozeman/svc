@@ -16,6 +16,7 @@ include mk/top.mk
 ##############################################################################
 .PHONY: quick
 quick: SILENT_SUCCESS := 1
+quick: F_SILENT := 1
 quick: tb .WAIT formal .WAIT report
 
 .PHONY:
