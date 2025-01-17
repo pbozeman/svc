@@ -120,13 +120,24 @@
   always_ff @(posedge clk) svc_tiny_ticked = 1'b0;                           \
 `endif
 
+`define TICK(clk)                                                            \
+  @(posedge clk);                                                            \
+  #0;
+
 `define TEST_RST_N(clk, rst_n, cycles = 5)                                   \
   logic rst_n;                                                               \
   `TEST_TASK_RESET_N(clk, rst_n, cycles)
 
-`define TICK(clk)                                                            \
-  @(posedge clk);                                                            \
-  #0;
+`define TEST_TASK_RESET_N(clk, rst_n, cycles = 5)                            \
+  task reset_``rst_n``();                                                    \
+    rst_n = 0;                                                               \
+    repeat (cycles) @(posedge clk);                                          \
+`ifndef VERILATOR                                                            \
+    rst_n <= 1;                                                              \
+`endif                                                                       \
+    #0.1;                                                                    \
+  endtask                                                                    \
+  `define TEST_RESET_TASK reset_``rst_n``();
 
 `ifndef VERILATOR
 `define CHECK_WAIT_FOR(clk, signal, max_cnt = 16)                            \
@@ -143,17 +154,6 @@
 `else
 `define CHECK_WAIT_FOR(clk, signal, max_cnt = 16)
 `endif
-
-`define TEST_TASK_RESET_N(clk, rst_n, cycles = 5)                            \
-  task reset_``rst_n``();                                                    \
-    rst_n = 0;                                                               \
-    repeat (cycles) @(posedge clk);                                          \
-`ifndef VERILATOR                                                            \
-    rst_n <= 1;                                                              \
-`endif                                                                       \
-    #0.1;                                                                    \
-  endtask                                                                    \
-  `define TEST_RESET_TASK reset_``rst_n``();
 
 `define TEST_SUITE_BEGIN(tb_module_name)                                     \
 `ifndef VERILATOR                                                            \
