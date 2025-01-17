@@ -16,7 +16,9 @@ module svc_ice40_sram_io #(
     parameter integer SRAM_DATA_WIDTH = 16
 ) (
     input logic clk,
+    // verilator lint_off: UNUSEDSIGNAL
     input logic rst_n,
+    // verilator lint_on: UNUSEDSIGNAL
 
     // to/from the ice40 pad
     // verilator lint_off: UNUSEDSIGNAL
@@ -90,19 +92,11 @@ module svc_ice40_sram_io #(
   // verilator lint_on: UNUSEDSIGNAL
 
   always_ff @(posedge clk) begin
-    if (~rst_n) begin
-      pad_we_n_p1 <= 1'b1;
-    end else begin
-      pad_we_n_p1 <= pad_we_n;
-    end
+    pad_we_n_p1 <= pad_we_n;
   end
 
   always @(negedge clk) begin
-    if (~rst_n) begin
-      pad_we_n_p2 <= 1'b1;
-    end else begin
-      pad_we_n_p2 <= pad_we_n_p1;
-    end
+    pad_we_n_p2 <= pad_we_n_p1;
   end
 
   assign pad_we_n_ddr = {pad_we_n_p2, pad_we_n_p1};
@@ -135,19 +129,11 @@ module svc_ice40_sram_io #(
   // verilator lint_on: UNUSEDSIGNAL
 
   always_ff @(posedge clk) begin
-    if (~rst_n) begin
-      pad_oe_n_p1 <= 1'b1;
-    end else begin
-      pad_oe_n_p1 <= pad_oe_n;
-    end
+    pad_oe_n_p1 <= pad_oe_n;
   end
 
   always @(negedge clk) begin
-    if (~rst_n) begin
-      pad_oe_n_p2 <= 1'b1;
-    end else begin
-      pad_oe_n_p2 <= pad_oe_n_p1;
-    end
+    pad_oe_n_p2 <= pad_oe_n_p1;
   end
 
   assign pad_oe_n_ddr = {pad_oe_n_p2, pad_oe_n_p1};
@@ -219,19 +205,14 @@ module svc_ice40_sram_io #(
   logic pad_oe_p2 = 1'b0;
 
   always_ff @(posedge clk) begin
-    if (~rst_n) begin
-      pad_oe_p2    <= 1'b0;
-      pad_rd_valid <= 1'b0;
+    if (pad_oe_p2) begin
+      pad_rd_data  <= pad_rd_data_p1;
+      pad_rd_valid <= 1'b1;
     end else begin
-      if (pad_oe_p2) begin
-        pad_rd_data  <= pad_rd_data_p1;
-        pad_rd_valid <= 1'b1;
-      end else begin
-        pad_rd_valid <= 1'b0;
-      end
-
-      pad_oe_p2 <= !pad_oe_n_p1;
+      pad_rd_valid <= 1'b0;
     end
+
+    pad_oe_p2 <= !pad_oe_n_p1;
   end
 `else  // FORMAL
   // This is strictly a fake/model for use with formal testing of a calling
