@@ -92,7 +92,7 @@ module svc_ice40_sram_io_if_tb;
     sram_cmd_valid   = 1'b1;
     sram_cmd_wr_en   = 1'b1;
     sram_cmd_wr_data = 8'hD0;
-    sram_cmd_wr_strb = 1'b1;
+    sram_cmd_wr_strb = '1;
     `CHECK_TRUE(sram_cmd_valid && sram_cmd_ready);
 
     `TICK(clk);
@@ -118,7 +118,7 @@ module svc_ice40_sram_io_if_tb;
       sram_cmd_valid   = 1'b1;
       sram_cmd_wr_en   = 1'b1;
       sram_cmd_wr_data = 8'hD0;
-      sram_cmd_wr_strb = 1'b1;
+      sram_cmd_wr_strb = '1;
 
       `CHECK_WAIT_FOR(clk, sram_cmd_valid && sram_cmd_ready);
       `TICK(clk);

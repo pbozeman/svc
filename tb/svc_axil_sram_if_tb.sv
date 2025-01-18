@@ -166,6 +166,7 @@ module svc_axil_sram_if_tb;
     m_axil_awaddr  = addr;
     m_axil_wvalid  = 1'b1;
     m_axil_wdata   = data;
+    m_axil_wstrb   = '1;
     m_axil_bready  = 1'b1;
 
     `CHECK_WAIT_FOR(clk, sram_cmd_valid);
@@ -188,7 +189,7 @@ module svc_axil_sram_if_tb;
     `CHECK_FALSE(sram_cmd_wr_en);
 
     `CHECK_WAIT_FOR(clk, m_axil_rvalid);
-    `CHECK_EQ(m_axil_rdata, a_to_d(addr));
+    `CHECK_EQ(m_axil_rdata, data);
     `CHECK_EQ(m_axil_rresp, 2'b00);
 
     `TICK(clk);
