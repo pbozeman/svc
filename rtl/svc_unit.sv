@@ -137,6 +137,9 @@
   `TEST_TASK_RESET_N(clk, rst_n, cycles)
 
 `define TEST_TASK_RESET_N(clk, rst_n, cycles = 5)                            \
+`ifndef SVC_RST_N                                                            \
+`define SVC_RST_N rst_n                                                      \
+`endif                                                                       \
   task reset_``rst_n``();                                                    \
     rst_n = 0;                                                               \
     repeat (cycles) @(posedge clk);                                          \
@@ -215,6 +218,9 @@
     `TEST_RESET_TASK                                                         \
 `endif                                                                       \
     test_task();                                                             \
+`ifdef SVC_RST_N                                                             \
+    `SVC_RST_N = 1'b0;                                                       \
+`endif                                                                       \
 `ifdef SVC_CLK                                                               \
     @(posedge `SVC_CLK);                                                     \
 `endif                                                                       \
