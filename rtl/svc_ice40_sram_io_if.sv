@@ -58,7 +58,6 @@ module svc_ice40_sram_io_if #(
   logic   [SRAM_DATA_WIDTH-1:0] pad_wr_data;
   logic   [SRAM_DATA_WIDTH-1:0] pad_rd_data;
   logic                         pad_rd_valid;
-  logic                         pad_ce_n;
   logic                         pad_we_n;
   logic                         pad_oe_n;
 
@@ -78,7 +77,6 @@ module svc_ice40_sram_io_if #(
       .pad_wr_data (pad_wr_data),
       .pad_rd_data (pad_rd_data),
       .pad_rd_valid(pad_rd_valid),
-      .pad_ce_n    (pad_ce_n),
       .pad_we_n    (pad_we_n),
       .pad_oe_n    (pad_oe_n),
 
@@ -140,7 +138,6 @@ module svc_ice40_sram_io_if #(
   //
   // Control signals
   //
-  assign pad_ce_n = 1'b0;
   always_ff @(posedge clk) begin
     if (~rst_n) begin
       pad_oe_n  <= 1'b1;

@@ -16,9 +16,7 @@ module svc_ice40_sram_io #(
     parameter integer SRAM_DATA_WIDTH = 16
 ) (
     input logic clk,
-    // verilator lint_off: UNUSEDSIGNAL
     input logic rst_n,
-    // verilator lint_on: UNUSEDSIGNAL
 
     // to/from the ice40 pad
     // verilator lint_off: UNUSEDSIGNAL
@@ -29,7 +27,6 @@ module svc_ice40_sram_io #(
     // verilator lint_off: UNDRIVEN
     output logic [SRAM_DATA_WIDTH-1:0] pad_rd_data,
     // verilator lint_on: UNDRIVEN
-    input  logic                       pad_ce_n,
     input  logic                       pad_we_n,
     input  logic                       pad_oe_n,
 
@@ -58,26 +55,20 @@ module svc_ice40_sram_io #(
 `endif
 `endif
 
-`ifndef FORMAL
-  //
-  // cs_n (posedge)
-  //
-  // PIN_TYPE[5:2] = Output registered, (no enable)
-  // PIN_TYPE[1:0] = Simple input pin (D_IN_0)
-  //
-`ifndef NO_SB_IO
-  SB_IO #(
-      .PIN_TYPE   (6'b0101_01),
-      .PULLUP     (1'b0),
-      .NEG_TRIGGER(1'b0)
-  ) sb_sram_io_ce_n_i (
-      .PACKAGE_PIN (sram_io_ce_n),
-      .CLOCK_ENABLE(1'b1),
-      .OUTPUT_CLK  (clk),
-      .D_OUT_0     (pad_ce_n)
-  );
-`endif
+  // ce_n used to be caller controlled, but it went to the chip through
+  // a clocked SB_IO. The board was occasionally locking up during reset
+  // or at power up. It didn't do this when the memory module card was
+  // disconnected. I didn't verify with a scope, but I suspect the
+  // ce_n/oe_n signals were starting low before we could clock in the ce_n
+  // value, and the sram was trying to drive the bus before the fpga
+  // io pads were tristated. In additional to causing a lockup, this can damage
+  // both the sram and the fpga. For now, and maybe forever, just remove this
+  // capability from calling modules and keep ce_n disabled while reset
+  // is active. We'll come out of reset with valid combos of oe_n and
+  // driving the data bus.
+  assign sram_io_ce_n = !rst_n;
 
+`ifndef FORMAL
   //
   // we_n (negedge)
   //
@@ -230,26 +221,22 @@ module svc_ice40_sram_io #(
   logic [AW-1:0] pad_addr_p1;
   logic          pad_wr_en_p1;
   logic [DW-1:0] pad_wr_data_p1;
-  logic          pad_ce_n_p1;
   logic          pad_we_n_p1;
   logic          pad_oe_n_p1;
 
   logic [AW-1:0] pad_addr_p2;
   logic          pad_wr_en_p2;
   logic [DW-1:0] pad_wr_data_p2;
-  logic          pad_ce_n_p2;
   logic          pad_we_n_p2;
   logic          pad_oe_n_p2;
 
   always_ff @(posedge clk) begin
     if (~rst_n) begin
       pad_wr_en_p1 <= 1'b1;
-      pad_ce_n_p1  <= 1'b1;
       pad_we_n_p1  <= 1'b1;
       pad_oe_n_p1  <= 1'b1;
 
       pad_wr_en_p2 <= 1'b1;
-      pad_ce_n_p2  <= 1'b1;
       pad_we_n_p2  <= 1'b1;
       pad_oe_n_p2  <= 1'b1;
 
@@ -258,14 +245,12 @@ module svc_ice40_sram_io #(
       pad_addr_p1    <= pad_addr;
       pad_wr_en_p1   <= pad_wr_en;
       pad_wr_data_p1 <= pad_wr_data;
-      pad_ce_n_p1    <= pad_ce_n;
       pad_we_n_p1    <= pad_we_n;
       pad_oe_n_p1    <= pad_oe_n;
 
       pad_addr_p2    <= pad_addr_p1;
       pad_wr_en_p2   <= pad_wr_en_p1;
       pad_wr_data_p2 <= pad_wr_data_p1;
-      pad_ce_n_p2    <= pad_ce_n_p1;
       pad_we_n_p2    <= pad_we_n_p1;
       pad_oe_n_p2    <= pad_oe_n_p1;
 
@@ -278,7 +263,6 @@ module svc_ice40_sram_io #(
   assign sram_io_addr = pad_addr_p2;
   assign sram_io_we_n = pad_we_n_p2;
   assign sram_io_oe_n = pad_oe_n_p2;
-  assign sram_io_ce_n = pad_ce_n_p2;
 
   always @(*) begin
     // verilator lint_off: ASSIGNIN
