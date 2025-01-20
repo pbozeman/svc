@@ -166,6 +166,7 @@ module svc_ice40_axi_sram_tb;
 
       m_axi_bready  = 1'b1;
 
+      `TICK(clk);
       for (int i = 0; i < 4; i++) begin
         m_axi_wvalid = 1'b1;
         m_axi_wdata  = data + DW'(i);

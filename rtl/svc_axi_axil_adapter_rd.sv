@@ -289,11 +289,9 @@ module svc_axi_axil_adapter_rd #(
       .f_axi_awr_outstanding()
   );
 
-  // Cover statement showing 0 latency axi to axi lite adapter. The arvalid to
-  // the axi lite module is raised in the same clock as our incoming axi arvalid.
-  // Read responses from the axi lite device are returned to the axi device
-  // in the same clock as well. This is sustained for a length of 6 (arlen 5).
-  // Burst type 01 is used to see the addrs changing at the axil device.
+  // Cover statement showing full throughput axi to axi lite adapter. There is
+  // one initial cycle of latency for setup, and then reads come back every
+  // clock. Burst type 01 is used to see the addrs changing at the axil device.
   //
   // verilog_format: off
   always @(posedge clk) begin
@@ -307,7 +305,7 @@ module svc_axi_axil_adapter_rd #(
         $past(s_axi_rready && s_axi_rvalid, 5) &&
         $past(s_axi_arvalid && s_axi_arready &&
               s_axi_arlen == 5 && s_axi_arburst == 2'b01 &&
-              s_axi_arid != 0, 6));
+              s_axi_arid != 0, 7));
     end
   end
   // verilog_format: on

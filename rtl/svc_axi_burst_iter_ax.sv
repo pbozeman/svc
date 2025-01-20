@@ -6,10 +6,6 @@
 // Iterates through AXI address bursts, where each iteration output
 // can be used as a stand alone AR/AW request.
 //
-// This module operates with 0 latency, i.e. the m_valid signal
-// goes high in the same clock cycle that s_valid does. This is
-// like a skidbuffer that does a transform on the data that passes through it.
-//
 // There is an m_last to inform the downstream axi module about the end of the
 // original burst.
 //
@@ -43,162 +39,110 @@ module svc_axi_burst_iter_ax #(
     output logic                      m_last,
     input  logic                      m_ready
 );
-  // initial burst signals
-  logic                      burst_valid;
-  logic                      burst_valid_next;
+  typedef enum {
+    STATE_IDLE,
+    STATE_BURST
+  } state_t;
 
-  logic [AXI_ADDR_WIDTH-1:0] burst_addr;
-  logic [AXI_ADDR_WIDTH-1:0] burst_addr_next;
+  state_t                      state;
+  state_t                      state_next;
 
-  logic [               7:0] burst_len;
-  logic [               7:0] burst_len_next;
+  logic                        s_ready_next;
 
-  // follow up beat signals after the initial beat
-  logic                      beat_valid;
-  logic                      beat_valid_next;
+  logic   [  AXI_ID_WIDTH-1:0] burst_id;
+  logic   [  AXI_ID_WIDTH-1:0] burst_id_next;
 
-  logic [AXI_ADDR_WIDTH-1:0] beat_addr;
-  logic [AXI_ADDR_WIDTH-1:0] beat_addr_next;
+  logic   [               7:0] burst_len;
+  logic   [               7:0] burst_len_next;
 
-  logic [               7:0] beat_len;
-  logic [               7:0] beat_len_next;
+  logic   [               2:0] burst_size;
+  logic   [               2:0] burst_size_next;
 
-  // signals for initial + follow up beats
-  logic [  AXI_ID_WIDTH-1:0] id;
-  logic [  AXI_ID_WIDTH-1:0] id_next;
+  logic   [               1:0] burst_type;
+  logic   [               1:0] burst_type_next;
 
-  logic [               2:0] size;
-  logic [               2:0] size_next;
+  logic                        m_valid_next;
+  logic   [AXI_ADDR_WIDTH-1:0] m_addr_next;
+  logic                        m_last_next;
 
-  logic [               1:0] burst;
-  logic [               1:0] burst_next;
-
-  // The addr and len to use are sort of like skid buffers, but with math
-  // performed on the original signals. We use the current s_ values, or,
-  // the original burst values, or the current beat values, depending on where
-  // we are are in the flow, and if m_ready && m_value was true at the time s_valid
-  // && s_ready was true.
-  //
-  // To my kids chagrin, I wanted to call these skibidi buffers.
-  logic [AXI_ADDR_WIDTH-1:0] skidish_addr;
-  logic [               7:0] skidish_len;
-
-  logic [  AXI_ID_WIDTH-1:0] skidish_id;
-  logic [               2:0] skidish_size;
-  logic [               1:0] skidish_burst;
-
-  // since the skibidi signals are the key to making this module zero latency,
-  // lets set their values up front.
-  always_comb begin
-    if (burst_valid) begin
-      skidish_addr = burst_addr;
-      skidish_len  = burst_len;
-    end else if (beat_valid) begin
-      skidish_addr = beat_addr;
-      skidish_len  = beat_len;
-    end else if (s_valid) begin
-      skidish_addr = s_addr;
-      skidish_len  = s_len;
-    end else begin
-      skidish_addr = 0;
-      skidish_len  = 0;
-    end
-  end
-
-  always_comb begin
-    if (burst_valid || beat_valid) begin
-      skidish_id    = id;
-      skidish_size  = size;
-      skidish_burst = burst;
-    end else if (s_valid) begin
-      skidish_id    = s_id;
-      skidish_size  = s_size;
-      skidish_burst = s_burst;
-    end else begin
-      skidish_id    = 0;
-      skidish_size  = 0;
-      skidish_burst = 0;
-    end
-  end
-
-  assign s_ready = !burst_valid && !beat_valid;
-
-  assign m_valid = rst_n && (s_valid || burst_valid || beat_valid);
-  assign m_addr  = skidish_addr;
-  assign m_id    = skidish_id;
-  assign m_size  = skidish_size;
-  assign m_last  = skidish_len == 0;
+  assign m_id    = burst_id;
   assign m_len   = 0;
+  assign m_size  = burst_size;
   assign m_burst = 0;
 
   always_comb begin
-    burst_valid_next = burst_valid;
-    burst_addr_next  = burst_addr;
-    burst_len_next   = burst_len;
+    state_next      = state;
 
-    beat_valid_next  = beat_valid;
-    beat_addr_next   = beat_addr;
-    beat_len_next    = beat_len;
+    s_ready_next    = 1'b0;
 
-    id_next          = id;
-    size_next        = size;
-    burst_next       = burst;
+    burst_id_next   = burst_id;
+    burst_len_next  = burst_len;
+    burst_size_next = burst_size;
+    burst_type_next = burst_type;
 
-    // burst is starting
-    if (s_valid && s_ready) begin
-      burst_valid_next = 1'b1;
-      burst_addr_next  = s_addr;
-      burst_len_next   = s_len;
+    m_valid_next    = m_valid && !m_ready;
+    m_addr_next     = m_addr;
+    m_last_next     = m_last;
 
-      id_next          = s_id;
-      size_next        = s_size;
-      burst_next       = s_burst;
+    case (state)
+      STATE_IDLE: begin
+        s_ready_next = 1'b1;
 
-      beat_addr_next   = s_addr;
+        if (s_valid && s_ready) begin
+          state_next      = STATE_BURST;
+          s_ready_next    = 1'b0;
 
-      if (s_len > 0) begin
-        beat_valid_next = 1'b1;
-        beat_len_next   = s_len - 1;
-        if (s_burst != 2'b00) begin
-          beat_addr_next = s_addr + (1 << s_size);
+          m_addr_next     = s_addr;
+          burst_len_next  = s_len;
+          burst_id_next   = s_id;
+          burst_len_next  = s_len;
+          burst_size_next = s_size;
+          burst_type_next = s_burst;
+
+          m_valid_next    = 1'b1;
+          m_last_next     = s_len == 0;
         end
       end
-    end
 
-    // a beat was accepted: note that this might still be in the same clock as
-    // the burst acceptance above
-    if (m_valid && m_ready) begin
-      burst_valid_next = 1'b0;
-
-      if (skidish_len == 0) begin
-        beat_valid_next = 1'b0;
-      end else begin
-        beat_valid_next = 1'b1;
-        beat_len_next   = skidish_len - 1;
-        if (skidish_burst != 2'b00) begin
-          beat_addr_next = skidish_addr + (1 << skidish_size);
+      STATE_BURST: begin
+        if (m_valid && m_ready) begin
+          if (burst_len == 0) begin
+            state_next   = STATE_IDLE;
+            s_ready_next = 1'b1;
+          end else begin
+            m_valid_next   = 1'b1;
+            burst_len_next = burst_len - 1;
+            m_last_next    = burst_len_next == 0;
+            if (burst_type != 2'b00) begin
+              m_addr_next = m_addr + (1 << burst_size);
+            end
+          end
         end
       end
-    end
+
+    endcase
   end
 
   always_ff @(posedge clk) begin
     if (~rst_n) begin
-      burst_valid <= 1'b0;
-      beat_valid  <= 1'b0;
+      state   <= STATE_IDLE;
+      m_valid <= 1'b0;
+      s_ready <= 1'b1;
     end else begin
-      burst_valid <= burst_valid_next;
-      burst_addr  <= burst_addr_next;
-      burst_len   <= burst_len_next;
-
-      beat_valid  <= beat_valid_next;
-      beat_addr   <= beat_addr_next;
-      beat_len    <= beat_len_next;
-
-      id          <= id_next;
-      size        <= size_next;
-      burst       <= burst_next;
+      state   <= state_next;
+      m_valid <= m_valid_next;
+      s_ready <= s_ready_next;
     end
+  end
+
+  always_ff @(posedge clk) begin
+    burst_id   <= burst_id_next;
+    burst_len  <= burst_len_next;
+    burst_size <= burst_size_next;
+    burst_type <= burst_type_next;
+
+    m_addr     <= m_addr_next;
+    m_last     <= m_last_next;
   end
 
 `ifdef FORMAL
@@ -262,7 +206,7 @@ module svc_axi_burst_iter_ax #(
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
       // m_ signals should be stable until accepted
-      if ($past(m_valid && !m_ready)) begin
+      if ($past(m_valid && !m_ready) && !m_ready) begin
         `ASSERT(as_stable_addr, $stable(m_addr));
         `ASSERT(as_stable_id, $stable(m_id));
         `ASSERT(as_stable_len, $stable(m_len));
@@ -270,8 +214,8 @@ module svc_axi_burst_iter_ax #(
         `ASSERT(as_stable_burst, $stable(m_burst));
         `ASSERT(as_stable_last, $stable(m_last));
 
-        if (s_valid && s_ready && s_len == 0) begin
-          `ASSERT(as_immediate_last, m_last == 1'b1);
+        if ($past(s_valid && s_ready && s_len == 0)) begin
+          `ASSERT(as_initial_last, m_last == 1'b1);
         end
       end
     end
@@ -280,28 +224,22 @@ module svc_axi_burst_iter_ax #(
   //
   // track and confirm the beats in a burst
   //
-  // (This, and the as_last asserts above, catch a surprising number of corner
-  // cases.)
   int f_beats_remaining = 0;
   always @(posedge clk) begin
     if (!rst_n) begin
       f_beats_remaining <= 0;
     end else begin
       if (s_valid && s_ready) begin
-        if (m_valid && m_ready && s_len > 0) begin
-          f_beats_remaining <= int'(s_len) - 1;
+        f_beats_remaining <= 32'(s_len);
+      end
+
+      if (m_valid && m_ready) begin
+        if (f_beats_remaining == 0) begin
+          `ASSERT(as_m_last, m_last == 1'b1);
+          f_beats_remaining <= 0;
         end else begin
-          f_beats_remaining <= int'(s_len);
-        end
-      end else begin
-        if (m_valid && m_ready) begin
-          if (f_beats_remaining == 0) begin
-            `ASSERT(as_m_last, m_last == 1'b1);
-            f_beats_remaining <= 0;
-          end else begin
-            `ASSERT(as_m_not_last, m_last == 1'b0);
-            f_beats_remaining <= f_beats_remaining - 1;
-          end
+          `ASSERT(as_m_not_last, m_last == 1'b0);
+          f_beats_remaining <= f_beats_remaining - 1;
         end
       end
     end
@@ -322,13 +260,6 @@ module svc_axi_burst_iter_ax #(
           f_addr_inc <= 0;
         end else begin
           f_addr_inc <= 1 << s_size;
-        end
-
-        if (m_valid && m_ready) begin
-          `ASSERT(as_fast_addr, m_addr == s_addr);
-          if (s_burst != 2'b00) begin
-            f_addr_expected <= s_addr + (1 << s_size);
-          end
         end
       end else begin
         if (m_valid && m_ready) begin

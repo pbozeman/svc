@@ -114,6 +114,7 @@ module svc_axi_axil_adapter_rd_tb;
 
       // addr beats should be accepted every clock, and read responses
       // should be immediate.
+      `TICK(clk);
       for (int i = 0; i < 4; i++) begin
         `CHECK_TRUE(s_axil_arvalid && s_axil_arready);
         `CHECK_EQ(s_axil_araddr, addr + AW'(i * 2));
