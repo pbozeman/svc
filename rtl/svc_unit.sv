@@ -26,7 +26,7 @@
            op, `COLOR_YELLOW, `"a`", `COLOR_RESET,  a) ;                     \
   $display("%smake %s RUN=%s%s",                                             \
            `COLOR_CYAN, svc_tb_module_name, svc_tb_test_name, `COLOR_RESET); \
-  $display("%sgtkwave .build/%s.vcd%s",                                      \
+  $display("%sgtkwave .build/%s.vcd &%s",                                    \
            `COLOR_YELLOW, svc_tb_module_name, `COLOR_RESET);                 \
   $fatal;
 
@@ -38,7 +38,7 @@
            op, `COLOR_YELLOW, `"a`", `COLOR_RESET,  a, `"b`", b) ;           \
   $display("%smake %s RUN=%s%s",                                             \
            `COLOR_CYAN, svc_tb_module_name, svc_tb_test_name, `COLOR_RESET); \
-  $display("%sgtkwave .build/%s.vcd%s",                                      \
+  $display("%sgtkwave .build/%s.vcd &%s",                                    \
            `COLOR_YELLOW, svc_tb_module_name, `COLOR_RESET);                 \
   $fatal;
 
@@ -46,7 +46,7 @@
   $display("%sFAIL%s\n%s", `COLOR_RED, `COLOR_RESET, msg);                   \
   $display("%smake %s RUN=%s%s",                                             \
            `COLOR_CYAN, svc_tb_module_name, svc_tb_test_name, `COLOR_RESET); \
-  $display("%sgtkwave .build/%s.vcd%s",                                      \
+  $display("%sgtkwave .build/%s.vcd &%s",                                    \
            `COLOR_YELLOW, svc_tb_module_name, `COLOR_RESET);                 \
   $fatal;
 
