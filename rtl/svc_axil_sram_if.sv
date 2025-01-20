@@ -60,24 +60,18 @@ module svc_axil_sram_if #(
 
   // ar skidbuf
   logic                       sb_ar_valid;
-  logic                       sb_ar_ready;
   logic [SRAM_ADDR_WIDTH-1:0] sb_ar_addr;
-
-  // r skidbuf
-  logic                       sb_r_ready;
 
   //
   // aw skidbuf
   //
   logic                       sb_aw_valid;
-  logic                       sb_aw_ready;
   logic [SRAM_ADDR_WIDTH-1:0] sb_aw_addr;
 
   //
   // w skidbuf
   //
   logic                       sb_w_valid;
-  logic                       sb_w_ready;
   logic [SRAM_DATA_WIDTH-1:0] sb_w_data;
   logic [SRAM_STRB_WIDTH-1:0] sb_w_strb;
 
@@ -104,7 +98,6 @@ module svc_axil_sram_if #(
   //
   // ar channel
   //
-  assign s_axil_arready = sb_ar_ready && sb_r_ready;
 
   svc_skidbuf #(
       .DATA_WIDTH(SRAM_ADDR_WIDTH)
@@ -114,7 +107,7 @@ module svc_axil_sram_if #(
 
       .i_valid(s_axil_arvalid && s_axil_arready),
       .i_data (s_axil_araddr[AXIL_ADDR_WIDTH-1:LSB]),
-      .o_ready(sb_ar_ready),
+      .o_ready(s_axil_arready),
 
       .i_ready(rd_start),
       .o_data (sb_ar_addr),
@@ -134,7 +127,7 @@ module svc_axil_sram_if #(
 
       .i_valid(sram_resp_rd_valid && sram_resp_rd_ready),
       .i_data (sram_resp_rd_data),
-      .o_ready(sb_r_ready),
+      .o_ready(sram_resp_rd_ready),
 
       .i_ready(s_axil_rvalid && s_axil_rready),
       .o_data (s_axil_rdata),
@@ -144,7 +137,6 @@ module svc_axil_sram_if #(
   //
   // aw channel
   //
-  assign s_axil_awready = sb_aw_ready;
 
   svc_skidbuf #(
       .DATA_WIDTH(SRAM_ADDR_WIDTH)
@@ -154,7 +146,7 @@ module svc_axil_sram_if #(
 
       .i_valid(s_axil_awvalid && s_axil_awready),
       .i_data (s_axil_awaddr[AXIL_ADDR_WIDTH-1:LSB]),
-      .o_ready(sb_aw_ready),
+      .o_ready(s_axil_awready),
 
       .i_ready(wr_start),
       .o_data (sb_aw_addr),
@@ -164,7 +156,6 @@ module svc_axil_sram_if #(
   //
   // w channel
   //
-  assign s_axil_wready = sb_w_ready && (!s_axil_bvalid || s_axil_bready);
 
   svc_skidbuf #(
       .DATA_WIDTH(SB_W_DATA_WIDTH)
@@ -174,7 +165,7 @@ module svc_axil_sram_if #(
 
       .i_valid(s_axil_wvalid && s_axil_wready),
       .i_data ({s_axil_wstrb, s_axil_wdata}),
-      .o_ready(sb_w_ready),
+      .o_ready(s_axil_wready),
 
       .i_ready(wr_start),
       .o_data ({sb_w_strb, sb_w_data}),
@@ -221,7 +212,7 @@ module svc_axil_sram_if #(
   //
   // arbiter
   //
-  assign rd_ok = sb_ar_valid && sb_r_ready;
+  assign rd_ok = sb_ar_valid && sram_resp_rd_ready;
   assign wr_ok = sb_aw_valid && sb_w_valid && bcnt < 2'b10;
 
   // pull the common rd/wr arb logic out so that rd/wr signals
@@ -285,8 +276,6 @@ module svc_axil_sram_if #(
       sram_cmd_wr_strb <= sram_cmd_wr_strb_next;
     end
   end
-
-  assign sram_resp_rd_ready = sb_r_ready;
 
   `SVC_UNUSED({s_axil_awaddr[3:0], s_axil_araddr[3:0]});
 
