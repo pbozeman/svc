@@ -131,9 +131,11 @@ module svc_axi_axil_reflect_rd #(
   //
   always @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      `ASSUME(am_one_beat, s_axi_arlen == 0);
-      `ASSUME(am_max_size, s_axi_arsize <= F_MAX_ARSIZE);
-      `ASSUME(am_burst_in_place, s_axi_arburst == 0);
+      if (s_axi_arvalid) begin
+        `ASSUME(am_one_beat, s_axi_arlen == 0);
+        `ASSUME(am_max_size, s_axi_arsize <= F_MAX_ARSIZE);
+        `ASSUME(am_burst_in_place, s_axi_arburst == 0);
+      end
     end
   end
 

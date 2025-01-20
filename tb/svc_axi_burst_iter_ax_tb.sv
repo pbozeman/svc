@@ -94,6 +94,7 @@ module svc_axi_burst_iter_ax_tb;
 
       `CHECK_TRUE(m_valid && m_ready);
       for (int i = 0; i < 4; i++) begin
+        `TICK(clk);
         `CHECK_TRUE(s_valid && s_ready);
         `CHECK_EQ(s_addr, addr + AW'(i * 2));
         `CHECK_EQ(s_id, 4'hD);
@@ -101,10 +102,9 @@ module svc_axi_burst_iter_ax_tb;
         `CHECK_EQ(s_size, 3'b001);
         `CHECK_EQ(s_burst, 2'b00);
         `CHECK_TRUE(s_last || i < 3);
-
-        `TICK(clk);
       end
 
+      `TICK(clk);
       `CHECK_FALSE(s_valid);
     end
   endtask

@@ -134,6 +134,7 @@ module svc_axi_axil_adapter_wr_tb;
       s_axil_wready  = 1'b1;
 
       // writes should be issued every clock and responses should be immediate.
+      `TICK(clk);
       for (int i = 0; i < 4; i++) begin
         m_axi_wvalid = 1'b1;
         m_axi_wdata  = data + DW'(i);
