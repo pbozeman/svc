@@ -9,6 +9,13 @@
 // There is an m_last to inform the downstream axi module about the end of the
 // original burst.
 //
+// git commit 7da8fda73 replaced a zero latency version of this module with one
+// that is pipelined. The zero latency version doubled the gate count
+// of the pipelined version, and, was always showing up at the longest path
+// in timing reports. It was also somewhat more complex conceptually than the
+// pipelined version. So, while cool, it seemed like the tradeoff for
+// 0 latency wasn't going to be worth it in the long run.
+//
 module svc_axi_burst_iter_ax #(
     parameter AXI_ADDR_WIDTH = 16,
     parameter AXI_ID_WIDTH   = 4
