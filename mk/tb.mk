@@ -84,9 +84,10 @@ $(TB_BUILD_DIR)/%.pass: $(TB_BUILD_DIR)/%
 	$(call tb_run_test,$<)
 
 # simulation "synthesis"
+TB_PRJ_INC = $(PRJ_RTL_DIR)/$(patsubst %_tb,%, $(notdir $(*)))
 .PRECIOUS: $(TB_BUILD_DIR)/%
 $(TB_BUILD_DIR)/%: $(PRJ_TB_DIR)/%.sv $(ICE40_CELLS_SIM) Makefile | $(TB_BUILD_DIR)
-	@$(IVERILOG) -M $(@).dep $(I_RTL) $(I_TB) -o $@ $(filter-out Makefile,$^)
+	@$(IVERILOG) -M $(@).dep $(I_RTL) $(I_TB) -I$(TB_PRJ_INC) -o $@ $(filter-out Makefile,$^)
 	@echo "$@: $$(tr '\n' ' ' < $(@).dep)" > $(@).d
 
 # run a tb and do results tracking
