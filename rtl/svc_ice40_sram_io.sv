@@ -83,11 +83,19 @@ module svc_ice40_sram_io #(
   // verilator lint_on: UNUSEDSIGNAL
 
   always_ff @(posedge clk) begin
-    pad_we_n_p1 <= pad_we_n;
+    if (~rst_n) begin
+      pad_we_n_p1 <= 1'b1;
+    end else begin
+      pad_we_n_p1 <= pad_we_n;
+    end
   end
 
   always @(negedge clk) begin
-    pad_we_n_p2 <= pad_we_n_p1;
+    if (~rst_n) begin
+      pad_we_n_p2 <= 1'b1;
+    end else begin
+      pad_we_n_p2 <= pad_we_n_p1;
+    end
   end
 
   assign pad_we_n_ddr = {pad_we_n_p2, pad_we_n_p1};
@@ -120,11 +128,19 @@ module svc_ice40_sram_io #(
   // verilator lint_on: UNUSEDSIGNAL
 
   always_ff @(posedge clk) begin
-    pad_oe_n_p1 <= pad_oe_n;
+    if (~rst_n) begin
+      pad_oe_n_p1 <= 1'b1;
+    end else begin
+      pad_oe_n_p1 <= pad_oe_n;
+    end
   end
 
   always @(negedge clk) begin
-    pad_oe_n_p2 <= pad_oe_n_p1;
+    if (~rst_n) begin
+      pad_oe_n_p2 <= 1'b1;
+    end else begin
+      pad_oe_n_p2 <= pad_oe_n_p1;
+    end
   end
 
   assign pad_oe_n_ddr = {pad_oe_n_p2, pad_oe_n_p1};
@@ -185,7 +201,7 @@ module svc_ice40_sram_io #(
       .CLOCK_ENABLE     (1'b1),
       .INPUT_CLK        (clk),
       .OUTPUT_CLK       (clk),
-      .OUTPUT_ENABLE    (pad_wr_en),
+      .OUTPUT_ENABLE    (rst_n && pad_wr_en),
       .D_OUT_0          (pad_wr_data),
       .D_OUT_1          (pad_wr_data),
       .D_IN_1           (pad_rd_data_p1)
