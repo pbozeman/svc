@@ -218,6 +218,9 @@
     `TEST_RESET_TASK                                                         \
 `endif                                                                       \
     test_task();                                                             \
+`ifdef SVC_CLK                                                               \
+    @(posedge `SVC_CLK);                                                     \
+`endif                                                                       \
 `ifdef SVC_RST_N                                                             \
     `SVC_RST_N = 1'b0;                                                       \
 `endif                                                                       \
