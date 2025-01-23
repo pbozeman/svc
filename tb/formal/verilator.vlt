@@ -21,4 +21,5 @@ lint_off -rule GENUNNAMED -file "*tb/formal/faxil_master.v" -match "Unnamed gene
 lint_off -rule GENUNNAMED -file "*tb/formal/private/faxi_slave.v" -match "Unnamed generate block 'genblk8' (IEEE 1800-2023 27.6)*"
 lint_off -rule GENUNNAMED -file "*tb/formal/private/faxi_valaddr.v" -match "Unnamed generate block 'genblk1' (IEEE 1800-2023 27.6)*"
 lint_off -rule GENUNNAMED -file "*tb/formal/private/faxi_valaddr.v" -match "Unnamed generate block 'genblk1' (IEEE 1800-2023 27.6)*"
+lint_off -rule GENUNNAMED -file "*tb/formal/private/faxi_master.v" -match "Unnamed generate block 'genblk8' (IEEE 1800-2023 27.6)*"
 lint_off -rule UNUSEDSIGNAL -file "*tb/formal/private/faxi_valaddr.v" -match "Bits of signal are not used: 'i_addr'[7]"
