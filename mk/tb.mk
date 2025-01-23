@@ -36,7 +36,7 @@ lint: lint_tb
 define lint_tb_rule
 lint_tb: lint_$(1)
 lint_$(1):
-	@$$(LINTER) $(I_TB) $(1).sv
+	@$$(LINTER) $(I_TB) -I$(PRJ_RTL_DIR)/$(patsubst %_tb,%, $(notdir $1)) $(1).sv
 endef
 
 $(foreach tb, $(TB_MODULES), $(eval $(call lint_tb_rule,$(tb))))
