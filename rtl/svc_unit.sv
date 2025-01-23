@@ -150,8 +150,8 @@
   endtask                                                                    \
   `define TEST_RESET_TASK reset_``rst_n``();
 
-`ifndef VERILATOR
 `define CHECK_WAIT_FOR(clk, signal, max_cnt = 16)                            \
+`ifndef VERILATOR                                                            \
     svc_wait_cnt = 0;                                                        \
     `SVC_TINY_TICK;                                                          \
     while ((signal) === 0 && svc_wait_cnt < max_cnt) begin                   \
@@ -159,12 +159,10 @@
       svc_wait_cnt = svc_wait_cnt + 1;                                       \
       `SVC_TINY_TICK;                                                        \
     end                                                                      \
+`endif                                                                       \
     if ((signal) !== 1) begin                                                \
       `CHECK_MSG_1("WAIT_FOR", `__FILE__, `__LINE__, signal);                \
     end
-`else
-`define CHECK_WAIT_FOR(clk, signal, max_cnt = 16)
-`endif
 
 `define TEST_SUITE_BEGIN(tb_module_name)                                     \
 `ifndef VERILATOR                                                            \
