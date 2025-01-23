@@ -111,9 +111,6 @@ module svc_arbiter #(
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      if (done) begin
-        `ASSUME(a_done_valid, $past(grant_valid));
-      end
     end
   end
 
@@ -145,6 +142,10 @@ module svc_arbiter #(
       end
     end
   end
+
+`ifdef FORMAL_SVC_ARBITER
+  // The round robin verification needs at least 3 managers, which may not be
+  // the case when used by other modules.
 
   //
   // round robin
@@ -180,6 +181,7 @@ module svc_arbiter #(
       end
     end
   end
+`endif
 
   //
   // covers
