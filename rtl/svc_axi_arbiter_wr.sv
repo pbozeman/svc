@@ -73,6 +73,7 @@ module svc_axi_arbiter_wr #(
   logic [          NUM_M-1:0]                     request_mask;
 
   logic                                           grant_valid;
+  logic                                           grant_done;
   logic [GRANT_IDX_WIDTH-1:0]                     grant_idx;
 
   logic [          NUM_M-1:0]                     sb_awvalid;
@@ -90,6 +91,9 @@ module svc_axi_arbiter_wr #(
   logic [          NUM_M-1:0]                     sb_wready;
 
   logic [          NUM_M-1:0]                     sb_bready;
+
+  logic                                           aw_accepted;
+  logic                                           aw_accepted_next;
 
   logic [   AXI_ID_WIDTH-1:0]                     b_bid;
   logic [GRANT_IDX_WIDTH-1:0]                     b_grant_idx;
@@ -150,6 +154,7 @@ module svc_axi_arbiter_wr #(
   // If we have the grant, we don't want to request it again because the sb
   // will still be valid until ready raises.
   assign request_mask = grant_valid ? ~(1 << grant_idx) : '1;
+  assign grant_done   = m_axi_wvalid && m_axi_wready && m_axi_wlast;
 
   svc_arbiter #(
       .NUM_M(NUM_M)
@@ -162,12 +167,31 @@ module svc_axi_arbiter_wr #(
       .grant_idx  (grant_idx)
   );
 
+  always_comb begin
+    aw_accepted_next = aw_accepted;
+
+    if (grant_done) begin
+      aw_accepted_next = 1'b0;
+    end
+
+    if (m_axi_awvalid && m_axi_awready) begin
+      aw_accepted_next = 1'b1;
+    end
+  end
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      aw_accepted <= 1'b0;
+    end else begin
+      aw_accepted <= aw_accepted_next;
+    end
+  end
+
   //
   // Muxing
   //
-
   // AW out to subordinate mux
-  assign m_axi_awvalid = grant_valid;
+  assign m_axi_awvalid = grant_valid && !aw_accepted;
   assign m_axi_awid    = grant_valid ? {grant_idx, sb_awid[grant_idx]} : 0;
   assign m_axi_awaddr  = grant_valid ? sb_awaddr[grant_idx] : 0;
   assign m_axi_awlen   = grant_valid ? sb_awlen[grant_idx] : 0;
