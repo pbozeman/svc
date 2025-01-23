@@ -128,6 +128,9 @@ module svc_axi_arbiter_rd #(
   );
 
   // mux our signal stream
+  //
+  // Unlike the write/aw version, we don't need any special valid handling
+  // because the grant is released immediately upon ar acceptance.
   assign m_axi_arvalid = grant_valid;
   assign m_axi_arid = grant_valid ? {grant_idx, sb_arid[grant_idx]} : 0;
   assign m_axi_araddr = grant_valid ? sb_araddr[grant_idx] : 0;
