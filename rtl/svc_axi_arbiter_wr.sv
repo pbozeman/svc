@@ -238,7 +238,7 @@ module svc_axi_arbiter_wr #(
     svc_skidbuf #(
         .DATA_WIDTH(SKIDBUF_B_WIDTH),
         .OPT_OUTREG(1)
-    ) svc_skidbuf_r_i (
+    ) svc_skidbuf_b_i (
         .clk  (clk),
         .rst_n(rst_n),
 
