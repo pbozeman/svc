@@ -52,17 +52,25 @@ module svc_axi_axil_adapter_wr #(
     output logic                      m_axil_bready
 );
 
-  logic                      split_awvalid;
-  logic [AXI_ADDR_WIDTH-1:0] split_awaddr;
-  logic [  AXI_ID_WIDTH-1:0] split_awid;
-  logic [               7:0] split_awlen;
-  logic [               2:0] split_awsize;
-  logic [               1:0] split_awburst;
-  logic                      split_awlast;
-  logic                      split_awready;
+  logic                      m_axi_awvalid;
+  logic [AXI_ADDR_WIDTH-1:0] m_axi_awaddr;
+  logic [  AXI_ID_WIDTH-1:0] m_axi_awid;
+  logic [               7:0] m_axi_awlen;
+  logic [               2:0] m_axi_awsize;
+  logic [               1:0] m_axi_awburst;
+  logic                      m_axi_awlast;
+  logic                      m_axi_awready;
 
-  logic                      b_valid;
-  logic                      b_user;
+  logic                      m_axi_wvalid;
+  logic [AXI_DATA_WIDTH-1:0] m_axi_wdata;
+  logic [AXI_STRB_WIDTH-1:0] m_axi_wstrb;
+  logic                      m_axi_wlast;
+  logic                      m_axi_wready;
+  logic                      m_axi_bvalid;
+  logic [  AXI_ID_WIDTH-1:0] m_axi_bid;
+  logic [               1:0] m_axi_bresp;
+  logic                      m_axi_buser;
+  logic                      m_axi_bready;
 
   svc_axi_burst_iter_ax #(
       .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
@@ -79,15 +87,26 @@ module svc_axi_axil_adapter_wr #(
       .s_burst(s_axi_awburst),
       .s_ready(s_axi_awready),
 
-      .m_valid(split_awvalid),
-      .m_addr (split_awaddr),
-      .m_id   (split_awid),
-      .m_len  (split_awlen),
-      .m_size (split_awsize),
-      .m_burst(split_awburst),
-      .m_last (split_awlast),
-      .m_ready(split_awready)
+      .m_valid(m_axi_awvalid),
+      .m_addr (m_axi_awaddr),
+      .m_id   (m_axi_awid),
+      .m_len  (m_axi_awlen),
+      .m_size (m_axi_awsize),
+      .m_burst(m_axi_awburst),
+      .m_last (m_axi_awlast),
+      .m_ready(m_axi_awready)
   );
+
+  // the rest of the signals pass through
+  assign m_axi_wvalid = s_axi_wvalid;
+  assign m_axi_wdata  = s_axi_wdata;
+  assign m_axi_wstrb  = s_axi_wstrb;
+  assign m_axi_wlast  = s_axi_wlast;
+  assign s_axi_wready = m_axi_wready;
+
+  assign s_axi_bid    = m_axi_bid;
+  assign s_axi_bresp  = m_axi_bresp;
+  assign m_axi_bready = s_axi_bready;
 
   svc_axi_axil_reflect_wr #(
       .AXI_ADDR_WIDTH          (AXI_ADDR_WIDTH),
@@ -99,24 +118,24 @@ module svc_axi_axil_adapter_wr #(
       .clk  (clk),
       .rst_n(rst_n),
 
-      .s_axi_awvalid(split_awvalid),
-      .s_axi_awid   (split_awid),
-      .s_axi_awaddr (split_awaddr),
-      .s_axi_awlen  (split_awlen),
-      .s_axi_awsize (split_awsize),
-      .s_axi_awburst(split_awburst),
-      .s_axi_awuser (split_awlast),
-      .s_axi_awready(split_awready),
-      .s_axi_wvalid (s_axi_wvalid),
-      .s_axi_wdata  (s_axi_wdata),
-      .s_axi_wstrb  (s_axi_wstrb),
-      .s_axi_wlast  (s_axi_wlast),
-      .s_axi_wready (s_axi_wready),
-      .s_axi_bvalid (b_valid),
-      .s_axi_bid    (s_axi_bid),
-      .s_axi_bresp  (s_axi_bresp),
-      .s_axi_buser  (b_user),
-      .s_axi_bready (s_axi_bready),
+      .s_axi_awvalid(m_axi_awvalid),
+      .s_axi_awid   (m_axi_awid),
+      .s_axi_awaddr (m_axi_awaddr),
+      .s_axi_awlen  (m_axi_awlen),
+      .s_axi_awsize (m_axi_awsize),
+      .s_axi_awburst(m_axi_awburst),
+      .s_axi_awuser (m_axi_awlast),
+      .s_axi_awready(m_axi_awready),
+      .s_axi_wvalid (m_axi_wvalid),
+      .s_axi_wdata  (m_axi_wdata),
+      .s_axi_wstrb  (m_axi_wstrb),
+      .s_axi_wlast  (m_axi_wlast),
+      .s_axi_wready (m_axi_wready),
+      .s_axi_bvalid (m_axi_bvalid),
+      .s_axi_bid    (m_axi_bid),
+      .s_axi_bresp  (m_axi_bresp),
+      .s_axi_buser  (m_axi_buser),
+      .s_axi_bready (m_axi_bready),
 
       .m_axil_awaddr (m_axil_awaddr),
       .m_axil_awvalid(m_axil_awvalid),
@@ -130,7 +149,7 @@ module svc_axi_axil_adapter_wr #(
       .m_axil_bready (m_axil_bready)
   );
 
-  assign s_axi_bvalid = b_valid && b_user;
+  assign s_axi_bvalid = m_axi_bvalid && m_axi_buser;
 
 `ifdef FORMAL
   // This uses faxi_* files in tb/formal/private.

@@ -44,14 +44,21 @@ module svc_axi_axil_adapter_rd #(
     output logic                      m_axil_rready
 );
 
-  logic                      split_arvalid;
-  logic [AXI_ADDR_WIDTH-1:0] split_araddr;
-  logic [  AXI_ID_WIDTH-1:0] split_arid;
-  logic [               7:0] split_arlen;
-  logic [               2:0] split_arsize;
-  logic [               1:0] split_arburst;
-  logic                      split_arlast;
-  logic                      split_arready;
+  logic                      m_axi_arvalid;
+  logic [AXI_ADDR_WIDTH-1:0] m_axi_araddr;
+  logic [  AXI_ID_WIDTH-1:0] m_axi_arid;
+  logic [               7:0] m_axi_arlen;
+  logic [               2:0] m_axi_arsize;
+  logic [               1:0] m_axi_arburst;
+  logic                      m_axi_arlast;
+  logic                      m_axi_arready;
+
+  logic                      m_axi_rvalid;
+  logic [  AXI_ID_WIDTH-1:0] m_axi_rid;
+  logic [AXI_DATA_WIDTH-1:0] m_axi_rdata;
+  logic [               1:0] m_axi_rresp;
+  logic                      m_axi_ruser;
+  logic                      m_axi_rready;
 
   svc_axi_burst_iter_ax #(
       .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
@@ -68,15 +75,26 @@ module svc_axi_axil_adapter_rd #(
       .s_burst(s_axi_arburst),
       .s_ready(s_axi_arready),
 
-      .m_valid(split_arvalid),
-      .m_addr (split_araddr),
-      .m_id   (split_arid),
-      .m_len  (split_arlen),
-      .m_size (split_arsize),
-      .m_burst(split_arburst),
-      .m_last (split_arlast),
-      .m_ready(split_arready)
+      .m_valid(m_axi_arvalid),
+      .m_addr (m_axi_araddr),
+      .m_id   (m_axi_arid),
+      .m_len  (m_axi_arlen),
+      .m_size (m_axi_arsize),
+      .m_burst(m_axi_arburst),
+      .m_last (m_axi_arlast),
+      .m_ready(m_axi_arready)
   );
+
+  // the rest of the signals pass through
+  assign s_axi_rvalid = m_axi_rvalid;
+  assign s_axi_rid    = m_axi_rid;
+  assign s_axi_rdata  = m_axi_rdata;
+  assign s_axi_rresp  = m_axi_rresp;
+  assign m_axi_rready = s_axi_rready;
+
+  // but last comes from user, because all reads are already last due to the
+  // split. We need to mark the read that was last pre-spit.
+  assign s_axi_rlast  = m_axi_ruser;
 
   svc_axi_axil_reflect_rd #(
       .AXI_ADDR_WIDTH         (AXI_ADDR_WIDTH),
@@ -88,21 +106,21 @@ module svc_axi_axil_adapter_rd #(
       .clk  (clk),
       .rst_n(rst_n),
 
-      .s_axi_arvalid(split_arvalid),
-      .s_axi_arid   (split_arid),
-      .s_axi_araddr (split_araddr),
-      .s_axi_arlen  (split_arlen),
-      .s_axi_arsize (split_arsize),
-      .s_axi_arburst(split_arburst),
-      .s_axi_aruser (split_arlast),
-      .s_axi_arready(split_arready),
-      .s_axi_rvalid (s_axi_rvalid),
-      .s_axi_rid    (s_axi_rid),
-      .s_axi_rdata  (s_axi_rdata),
-      .s_axi_rresp  (s_axi_rresp),
-      .s_axi_ruser  (s_axi_rlast),
+      .s_axi_arvalid(m_axi_arvalid),
+      .s_axi_arid   (m_axi_arid),
+      .s_axi_araddr (m_axi_araddr),
+      .s_axi_arlen  (m_axi_arlen),
+      .s_axi_arsize (m_axi_arsize),
+      .s_axi_arburst(m_axi_arburst),
+      .s_axi_aruser (m_axi_arlast),
+      .s_axi_arready(m_axi_arready),
+      .s_axi_rvalid (m_axi_rvalid),
+      .s_axi_rid    (m_axi_rid),
+      .s_axi_rdata  (m_axi_rdata),
+      .s_axi_rresp  (m_axi_rresp),
+      .s_axi_ruser  (m_axi_ruser),
       .s_axi_rlast  (),
-      .s_axi_rready (s_axi_rready),
+      .s_axi_rready (m_axi_rready),
 
       .m_axil_arvalid(m_axil_arvalid),
       .m_axil_araddr (m_axil_araddr),
