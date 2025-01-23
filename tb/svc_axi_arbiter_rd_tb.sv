@@ -127,7 +127,7 @@ module svc_axi_arbiter_rd_tb;
     // length 2, INCR, 2 byte stride
     m_axi_arvalid[0] = 1'b1;
     m_axi_araddr[0]  = addr;
-    m_axi_arid[0]    = 4'h1;
+    m_axi_arid[0]    = 4'hA;
     m_axi_arlen[0]   = 8'h01;
     m_axi_arburst[0] = 2'b01;
     m_axi_arsize[0]  = 3'b001;
@@ -164,7 +164,7 @@ module svc_axi_arbiter_rd_tb;
 
     `TICK(clk);
     `CHECK_EQ(m_axi_rvalid, 3'b001);
-    `CHECK_EQ(m_axi_rid[0], 4'h1);
+    `CHECK_EQ(m_axi_rid[0], 4'hA);
     `CHECK_EQ(m_axi_rresp[0], 2'b00);
     `CHECK_EQ(m_axi_rdata[0], data + DW'(1));
     `CHECK_TRUE(m_axi_rlast[0]);

@@ -129,7 +129,7 @@ module svc_axi_arbiter_rd #(
 
   // mux our signal stream
   assign m_axi_arvalid = grant_valid;
-  assign m_axi_arid = grant_valid ? {sb_arid[grant_idx], grant_idx} : 0;
+  assign m_axi_arid = grant_valid ? {grant_idx, sb_arid[grant_idx]} : 0;
   assign m_axi_araddr = grant_valid ? sb_araddr[grant_idx] : 0;
   assign m_axi_arlen = grant_valid ? sb_arlen[grant_idx] : 0;
   assign m_axi_arsize = grant_valid ? sb_arsize[grant_idx] : 0;
@@ -141,7 +141,7 @@ module svc_axi_arbiter_rd #(
   //
   //-------------------------------------------------------------------------
 
-  assign {r_rid, r_grant_idx} = m_axi_rid;
+  assign {r_grant_idx, r_rid} = m_axi_rid;
   assign m_axi_rready = m_axi_rvalid ? sb_rready[r_grant_idx] : 1'b0;
 
   //

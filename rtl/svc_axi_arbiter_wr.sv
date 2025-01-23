@@ -168,7 +168,7 @@ module svc_axi_arbiter_wr #(
 
   // AW out to subordinate mux
   assign m_axi_awvalid = grant_valid;
-  assign m_axi_awid    = grant_valid ? {sb_awid[grant_idx], grant_idx} : 0;
+  assign m_axi_awid    = grant_valid ? {grant_idx, sb_awid[grant_idx]} : 0;
   assign m_axi_awaddr  = grant_valid ? sb_awaddr[grant_idx] : 0;
   assign m_axi_awlen   = grant_valid ? sb_awlen[grant_idx] : 0;
   assign m_axi_awsize  = grant_valid ? sb_awsize[grant_idx] : 0;
@@ -202,7 +202,7 @@ module svc_axi_arbiter_wr #(
   //
   //-------------------------------------------------------------------------
   //
-  assign {b_bid, b_grant_idx} = m_axi_bid;
+  assign {b_grant_idx, b_bid} = m_axi_bid;
   assign m_axi_bready         = m_axi_bvalid ? sb_bready[b_grant_idx] : 1'b0;
 
   //
