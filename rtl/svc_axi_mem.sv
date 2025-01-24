@@ -10,6 +10,8 @@
 // There is an extra cycle of latency that could be squeezed out for the first
 // read/write beats in a burst, but the current implementation favors simplicity.
 //
+// TODO: remove the extra cycle so that this can be used for perf teseting.
+//
 // If this gets used for more than casual testing, it might be nice to pass in
 // the memory interface so that the instantiating module can ensure that
 // vendor specific BRAM IP gets inferred/synthesized correctly.
@@ -244,7 +246,7 @@ module svc_axi_mem #(
   //
   //-------------------------------------------------------------------------
 
-  always_comb begin
+  always @(*) begin
     read_state_next    = read_state;
 
     r_id_next          = r_id;
@@ -259,6 +261,7 @@ module svc_axi_mem #(
     s_axi_rlast_next   = s_axi_rlast;
 
     mem_rd_en          = 1'b0;
+    mem_rd_addr        = 0;
 
     case (read_state)
       READ_STATE_IDLE: begin
@@ -271,14 +274,35 @@ module svc_axi_mem #(
           r_len_next         = s_axi_arlen;
           r_size_next        = s_axi_arsize;
           r_burst_next       = s_axi_arburst;
+
+          // and also do the first read, if possible, to avoid a cycle of latency
+          if (!s_axi_rvalid || s_axi_rready) begin
+            mem_rd_en         = 1'b1;
+            mem_rd_addr       = s_axi_araddr[AXI_ADDR_WIDTH-1:LSB];
+
+            s_axi_rvalid_next = 1'b1;
+            s_axi_rid_next    = s_axi_arid;
+            s_axi_rlast_next  = s_axi_arlen == 0;
+
+            if (s_axi_arburst != 2'b00) begin
+              r_addr_next = s_axi_araddr + (1 << s_axi_arsize);
+            end
+
+            r_len_next = s_axi_arlen - 1;
+            if (s_axi_arlen == 0) begin
+              read_state_next    = READ_STATE_IDLE;
+              s_axi_arready_next = 1'b1;
+            end
+          end
         end
       end
 
       READ_STATE_BURST: begin
         if (!s_axi_rvalid || s_axi_rready) begin
-          s_axi_rvalid_next = 1'b1;
           mem_rd_en         = 1'b1;
+          mem_rd_addr       = r_addr[AXI_ADDR_WIDTH-1:LSB];
 
+          s_axi_rvalid_next = 1'b1;
           s_axi_rid_next    = r_id;
           s_axi_rlast_next  = r_len == 0;
 
@@ -320,7 +344,6 @@ module svc_axi_mem #(
     s_axi_rlast <= s_axi_rlast_next;
   end
 
-  assign mem_rd_addr = r_addr[AXI_ADDR_WIDTH-1:LSB];
   always_ff @(posedge clk) begin
     if (mem_rd_en) begin
       s_axi_rdata <= mem[mem_rd_addr];
