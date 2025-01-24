@@ -7,11 +7,6 @@
 //
 // AXI backed by internal memory, primarily intended for testing.
 //
-// There is an extra cycle of latency that could be squeezed out for the first
-// read/write beats in a burst, but the current implementation favors simplicity.
-//
-// TODO: remove the extra cycle so that this can be used for perf teseting.
-//
 // If this gets used for more than casual testing, it might be nice to pass in
 // the memory interface so that the instantiating module can ensure that
 // vendor specific BRAM IP gets inferred/synthesized correctly.
@@ -140,7 +135,7 @@ module svc_axi_mem #(
   //
   //-------------------------------------------------------------------------
 
-  always_comb begin
+  always @(*) begin
     write_state_next   = write_state;
 
     w_id_next          = w_id;
@@ -158,8 +153,6 @@ module svc_axi_mem #(
 
     case (write_state)
       WRITE_STATE_IDLE: begin
-        s_axi_awready_next = 1'b1;
-
         if (s_axi_awvalid && s_axi_awready) begin
           write_state_next   = WRITE_STATE_BURST;
           s_axi_awready_next = 1'b0;
@@ -169,36 +162,68 @@ module svc_axi_mem #(
           w_addr_next        = s_axi_awaddr;
           w_size_next        = s_axi_awsize;
           w_burst_next       = s_axi_awburst;
+
+          // and also do the first write, if possible, to avoid a cycle of latency
+          // TODO: this currently won't trigger because wready will be low.
+          // Bring ready high in the same cycle as awvalid && awready and this
+          // will be triggered again. (It had to be blocked because we can't
+          // have valid/ready going through before the addr has been accepted
+          // or it vastly complicates state management because we have to defer
+          // the write.)
+          if (s_axi_wvalid && s_axi_wready) begin
+            mem_wr_en   = 1'b1;
+            mem_wr_addr = s_axi_awaddr[AXI_ADDR_WIDTH-1:LSB];
+
+            if (s_axi_awburst != 2'b00) begin
+              w_addr_next = s_axi_awaddr + (1 << s_axi_awsize);
+            end
+
+            if (s_axi_wlast) begin
+              if (!s_axi_bvalid || s_axi_bready) begin
+                write_state_next   = WRITE_STATE_IDLE;
+                s_axi_awready_next = 1'b1;
+                s_axi_bvalid_next  = 1'b1;
+                s_axi_bid_next     = s_axi_awid;
+              end else begin
+                write_state_next  = WRITE_STATE_RESP;
+                s_axi_wready_next = 1'b0;
+              end
+            end
+          end
         end
       end
 
       WRITE_STATE_BURST: begin
         s_axi_wready_next = 1'b1;
 
-        if (s_axi_wready && s_axi_wvalid) begin
-          mem_wr_en = 1'b1;
+        if (s_axi_wvalid && s_axi_wready) begin
+          mem_wr_en   = 1'b1;
+          mem_wr_addr = w_addr[AXI_ADDR_WIDTH-1:LSB];
+
           if (w_burst != 2'b00) begin
             w_addr_next = w_addr + (1 << w_size);
           end
 
           if (s_axi_wlast) begin
-            s_axi_wready_next = 1'b0;
             if (!s_axi_bvalid || s_axi_bready) begin
               write_state_next   = WRITE_STATE_IDLE;
               s_axi_awready_next = 1'b1;
+              s_axi_wready_next  = 1'b0;
               s_axi_bvalid_next  = 1'b1;
               s_axi_bid_next     = w_id;
             end else begin
-              write_state_next = WRITE_STATE_RESP;
+              write_state_next  = WRITE_STATE_RESP;
+              s_axi_wready_next = 1'b0;
             end
           end
         end
       end
 
       WRITE_STATE_RESP: begin
-        if (!s_axi_bvalid || s_axi_bvalid) begin
+        if (s_axi_bvalid && s_axi_bready) begin
           write_state_next   = WRITE_STATE_IDLE;
           s_axi_awready_next = 1'b1;
+          s_axi_wready_next  = 1'b0;
           s_axi_bvalid_next  = 1'b1;
           s_axi_bid_next     = w_id;
         end
@@ -230,7 +255,6 @@ module svc_axi_mem #(
     s_axi_bresp <= 2'b00;
   end
 
-  assign mem_wr_addr = w_addr[AXI_ADDR_WIDTH-1:LSB];
   always_ff @(posedge clk) begin
     for (int i = 0; i < WORD_WIDTH; i = i + 1) begin
       if (mem_wr_en & s_axi_wstrb[i]) begin

@@ -158,6 +158,7 @@ module svc_axi_mem_tb;
     m_axi_wdata  = data + DW'(1);
     m_axi_wlast  = 1'b1;
     `TICK(clk);
+    m_axi_wvalid = 1'b0;
 
     `CHECK_WAIT_FOR(clk, m_axi_bvalid && m_axi_bready);
     `CHECK_EQ(m_axi_bid, id);
