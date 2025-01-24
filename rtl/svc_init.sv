@@ -3,8 +3,10 @@
 
 `include "svc.sv"
 
+// The default is long because of sram startup time. Double check the spec
+// sheet for the minimum time needed.
 module svc_init #(
-    parameter RST_CYCLES = 15
+    parameter RST_CYCLES = 127
 ) (
     input  logic clk,
     output logic rst_n = 1'b0
