@@ -165,6 +165,9 @@ module svc_axi_axil_adapter #(
     if (f_axi_wr_pending > 0) begin
       assume (!s_axi_awready);
     end
+
+    // Since we don't have a subordinate driving our responses, just assume them
+    assume (m_axil_bresp == 2'b00);
   end
 
   faxi_slave #(
