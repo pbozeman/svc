@@ -72,6 +72,10 @@ module svc_axi_axil_adapter_wr #(
   logic                      m_axi_buser;
   logic                      m_axi_bready;
 
+  logic                      s_axi_bvalid_next;
+  logic [  AXI_ID_WIDTH-1:0] s_axi_bid_next;
+  logic [               1:0] s_axi_bresp_next;
+
   svc_axi_burst_iter_ax #(
       .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
       .AXI_ID_WIDTH  (AXI_ID_WIDTH)
@@ -97,16 +101,59 @@ module svc_axi_axil_adapter_wr #(
       .m_ready(m_axi_awready)
   );
 
-  // the rest of the signals pass through
+  // the write signals pass through
   assign m_axi_wvalid = s_axi_wvalid;
   assign m_axi_wdata  = s_axi_wdata;
   assign m_axi_wstrb  = s_axi_wstrb;
   assign m_axi_wlast  = s_axi_wlast;
   assign s_axi_wready = m_axi_wready;
 
-  assign s_axi_bid    = m_axi_bid;
-  assign s_axi_bresp  = m_axi_bresp;
-  assign m_axi_bready = s_axi_bready;
+  // We have to gobble up the b returns and only return the last one. This
+  // requires managing our own ready signal rather than passing along the
+  // caller's. While it might seem we could just pass the caller's signal
+  // along, what that does, in a somewhat subtle way, is cause the bvalid
+  // we return here to be dependent on bready. That is a protocol
+  // violation and can lead to deadlocking the bus. Before we gobbled here, this
+  // actually happened with the axi_arbiter because it doesn't raise a ready
+  // signal until it sees which of it's managers to pass the signal from. In
+  // order to do that, it needs the bid signal returned first, which doesn't
+  // happen until the end of the b returns. Since it can't get past the first
+  // return, the bus deadlocked.
+  //
+  // Note: this adds a cycle of latency to the response. See if we can remove
+  // that. On, the other hand, all outputs are supposed to be registered per
+  // the axi spec, and we're introducing combinatorial logic with the user
+  // flag check.
+
+  assign m_axi_bready = !s_axi_bvalid || s_axi_bready;
+
+  always_comb begin
+    s_axi_bvalid_next = s_axi_bvalid && !s_axi_bready;
+    s_axi_bid_next    = s_axi_bid;
+    s_axi_bresp_next  = s_axi_bresp;
+
+    // normally seeing a 3rd item in an axi handshake would be a red flag, but
+    // we are throwing away responses until we seed our last flag in
+    // m_axi_buser, so this is fine.
+    if (m_axi_bvalid && m_axi_bready && m_axi_buser) begin
+      s_axi_bvalid_next = 1'b1;
+      s_axi_bid_next    = m_axi_bid;
+      s_axi_bresp_next  = m_axi_bresp;
+    end
+  end
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      s_axi_bvalid <= 1'b0;
+    end else begin
+      s_axi_bvalid <= s_axi_bvalid_next;
+    end
+  end
+
+  always_ff @(posedge clk) begin
+    s_axi_bid   <= s_axi_bid_next;
+    s_axi_bresp <= s_axi_bresp_next;
+  end
 
   svc_axi_axil_reflect_wr #(
       .AXI_ADDR_WIDTH          (AXI_ADDR_WIDTH),
@@ -149,8 +196,6 @@ module svc_axi_axil_adapter_wr #(
       .m_axil_bready (m_axil_bready)
   );
 
-  assign s_axi_bvalid = m_axi_bvalid && m_axi_buser;
-
 `ifdef FORMAL
   // This uses faxi_* files in tb/formal/private.
   // See tb/formal/private/README.md
@@ -171,6 +216,9 @@ module svc_axi_axil_adapter_wr #(
     if (f_axi_wr_pending > 0) begin
       assume (!s_axi_awready);
     end
+
+    // Since we don't have a subordinate driving our responses, just assume them
+    assume (m_axil_bresp == 2'b00);
   end
 
   faxi_slave #(
