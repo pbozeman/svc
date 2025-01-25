@@ -296,15 +296,7 @@ module svc_axil_sram_if #(
   localparam F_AXI_MAXRSTALL = 8;
   localparam F_AXI_MAXDELAY = 12;
 
-  // verilator lint_off: UNUSEDSIGNAL
-  // Remove the lint_off when these get used for induction. See the comment at
-  // the end of the formal section.
-  wire  [F_LGDEPTH-1:0] f_axil_rd_outstanding;
-  wire  [F_LGDEPTH-1:0] f_axil_wr_outstanding;
-  wire  [F_LGDEPTH-1:0] f_axil_awr_outstanding;
-  // verilator lint_on: UNUSEDSIGNAL
-
-  logic                 f_past_valid;
+  logic f_past_valid;
 
   initial f_past_valid = 0;
   always @(posedge clk) begin
@@ -353,9 +345,9 @@ module svc_axil_sram_if #(
       .i_axi_rdata (s_axil_rdata),
       .i_axi_rresp (s_axil_rresp),
 
-      .f_axi_rd_outstanding (f_axil_rd_outstanding),
-      .f_axi_wr_outstanding (f_axil_wr_outstanding),
-      .f_axi_awr_outstanding(f_axil_awr_outstanding)
+      .f_axi_rd_outstanding (),
+      .f_axi_wr_outstanding (),
+      .f_axi_awr_outstanding()
   );
 
 `ifndef VERILATOR
@@ -428,10 +420,6 @@ module svc_axil_sram_if #(
   //   https://zipcpu.com/blog/2020/03/08/easyaxil.html
   // and
   //   https://github.com/ZipCPU/wb2axip/blob/master/rtl/demoaxi.v
-`else
-  // verilator lint_off: UNUSEDSIGNAL
-  logic unused = |{s_axil_awaddr[3:0], s_axil_araddr[3:0]};
-  // verilator lint_on: UNUSEDSIGNAL
 `endif
 `endif
 

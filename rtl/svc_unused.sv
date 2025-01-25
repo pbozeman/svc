@@ -13,20 +13,16 @@
 //
 //   `SVC_UNUSED({clk, rst_n, s_axil_araddr[LSB-1:0]});
 
-`ifndef FORMAL
-`define SVC_UNUSED(signal)                            \
-  svc_unused svc_unused_i (                           \
-    .unused(& signal)                                 \
-  );
-
 module svc_unused (
     // verilator lint_off: UNUSEDSIGNAL
     input logic unused
     // verilator lint_on: UNUSEDSIGNAL
 );
 endmodule
-`else
-`define SVC_UNUSED(signal)
-`endif
+
+`define SVC_UNUSED(signal)                            \
+  svc_unused svc_unused_i (                           \
+    .unused(& signal)                                 \
+  );
 
 `endif
