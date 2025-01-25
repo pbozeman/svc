@@ -380,14 +380,10 @@ module svc_axi_axil_adapter_wr #(
       .f_axi_wr_outstanding (),
       .f_axi_awr_outstanding()
   );
-`endif
 
   // TODO: perf coverage statement like the in the _rd version
 
-`else  // ZIPCPU_PRIVATE
-  // verilator lint_off: UNUSEDSIGNAL
-  logic f_unused = |{s_axi_awlen, s_axi_awsize, s_axi_awburst};
-  // verilator lint_on: UNUSEDSIGNAL
+`endif
 `endif
 `endif
 

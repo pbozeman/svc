@@ -514,8 +514,6 @@ module svc_axi_mem #(
 
 `endif
 `endif
-  // verilator lint_off: UNUSEDSIGNAL
-  logic unused = |s_axi_awlen;
 `endif
 
 endmodule
