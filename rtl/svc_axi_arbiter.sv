@@ -188,15 +188,6 @@ module svc_axi_arbiter #(
 
   logic [8:0] f_axi_wr_pending[NUM_M-1:0];
 
-  always @(posedge clk) begin
-    // FIXME: this over constrains the state space, and the svc cores can pump out
-    // writes in the same cycle as awaddr, but this but is a requirement of faxi_m
-    // to do it's request tracking. See faxi_master.v:687.
-    if ($rose(m_axi_awvalid)) begin
-      assume (!$rose(m_axi_wvalid));
-    end
-  end
-
   for (genvar i = 0; i < NUM_M; i++) begin : gen_faxi_s
     always @(*) begin
       // FIXME: this over constrains the state space as this can actually happen
@@ -320,7 +311,7 @@ module svc_axi_arbiter #(
   end
 
   // faxi_master doesn't send back awid and arid in bid and rid, so use the
-  // mem axi for backing instead.
+  // mem axi for backing.
 `ifndef VERILATOR
   svc_axi_mem #(
       .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
