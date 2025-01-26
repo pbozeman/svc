@@ -6,7 +6,7 @@
 // The default is long because of sram startup time. Double check the spec
 // sheet for the minimum time needed.
 module svc_init #(
-    parameter RST_CYCLES = 127
+    parameter RST_CYCLES = 65
 ) (
     input  logic clk,
     output logic rst_n = 1'b0
