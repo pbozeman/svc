@@ -80,7 +80,7 @@ module svc_axi_stripe_wr #(
     output logic [NUM_S-1:0]                       m_axi_bready
 );
   localparam S_WIDTH = $clog2(NUM_S);
-  localparam S_ADDR_END = S_WIDTH + AXI_STRB_WIDTH;
+  localparam O_WIDTH = $clog2(AXI_STRB_WIDTH);
 
   logic                                              s_axi_awready_next;
   logic                                              s_axi_bvalid_next;
@@ -122,11 +122,25 @@ module svc_axi_stripe_wr #(
   // The addr is adjusted to be word based within the subordinate. Since we
   // are addressing bytes, we can't just bit shift off the lower bits. We have
   // to drop the part of the address used to select subordinate (word based),
-  // and then put the byte addr bits on the end. But since we are requiring
-  // stripe, and therefor word, alignment, those bits are 0.
-  assign stripe_addr = {
-    s_axi_awaddr[AXI_ADDR_WIDTH-1:S_ADDR_END], AXI_STRB_WIDTH'(0)
-  };
+  // and then put the byte addr bits on the end.
+  //
+  // +-----------------------+-------------------+-----------------+
+  // |    High bits          | Subordinate Index |  Byte Offset    |
+  // +-----------------------+-------------------+-----------------+
+  //  ^                       ^                   ^                ^
+  //  [AXI_ADDR_WIDTH-1 :     (S_WIDTH+O_WIDTH) : O_WIDTH        : 0]
+  //
+  if (O_WIDTH > 0) begin : gen_keep_offset
+    // skip the sub selection bits in the middle
+    assign stripe_addr = {
+      s_axi_awaddr[AXI_ADDR_WIDTH-1 : S_WIDTH+O_WIDTH],
+      s_axi_awaddr[O_WIDTH-1 : 0]
+    };
+  end else begin : gen_no_offset
+    // O_WIDTH=0 => skip [O_WIDTH-1 : 0] entirely
+    // just remove S_WIDTH bits from the middle
+    assign stripe_addr = s_axi_awaddr[AXI_ADDR_WIDTH-1 : S_WIDTH];
+  end
 
   always_comb begin
     for (int i = 0; i < NUM_S; i++) begin : gen_init
@@ -357,8 +371,8 @@ module svc_axi_stripe_wr #(
     s_axi_bresp <= s_axi_bresp_next;
   end
 
-  `SVC_UNUSED({s_axi_awaddr[S_ADDR_END-1:0], s_axi_wlast, m_axi_bid[NUM_S-1:1],
-               m_axi_bresp[NUM_S-1:1]});
+  `SVC_UNUSED({s_axi_awaddr[S_WIDTH+O_WIDTH-1:O_WIDTH], s_axi_wlast,
+               m_axi_bid[NUM_S-1:1], m_axi_bresp[NUM_S-1:1]});
 
 `ifdef FORMAL
   // Formal testing happens in the combined module, but we do have asserts

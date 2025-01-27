@@ -65,8 +65,8 @@ module svc_axi_stripe_rd #(
     output logic [NUM_S-1:0]                       m_axi_rready
 );
   localparam AXI_STRB_WIDTH = AXI_DATA_WIDTH / 8;
-  localparam S_ADDR_END = S_WIDTH + AXI_STRB_WIDTH;
   localparam S_WIDTH = $clog2(NUM_S);
+  localparam O_WIDTH = $clog2(AXI_STRB_WIDTH);
 
   logic                                              s_axi_arready_next;
 
@@ -94,11 +94,25 @@ module svc_axi_stripe_rd #(
   // The addr is adjusted to be word based within the subordinate. Since we
   // are addressing bytes, we can't just bit shift off the lower bits. We have
   // to drop the part of the address used to select subordinate (word based),
-  // and then put the byte addr bits on the end. But since we are requiring
-  // stripe, and therefor word, alignment, those bits are 0.
-  assign stripe_addr = {
-    s_axi_araddr[AXI_ADDR_WIDTH-1:S_ADDR_END], AXI_STRB_WIDTH'(0)
-  };
+  // and then put the byte addr bits on the end.
+  //
+  // +-----------------------+-------------------+-----------------+
+  // |    High bits          | Subordinate Index |  Byte Offset    |
+  // +-----------------------+-------------------+-----------------+
+  //  ^                       ^                   ^                ^
+  //  [AXI_ADDR_WIDTH-1 :     (S_WIDTH+O_WIDTH) : O_WIDTH        : 0]
+  //
+  if (O_WIDTH > 0) begin : gen_keep_offset
+    // skip the sub selection bits in the middle
+    assign stripe_addr = {
+      s_axi_araddr[AXI_ADDR_WIDTH-1 : S_WIDTH+O_WIDTH],
+      s_axi_araddr[O_WIDTH-1 : 0]
+    };
+  end else begin : gen_no_offset
+    // O_WIDTH=0 => skip [O_WIDTH-1 : 0] entirely
+    // just remove S_WIDTH bits from the middle
+    assign stripe_addr = s_axi_araddr[AXI_ADDR_WIDTH-1 : S_WIDTH];
+  end
 
   always_comb begin
     for (int i = 0; i < NUM_S; i++) begin : gen_init
@@ -213,7 +227,7 @@ module svc_axi_stripe_rd #(
     s_axi_rlast  = m_axi_rlast[idx] && idx == '1;
   end
 
-  `SVC_UNUSED({s_axi_araddr[S_ADDR_END-1:0]});
+  `SVC_UNUSED({s_axi_araddr[S_WIDTH+O_WIDTH-1:O_WIDTH]});
 
 `ifdef FORMAL
   // Formal testing happens in the combined module, but we do have asserts
