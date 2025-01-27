@@ -218,20 +218,16 @@ module svc_axi_stripe #(
     `ASSUME(a_ar_no_wrap, s_axi_arburst != 2'b10);
   end
 
-  // always @(posedge clk) begin
-  //   // FIXME: this over constrains the state space, and the svc cores can pump out
-  //   // writes in the same cycle as awaddr, but this but is a requirement of faxi_m
-  //   // to do it's request tracking. See faxi_master.v:687.
-  //   if ($rose(s_axi_awvalid)) begin
-  //     assume (!$rose(s_axi_wvalid));
-  //   end
-  // end
-
   always @(*) begin
     // FIXME: this over constrains the state space as this can actually happen
     // in real usage, but is necessary for faxi_slave.v. See faxi_slave.v:664
     if (f_axi_wr_pending > 0) begin
       assume (!s_axi_awready);
+    end
+
+    // See faxi_master.v:687.
+    if (f_axi_wr_pending == 0) begin
+      assume (!s_axi_awvalid);
     end
   end
 

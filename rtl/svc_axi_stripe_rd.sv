@@ -64,25 +64,26 @@ module svc_axi_stripe_rd #(
     input  logic [NUM_S-1:0]                       m_axi_rlast,
     output logic [NUM_S-1:0]                       m_axi_rready
 );
+  localparam AXI_STRB_WIDTH = AXI_DATA_WIDTH / 8;
+  localparam S_ADDR_END = S_WIDTH + AXI_STRB_WIDTH;
   localparam S_WIDTH = $clog2(NUM_S);
 
-  logic                                     s_axi_arready_next;
+  logic                                              s_axi_arready_next;
 
-  logic [  NUM_S-1:0]                       addr_ready;
-  logic [  NUM_S-1:0]                       addr_ready_next;
+  logic [           NUM_S-1:0]                       ar_done;
+  logic [           NUM_S-1:0]                       ar_done_next;
 
-  logic                                     reads_ready;
-  logic                                     reads_ready_next;
+  logic [S_AXI_ADDR_WIDTH-1:0]                       stripe_addr;
 
-  logic [  NUM_S-1:0]                       m_axi_arvalid_next;
-  logic [  NUM_S-1:0][    AXI_ID_WIDTH-1:0] m_axi_arid_next;
-  logic [  NUM_S-1:0][S_AXI_ADDR_WIDTH-1:0] m_axi_araddr_next;
-  logic [  NUM_S-1:0][                 7:0] m_axi_arlen_next;
-  logic [  NUM_S-1:0][                 2:0] m_axi_arsize_next;
-  logic [  NUM_S-1:0][                 1:0] m_axi_arburst_next;
+  logic [           NUM_S-1:0]                       m_axi_arvalid_next;
+  logic [           NUM_S-1:0][    AXI_ID_WIDTH-1:0] m_axi_arid_next;
+  logic [           NUM_S-1:0][S_AXI_ADDR_WIDTH-1:0] m_axi_araddr_next;
+  logic [           NUM_S-1:0][                 7:0] m_axi_arlen_next;
+  logic [           NUM_S-1:0][                 2:0] m_axi_arsize_next;
+  logic [           NUM_S-1:0][                 1:0] m_axi_arburst_next;
 
-  logic [S_WIDTH-1:0]                       idx;
-  logic [S_WIDTH-1:0]                       idx_next;
+  logic [         S_WIDTH-1:0]                       idx;
+  logic [         S_WIDTH-1:0]                       idx_next;
 
   //-------------------------------------------------------------------------
   //
@@ -90,9 +91,18 @@ module svc_axi_stripe_rd #(
   //
   //-------------------------------------------------------------------------
 
-  for (genvar i = 0; i < NUM_S; i++) begin : gen_init
-    always @(*) begin
-      addr_ready_next[i]    = addr_ready[i];
+  // The addr is adjusted to be word based within the subordinate. Since we
+  // are addressing bytes, we can't just bit shift off the lower bits. We have
+  // to drop the part of the address used to select subordinate (word based),
+  // and then put the byte addr bits on the end. But since we are requiring
+  // stripe, and therefor word, alignment, those bits are 0.
+  assign stripe_addr = {
+    s_axi_araddr[AXI_ADDR_WIDTH-1:S_ADDR_END], AXI_STRB_WIDTH'(0)
+  };
+
+  always_comb begin
+    for (int i = 0; i < NUM_S; i++) begin : gen_init
+      ar_done_next[i]       = ar_done[i];
 
       m_axi_arvalid_next[i] = m_axi_arvalid[i] && !m_axi_arready[i];
       m_axi_arid_next[i]    = m_axi_arid[i];
@@ -102,24 +112,28 @@ module svc_axi_stripe_rd #(
       m_axi_arburst_next[i] = m_axi_arburst[i];
 
       if (s_axi_arready && s_axi_arvalid) begin
-        addr_ready_next[i]    = 1'b0;
+        ar_done_next[i]       = 1'b0;
 
         m_axi_arvalid_next[i] = 1'b1;
         m_axi_arid_next[i]    = s_axi_arid;
-        m_axi_araddr_next[i]  = s_axi_araddr[AXI_ADDR_WIDTH-1:S_WIDTH];
+        m_axi_araddr_next[i]  = stripe_addr;
         m_axi_arsize_next[i]  = s_axi_arsize;
         m_axi_arburst_next[i] = s_axi_arburst;
         m_axi_arlen_next[i]   = s_axi_arlen >> S_WIDTH;
       end else begin
         if (m_axi_arvalid[i] && m_axi_arready[i]) begin
-          addr_ready_next[i] = 1'b1;
+          ar_done_next[i] = 1'b1;
         end
       end
     end
   end
 
   always_comb begin
-    s_axi_arready_next = &addr_ready && reads_ready;
+    s_axi_arready_next = s_axi_arready;
+
+    if (s_axi_rvalid && s_axi_rready && s_axi_rlast) begin
+      s_axi_arready_next = 1'b1;
+    end
 
     if (s_axi_arready && s_axi_arvalid) begin
       s_axi_arready_next = 1'b0;
@@ -128,12 +142,12 @@ module svc_axi_stripe_rd #(
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      addr_ready    <= '1;
+      ar_done       <= '0;
       s_axi_arready <= 1'b1;
 
       m_axi_arvalid <= '0;
     end else begin
-      addr_ready    <= addr_ready_next;
+      ar_done       <= ar_done_next;
       s_axi_arready <= s_axi_arready_next;
 
       m_axi_arvalid <= m_axi_arvalid_next;
@@ -199,27 +213,7 @@ module svc_axi_stripe_rd #(
     s_axi_rlast  = m_axi_rlast[idx] && idx == '1;
   end
 
-  always_comb begin
-    reads_ready_next = reads_ready;
-
-    if (s_axi_arready && s_axi_arvalid) begin
-      reads_ready_next = 1'b0;
-    end
-
-    if (s_axi_rvalid && s_axi_rready && s_axi_rlast) begin
-      reads_ready_next = 1'b1;
-    end
-  end
-
-  always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      reads_ready <= 1'b1;
-    end else begin
-      reads_ready <= reads_ready_next;
-    end
-  end
-
-  `SVC_UNUSED({s_axi_araddr[S_WIDTH-1:0]});
+  `SVC_UNUSED({s_axi_araddr[S_ADDR_END-1:0]});
 
 `ifdef FORMAL
   // Formal testing happens in the combined module, but we do have asserts

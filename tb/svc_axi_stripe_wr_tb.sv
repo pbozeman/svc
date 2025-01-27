@@ -170,6 +170,12 @@ module svc_axi_stripe_wr_tb;
     logic [ DW-1:0] data = DW'(16'hD000);
     logic [IDW-1:0] id = IDW'(4'hD);
 
+    // Earlier versions had a bug where they would be ready coming out of
+    // reset, but then would never be ready again unless IO started on the
+    // first clock out of reset. This TICK is here to trigger that
+    // condition (and prevent regressions.)
+    `TICK(clk);
+
     // arlen is 4, and NUM_S is 2, so this should write to each sub twice
     m_axi_awvalid = 1'b1;
     m_axi_awaddr  = addr;
