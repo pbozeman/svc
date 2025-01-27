@@ -165,7 +165,7 @@ module svc_ice40_axil_sram #(
       .C_AXI_DATA_WIDTH  (AXIL_DATA_WIDTH),
       .C_AXI_ADDR_WIDTH  (AXIL_ADDR_WIDTH),
       .F_AXI_MAXWAIT     (4),
-      .F_AXI_MAXDELAY    (8),
+      .F_AXI_MAXDELAY    (9),
       .F_AXI_MAXRSTALL   (0),
       .F_OPT_INITIAL     (0),
       .F_OPT_ASSUME_RESET(1)
