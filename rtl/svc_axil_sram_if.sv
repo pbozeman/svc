@@ -120,7 +120,8 @@ module svc_axil_sram_if #(
   assign s_axil_rresp = 2'b00;
 
   svc_skidbuf #(
-      .DATA_WIDTH(SRAM_DATA_WIDTH)
+      .DATA_WIDTH(SRAM_DATA_WIDTH),
+      .OPT_OUTREG(1)
   ) svc_skidbuf_r_i (
       .clk  (clk),
       .rst_n(rst_n),
