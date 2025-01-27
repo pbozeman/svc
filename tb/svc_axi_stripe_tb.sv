@@ -286,8 +286,9 @@ module svc_axi_stripe_tb;
     m_axi_wvalid = 1'b0;
 
     // TODO: there is a cycle of latency on the bresp that could be optimized
-    // out.
-    `CHECK_WAIT_FOR(clk, m_axi_bvalid, 1);
+    // out. (1 cycle is here because wr is pipelined, then 1 more cycle for
+    // bvalid)
+    `CHECK_WAIT_FOR(clk, m_axi_bvalid, 2);
     `CHECK_EQ(m_axi_bid, id);
     `CHECK_EQ(m_axi_bresp, 2'b00);
 
