@@ -80,30 +80,33 @@ module svc_axi_stripe_wr #(
     output logic [NUM_S-1:0]                       m_axi_bready
 );
   localparam S_WIDTH = $clog2(NUM_S);
+  localparam S_ADDR_END = S_WIDTH + AXI_STRB_WIDTH;
 
-  logic                                          s_axi_awready_next;
-  logic                                          s_axi_bvalid_next;
-  logic [AXI_ID_WIDTH-1:0]                       s_axi_bid_next;
-  logic [             1:0]                       s_axi_bresp_next;
+  logic                                              s_axi_awready_next;
+  logic                                              s_axi_bvalid_next;
+  logic [    AXI_ID_WIDTH-1:0]                       s_axi_bid_next;
+  logic [                 1:0]                       s_axi_bresp_next;
 
-  logic [       NUM_S-1:0]                       addr_ready;
-  logic [       NUM_S-1:0]                       addr_ready_next;
+  logic [           NUM_S-1:0]                       aw_done;
+  logic [           NUM_S-1:0]                       aw_done_next;
 
-  logic [       NUM_S-1:0]                       b_done;
-  logic [       NUM_S-1:0]                       b_done_next;
+  logic [           NUM_S-1:0]                       b_done;
+  logic [           NUM_S-1:0]                       b_done_next;
 
-  logic [       NUM_S-1:0]                       m_axi_awvalid_next;
-  logic [       NUM_S-1:0][    AXI_ID_WIDTH-1:0] m_axi_awid_next;
-  logic [       NUM_S-1:0][S_AXI_ADDR_WIDTH-1:0] m_axi_awaddr_next;
-  logic [       NUM_S-1:0][                 7:0] m_axi_awlen_next;
-  logic [       NUM_S-1:0][                 2:0] m_axi_awsize_next;
-  logic [       NUM_S-1:0][                 1:0] m_axi_awburst_next;
+  logic [S_AXI_ADDR_WIDTH-1:0]                       stripe_addr;
 
-  logic [     S_WIDTH-1:0]                       idx;
-  logic [     S_WIDTH-1:0]                       idx_next;
+  logic [           NUM_S-1:0]                       m_axi_awvalid_next;
+  logic [           NUM_S-1:0][    AXI_ID_WIDTH-1:0] m_axi_awid_next;
+  logic [           NUM_S-1:0][S_AXI_ADDR_WIDTH-1:0] m_axi_awaddr_next;
+  logic [           NUM_S-1:0][                 7:0] m_axi_awlen_next;
+  logic [           NUM_S-1:0][                 2:0] m_axi_awsize_next;
+  logic [           NUM_S-1:0][                 1:0] m_axi_awburst_next;
 
-  logic [             7:0]                       stripes_todo;
-  logic [             7:0]                       stripes_todo_next;
+  logic [         S_WIDTH-1:0]                       idx;
+  logic [         S_WIDTH-1:0]                       idx_next;
+
+  logic [                 7:0]                       stripes_todo;
+  logic [                 7:0]                       stripes_todo_next;
 
   //-------------------------------------------------------------------------
   //
@@ -111,9 +114,18 @@ module svc_axi_stripe_wr #(
   //
   //-------------------------------------------------------------------------
 
-  for (genvar i = 0; i < NUM_S; i++) begin : gen_init
-    always @(*) begin
-      addr_ready_next[i]    = addr_ready[i];
+  // The addr is adjusted to be word based within the subordinate. Since we
+  // are addressing bytes, we can't just bit shift off the lower bits. We have
+  // to drop the part of the address used to select subordinate (word based),
+  // and then put the byte addr bits on the end. But since we are requiring
+  // stripe, and therefor word, alignment, those bits are 0.
+  assign stripe_addr = {
+    s_axi_awaddr[AXI_ADDR_WIDTH-1:S_ADDR_END], AXI_STRB_WIDTH'(0)
+  };
+
+  always_comb begin
+    for (int i = 0; i < NUM_S; i++) begin : gen_init
+      aw_done_next[i]       = aw_done[i];
 
       m_axi_awvalid_next[i] = m_axi_awvalid[i] && !m_axi_awready[i];
       m_axi_awid_next[i]    = m_axi_awid[i];
@@ -122,25 +134,33 @@ module svc_axi_stripe_wr #(
       m_axi_awsize_next[i]  = m_axi_awsize[i];
       m_axi_awburst_next[i] = m_axi_awburst[i];
 
+      if (s_axi_bvalid && s_axi_bready) begin
+        aw_done_next[i] = 1'b0;
+      end
+
       if (s_axi_awvalid && s_axi_awready) begin
-        addr_ready_next[i]    = 1'b0;
+        aw_done_next[i]       = 1'b0;
 
         m_axi_awvalid_next[i] = 1'b1;
         m_axi_awid_next[i]    = s_axi_awid;
-        m_axi_awaddr_next[i]  = s_axi_awaddr[AXI_ADDR_WIDTH-1:S_WIDTH];
+        m_axi_awaddr_next[i]  = stripe_addr;
         m_axi_awsize_next[i]  = s_axi_awsize;
         m_axi_awburst_next[i] = s_axi_awburst;
         m_axi_awlen_next[i]   = s_axi_awlen >> S_WIDTH;
       end
 
       if (m_axi_awvalid[i] && m_axi_awready[i]) begin
-        addr_ready_next[i] = 1'b1;
+        aw_done_next[i] = 1'b1;
       end
     end
   end
 
   always_comb begin
-    s_axi_awready_next = &addr_ready && (s_axi_bvalid && s_axi_bready);
+    s_axi_awready_next = s_axi_awready;
+
+    if (s_axi_bvalid && s_axi_bready) begin
+      s_axi_awready_next = 1'b1;
+    end
 
     if (s_axi_awready && s_axi_awvalid) begin
       s_axi_awready_next = 1'b0;
@@ -149,11 +169,11 @@ module svc_axi_stripe_wr #(
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      addr_ready    <= '0;
+      aw_done       <= '0;
       s_axi_awready <= 1'b1;
       m_axi_awvalid <= '0;
     end else begin
-      addr_ready    <= addr_ready_next;
+      aw_done       <= aw_done_next;
       s_axi_awready <= s_axi_awready_next;
       m_axi_awvalid <= m_axi_awvalid_next;
     end
@@ -234,14 +254,14 @@ module svc_axi_stripe_wr #(
     m_axi_wdata       = '0;
     m_axi_wstrb       = '0;
 
-    m_axi_wvalid[idx] = s_axi_wvalid && addr_ready[idx];
+    m_axi_wvalid[idx] = s_axi_wvalid && aw_done[idx];
     m_axi_wdata[idx]  = s_axi_wdata;
     m_axi_wstrb[idx]  = s_axi_wstrb;
   end
 
   // w channel from subordinate back to caller
   always_comb begin
-    s_axi_wready = m_axi_wready[idx];
+    s_axi_wready = m_axi_wready[idx] && aw_done[idx];
   end
 
   //-------------------------------------------------------------------------
@@ -320,7 +340,7 @@ module svc_axi_stripe_wr #(
     s_axi_bresp <= s_axi_bresp_next;
   end
 
-  `SVC_UNUSED({s_axi_awaddr[S_WIDTH-1:0], s_axi_wlast, m_axi_bid[NUM_S-1:1],
+  `SVC_UNUSED({s_axi_awaddr[S_ADDR_END-1:0], s_axi_wlast, m_axi_bid[NUM_S-1:1],
                m_axi_bresp[NUM_S-1:1]});
 
 `ifdef FORMAL
@@ -353,8 +373,10 @@ module svc_axi_stripe_wr #(
         assert (!s_axi_bvalid);
       end
 
-      if (s_axi_wvalid && s_axi_wready) begin
-        assert (s_axi_wlast == (stripes_todo == 0));
+      for (int i = 0; i < NUM_S; i++) begin
+        if (m_axi_wvalid[i] && m_axi_wready[i]) begin
+          assert (m_axi_wlast[i] == (stripes_todo == 0));
+        end
       end
     end
   end
