@@ -102,6 +102,11 @@ module svc_axi_stripe_wr #(
   logic [           NUM_S-1:0][                 2:0] m_axi_awsize_next;
   logic [           NUM_S-1:0][                 1:0] m_axi_awburst_next;
 
+  logic [           NUM_S-1:0]                       m_axi_wvalid_next;
+  logic [           NUM_S-1:0][  AXI_DATA_WIDTH-1:0] m_axi_wdata_next;
+  logic [           NUM_S-1:0][  AXI_STRB_WIDTH-1:0] m_axi_wstrb_next;
+  logic [           NUM_S-1:0]                       m_axi_wlast_next;
+
   logic [         S_WIDTH-1:0]                       idx;
   logic [         S_WIDTH-1:0]                       idx_next;
 
@@ -246,22 +251,34 @@ module svc_axi_stripe_wr #(
   //-------------------------------------------------------------------------
 
   // w channel signals from caller to active subordinate
-
-  assign m_axi_wlast = stripes_todo == 0 ? '1 : '0;
-
   always_comb begin
-    m_axi_wvalid      = '0;
-    m_axi_wdata       = '0;
-    m_axi_wstrb       = '0;
+    m_axi_wvalid_next      = '0;
+    m_axi_wdata_next       = '0;
+    m_axi_wstrb_next       = '0;
+    m_axi_wlast_next       = (stripes_todo == 0 ? '1 : '0);
 
-    m_axi_wvalid[idx] = s_axi_wvalid && aw_done[idx];
-    m_axi_wdata[idx]  = s_axi_wdata;
-    m_axi_wstrb[idx]  = s_axi_wstrb;
+    m_axi_wvalid_next[idx] = s_axi_wvalid && aw_done[idx];
+    m_axi_wdata_next[idx]  = s_axi_wdata;
+    m_axi_wstrb_next[idx]  = s_axi_wstrb;
   end
 
   // w channel from subordinate back to caller
   always_comb begin
     s_axi_wready = m_axi_wready[idx] && aw_done[idx];
+  end
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      m_axi_wvalid <= '0;
+    end else begin
+      m_axi_wvalid <= m_axi_wvalid_next;
+    end
+  end
+
+  always_ff @(posedge clk) begin
+    m_axi_wdata <= m_axi_wdata_next;
+    m_axi_wstrb <= m_axi_wstrb_next;
+    m_axi_wlast <= m_axi_wlast_next;
   end
 
   //-------------------------------------------------------------------------
