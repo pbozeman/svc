@@ -56,24 +56,24 @@ module svc_axil_sram_if #(
     output logic                       sram_resp_rd_ready,
     input  logic [SRAM_DATA_WIDTH-1:0] sram_resp_rd_data
 );
-  localparam SB_W_DATA_WIDTH = SRAM_DATA_WIDTH + SRAM_STRB_WIDTH;
+  localparam axil_wdata_WIDTH = SRAM_DATA_WIDTH + SRAM_STRB_WIDTH;
 
   // ar skidbuf
-  logic                       sb_ar_valid;
-  logic [SRAM_ADDR_WIDTH-1:0] sb_ar_addr;
+  logic                       axil_arvalid;
+  logic [SRAM_ADDR_WIDTH-1:0] axil_araddr;
 
   //
   // aw skidbuf
   //
-  logic                       sb_aw_valid;
-  logic [SRAM_ADDR_WIDTH-1:0] sb_aw_addr;
+  logic                       axil_awvalid;
+  logic [SRAM_ADDR_WIDTH-1:0] axil_awaddr;
 
   //
   // w skidbuf
   //
-  logic                       sb_w_valid;
-  logic [SRAM_DATA_WIDTH-1:0] sb_w_data;
-  logic [SRAM_STRB_WIDTH-1:0] sb_w_strb;
+  logic                       axil_wvalid;
+  logic [SRAM_DATA_WIDTH-1:0] axil_wdata;
+  logic [SRAM_STRB_WIDTH-1:0] axil_wstrb;
 
   //
   //
@@ -98,20 +98,19 @@ module svc_axil_sram_if #(
   //
   // ar channel
   //
-
   svc_skidbuf #(
       .DATA_WIDTH(SRAM_ADDR_WIDTH)
   ) svc_skidbuf_ar_i (
       .clk  (clk),
       .rst_n(rst_n),
 
-      .i_valid(s_axil_arvalid && s_axil_arready),
+      .i_valid(s_axil_arvalid),
       .i_data (s_axil_araddr[AXIL_ADDR_WIDTH-1:LSB]),
       .o_ready(s_axil_arready),
 
       .i_ready(rd_start),
-      .o_data (sb_ar_addr),
-      .o_valid(sb_ar_valid)
+      .o_data (axil_araddr),
+      .o_valid(axil_arvalid)
   );
 
   //
@@ -126,11 +125,11 @@ module svc_axil_sram_if #(
       .clk  (clk),
       .rst_n(rst_n),
 
-      .i_valid(sram_resp_rd_valid && sram_resp_rd_ready),
+      .i_valid(sram_resp_rd_valid),
       .i_data (sram_resp_rd_data),
       .o_ready(sram_resp_rd_ready),
 
-      .i_ready(s_axil_rvalid && s_axil_rready),
+      .i_ready(s_axil_rready),
       .o_data (s_axil_rdata),
       .o_valid(s_axil_rvalid)
   );
@@ -138,39 +137,37 @@ module svc_axil_sram_if #(
   //
   // aw channel
   //
-
   svc_skidbuf #(
       .DATA_WIDTH(SRAM_ADDR_WIDTH)
   ) svc_skidbuf_aw_i (
       .clk  (clk),
       .rst_n(rst_n),
 
-      .i_valid(s_axil_awvalid && s_axil_awready),
+      .i_valid(s_axil_awvalid),
       .i_data (s_axil_awaddr[AXIL_ADDR_WIDTH-1:LSB]),
       .o_ready(s_axil_awready),
 
       .i_ready(wr_start),
-      .o_data (sb_aw_addr),
-      .o_valid(sb_aw_valid)
+      .o_data (axil_awaddr),
+      .o_valid(axil_awvalid)
   );
 
   //
   // w channel
   //
-
   svc_skidbuf #(
-      .DATA_WIDTH(SB_W_DATA_WIDTH)
+      .DATA_WIDTH(axil_wdata_WIDTH)
   ) svc_skidbuf_w_i (
       .clk  (clk),
       .rst_n(rst_n),
 
-      .i_valid(s_axil_wvalid && s_axil_wready),
+      .i_valid(s_axil_wvalid),
       .i_data ({s_axil_wstrb, s_axil_wdata}),
       .o_ready(s_axil_wready),
 
       .i_ready(wr_start),
-      .o_data ({sb_w_strb, sb_w_data}),
-      .o_valid(sb_w_valid)
+      .o_data ({axil_wstrb, axil_wdata}),
+      .o_valid(axil_wvalid)
   );
 
   //
@@ -213,8 +210,8 @@ module svc_axil_sram_if #(
   //
   // arbiter
   //
-  assign rd_ok = sb_ar_valid && sram_resp_rd_ready;
-  assign wr_ok = sb_aw_valid && sb_w_valid && bcnt < 2'b10;
+  assign rd_ok = axil_arvalid && sram_resp_rd_ready;
+  assign wr_ok = axil_awvalid && axil_wvalid && bcnt < 2'b10;
 
   // pull the common rd/wr arb logic out so that rd/wr signals
   // don't have to be duplicated 2x each.
@@ -250,14 +247,14 @@ module svc_axil_sram_if #(
     if (!sram_cmd_valid || sram_cmd_ready) begin
       if (rd_start) begin
         sram_cmd_valid_next = 1'b1;
-        sram_cmd_addr_next  = sb_ar_addr;
+        sram_cmd_addr_next  = axil_araddr;
         sram_cmd_wr_en_next = 1'b0;
         pri_rd_next         = 1'b0;
       end else if (wr_start) begin
         sram_cmd_valid_next   = 1'b1;
-        sram_cmd_addr_next    = sb_aw_addr;
-        sram_cmd_wr_data_next = sb_w_data;
-        sram_cmd_wr_strb_next = sb_w_strb;
+        sram_cmd_addr_next    = axil_awaddr;
+        sram_cmd_wr_data_next = axil_wdata;
+        sram_cmd_wr_strb_next = axil_wstrb;
         sram_cmd_wr_en_next   = 1'b1;
         pri_rd_next           = 1'b1;
       end
