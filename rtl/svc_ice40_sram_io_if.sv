@@ -320,13 +320,15 @@ module svc_ice40_sram_io_if #(
   // ensure read data matches the most recent write for the address
   //
   always_ff @(posedge clk) begin
-    // the fifo was sized such that it shouldn't overflow
-    `ASSERT(as_fifo_full, !f_fifo_w_full);
-    if (f_past_valid && $past(rst_n) && rst_n) begin
-      if (sram_resp_rd_valid && sram_resp_rd_ready) begin
-        assert (!f_fifo_r_empty);
-        if (f_mem_past_valid) begin
-          `ASSERT(as_data_match, sram_resp_rd_data == f_mem_past_data);
+    if (rst_n) begin
+      // the fifo was sized such that it shouldn't overflow
+      `ASSERT(as_fifo_full, !f_fifo_w_full);
+      if (f_past_valid && $past(rst_n) && rst_n) begin
+        if (sram_resp_rd_valid && sram_resp_rd_ready) begin
+          assert (!f_fifo_r_empty);
+          if (f_mem_past_valid) begin
+            `ASSERT(as_data_match, sram_resp_rd_data == f_mem_past_data);
+          end
         end
       end
     end
