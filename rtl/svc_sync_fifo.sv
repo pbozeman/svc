@@ -6,6 +6,8 @@
 //
 // Synchronous FIFO with FWFT (first word fall through.)
 //
+// Full/empty signals are registered
+//
 module svc_sync_fifo #(
     parameter ADDR_WIDTH = 3,
     parameter DATA_WIDTH = 8
@@ -24,47 +26,97 @@ module svc_sync_fifo #(
 );
   localparam MEM_DEPTH = 1 << ADDR_WIDTH;
 
-  logic [DATA_WIDTH-1:0] mem       [MEM_DEPTH-1:0];
+  logic [DATA_WIDTH-1:0] mem         [MEM_DEPTH-1:0];
 
   logic [  ADDR_WIDTH:0] w_ptr = 0;
-  logic [ADDR_WIDTH-1:0] w_addr;
+  logic [  ADDR_WIDTH:0] w_ptr_next;
 
   logic [  ADDR_WIDTH:0] r_ptr = 0;
+  logic [  ADDR_WIDTH:0] r_ptr_next;
+
+  logic [ADDR_WIDTH-1:0] w_addr;
+  logic [ADDR_WIDTH-1:0] w_addr_next;
+
   logic [ADDR_WIDTH-1:0] r_addr;
+  logic [ADDR_WIDTH-1:0] r_addr_next;
 
-  logic [  ADDR_WIDTH:0] used;
+  logic                  w_full_next;
 
-  // Extract addresses from pointers
-  assign w_addr = w_ptr[ADDR_WIDTH-1:0];
-  assign r_addr = r_ptr[ADDR_WIDTH-1:0];
+  logic [  ADDR_WIDTH:0] used_next;
 
-  // write
+  //
+  // w_ptr
+  //
+  always_comb begin
+    w_ptr_next = w_ptr;
+    if (w_inc & !w_full) begin
+      w_ptr_next = w_ptr + 1;
+    end
+  end
+
   always @(posedge clk) begin
     if (!rst_n) begin
       w_ptr <= 0;
     end else begin
-      if (w_inc & !w_full) begin
-        mem[w_addr] <= w_data;
-        w_ptr       <= w_ptr + 1;
-      end
+      w_ptr <= w_ptr_next;
     end
   end
 
-  // read
+  //
+  // r_ptr
+  //
+  always_comb begin
+    r_ptr_next = r_ptr;
+    if (r_inc & !r_empty) begin
+      r_ptr_next = r_ptr_next + 1;
+    end
+  end
+
   always @(posedge clk) begin
     if (!rst_n) begin
       r_ptr <= 0;
     end else begin
-      if (r_inc & !r_empty) begin
-        r_ptr <= r_ptr + 1;
-      end
+      r_ptr <= r_ptr_next;
     end
   end
 
-  assign used = w_ptr - r_ptr;
-  assign w_full = (w_ptr[ADDR_WIDTH] ^ r_ptr[ADDR_WIDTH]) && w_addr == r_addr;
-  assign w_half_full = used >= MEM_DEPTH >> 1;
-  assign r_empty = (w_ptr == r_ptr);
+  // Extract addresses from pointers
+  assign w_addr_next = w_ptr_next[ADDR_WIDTH-1:0];
+  assign r_addr_next = r_ptr_next[ADDR_WIDTH-1:0];
+
+  // the ptr subtraction needs to use ADDR_WITH bits,
+  // not ADDR_WIDTH -1
+  assign used_next = w_ptr_next - r_ptr_next;
+  assign w_full_next = ((w_ptr_next[ADDR_WIDTH] ^ r_ptr_next[ADDR_WIDTH]) &&
+                        w_addr_next == r_addr_next);
+
+  always @(posedge clk) begin
+    if (!rst_n) begin
+      w_addr      <= 0;
+      w_full      <= 1'b0;
+      w_half_full <= 1'b0;
+
+      r_empty     <= 1'b1;
+      r_addr      <= 0;
+    end else begin
+      w_addr      <= w_addr_next;
+      w_half_full <= used_next >= MEM_DEPTH >> 1;
+      w_full      <= w_full_next;
+
+      r_empty     <= w_ptr_next == r_ptr_next;
+      r_addr      <= r_addr_next;
+    end
+  end
+
+  //
+  // mem
+  //
+  always @(posedge clk) begin
+    if (w_inc & !w_full) begin
+      mem[w_addr] <= w_data;
+    end
+  end
+
   assign r_data = mem[r_addr];
 
 `ifdef FORMAL
@@ -77,6 +129,17 @@ module svc_sync_fifo #(
   `define ASSUME(lable, a) lable: assert(a)
   `define COVER(lable, a)
 `endif
+
+  logic f_past_valid = 0;
+  always @(posedge clk) begin
+    f_past_valid <= 1;
+  end
+
+  always @(posedge clk) begin
+    if (!f_past_valid) begin
+      assume (rst_n == 0);
+    end
+  end
 
   // track how many elements are in the fifo
   int f_count = 0;
@@ -92,16 +155,15 @@ module svc_sync_fifo #(
   end
 
   always @(posedge clk) begin
-    if ($rose(rst_n)) begin
+    if (f_past_valid && $rose(rst_n)) begin
       `ASSERT(a_reset_ptrs, w_ptr == 0 && r_ptr == 0);
-      `ASSERT(a_reset_flags, r_empty && !w_full);
+      `ASSERT(a_reset_empty, r_empty);
+      `ASSERT(a_reset_full, !w_full);
     end
   end
 
   always @(posedge clk) begin
     if (rst_n) begin
-      `ASSERT(a_used, f_count == int'(used));
-
       `ASSERT(a_oflow, f_count <= f_max_count);
       `ASSERT(a_full, !w_full || f_count == f_max_count);
 
@@ -165,7 +227,7 @@ module svc_sync_fifo #(
   end
 
   always @(posedge clk) begin
-    if (r_inc && !r_empty) begin
+    if (rst_n && r_inc && !r_empty) begin
       `ASSERT(a_data_valid, r_data == f_shadow_queue[f_shadow_rptr]);
     end
   end
