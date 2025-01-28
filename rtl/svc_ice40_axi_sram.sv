@@ -13,7 +13,8 @@ module svc_ice40_axi_sram #(
     parameter AXI_ID_WIDTH         = 4,
     parameter LSB                  = $clog2(AXI_DATA_WIDTH) - 3,
     parameter SRAM_ADDR_WIDTH      = AXI_ADDR_WIDTH - LSB,
-    parameter SRAM_DATA_WIDTH      = AXI_DATA_WIDTH
+    parameter SRAM_DATA_WIDTH      = AXI_DATA_WIDTH,
+    parameter SRAM_RDATA_WIDTH     = SRAM_DATA_WIDTH
 ) (
     input logic clk,
     input logic rst_n,
@@ -55,15 +56,15 @@ module svc_ice40_axi_sram #(
     //
     // io to/from the async sram chip
     //
-    output logic [SRAM_ADDR_WIDTH-1:0] sram_io_addr,
+    output logic [ SRAM_ADDR_WIDTH-1:0] sram_io_addr,
 `ifndef FORMAL
-    inout  wire  [SRAM_DATA_WIDTH-1:0] sram_io_data,
+    inout  wire  [SRAM_RDATA_WIDTH-1:0] sram_io_data,
 `else
-    input  wire  [SRAM_DATA_WIDTH-1:0] sram_io_data,
+    input  wire  [SRAM_RDATA_WIDTH-1:0] sram_io_data,
 `endif
-    output logic                       sram_io_we_n,
-    output logic                       sram_io_oe_n,
-    output logic                       sram_io_ce_n
+    output logic                        sram_io_we_n,
+    output logic                        sram_io_oe_n,
+    output logic                        sram_io_ce_n
 );
   logic [AXI_ADDR_WIDTH-1:0] m_axil_awaddr;
   logic                      m_axil_awvalid;
@@ -145,8 +146,9 @@ module svc_ice40_axi_sram #(
   );
 
   svc_ice40_axil_sram #(
-      .AXIL_ADDR_WIDTH(AXI_ADDR_WIDTH),
-      .AXIL_DATA_WIDTH(AXI_DATA_WIDTH)
+      .AXIL_ADDR_WIDTH (AXI_ADDR_WIDTH),
+      .AXIL_DATA_WIDTH (AXI_DATA_WIDTH),
+      .SRAM_RDATA_WIDTH(SRAM_RDATA_WIDTH)
   ) svc_ice40_axil_sram_i (
       .clk  (clk),
       .rst_n(rst_n),
