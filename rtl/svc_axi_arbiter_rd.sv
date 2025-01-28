@@ -68,14 +68,14 @@ module svc_axi_arbiter_rd #(
   logic                                           grant_valid;
   logic [GRANT_IDX_WIDTH-1:0]                     grant_idx;
 
-  logic [          NUM_M-1:0]                     sb_arvalid;
-  logic [          NUM_M-1:0][  AXI_ID_WIDTH-1:0] sb_arid;
-  logic [          NUM_M-1:0][AXI_ADDR_WIDTH-1:0] sb_araddr;
-  logic [          NUM_M-1:0][               7:0] sb_arlen;
-  logic [          NUM_M-1:0][               2:0] sb_arsize;
-  logic [          NUM_M-1:0][               1:0] sb_arburst;
+  logic [          NUM_M-1:0]                     axi_arvalid;
+  logic [          NUM_M-1:0][  AXI_ID_WIDTH-1:0] axi_arid;
+  logic [          NUM_M-1:0][AXI_ADDR_WIDTH-1:0] axi_araddr;
+  logic [          NUM_M-1:0][               7:0] axi_arlen;
+  logic [          NUM_M-1:0][               2:0] axi_arsize;
+  logic [          NUM_M-1:0][               1:0] axi_arburst;
 
-  logic [          NUM_M-1:0]                     sb_rready;
+  logic [          NUM_M-1:0]                     axi_rready;
 
   logic [   AXI_ID_WIDTH-1:0]                     r_rid;
   logic [GRANT_IDX_WIDTH-1:0]                     r_grant_idx;
@@ -93,7 +93,7 @@ module svc_axi_arbiter_rd #(
     ) svc_skidbuf_ar_i (
         .clk(clk),
         .rst_n(rst_n),
-        .i_valid(s_axi_arvalid[i] && s_axi_arready[i]),
+        .i_valid(s_axi_arvalid[i]),
         .i_data({
           s_axi_arid[i],
           s_axi_araddr[i],
@@ -104,9 +104,13 @@ module svc_axi_arbiter_rd #(
         .o_ready(s_axi_arready[i]),
         .i_ready(grant_valid && grant_idx == i && m_axi_arready),
         .o_data({
-          sb_arid[i], sb_araddr[i], sb_arlen[i], sb_arsize[i], sb_arburst[i]
+          axi_arid[i],
+          axi_araddr[i],
+          axi_arlen[i],
+          axi_arsize[i],
+          axi_arburst[i]
         }),
-        .o_valid(sb_arvalid[i])
+        .o_valid(axi_arvalid[i])
     );
   end
 
@@ -121,7 +125,7 @@ module svc_axi_arbiter_rd #(
   ) svc_arbiter_i (
       .clk        (clk),
       .rst_n      (rst_n),
-      .request    (sb_arvalid & request_mask),
+      .request    (axi_arvalid & request_mask),
       .done       (m_axi_arvalid && m_axi_arready),
       .grant_valid(grant_valid),
       .grant_idx  (grant_idx)
@@ -132,11 +136,11 @@ module svc_axi_arbiter_rd #(
   // Unlike the write/aw version, we don't need any special valid handling
   // because the grant is released immediately upon ar acceptance.
   assign m_axi_arvalid = grant_valid;
-  assign m_axi_arid = grant_valid ? {grant_idx, sb_arid[grant_idx]} : 0;
-  assign m_axi_araddr = grant_valid ? sb_araddr[grant_idx] : 0;
-  assign m_axi_arlen = grant_valid ? sb_arlen[grant_idx] : 0;
-  assign m_axi_arsize = grant_valid ? sb_arsize[grant_idx] : 0;
-  assign m_axi_arburst = grant_valid ? sb_arburst[grant_idx] : 0;
+  assign m_axi_arid = grant_valid ? {grant_idx, axi_arid[grant_idx]} : 0;
+  assign m_axi_araddr = grant_valid ? axi_araddr[grant_idx] : 0;
+  assign m_axi_arlen = grant_valid ? axi_arlen[grant_idx] : 0;
+  assign m_axi_arsize = grant_valid ? axi_arsize[grant_idx] : 0;
+  assign m_axi_arburst = grant_valid ? axi_arburst[grant_idx] : 0;
 
   //-------------------------------------------------------------------------
   //
@@ -145,7 +149,7 @@ module svc_axi_arbiter_rd #(
   //-------------------------------------------------------------------------
 
   assign {r_grant_idx, r_rid} = m_axi_rid;
-  assign m_axi_rready = m_axi_rvalid ? sb_rready[r_grant_idx] : 1'b0;
+  assign m_axi_rready = m_axi_rvalid ? axi_rready[r_grant_idx] : 1'b0;
 
   //
   // r channel skid buffers
@@ -162,9 +166,9 @@ module svc_axi_arbiter_rd #(
 
         .i_valid(r_grant_idx == i && m_axi_rvalid),
         .i_data ({r_rid, m_axi_rdata, m_axi_rresp, m_axi_rlast}),
-        .o_ready(sb_rready[i]),
+        .o_ready(axi_rready[i]),
 
-        .i_ready(s_axi_rvalid[i] && s_axi_rready[i]),
+        .i_ready(s_axi_rready[i]),
         .o_data({s_axi_rid[i], s_axi_rdata[i], s_axi_rresp[i], s_axi_rlast[i]}),
         .o_valid(s_axi_rvalid[i])
     );
