@@ -114,7 +114,7 @@ module svc_axi_axil_reflect_wr #(
   // signals per the axi spec, but, the _ready signals are all registered,
   // so this is a minor transgression and vastly simplifies the logic.
   assign s_axi_awready  = aw_ready && id_ready;
-  assign s_axi_wready   = w_ready && id_ready;
+  assign s_axi_wready   = w_ready;
 
   assign m_axil_awvalid = aw_valid;
   assign m_axil_wvalid  = w_valid;
