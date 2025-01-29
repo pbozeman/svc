@@ -2,8 +2,8 @@
 `define SVC_AXI_AXIL_REFLECT_RD_SV
 
 `include "svc.sv"
-`include "svc_skidbuf.sv"
 `include "svc_sync_fifo_zl.sv"
+`include "svc_sync_fifo_zl1.sv"
 `include "svc_unused.sv"
 
 // Takes an AXI to AXI-Lite read stream with single beat bursts and
@@ -47,25 +47,25 @@ module svc_axi_axil_reflect_rd #(
     input  logic [               1:0] m_axil_rresp,
     output logic                      m_axil_rready
 );
-  logic sb_ar_valid;
-  logic sb_ar_ready;
+  logic ar_valid;
+  logic ar_ready;
 
   logic id_ready;
   logic id_valid;
 
-  svc_skidbuf #(
+  svc_sync_fifo_zl1 #(
       .DATA_WIDTH(AXI_ADDR_WIDTH)
-  ) svc_skidbuf_ar_i (
+  ) svc_sync_fifo_zl1_ar_i (
       .clk  (clk),
       .rst_n(rst_n),
 
-      .i_valid(s_axi_arvalid && s_axi_arready),
-      .i_data (s_axi_araddr),
-      .o_ready(sb_ar_ready),
+      .w_inc   (s_axi_arvalid && s_axi_arready),
+      .w_data  (s_axi_araddr),
+      .w_full_n(ar_ready),
 
-      .i_ready(m_axil_arvalid && m_axil_arready),
-      .o_data (m_axil_araddr),
-      .o_valid(sb_ar_valid)
+      .r_inc    (m_axil_arvalid && m_axil_arready),
+      .r_data   (m_axil_araddr),
+      .r_empty_n(ar_valid)
   );
 
   svc_sync_fifo_zl #(
@@ -84,10 +84,11 @@ module svc_axi_axil_reflect_rd #(
   );
 
   // this is cheating a bit. This is supposed to be a non-combinatorial signal
-  // per the axi spec, but, both of these signals are registered.
-  assign s_axi_arready  = sb_ar_ready && id_ready;
+  // per the axi spec, but, both of these signals are registered, so
+  // this is a minor transgression and vastly simplifies the logic.
+  assign s_axi_arready  = ar_ready && id_ready;
 
-  assign m_axil_arvalid = sb_ar_valid;
+  assign m_axil_arvalid = ar_valid;
 
   assign s_axi_rvalid   = m_axil_rvalid;
   assign s_axi_rdata    = m_axil_rdata;

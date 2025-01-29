@@ -2,8 +2,8 @@
 `define SVC_AXI_AXIL_REFLECT_WR_SV
 
 `include "svc.sv"
-`include "svc_skidbuf.sv"
 `include "svc_sync_fifo_zl.sv"
+`include "svc_sync_fifo_zl1.sv"
 `include "svc_unused.sv"
 
 // Takes an AXI to AXI-Lite write stream with single beat bursts and
@@ -56,43 +56,43 @@ module svc_axi_axil_reflect_wr #(
     input  logic                      m_axil_bvalid,
     output logic                      m_axil_bready
 );
-  logic sb_aw_valid;
-  logic sb_aw_ready;
+  logic aw_valid;
+  logic aw_ready;
 
-  logic sb_w_valid;
-  logic sb_w_ready;
+  logic w_valid;
+  logic w_ready;
 
   logic id_valid;
   logic id_ready;
 
-  svc_skidbuf #(
+  svc_sync_fifo_zl1 #(
       .DATA_WIDTH(AXI_ADDR_WIDTH)
-  ) svc_skidbuf_aw_i (
+  ) svc_sync_fifo_zl1_aw_i (
       .clk  (clk),
       .rst_n(rst_n),
 
-      .i_valid(s_axi_awvalid && s_axi_awready),
-      .i_data (s_axi_awaddr),
-      .o_ready(sb_aw_ready),
+      .w_inc   (s_axi_awvalid && s_axi_awready),
+      .w_data  (s_axi_awaddr),
+      .w_full_n(aw_ready),
 
-      .i_ready(m_axil_awvalid && m_axil_awready),
-      .o_data (m_axil_awaddr),
-      .o_valid(sb_aw_valid)
+      .r_inc    (m_axil_awvalid && m_axil_awready),
+      .r_data   (m_axil_awaddr),
+      .r_empty_n(aw_valid)
   );
 
-  svc_skidbuf #(
+  svc_sync_fifo_zl1 #(
       .DATA_WIDTH(AXI_DATA_WIDTH + AXI_STRB_WIDTH)
-  ) svc_skidbuf_w_i (
+  ) svc_sync_fifo_zl1_w_i (
       .clk  (clk),
       .rst_n(rst_n),
 
-      .i_valid(s_axi_wvalid && s_axi_wready),
-      .i_data ({s_axi_wstrb, s_axi_wdata}),
-      .o_ready(sb_w_ready),
+      .w_inc   (s_axi_wvalid && s_axi_wready),
+      .w_data  ({s_axi_wstrb, s_axi_wdata}),
+      .w_full_n(w_ready),
 
-      .i_ready(m_axil_wvalid && m_axil_wready),
-      .o_data ({m_axil_wstrb, m_axil_wdata}),
-      .o_valid(sb_w_valid)
+      .r_inc    (m_axil_wvalid && m_axil_wready),
+      .r_data   ({m_axil_wstrb, m_axil_wdata}),
+      .r_empty_n(w_valid)
   );
 
   svc_sync_fifo_zl #(
@@ -110,11 +110,14 @@ module svc_axi_axil_reflect_wr #(
       .r_empty_n(id_valid)
   );
 
-  assign s_axi_awready  = sb_aw_ready && id_ready;
-  assign s_axi_wready   = sb_w_ready && id_ready;
+  // this is cheating a bit. These are supposed to be non-combinatorial
+  // signals per the axi spec, but, the _ready signals are all registered,
+  // so this is a minor transgression and vastly simplifies the logic.
+  assign s_axi_awready  = aw_ready && id_ready;
+  assign s_axi_wready   = w_ready && id_ready;
 
-  assign m_axil_awvalid = sb_aw_valid;
-  assign m_axil_wvalid  = sb_w_valid;
+  assign m_axil_awvalid = aw_valid;
+  assign m_axil_wvalid  = w_valid;
 
   assign s_axi_bvalid   = m_axil_bvalid;
   assign s_axi_bresp    = m_axil_bresp;
