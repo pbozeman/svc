@@ -217,6 +217,16 @@ module svc_axi_stripe_rd #(
   end
 
   // r channel from subordinate back to caller
+  //
+  // TODO: this is a bit much combinatorial logic for an axi output. This
+  // really should get registered. However, when I attempted this using
+  // skidbuffers, there was some subtle race condition that was getting triggered
+  // when run on real hardware when synthesized by yosys. The svc-examples mem test
+  // was finding mismatches. It wasn't happening under simulation using memory test
+  // parameters that matched what was happening on hw, but that might have been due
+  // to the yosys SB_IO simulation files not matching the actual lattice IP 100%.
+  // Revisit this after beefing up the data validation testing under formal,
+  // and/or adding more rigorous simulated random io testing that catches the issue.
   always_comb begin
     s_axi_rvalid = m_axi_rvalid[idx];
     s_axi_rid    = m_axi_rid[idx];
