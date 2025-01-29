@@ -197,10 +197,6 @@ module svc_axi_stripe #(
   `define COVER(lable, a)
 `endif
 
-  //
-  // FIXME: bring in the assume macros and assume the requirements form the
-  // top of the file
-  //
   logic f_past_valid = 1'b0;
   always @(posedge clk) begin
     f_past_valid <= 1'b1;
