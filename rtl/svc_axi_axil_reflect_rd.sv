@@ -146,8 +146,12 @@ module svc_axi_axil_reflect_rd #(
   //
   always @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
+      if (s_axi_arvalid && s_axi_arready) begin
+        assert (id_ready);
+      end
+
       if (m_axil_rvalid) begin
-        `ASSERT(as_id_valid, id_valid);
+        assert (id_valid);
       end
     end
   end
