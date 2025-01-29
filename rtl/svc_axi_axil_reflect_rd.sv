@@ -50,8 +50,8 @@ module svc_axi_axil_reflect_rd #(
   logic sb_ar_valid;
   logic sb_ar_ready;
 
-  logic fifo_id_w_full;
-  logic fifo_id_r_empty;
+  logic id_ready;
+  logic id_valid;
 
   svc_skidbuf #(
       .DATA_WIDTH(AXI_ADDR_WIDTH)
@@ -75,16 +75,17 @@ module svc_axi_axil_reflect_rd #(
       .clk  (clk),
       .rst_n(rst_n),
 
-      .w_inc      (s_axi_arvalid && s_axi_arready),
-      .w_data     ({s_axi_arid, s_axi_aruser}),
-      .w_full     (fifo_id_w_full),
-      .w_half_full(),
-      .r_inc      (s_axi_rvalid && s_axi_rready),
-      .r_data     ({s_axi_rid, s_axi_ruser}),
-      .r_empty    (fifo_id_r_empty)
+      .w_inc    (s_axi_arvalid && s_axi_arready),
+      .w_data   ({s_axi_arid, s_axi_aruser}),
+      .w_full_n (id_ready),
+      .r_inc    (s_axi_rvalid && s_axi_rready),
+      .r_data   ({s_axi_rid, s_axi_ruser}),
+      .r_empty_n(id_valid)
   );
 
-  assign s_axi_arready  = sb_ar_ready && !fifo_id_w_full;
+  // this is cheating a bit. This is supposed to be a non-combinatorial signal
+  // per the axi spec, but, both of these signals are registered.
+  assign s_axi_arready  = sb_ar_ready && id_ready;
 
   assign m_axil_arvalid = sb_ar_valid;
 
@@ -95,7 +96,7 @@ module svc_axi_axil_reflect_rd #(
 
   assign m_axil_rready  = s_axi_rready;
 
-  `SVC_UNUSED({s_axi_arlen, s_axi_arsize, s_axi_arburst, fifo_id_r_empty});
+  `SVC_UNUSED({s_axi_arlen, s_axi_arsize, s_axi_arburst, id_valid});
 
 `ifdef FORMAL
   //
@@ -145,7 +146,7 @@ module svc_axi_axil_reflect_rd #(
   always @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
       if (m_axil_rvalid) begin
-        `ASSERT(as_fifo_not_empty, !fifo_id_r_empty);
+        `ASSERT(as_id_valid, id_valid);
       end
     end
   end

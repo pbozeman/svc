@@ -62,8 +62,8 @@ module svc_axi_axil_reflect_wr #(
   logic sb_w_valid;
   logic sb_w_ready;
 
-  logic fifo_id_w_full;
-  logic fifo_id_r_empty;
+  logic id_valid;
+  logic id_ready;
 
   svc_skidbuf #(
       .DATA_WIDTH(AXI_ADDR_WIDTH)
@@ -102,17 +102,16 @@ module svc_axi_axil_reflect_wr #(
       .clk  (clk),
       .rst_n(rst_n),
 
-      .w_inc      (s_axi_awvalid && s_axi_awready),
-      .w_data     ({s_axi_awid, s_axi_awuser}),
-      .w_full     (fifo_id_w_full),
-      .w_half_full(),
-      .r_inc      (s_axi_bvalid && s_axi_bready),
-      .r_data     ({s_axi_bid, s_axi_buser}),
-      .r_empty    (fifo_id_r_empty)
+      .w_inc    (s_axi_awvalid && s_axi_awready),
+      .w_data   ({s_axi_awid, s_axi_awuser}),
+      .w_full_n (id_ready),
+      .r_inc    (s_axi_bvalid && s_axi_bready),
+      .r_data   ({s_axi_bid, s_axi_buser}),
+      .r_empty_n(id_valid)
   );
 
-  assign s_axi_awready  = sb_aw_ready && !fifo_id_w_full;
-  assign s_axi_wready   = sb_w_ready && !fifo_id_w_full;
+  assign s_axi_awready  = sb_aw_ready && id_ready;
+  assign s_axi_wready   = sb_w_ready && id_ready;
 
   assign m_axil_awvalid = sb_aw_valid;
   assign m_axil_wvalid  = sb_w_valid;
@@ -121,7 +120,10 @@ module svc_axi_axil_reflect_wr #(
   assign s_axi_bresp    = m_axil_bresp;
   assign m_axil_bready  = s_axi_bready;
 
-  `SVC_UNUSED({s_axi_awlen, s_axi_awsize, s_axi_awburst, s_axi_wlast, fifo_id_r_empty});
+  // verilog_format: off
+  `SVC_UNUSED({s_axi_awlen, s_axi_awsize, s_axi_awburst, s_axi_wlast,
+               id_valid});
+  // verilog_format: on
 
 `ifdef FORMAL
   //
@@ -172,7 +174,7 @@ module svc_axi_axil_reflect_wr #(
   always @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
       if (m_axil_bvalid) begin
-        `ASSERT(as_fifo_not_empty, !fifo_id_r_empty);
+        `ASSERT(as_id_valid, id_valid);
       end
     end
   end

@@ -10,6 +10,14 @@
 // skid buffer like access when writing to an empty fifo, but regular
 // fifo latencies if the fifo becomes non-empty.
 //
+// Because the first use cases were using this in conjunction with
+// ready/valid based back pressure signaling, w_full and r_empty were
+// made active low signals so that they could be assigned directly to
+// ready and valid signals.
+//
+// Note: the underlying r_empty and w_full signals are registered,
+// so using w_full_n as a ready signal is effectively registered as well.
+//
 module svc_sync_fifo_zl #(
     parameter ADDR_WIDTH = 3,
     parameter DATA_WIDTH = 8
@@ -19,24 +27,27 @@ module svc_sync_fifo_zl #(
 
     input  logic                  w_inc,
     input  logic [DATA_WIDTH-1:0] w_data,
-    output logic                  w_full,
-    output logic                  w_half_full,
+    output logic                  w_full_n,
 
     input  logic                  r_inc,
-    output logic                  r_empty,
-    output logic [DATA_WIDTH-1:0] r_data
+    output logic [DATA_WIDTH-1:0] r_data,
+    output logic                  r_empty_n
 );
+  logic                  fifo_w_full;
+
   logic                  fifo_r_empty;
   logic [DATA_WIDTH-1:0] fifo_r_data;
+
+  assign w_full_n = !fifo_w_full;
 
   // zero latency output signals
   always_comb begin
     if (fifo_r_empty) begin
-      r_empty = !w_inc;
-      r_data  = w_data;
+      r_empty_n = w_inc;
+      r_data    = w_data;
     end else begin
-      r_empty = 1'b0;
-      r_data  = fifo_r_data;
+      r_empty_n = 1'b1;
+      r_data    = fifo_r_data;
     end
   end
 
@@ -51,8 +62,8 @@ module svc_sync_fifo_zl #(
       // note: r_inc on an empty fifo is a no-op, so it doesn't need a guard
       .w_inc      (w_inc && !(fifo_r_empty && r_inc)),
       .w_data     (w_data),
-      .w_full     (w_full),
-      .w_half_full(w_half_full),
+      .w_full     (fifo_w_full),
+      .w_half_full(),
       .r_inc      (r_inc),
       .r_empty    (fifo_r_empty),
       .r_data     (fifo_r_data)
@@ -83,15 +94,15 @@ module svc_sync_fifo_zl #(
     if (f_past_valid && rst_n && $past(rst_n)) begin
       // this is covered in the lower level fifo, but let's just be explicit,
       // since this is the main point of this module.
-      `COVER(c_zl_read, w_inc && r_inc && $past(r_empty));
+      `COVER(c_zl_read, w_inc && r_inc && $past(!r_empty_n));
 
       // zero latency data assertion
-      if (w_inc && $past(r_empty)) begin
+      if (w_inc && $past(!r_empty_n)) begin
         `ASSERT(a_zl_read, r_data == w_data);
       end
 
       // data stored if not read same cycle
-      if ($past(w_inc && !r_inc) && $past(r_empty, 1)) begin
+      if ($past(w_inc && !r_inc) && $past(!r_empty_n, 1)) begin
         `ASSERT(a_defered_read, r_data == $past(w_data));
       end
     end

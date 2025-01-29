@@ -12,25 +12,24 @@ module svc_sync_fifo_zl_tb;
 
   logic          w_inc;
   logic [DW-1:0] w_data;
-  logic          w_full;
+  logic          w_full_n;
 
   logic          r_inc;
-  logic          r_empty;
   logic [DW-1:0] r_data;
+  logic          r_empty_n;
 
   svc_sync_fifo_zl #(
       .ADDR_WIDTH(AW),
       .DATA_WIDTH(DW)
   ) uut (
-      .clk        (clk),
-      .rst_n      (rst_n),
-      .w_inc      (w_inc),
-      .w_data     (w_data),
-      .w_half_full(),
-      .w_full     (w_full),
-      .r_inc      (r_inc),
-      .r_empty    (r_empty),
-      .r_data     (r_data)
+      .clk      (clk),
+      .rst_n    (rst_n),
+      .w_inc    (w_inc),
+      .w_data   (w_data),
+      .w_full_n (w_full_n),
+      .r_inc    (r_inc),
+      .r_empty_n(r_empty_n),
+      .r_data   (r_data)
   );
 
   always_ff @(posedge clk) begin
@@ -42,8 +41,8 @@ module svc_sync_fifo_zl_tb;
   end
 
   task automatic test_init;
-    `CHECK_EQ(r_empty, 1'b1)
-    `CHECK_EQ(w_full, 1'b0)
+    `CHECK_EQ(r_empty_n, 1'b0)
+    `CHECK_EQ(w_full_n, 1'b1)
   endtask
 
   task automatic test_empty_zl;
@@ -53,14 +52,14 @@ module svc_sync_fifo_zl_tb;
     w_data = data;
     w_inc  = 1;
 
-    `CHECK_FALSE(r_empty);
+    `CHECK_EQ(r_empty_n, 1'b1);
     `CHECK_EQ(r_data, data);
 
     r_inc = 1;
     `TICK(clk);
     w_inc = 0;
 
-    `CHECK_TRUE(r_empty);
+    `CHECK_EQ(r_empty_n, 1'b0);
   endtask
 
   task automatic test_empty_defered_read;
@@ -70,17 +69,17 @@ module svc_sync_fifo_zl_tb;
     w_data = data;
     w_inc  = 1;
 
-    `CHECK_FALSE(r_empty);
+    `CHECK_EQ(r_empty_n, 1'b1);
     `CHECK_EQ(r_data, data);
 
     `TICK(clk);
     w_inc = 0;
-    `CHECK_FALSE(r_empty);
+    `CHECK_EQ(r_empty_n, 1'b1);
     `CHECK_EQ(r_data, data);
     r_inc = 1;
 
     `TICK(clk);
-    `CHECK_TRUE(r_empty);
+    `CHECK_EQ(r_empty_n, 1'b0);
   endtask
 
   task automatic test_fill_fifo;
@@ -89,11 +88,11 @@ module svc_sync_fifo_zl_tb;
       w_inc  = 1;
       `TICK(clk);
 
-      `CHECK_EQ(w_full, (i == MEM_DEPTH - 1));
+      `CHECK_NEQ(w_full_n, (i == MEM_DEPTH - 1));
     end
 
     w_inc = 0;
-    `CHECK_TRUE(w_full);
+    `CHECK_EQ(w_full_n, 1'b0);
   endtask
 
   task automatic test_read_full_fifo;
@@ -104,11 +103,11 @@ module svc_sync_fifo_zl_tb;
       r_inc = 1;
       `TICK(clk);
 
-      `CHECK_EQ(r_empty, (i == MEM_DEPTH - 1));
+      `CHECK_NEQ(r_empty_n, (i == MEM_DEPTH - 1));
     end
 
     r_inc = 0;
-    `CHECK_TRUE(r_empty);
+    `CHECK_EQ(r_empty_n, 1'b0);
   endtask
 
   task automatic test_write_read_same_clock;
@@ -120,7 +119,7 @@ module svc_sync_fifo_zl_tb;
     w_inc  = 1;
     `TICK(clk);
 
-    `CHECK_FALSE(r_empty);
+    `CHECK_EQ(r_empty_n, 1'b1);
     `CHECK_EQ(r_data, data1);
 
     // second write with read
@@ -128,7 +127,7 @@ module svc_sync_fifo_zl_tb;
     r_inc  = 1;
     `TICK(clk);
 
-    `CHECK_EQ(r_empty, 1'b0)
+    `CHECK_EQ(r_empty_n, 1'b1)
     `CHECK_EQ(r_data, data2);
     w_inc = 0;
 
@@ -136,7 +135,7 @@ module svc_sync_fifo_zl_tb;
     r_inc = 1;
     `TICK(clk);
 
-    `CHECK_TRUE(r_empty);
+    `CHECK_EQ(r_empty_n, 1'b0);
   endtask
 
   `TEST_SUITE_BEGIN(svc_sync_fifo_zl_tb);
