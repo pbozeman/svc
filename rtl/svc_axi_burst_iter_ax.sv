@@ -276,6 +276,10 @@ module svc_axi_burst_iter_ax #(
       end
     end
   end
+
+  `undef ASSERT
+  `undef ASSUME
+  `undef COVER
 `endif
 
 endmodule
