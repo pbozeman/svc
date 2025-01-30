@@ -10,9 +10,7 @@
 // order bits in the address. There are some requirements for usage:
 //
 //  * NUM_S must be a power of 2.
-//  * s_axi_awaddr must be stripe aligned.
 //  * s_axi_awsize must be for the full data width.
-//  * s_axi_awlen must end on a stripe boundary
 //
 // These requirements could be lifted, but would introduce more complexity
 // into this module, and would likely come with a performance cost on the
@@ -107,8 +105,11 @@ module svc_axi_stripe_wr #(
   logic [         S_WIDTH-1:0]                       idx;
   logic [         S_WIDTH-1:0]                       idx_next;
 
-  logic [                 7:0]                       stripes_todo;
-  logic [                 7:0]                       stripes_todo_next;
+  logic [                 7:0]                       w_remaining;
+  logic [                 7:0]                       w_remaining_next;
+
+  logic                                              w_active;
+  logic                                              w_active_next;
 
   //-------------------------------------------------------------------------
   //
@@ -228,26 +229,30 @@ module svc_axi_stripe_wr #(
 
   //-------------------------------------------------------------------------
   //
-  // Num stripe tracking: for determining the wlast flags to our subordinates
+  // num remaining
   //
   //-------------------------------------------------------------------------
   always_comb begin
-    stripes_todo_next = stripes_todo;
+    w_remaining_next = w_remaining;
+    w_active_next    = w_active;
+
     if (s_axi_awvalid && s_axi_awready) begin
-      stripes_todo_next = s_axi_awlen >> S_WIDTH;
+      w_remaining_next = s_axi_awlen;
+      w_active_next    = 1'b1;
     end
 
-    if (idx == '1) begin
-      stripes_todo_next = stripes_todo - 1;
+    if (|m_axi_wvalid && |m_axi_wready) begin
+      if (w_remaining != 0) begin
+        w_remaining_next = w_remaining - 1;
+      end else begin
+        w_active_next = 1'b0;
+      end
     end
   end
 
   always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      stripes_todo <= 0;
-    end else begin
-      stripes_todo <= stripes_todo_next;
-    end
+    w_remaining <= w_remaining_next;
+    w_active    <= w_active_next;
   end
 
   //-------------------------------------------------------------------------
@@ -261,9 +266,9 @@ module svc_axi_stripe_wr #(
     m_axi_wvalid_next      = '0;
     m_axi_wdata_next       = '0;
     m_axi_wstrb_next       = '0;
-    m_axi_wlast_next       = (stripes_todo == 0 ? '1 : '0);
+    m_axi_wlast_next       = w_remaining_next < NUM_S ? '1 : '0;
 
-    m_axi_wvalid_next[idx] = s_axi_wvalid && aw_done[idx];
+    m_axi_wvalid_next[idx] = s_axi_wvalid && aw_done[idx] && w_active_next;
     m_axi_wdata_next[idx]  = s_axi_wdata;
     m_axi_wstrb_next[idx]  = s_axi_wstrb;
   end
@@ -382,9 +387,6 @@ module svc_axi_stripe_wr #(
       if (s_axi_awvalid) begin
         // Size must match full data width
         assert (int'(s_axi_awsize) == $clog2(AXI_DATA_WIDTH / 8));
-
-        // Length must end on stripe boundary
-        assert (((s_axi_awlen + 1) % NUM_S) == 0);
       end
 
       if (s_axi_awvalid && s_axi_awready) begin
@@ -395,7 +397,7 @@ module svc_axi_stripe_wr #(
 
       for (int i = 0; i < NUM_S; i++) begin
         if (m_axi_wvalid[i] && m_axi_wready[i]) begin
-          assert (m_axi_wlast[i] == (stripes_todo == 0));
+          assert (m_axi_wlast[i] == (w_remaining < NUM_S - 1));
         end
       end
     end

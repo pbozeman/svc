@@ -10,9 +10,9 @@
 // order bits in the address. There are some requirements for usage:
 //
 //  * NUM_S must be a power of 2.
-//  * s_axi_axaddr must be stripe aligned.
+//  * s_axi_araddr must be stripe aligned.
+//  * s_axi_arlen must end on a stripe boundary
 //  * s_axi_axsize must be for the full data width.
-//  * s_axi_axlen must end on a stripe boundary
 //
 // These requirements could be lifted, but would introduce more complexity
 // into this module, and would likely come with a performance cost on the
@@ -242,7 +242,6 @@ module svc_axi_stripe #(
 
     if (s_axi_awvalid) begin
       `ASSUME(a_aw_width, int'(s_axi_awsize) == $clog2(AXI_DATA_WIDTH / 8));
-      `ASSUME(a_aw_end, (s_axi_awlen + 1) % NUM_S == 0);
     end
   end
 
