@@ -275,10 +275,46 @@ module svc_axi_stripe_wr_tb;
     `CHECK_EQ(s_w_cnt[1], 0);
   endtask
 
+  task automatic test_single;
+    logic [ AW-1:0] addr = AW'(8'hA0);
+    logic [ DW-1:0] data = DW'(16'hD000);
+    logic [IDW-1:0] id = IDW'(4'hD);
+
+    // stripe aligned single beat burst
+    m_axi_awvalid = 1'b1;
+    m_axi_awaddr  = addr;
+    m_axi_awid    = id;
+    m_axi_awlen   = 8'h00;
+    m_axi_awburst = 2'b01;
+    m_axi_awsize  = 3'b001;
+
+    m_axi_bready  = 1'b1;
+
+    // send data
+    m_axi_wvalid  = 1'b1;
+    m_axi_wdata   = data;
+    m_axi_wstrb   = '1;
+    m_axi_wlast   = 1'b0;
+
+    // The counter won't have been incremented yet for this write since it
+    // will happen at the end of this clock cycle
+    `CHECK_WAIT_FOR(clk, s_axi_wvalid[0] && s_axi_wready[0]);
+    `CHECK_EQ(s_w_cnt[0], 0);
+    `CHECK_EQ(s_w_cnt[1], 0);
+
+    // We never lowered m_axi_wvalid, so we have phantom data sitting on the
+    // bus, but it should not be accepted
+    for (int i = 0; i < 16; i++) begin
+      `CHECK_FALSE(s_axi_wvalid[1] && s_axi_wready[1]);
+      `TICK(clk);
+    end
+  endtask
+
   `TEST_SUITE_BEGIN(svc_axi_stripe_wr_tb);
   `TEST_CASE(test_initial);
   `TEST_CASE(test_basic);
   `TEST_CASE(test_unaligned_start);
+  `TEST_CASE(test_single);
   `TEST_SUITE_END();
 
 endmodule
