@@ -73,43 +73,48 @@ module svc_axi_stripe_wr #(
     input  logic [NUM_S-1:0][                 1:0] m_axi_bresp,
     output logic [NUM_S-1:0]                       m_axi_bready
 );
+  localparam DW = AXI_DATA_WIDTH;
+  localparam IW = AXI_ID_WIDTH;
+  localparam STRBW = AXI_STRB_WIDTH;
+  localparam SAW = S_AXI_ADDR_WIDTH;
+
   localparam S_WIDTH = $clog2(NUM_S);
   localparam O_WIDTH = $clog2(AXI_STRB_WIDTH);
 
-  logic                                              s_axi_awready_next;
-  logic                                              s_axi_bvalid_next;
-  logic [    AXI_ID_WIDTH-1:0]                       s_axi_bid_next;
-  logic [                 1:0]                       s_axi_bresp_next;
+  logic                          s_axi_awready_next;
+  logic                          s_axi_bvalid_next;
+  logic [     IW-1:0]            s_axi_bid_next;
+  logic [        1:0]            s_axi_bresp_next;
 
-  logic [           NUM_S-1:0]                       aw_done;
-  logic [           NUM_S-1:0]                       aw_done_next;
+  logic [  NUM_S-1:0]            aw_done;
+  logic [  NUM_S-1:0]            aw_done_next;
 
-  logic [S_AXI_ADDR_WIDTH-1:0]                       aw_stripe_addr;
-  logic [         S_WIDTH-1:0]                       aw_stripe_idx;
+  logic [    SAW-1:0]            aw_stripe_addr;
+  logic [S_WIDTH-1:0]            aw_stripe_idx;
 
-  logic [           NUM_S-1:0]                       b_done;
-  logic [           NUM_S-1:0]                       b_done_next;
+  logic [  NUM_S-1:0]            b_done;
+  logic [  NUM_S-1:0]            b_done_next;
 
-  logic [           NUM_S-1:0]                       m_axi_awvalid_next;
-  logic [           NUM_S-1:0][    AXI_ID_WIDTH-1:0] m_axi_awid_next;
-  logic [           NUM_S-1:0][S_AXI_ADDR_WIDTH-1:0] m_axi_awaddr_next;
-  logic [           NUM_S-1:0][                 7:0] m_axi_awlen_next;
-  logic [           NUM_S-1:0][                 2:0] m_axi_awsize_next;
-  logic [           NUM_S-1:0][                 1:0] m_axi_awburst_next;
+  logic [  NUM_S-1:0]            m_axi_awvalid_next;
+  logic [  NUM_S-1:0][   IW-1:0] m_axi_awid_next;
+  logic [  NUM_S-1:0][  SAW-1:0] m_axi_awaddr_next;
+  logic [  NUM_S-1:0][      7:0] m_axi_awlen_next;
+  logic [  NUM_S-1:0][      2:0] m_axi_awsize_next;
+  logic [  NUM_S-1:0][      1:0] m_axi_awburst_next;
 
-  logic [           NUM_S-1:0]                       m_axi_wvalid_next;
-  logic [           NUM_S-1:0][  AXI_DATA_WIDTH-1:0] m_axi_wdata_next;
-  logic [           NUM_S-1:0][  AXI_STRB_WIDTH-1:0] m_axi_wstrb_next;
-  logic [           NUM_S-1:0]                       m_axi_wlast_next;
+  logic [  NUM_S-1:0]            m_axi_wvalid_next;
+  logic [  NUM_S-1:0][   DW-1:0] m_axi_wdata_next;
+  logic [  NUM_S-1:0][STRBW-1:0] m_axi_wstrb_next;
+  logic [  NUM_S-1:0]            m_axi_wlast_next;
 
-  logic [         S_WIDTH-1:0]                       idx;
-  logic [         S_WIDTH-1:0]                       idx_next;
+  logic [S_WIDTH-1:0]            idx;
+  logic [S_WIDTH-1:0]            idx_next;
 
-  logic [                 7:0]                       w_remaining;
-  logic [                 7:0]                       w_remaining_next;
+  logic [        7:0]            w_remaining;
+  logic [        7:0]            w_remaining_next;
 
-  logic                                              w_active;
-  logic                                              w_active_next;
+  logic                          w_active;
+  logic                          w_active_next;
 
   //-------------------------------------------------------------------------
   //
