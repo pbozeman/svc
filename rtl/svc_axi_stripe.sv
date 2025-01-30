@@ -241,7 +241,6 @@ module svc_axi_stripe #(
     end
 
     if (s_axi_awvalid) begin
-      `ASSUME(a_aw_start, s_axi_awaddr[S_WIDTH-1:0] == '0);
       `ASSUME(a_aw_width, int'(s_axi_awsize) == $clog2(AXI_DATA_WIDTH / 8));
       `ASSUME(a_aw_end, (s_axi_awlen + 1) % NUM_S == 0);
     end

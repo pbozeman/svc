@@ -2,6 +2,7 @@
 `define SVC_AXI_STRIPE_WR_SV
 
 `include "svc.sv"
+`include "svc_axi_stripe_addr.sv"
 `include "svc_unused.sv"
 
 //
@@ -22,11 +23,6 @@
 //
 // TODO: see the note on the b channel about a final cycle of latency that
 // can likely be removed.
-//
-// This shares a good chunk of code with _rd. All the address and index
-// management uses the same logic. For now, leave them as separate modules,
-// but if this pattern gets replicated a 3rd time in some other module,
-// refactor it.
 //
 module svc_axi_stripe_wr #(
     parameter NUM_S            = 2,
@@ -90,10 +86,11 @@ module svc_axi_stripe_wr #(
   logic [           NUM_S-1:0]                       aw_done;
   logic [           NUM_S-1:0]                       aw_done_next;
 
+  logic [S_AXI_ADDR_WIDTH-1:0]                       aw_stripe_addr;
+  logic [         S_WIDTH-1:0]                       aw_stripe_idx;
+
   logic [           NUM_S-1:0]                       b_done;
   logic [           NUM_S-1:0]                       b_done_next;
-
-  logic [S_AXI_ADDR_WIDTH-1:0]                       stripe_addr;
 
   logic [           NUM_S-1:0]                       m_axi_awvalid_next;
   logic [           NUM_S-1:0][    AXI_ID_WIDTH-1:0] m_axi_awid_next;
@@ -119,50 +116,34 @@ module svc_axi_stripe_wr #(
   //
   //-------------------------------------------------------------------------
 
-  // The addr is adjusted to be word based within the subordinate. Since we
-  // are addressing bytes, we can't just bit shift off the lower bits. We have
-  // to drop the part of the address used to select subordinate (word based),
-  // and then put the byte addr bits on the end.
-  //
-  // +-----------------------+-------------------+-----------------+
-  // |    High bits          | Subordinate Index |  Byte Offset    |
-  // +-----------------------+-------------------+-----------------+
-  //  ^                       ^                   ^                ^
-  //  [AXI_ADDR_WIDTH-1 :     (S_WIDTH+O_WIDTH) : O_WIDTH        : 0]
-  //
-  if (O_WIDTH > 0) begin : gen_keep_offset
-    // skip the sub selection bits in the middle
-    assign stripe_addr = {
-      s_axi_awaddr[AXI_ADDR_WIDTH-1 : S_WIDTH+O_WIDTH],
-      s_axi_awaddr[O_WIDTH-1 : 0]
-    };
-  end else begin : gen_no_offset
-    // O_WIDTH=0 => skip [O_WIDTH-1 : 0] entirely
-    // just remove S_WIDTH bits from the middle
-    assign stripe_addr = s_axi_awaddr[AXI_ADDR_WIDTH-1 : S_WIDTH];
-  end
+  svc_axi_stripe_addr #(
+      .NUM_S         (NUM_S),
+      .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
+      .AXI_DATA_WIDTH(AXI_DATA_WIDTH)
+  ) svc_axi_stripe_addr_i (
+      .s_axi_axaddr(s_axi_awaddr),
+      .sub_idx     (aw_stripe_idx),
+      .word_aligned(),
+      .m_axi_axaddr(aw_stripe_addr)
+  );
 
   always_comb begin
+    m_axi_awvalid_next = m_axi_awvalid & ~m_axi_awready;
+    m_axi_awid_next    = m_axi_awid;
+    m_axi_awaddr_next  = m_axi_awaddr;
+    m_axi_awlen_next   = m_axi_awlen;
+    m_axi_awsize_next  = m_axi_awsize;
+    m_axi_awburst_next = m_axi_awburst;
+
+    aw_done_next       = aw_done;
+
     for (int i = 0; i < NUM_S; i++) begin : gen_init
-      aw_done_next[i]       = aw_done[i];
-
-      m_axi_awvalid_next[i] = m_axi_awvalid[i] && !m_axi_awready[i];
-      m_axi_awid_next[i]    = m_axi_awid[i];
-      m_axi_awaddr_next[i]  = m_axi_awaddr[i];
-      m_axi_awlen_next[i]   = m_axi_awlen[i];
-      m_axi_awsize_next[i]  = m_axi_awsize[i];
-      m_axi_awburst_next[i] = m_axi_awburst[i];
-
-      if (s_axi_bvalid && s_axi_bready) begin
-        aw_done_next[i] = 1'b0;
-      end
-
       if (s_axi_awvalid && s_axi_awready) begin
         aw_done_next[i]       = 1'b0;
 
         m_axi_awvalid_next[i] = 1'b1;
         m_axi_awid_next[i]    = s_axi_awid;
-        m_axi_awaddr_next[i]  = stripe_addr;
+        m_axi_awaddr_next[i]  = aw_stripe_addr;
         m_axi_awsize_next[i]  = s_axi_awsize;
         m_axi_awburst_next[i] = s_axi_awburst;
         m_axi_awlen_next[i]   = s_axi_awlen >> S_WIDTH;
@@ -170,6 +151,17 @@ module svc_axi_stripe_wr #(
 
       if (m_axi_awvalid[i] && m_axi_awready[i]) begin
         aw_done_next[i] = 1'b1;
+      end
+
+      // FIXME: it doesn't seem like this should be necessary, but the
+      // svc-example mem tests require it, or they hang. At one point I knew
+      // why. tb and formal pass without it, likely because of the over
+      // constraining assumes for the faxi formal modules. Figure out what is
+      // happening, and if this is really needed, get some test coverage for
+      // it and update this comment. Otherwise, fix whatever is causing this
+      // to be needed and delete this.
+      if (s_axi_bvalid && s_axi_bready) begin
+        aw_done_next = '0;
       end
     end
   end
@@ -222,7 +214,7 @@ module svc_axi_stripe_wr #(
     end
 
     if (s_axi_awready && s_axi_awvalid) begin
-      idx_next = 0;
+      idx_next = aw_stripe_idx;
     end
   end
 
@@ -388,9 +380,6 @@ module svc_axi_stripe_wr #(
       // the following are assertions about the requirements for usage
       // documented at the top of the module
       if (s_axi_awvalid) begin
-        // Address must be stripe aligned - lower bits should be zero
-        assert (s_axi_awaddr[S_WIDTH-1:0] == '0);
-
         // Size must match full data width
         assert (int'(s_axi_awsize) == $clog2(AXI_DATA_WIDTH / 8));
 

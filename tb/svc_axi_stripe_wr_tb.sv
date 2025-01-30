@@ -49,6 +49,8 @@ module svc_axi_stripe_wr_tb;
   logic [NUM_S-1:0][     1:0] s_axi_bresp;
   logic [NUM_S-1:0]           s_axi_bready;
 
+  logic [NUM_S-1:0][     7:0] s_w_cnt;
+
   svc_axi_stripe_wr #(
       .NUM_S         (NUM_S),
       .AXI_ADDR_WIDTH(AW),
@@ -133,6 +135,18 @@ module svc_axi_stripe_wr_tb;
         .s_axi_rlast  (),
         .s_axi_rready (1'b0)
     );
+  end
+
+  always_ff @(posedge clk) begin
+    for (int i = 0; i < NUM_S; i++) begin
+      if (!rst_n) begin
+        s_w_cnt[i] <= 0;
+      end else begin
+        if (s_axi_wvalid[i] && s_axi_wready[i]) begin
+          s_w_cnt[i] <= s_w_cnt[i] + 1;
+        end
+      end
+    end
   end
 
   always_ff @(posedge clk) begin
@@ -227,13 +241,44 @@ module svc_axi_stripe_wr_tb;
     `CHECK_EQ(m_axi_bid, id);
     `CHECK_EQ(m_axi_bresp, 2'b00);
 
+    `CHECK_EQ(s_w_cnt[0], 2);
+    `CHECK_EQ(s_w_cnt[1], 2);
+
     `TICK(clk);
     `CHECK_FALSE(m_axi_bvalid);
+  endtask
+
+  task automatic test_unaligned_start;
+    logic [ AW-1:0] addr = AW'(8'hA2);
+    logic [ DW-1:0] data = DW'(16'hD000);
+    logic [IDW-1:0] id = IDW'(4'hD);
+
+    m_axi_awvalid = 1'b1;
+    m_axi_awaddr  = addr;
+    m_axi_awid    = id;
+    m_axi_awlen   = 8'h03;
+    m_axi_awburst = 2'b01;
+    m_axi_awsize  = 3'b001;
+
+    m_axi_bready  = 1'b1;
+
+    // Send first data beat
+    m_axi_wvalid  = 1'b1;
+    m_axi_wdata   = data;
+    m_axi_wstrb   = '1;
+    m_axi_wlast   = 1'b0;
+
+    // The counter won't have been incremented yet for this write since it
+    // will happen at the end of this clock cycle
+    `CHECK_WAIT_FOR(clk, s_axi_wvalid[1] && s_axi_wready[1]);
+    `CHECK_EQ(s_w_cnt[0], 0);
+    `CHECK_EQ(s_w_cnt[1], 0);
   endtask
 
   `TEST_SUITE_BEGIN(svc_axi_stripe_wr_tb);
   `TEST_CASE(test_initial);
   `TEST_CASE(test_basic);
+  `TEST_CASE(test_unaligned_start);
   `TEST_SUITE_END();
 
 endmodule
