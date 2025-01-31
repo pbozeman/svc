@@ -3,6 +3,7 @@
 
 `include "svc.sv"
 `include "svc_axi_stripe_addr.sv"
+`include "svc_skidbuf.sv"
 `include "svc_unused.sv"
 
 //
@@ -22,6 +23,11 @@
 // TODO: see the note on the b channel about a final cycle of latency that
 // can likely be removed.
 //
+// TODO: awsize, and maybe others, are fixed value, but we are passing them
+// around. Just set them at the destination directly.
+//
+// verilator lint_off: UNDRIVEN
+// verilator lint_off: UNUSEDSIGNAL
 module svc_axi_stripe_wr #(
     parameter NUM_S            = 2,
     parameter AXI_ADDR_WIDTH   = 8,
@@ -86,14 +92,23 @@ module svc_axi_stripe_wr #(
   logic [     IW-1:0]            s_axi_bid_next;
   logic [        1:0]            s_axi_bresp_next;
 
-  logic [  NUM_S-1:0]            aw_done;
-  logic [  NUM_S-1:0]            aw_done_next;
-
   logic [    SAW-1:0]            aw_stripe_addr;
   logic [S_WIDTH-1:0]            aw_stripe_idx;
 
-  logic [  NUM_S-1:0]            b_done;
-  logic [  NUM_S-1:0]            b_done_next;
+  logic                          sb_s_wvalid;
+  logic [     DW-1:0]            sb_s_wdata;
+  logic [  STRBW-1:0]            sb_s_wstrb;
+  logic                          sb_s_wlast;
+  logic                          sb_s_wready;
+
+  logic [S_WIDTH-1:0]            w_idx;
+  logic [S_WIDTH-1:0]            w_idx_next;
+
+  logic [        7:0]            w_remaining;
+  logic [        7:0]            w_remaining_next;
+
+  logic                          w_done;
+  logic                          w_done_next;
 
   logic [  NUM_S-1:0]            m_axi_awvalid_next;
   logic [  NUM_S-1:0][   IW-1:0] m_axi_awid_next;
@@ -107,14 +122,8 @@ module svc_axi_stripe_wr #(
   logic [  NUM_S-1:0][STRBW-1:0] m_axi_wstrb_next;
   logic [  NUM_S-1:0]            m_axi_wlast_next;
 
-  logic [S_WIDTH-1:0]            idx;
-  logic [S_WIDTH-1:0]            idx_next;
-
-  logic [        7:0]            w_remaining;
-  logic [        7:0]            w_remaining_next;
-
-  logic                          w_active;
-  logic                          w_active_next;
+  logic [  NUM_S-1:0]            b_done;
+  logic [  NUM_S-1:0]            b_done_next;
 
   //-------------------------------------------------------------------------
   //
@@ -141,11 +150,11 @@ module svc_axi_stripe_wr #(
     m_axi_awsize_next  = m_axi_awsize;
     m_axi_awburst_next = m_axi_awburst;
 
-    aw_done_next       = aw_done;
-
+    // FIXME: this still doesn't handle partial stripe writes correctly in
+    // that it sends aw valids to all the subs, even if they won't be
+    // participating in the io.
     for (int i = 0; i < NUM_S; i++) begin : gen_init
       if (s_axi_awvalid && s_axi_awready) begin
-        aw_done_next[i]       = 1'b0;
 
         m_axi_awvalid_next[i] = 1'b1;
         m_axi_awid_next[i]    = s_axi_awid;
@@ -154,43 +163,27 @@ module svc_axi_stripe_wr #(
         m_axi_awburst_next[i] = s_axi_awburst;
         m_axi_awlen_next[i]   = s_axi_awlen >> S_WIDTH;
       end
-
-      if (m_axi_awvalid[i] && m_axi_awready[i]) begin
-        aw_done_next[i] = 1'b1;
-      end
-
-      // FIXME: it doesn't seem like this should be necessary, but the
-      // svc-example mem tests require it, or they hang. At one point I knew
-      // why. tb and formal pass without it, likely because of the over
-      // constraining assumes for the faxi formal modules. Figure out what is
-      // happening, and if this is really needed, get some test coverage for
-      // it and update this comment. Otherwise, fix whatever is causing this
-      // to be needed and delete this.
-      if (s_axi_bvalid && s_axi_bready) begin
-        aw_done_next = '0;
-      end
     end
   end
 
   always_comb begin
     s_axi_awready_next = s_axi_awready;
 
-    if (s_axi_bvalid && s_axi_bready) begin
-      s_axi_awready_next = 1'b1;
-    end
-
     if (s_axi_awready && s_axi_awvalid) begin
       s_axi_awready_next = 1'b0;
+    end
+
+    // TODO: try to remove this
+    if (s_axi_bvalid && s_axi_bready) begin
+      s_axi_awready_next = 1'b1;
     end
   end
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      aw_done       <= '0;
       s_axi_awready <= 1'b1;
       m_axi_awvalid <= '0;
     end else begin
-      aw_done       <= aw_done_next;
       s_axi_awready <= s_axi_awready_next;
       m_axi_awvalid <= m_axi_awvalid_next;
     end
@@ -206,92 +199,84 @@ module svc_axi_stripe_wr #(
 
   //-------------------------------------------------------------------------
   //
-  // index iteration
-  //
-  // (since NUM_S is a power of 2, we don't have to check against a max value,
-  // we can just wrap)
+  // W channel
   //
   //-------------------------------------------------------------------------
+  svc_skidbuf #(
+      .DATA_WIDTH(DW + 2 + 1)
+  ) svc_skidbuf_w_i (
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .i_valid(s_axi_wvalid),
+      .i_data ({s_axi_wdata, s_axi_wstrb, s_axi_wlast}),
+      .o_ready(s_axi_wready),
+      .i_ready(sb_s_wready),
+      .o_data ({sb_s_wdata, sb_s_wstrb, sb_s_wlast}),
+      .o_valid(sb_s_wvalid)
+  );
+
   always_comb begin
-    idx_next = idx;
+    m_axi_wvalid_next = m_axi_wvalid & ~m_axi_wready;
+    m_axi_wdata_next  = m_axi_wdata;
+    m_axi_wstrb_next  = m_axi_wstrb;
+    m_axi_wlast_next  = m_axi_wlast;
 
-    if (s_axi_wvalid && s_axi_wready) begin
-      idx_next = idx + 1;
-    end
+    sb_s_wready       = 1'b0;
+    w_idx_next        = w_idx;
+    w_remaining_next  = w_remaining;
+    w_done_next       = w_done;
 
+    // start of burst
     if (s_axi_awready && s_axi_awvalid) begin
-      idx_next = aw_stripe_idx;
-    end
-  end
-
-  always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      idx <= 0;
-    end else begin
-      idx <= idx_next;
-    end
-  end
-
-  //-------------------------------------------------------------------------
-  //
-  // num remaining
-  //
-  //-------------------------------------------------------------------------
-  always_comb begin
-    w_remaining_next = w_remaining;
-    w_active_next    = w_active;
-
-    if (s_axi_awvalid && s_axi_awready) begin
+      w_idx_next       = aw_stripe_idx;
       w_remaining_next = s_axi_awlen;
-      w_active_next    = 1'b1;
+      w_done_next      = 1'b0;
     end
 
-    if (|m_axi_wvalid && |m_axi_wready) begin
-      if (w_remaining != 0) begin
-        w_remaining_next = w_remaining - 1;
-      end else begin
-        w_active_next = 1'b0;
+    // incoming write data
+    if (sb_s_wvalid && !w_done) begin
+      if (!m_axi_wvalid[w_idx] || m_axi_wready[w_idx]) begin
+        sb_s_wready              = 1'b1;
+
+        m_axi_wvalid_next[w_idx] = 1'b1;
+        m_axi_wdata_next[w_idx]  = sb_s_wdata;
+        m_axi_wstrb_next[w_idx]  = sb_s_wstrb;
+        m_axi_wlast_next[w_idx]  = w_remaining_next < NUM_S ? '1 : '0;
+
+        // since NUM_S is a power of 2, we don't have to check against
+        // a max value, we can just wrap
+        w_idx_next               = w_idx + 1;
+
+        // This looks weird, as one would normally want to subtract off of the
+        // prev value. However if we are in the first clock cycle of the burst,
+        // we won't have a prev value. We will, however, just set
+        // w_remaining_next above. On beats other than the first one in the
+        // burst, we set w_remaining_next to the prev value at the top of the
+        // comb block.
+        if (w_remaining_next != 0) begin
+          w_remaining_next = w_remaining_next - 1;
+        end else begin
+          w_done_next = 1'b1;
+        end
       end
     end
   end
 
   always_ff @(posedge clk) begin
-    w_remaining <= w_remaining_next;
-    w_active    <= w_active_next;
-  end
-
-  //-------------------------------------------------------------------------
-  //
-  // w channel
-  //
-  //-------------------------------------------------------------------------
-
-  // w channel signals from caller to active subordinate
-  always_comb begin
-    m_axi_wvalid_next      = '0;
-    m_axi_wdata_next       = '0;
-    m_axi_wstrb_next       = '0;
-    m_axi_wlast_next       = w_remaining_next < NUM_S ? '1 : '0;
-
-    m_axi_wvalid_next[idx] = s_axi_wvalid && aw_done[idx] && w_active_next;
-    m_axi_wdata_next[idx]  = s_axi_wdata;
-    m_axi_wstrb_next[idx]  = s_axi_wstrb;
-  end
-
-  // w channel from subordinate back to caller
-  always_comb begin
-    s_axi_wready = m_axi_wready[idx] && aw_done[idx];
-  end
-
-  always_ff @(posedge clk) begin
     if (!rst_n) begin
+      w_idx        <= 0;
+      w_done       <= 1'b0;
       m_axi_wvalid <= '0;
     end else begin
+      w_idx        <= w_idx_next;
+      w_done       <= w_done_next;
       m_axi_wvalid <= m_axi_wvalid_next;
     end
   end
 
   always_ff @(posedge clk) begin
+    w_remaining <= w_remaining_next;
+
     m_axi_wdata <= m_axi_wdata_next;
     m_axi_wstrb <= m_axi_wstrb_next;
     m_axi_wlast <= m_axi_wlast_next;
@@ -299,7 +284,7 @@ module svc_axi_stripe_wr #(
 
   //-------------------------------------------------------------------------
   //
-  // b channel
+  // B channel
   //
   //-------------------------------------------------------------------------
 
