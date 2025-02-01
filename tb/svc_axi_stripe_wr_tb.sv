@@ -49,6 +49,7 @@ module svc_axi_stripe_wr_tb;
   logic [NUM_S-1:0][     1:0] s_axi_bresp;
   logic [NUM_S-1:0]           s_axi_bready;
 
+  logic [NUM_S-1:0][     7:0] s_aw_cnt;
   logic [NUM_S-1:0][     7:0] s_w_cnt;
 
   svc_axi_stripe_wr #(
@@ -140,8 +141,13 @@ module svc_axi_stripe_wr_tb;
   always_ff @(posedge clk) begin
     for (int i = 0; i < NUM_S; i++) begin
       if (!rst_n) begin
-        s_w_cnt[i] <= 0;
+        s_aw_cnt[i] <= 0;
+        s_w_cnt[i]  <= 0;
       end else begin
+        if (s_axi_awvalid[i] && s_axi_awready[i]) begin
+          s_aw_cnt[i] <= s_aw_cnt[i] + 1;
+        end
+
         if (s_axi_wvalid[i] && s_axi_wready[i]) begin
           s_w_cnt[i] <= s_w_cnt[i] + 1;
         end
@@ -241,6 +247,9 @@ module svc_axi_stripe_wr_tb;
     `CHECK_EQ(m_axi_bid, id);
     `CHECK_EQ(m_axi_bresp, 2'b00);
 
+    `CHECK_EQ(s_aw_cnt[0], 1);
+    `CHECK_EQ(s_aw_cnt[1], 1);
+
     `CHECK_EQ(s_w_cnt[0], 2);
     `CHECK_EQ(s_w_cnt[1], 2);
 
@@ -268,11 +277,14 @@ module svc_axi_stripe_wr_tb;
     m_axi_wstrb   = '1;
     m_axi_wlast   = 1'b0;
 
-    // The counter won't have been incremented yet for this write since it
+    // The w counter won't have been incremented yet for this write since it
     // will happen at the end of this clock cycle
     `CHECK_WAIT_FOR(clk, s_axi_wvalid[1] && s_axi_wready[1]);
     `CHECK_EQ(s_w_cnt[0], 0);
     `CHECK_EQ(s_w_cnt[1], 0);
+
+    `CHECK_EQ(s_aw_cnt[0], 1);
+    `CHECK_EQ(s_aw_cnt[1], 1);
   endtask
 
   task automatic test_single;
@@ -296,11 +308,14 @@ module svc_axi_stripe_wr_tb;
     m_axi_wstrb   = '1;
     m_axi_wlast   = 1'b0;
 
-    // The counter won't have been incremented yet for this write since it
+    // The w counter won't have been incremented yet for this write since it
     // will happen at the end of this clock cycle
     `CHECK_WAIT_FOR(clk, s_axi_wvalid[0] && s_axi_wready[0]);
     `CHECK_EQ(s_w_cnt[0], 0);
     `CHECK_EQ(s_w_cnt[1], 0);
+
+    `CHECK_EQ(s_aw_cnt[0], 1);
+    `CHECK_EQ(s_aw_cnt[1], 0);
 
     // We never lowered m_axi_wvalid, so we have phantom data sitting on the
     // bus, but it should not be accepted
@@ -308,6 +323,9 @@ module svc_axi_stripe_wr_tb;
       `CHECK_FALSE(s_axi_wvalid[1] && s_axi_wready[1]);
       `TICK(clk);
     end
+
+    `CHECK_EQ(s_aw_cnt[0], 1);
+    `CHECK_EQ(s_aw_cnt[1], 0);
   endtask
 
   `TEST_SUITE_BEGIN(svc_axi_stripe_wr_tb);
