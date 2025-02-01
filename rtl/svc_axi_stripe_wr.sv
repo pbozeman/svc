@@ -26,8 +26,6 @@
 // TODO: awsize, and maybe others, are fixed value, but we are passing them
 // around. Just set them at the destination directly.
 //
-// verilator lint_off: UNDRIVEN
-// verilator lint_off: UNUSEDSIGNAL
 module svc_axi_stripe_wr #(
     parameter NUM_S            = 2,
     parameter AXI_ADDR_WIDTH   = 8,
@@ -98,7 +96,6 @@ module svc_axi_stripe_wr #(
   logic                          sb_s_wvalid;
   logic [     DW-1:0]            sb_s_wdata;
   logic [  STRBW-1:0]            sb_s_wstrb;
-  logic                          sb_s_wlast;
   logic                          sb_s_wready;
 
   logic [S_WIDTH-1:0]            w_idx;
@@ -203,15 +200,15 @@ module svc_axi_stripe_wr #(
   //
   //-------------------------------------------------------------------------
   svc_skidbuf #(
-      .DATA_WIDTH(DW + 2 + 1)
+      .DATA_WIDTH(DW + 2)
   ) svc_skidbuf_w_i (
       .clk    (clk),
       .rst_n  (rst_n),
       .i_valid(s_axi_wvalid),
-      .i_data ({s_axi_wdata, s_axi_wstrb, s_axi_wlast}),
+      .i_data ({s_axi_wdata, s_axi_wstrb}),
       .o_ready(s_axi_wready),
       .i_ready(sb_s_wready),
-      .o_data ({sb_s_wdata, sb_s_wstrb, sb_s_wlast}),
+      .o_data ({sb_s_wdata, sb_s_wstrb}),
       .o_valid(sb_s_wvalid)
   );
 
