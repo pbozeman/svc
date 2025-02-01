@@ -2,7 +2,7 @@
 `define SVC_AXI_STRIPE_WR_SV
 
 `include "svc.sv"
-`include "svc_axi_stripe_addr.sv"
+`include "svc_axi_stripe_ax.sv"
 `include "svc_skidbuf.sv"
 `include "svc_unused.sv"
 
@@ -90,8 +90,10 @@ module svc_axi_stripe_wr #(
   logic [     IW-1:0]            s_axi_bid_next;
   logic [        1:0]            s_axi_bresp_next;
 
-  logic [    SAW-1:0]            aw_stripe_addr;
-  logic [S_WIDTH-1:0]            aw_stripe_idx;
+  logic [  NUM_S-1:0]            aw_stripe_valid;
+  logic [  NUM_S-1:0][  SAW-1:0] aw_stripe_addr;
+  logic [  NUM_S-1:0][      7:0] aw_stripe_len;
+  logic [S_WIDTH-1:0]            aw_stripe_start_idx;
 
   logic                          sb_s_wvalid;
   logic [     DW-1:0]            sb_s_wdata;
@@ -128,15 +130,18 @@ module svc_axi_stripe_wr #(
   //
   //-------------------------------------------------------------------------
 
-  svc_axi_stripe_addr #(
+  svc_axi_stripe_ax #(
       .NUM_S         (NUM_S),
       .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
       .AXI_DATA_WIDTH(AXI_DATA_WIDTH)
   ) svc_axi_stripe_addr_i (
-      .s_axi_axaddr(s_axi_awaddr),
-      .sub_idx     (aw_stripe_idx),
-      .word_aligned(),
-      .m_axi_axaddr(aw_stripe_addr)
+      .s_addr         (s_axi_awaddr),
+      .s_len          (s_axi_awlen),
+      .start_idx      (aw_stripe_start_idx),
+      .alignment_error(),
+      .m_valid        (aw_stripe_valid),
+      .m_addr         (aw_stripe_addr),
+      .m_len          (aw_stripe_len)
   );
 
   always_comb begin
@@ -147,19 +152,14 @@ module svc_axi_stripe_wr #(
     m_axi_awsize_next  = m_axi_awsize;
     m_axi_awburst_next = m_axi_awburst;
 
-    // FIXME: this still doesn't handle partial stripe writes correctly in
-    // that it sends aw valids to all the subs, even if they won't be
-    // participating in the io.
-    for (int i = 0; i < NUM_S; i++) begin : gen_init
-      if (s_axi_awvalid && s_axi_awready) begin
+    if (s_axi_awvalid && s_axi_awready) begin
+      m_axi_awvalid_next = aw_stripe_valid;
+      m_axi_awaddr_next  = aw_stripe_addr;
+      m_axi_awlen_next   = aw_stripe_len;
 
-        m_axi_awvalid_next[i] = 1'b1;
-        m_axi_awid_next[i]    = s_axi_awid;
-        m_axi_awaddr_next[i]  = aw_stripe_addr;
-        m_axi_awsize_next[i]  = s_axi_awsize;
-        m_axi_awburst_next[i] = s_axi_awburst;
-        m_axi_awlen_next[i]   = s_axi_awlen >> S_WIDTH;
-      end
+      m_axi_awsize_next  = {NUM_S{s_axi_awsize}};
+      m_axi_awburst_next = {NUM_S{s_axi_awburst}};
+      m_axi_awid_next    = {NUM_S{s_axi_awid}};
     end
   end
 
@@ -225,7 +225,7 @@ module svc_axi_stripe_wr #(
 
     // start of burst
     if (s_axi_awready && s_axi_awvalid) begin
-      w_idx_next       = aw_stripe_idx;
+      w_idx_next       = aw_stripe_start_idx;
       w_remaining_next = s_axi_awlen;
       w_done_next      = 1'b0;
     end
