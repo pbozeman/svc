@@ -310,9 +310,9 @@ module svc_axi_arbiter #(
     );
   end
 
-  // faxi_master doesn't send back awid and arid in bid and rid, so use the
-  // mem axi for backing.
 `ifndef VERILATOR
+  // See note in svc_axi_stripe about why we only use axi mem and not the
+  // zipcpu faxi_m.
   svc_axi_mem #(
       .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
       .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
@@ -353,117 +353,6 @@ module svc_axi_arbiter #(
       .s_axi_rready (m_axi_rready)
   );
 `endif
-
-  faxi_master #(
-      .C_AXI_DATA_WIDTH  (AXI_DATA_WIDTH),
-      .C_AXI_ADDR_WIDTH  (AXI_ADDR_WIDTH),
-      .C_AXI_ID_WIDTH    (M_AXI_ID_WIDTH),
-      .F_AXI_MAXDELAY    (4),
-      .F_AXI_MAXRSTALL   (0),
-      .F_OPT_INITIAL     (0),
-      .F_OPT_ASSUME_RESET(1)
-  ) faxi_manager_i (
-      .i_clk        (clk),
-      .i_axi_reset_n(rst_n),
-
-      // Write address
-      .i_axi_awready(m_axi_awready),
-      .i_axi_awid   (m_axi_awid),
-      .i_axi_awaddr (m_axi_awaddr),
-      .i_axi_awlen  (m_axi_awlen),
-      .i_axi_awsize (m_axi_awsize),
-      .i_axi_awburst(m_axi_awburst),
-      .i_axi_awlock (0),
-      .i_axi_awcache(0),
-      .i_axi_awprot (0),
-      .i_axi_awqos  (0),
-      .i_axi_awvalid(m_axi_awvalid),
-
-      // Write data
-      .i_axi_wready(m_axi_wready),
-      .i_axi_wdata (m_axi_wdata),
-      .i_axi_wstrb (m_axi_wstrb),
-      .i_axi_wlast (m_axi_wlast),
-      .i_axi_wvalid(m_axi_wvalid),
-
-      // Write return response
-      .i_axi_bid   (m_axi_bid),
-      .i_axi_bresp (m_axi_bresp),
-      .i_axi_bvalid(m_axi_bvalid),
-      .i_axi_bready(m_axi_bready),
-
-      // Read address
-      .i_axi_arready(m_axi_arready),
-      .i_axi_arid   (m_axi_arid),
-      .i_axi_araddr (m_axi_araddr),
-      .i_axi_arlen  (m_axi_arlen),
-      .i_axi_arsize (m_axi_arsize),
-      .i_axi_arburst(m_axi_arburst),
-      .i_axi_arlock (0),
-      .i_axi_arcache(0),
-      .i_axi_arprot (0),
-      .i_axi_arqos  (0),
-      .i_axi_arvalid(m_axi_arvalid),
-
-      // Read response
-      .i_axi_rid   (m_axi_rid),
-      .i_axi_rresp (m_axi_rresp),
-      .i_axi_rvalid(m_axi_rvalid),
-      .i_axi_rdata (m_axi_rdata),
-      .i_axi_rlast (m_axi_rlast),
-      .i_axi_rready(m_axi_rready),
-
-      // induction properties
-      .f_axi_awr_nbursts   (),
-      .f_axi_wr_pending    (),
-      .f_axi_rd_nbursts    (),
-      .f_axi_rd_outstanding(),
-
-      // Write burst properties
-      .f_axi_wr_checkid  (),
-      .f_axi_wr_ckvalid  (),
-      .f_axi_wrid_nbursts(),
-      .f_axi_wr_addr     (),
-      .f_axi_wr_incr     (),
-      .f_axi_wr_burst    (),
-      .f_axi_wr_size     (),
-      .f_axi_wr_len      (),
-      .f_axi_wr_lockd    (),
-
-      // Read properties
-      .f_axi_rd_checkid(),
-      .f_axi_rd_ckvalid(),
-      .f_axi_rd_cklen  (),
-      .f_axi_rd_ckaddr (),
-      .f_axi_rd_ckincr (),
-      .f_axi_rd_ckburst(),
-      .f_axi_rd_cksize (),
-      .f_axi_rd_ckarlen(),
-      .f_axi_rd_cklockd(),
-
-      .f_axi_rdid_nbursts          (),
-      .f_axi_rdid_outstanding      (),
-      .f_axi_rdid_ckign_nbursts    (),
-      .f_axi_rdid_ckign_outstanding(),
-
-      // Exclusive access handling
-      .f_axi_ex_state              (),
-      .f_axi_ex_checklock          (),
-      .f_axi_rdid_bursts_to_lock   (),
-      .f_axi_wrid_bursts_to_exwrite(),
-
-      .f_axi_exreq_addr  (),
-      .f_axi_exreq_len   (),
-      .f_axi_exreq_burst (),
-      .f_axi_exreq_size  (),
-      .f_axi_exreq_return(),
-
-      .i_active_lock (0),
-      .i_exlock_addr (),
-      .i_exlock_len  (),
-      .i_exlock_burst(),
-      .i_exlock_size ()
-  );
 
   //
   // Cover statement showing full throughput axi arbiter.
