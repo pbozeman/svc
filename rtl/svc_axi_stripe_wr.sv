@@ -145,7 +145,7 @@ module svc_axi_stripe_wr #(
   //-------------------------------------------------------------------------
   svc_skidbuf #(
       .DATA_WIDTH(AXI_ID_WIDTH + AXI_ADDR_WIDTH + 8 + 3 + 2)
-  ) svc_skidbuf_ar_i (
+  ) svc_skidbuf_aw_i (
       .clk(clk),
       .rst_n(rst_n),
       .i_valid(s_axi_awvalid),
