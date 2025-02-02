@@ -314,8 +314,8 @@ module svc_axi_stripe_wr_tb;
     m_axi_wstrb   = '1;
     m_axi_wlast   = 1'b0;
 
-    // FIXME: fix bug and enable this
-    // `CHECK_WAIT_FOR(clk, m_axi_bvalid, 2);
+    // FIXME: reduce this
+    `CHECK_WAIT_FOR(clk, m_axi_bvalid, 4);
 
     // Wait awhile so that we can measure signal counts end ensure
     // there were no stray signals
@@ -353,8 +353,8 @@ module svc_axi_stripe_wr_tb;
     m_axi_wstrb   = '1;
     m_axi_wlast   = 1'b0;
 
-    // FIXME: fix bug and enable this
-    // `CHECK_WAIT_FOR(clk, m_axi_bvalid, 2);
+    // FIXME: reduce this
+    `CHECK_WAIT_FOR(clk, m_axi_bvalid, 4);
 
     // Wait awhile so that we can measure signal counts end ensure
     // there were no stray signals

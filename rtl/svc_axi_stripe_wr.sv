@@ -93,6 +93,7 @@ module svc_axi_stripe_wr #(
   logic [  NUM_S-1:0][  SAW-1:0] aw_stripe_addr;
   logic [  NUM_S-1:0][      7:0] aw_stripe_len;
   logic [S_WIDTH-1:0]            aw_stripe_start_idx;
+  logic [S_WIDTH-1:0]            aw_stripe_end_idx;
 
   logic                          sb_s_wvalid;
   logic [     DW-1:0]            sb_s_wdata;
@@ -123,6 +124,9 @@ module svc_axi_stripe_wr #(
   logic [  NUM_S-1:0]            b_done;
   logic [  NUM_S-1:0]            b_done_next;
 
+  logic [S_WIDTH-1:0]            b_stripe_end_idx;
+  logic [S_WIDTH-1:0]            b_stripe_end_idx_next;
+
   //-------------------------------------------------------------------------
   //
   // AW channel
@@ -137,7 +141,7 @@ module svc_axi_stripe_wr #(
       .s_addr         (s_axi_awaddr),
       .s_len          (s_axi_awlen),
       .start_idx      (aw_stripe_start_idx),
-      .end_idx        (),
+      .end_idx        (aw_stripe_end_idx),
       .alignment_error(),
       .m_valid        (aw_stripe_valid),
       .m_addr         (aw_stripe_addr),
@@ -296,13 +300,20 @@ module svc_axi_stripe_wr #(
   // caller.
   assign m_axi_bready = '1;
 
-  // track bvalid from the subordinates
+  // done and end idx tracking
   for (genvar i = 0; i < NUM_S; i++) begin : gen_b
     always @(*) begin
-      b_done_next[i] = b_done[i];
+      b_done_next[i]        = b_done[i];
+      b_stripe_end_idx_next = b_stripe_end_idx;
 
       if (s_axi_bvalid && s_axi_bready) begin
         b_done_next[i] = 1'b0;
+      end
+
+      if (s_axi_awready && s_axi_awvalid) begin
+        // if subs aren't participating in the write, consider them done
+        b_done_next[i]        = ~aw_stripe_valid[i];
+        b_stripe_end_idx_next = aw_stripe_end_idx;
       end
 
       if (m_axi_bvalid[i] && m_axi_bready[i]) begin
@@ -325,13 +336,12 @@ module svc_axi_stripe_wr #(
     s_axi_bid_next    = s_axi_bid;
     s_axi_bresp_next  = s_axi_bresp;
 
-    // We only need an id and resp from one of them, it might as well be the
-    // first. Note: we can only do this because we don't accept new writes
+    // Note: we can only do this because we don't accept new writes
     // until the b channel has been accepted too. Otherwise, we would need to
     // store pending b channel info in case the last one wasn't accepted.
-    if (m_axi_bvalid[0] && m_axi_bready[0]) begin
-      s_axi_bid_next   = m_axi_bid[0];
-      s_axi_bresp_next = m_axi_bresp[0];
+    if (m_axi_bvalid[b_stripe_end_idx] && m_axi_bready[b_stripe_end_idx]) begin
+      s_axi_bid_next   = m_axi_bid[b_stripe_end_idx];
+      s_axi_bresp_next = m_axi_bresp[b_stripe_end_idx];
     end
 
     // Similar to the above, all requests should start with bvalid low since
@@ -351,8 +361,9 @@ module svc_axi_stripe_wr #(
   end
 
   always_ff @(posedge clk) begin
-    s_axi_bid   <= s_axi_bid_next;
-    s_axi_bresp <= s_axi_bresp_next;
+    s_axi_bid        <= s_axi_bid_next;
+    s_axi_bresp      <= s_axi_bresp_next;
+    b_stripe_end_idx <= b_stripe_end_idx_next;
   end
 
   `SVC_UNUSED({s_axi_awaddr[S_WIDTH+O_WIDTH-1:O_WIDTH], s_axi_wlast,
