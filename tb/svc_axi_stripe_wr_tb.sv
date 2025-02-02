@@ -282,15 +282,50 @@ module svc_axi_stripe_wr_tb;
     m_axi_wdata   = data;
     m_axi_wstrb   = '1;
     m_axi_wlast   = 1'b0;
+    `CHECK_WAIT_FOR(clk, m_axi_wvalid && m_axi_wready);
+    `CHECK_FALSE(m_axi_bvalid);
+    `TICK(clk);
 
-    // The w counter won't have been incremented yet for this write since it
-    // will happen at the end of this clock cycle
-    `CHECK_WAIT_FOR(clk, s_axi_wvalid[1] && s_axi_wready[1]);
-    `CHECK_EQ(s_w_cnt[0], 0);
-    `CHECK_EQ(s_w_cnt[1], 0);
+    // Second
+    m_axi_wvalid = 1'b1;
+    m_axi_wdata  = data + DW'(1);
+    m_axi_wlast  = 1'b0;
+    `CHECK_WAIT_FOR(clk, m_axi_wvalid && m_axi_wready);
+    `CHECK_FALSE(m_axi_bvalid);
+    `TICK(clk);
+
+    // Thrid
+    m_axi_wvalid = 1'b1;
+    m_axi_wdata  = data + DW'(2);
+    m_axi_wlast  = 1'b0;
+    `CHECK_WAIT_FOR(clk, m_axi_wvalid && m_axi_wready);
+    `CHECK_FALSE(m_axi_bvalid);
+    `TICK(clk);
+
+    // Forth
+    m_axi_wvalid = 1'b1;
+    m_axi_wdata  = data + DW'(3);
+    m_axi_wlast  = 1'b1;
+    `CHECK_WAIT_FOR(clk, m_axi_wvalid && m_axi_wready);
+    `CHECK_FALSE(m_axi_bvalid);
+    `TICK(clk);
+    m_axi_wvalid = 1'b0;
+
+    // TODO: there is a cycle of latency on the bresp that could be optimized
+    // out. (1 cycle is here because wr is pipelined, then 1 more cycle for
+    // bvalid)
+    `CHECK_WAIT_FOR(clk, m_axi_bvalid, 2);
+    `CHECK_EQ(m_axi_bid, id);
+    `CHECK_EQ(m_axi_bresp, 2'b00);
 
     `CHECK_EQ(s_aw_cnt[0], 1);
     `CHECK_EQ(s_aw_cnt[1], 1);
+
+    `CHECK_EQ(s_w_cnt[0], 2);
+    `CHECK_EQ(s_w_cnt[1], 2);
+
+    `TICK(clk);
+    `CHECK_FALSE(m_axi_bvalid);
   endtask
 
   task automatic test_single_first;
