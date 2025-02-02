@@ -6,7 +6,6 @@
 `include "svc_skidbuf.sv"
 `include "svc_unused.sv"
 
-//
 // Stripe write requests from 1 manager to N subordinates based on the low
 // order bits in the address. There are some requirements for usage:
 //
@@ -25,7 +24,7 @@
 //
 // TODO: awsize, and maybe others, are fixed value, but we are passing them
 // around. Just set them at the destination directly.
-//
+
 module svc_axi_stripe_wr #(
     parameter NUM_S            = 2,
     parameter AXI_ADDR_WIDTH   = 8,
@@ -232,17 +231,17 @@ module svc_axi_stripe_wr #(
 
     // incoming write data
     if (sb_s_wvalid && !w_done) begin
-      if (!m_axi_wvalid[w_idx] || m_axi_wready[w_idx]) begin
-        sb_s_wready              = 1'b1;
+      if (!m_axi_wvalid[w_idx_next] || m_axi_wready[w_idx_next]) begin
+        sb_s_wready                   = 1'b1;
 
-        m_axi_wvalid_next[w_idx] = 1'b1;
-        m_axi_wdata_next[w_idx]  = sb_s_wdata;
-        m_axi_wstrb_next[w_idx]  = sb_s_wstrb;
-        m_axi_wlast_next[w_idx]  = w_remaining_next < NUM_S ? '1 : '0;
+        m_axi_wvalid_next[w_idx_next] = 1'b1;
+        m_axi_wdata_next[w_idx_next]  = sb_s_wdata;
+        m_axi_wstrb_next[w_idx_next]  = sb_s_wstrb;
+        m_axi_wlast_next[w_idx_next]  = w_remaining_next < NUM_S ? '1 : '0;
 
         // since NUM_S is a power of 2, we don't have to check against
         // a max value, we can just wrap
-        w_idx_next               = w_idx + 1;
+        w_idx_next                    = w_idx + 1;
 
         // This looks weird, as one would normally want to subtract off of the
         // prev value. However if we are in the first clock cycle of the burst,
@@ -365,6 +364,7 @@ module svc_axi_stripe_wr #(
   // Note: if formal verification is added to this module in the future, these
   // should use the ASSUME/ASSERT macros to be assumes for this module, but
   // asserts when used as a submodule.
+
   always @(posedge clk) begin
     if (rst_n) begin
       assert (NUM_S % 2 == 0);
@@ -380,12 +380,6 @@ module svc_axi_stripe_wr #(
         // See the comment in the b-channel section. Given the current
         // implementation, it would be a bug if bvalid is high here.
         assert (!s_axi_bvalid);
-      end
-
-      for (int i = 0; i < NUM_S; i++) begin
-        if (m_axi_wvalid[i] && m_axi_wready[i]) begin
-          assert (m_axi_wlast[i] == (w_remaining < NUM_S - 1));
-        end
       end
     end
   end

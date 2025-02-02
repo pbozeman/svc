@@ -220,30 +220,33 @@ module svc_axi_stripe #(
     if (f_axi_wr_pending > 0) begin
       assume (!s_axi_awready);
     end
-
-    // See faxi_master.v:687.
-    if (f_axi_wr_pending == 0) begin
-      assume (!s_axi_awvalid);
-    end
   end
 
   //
   // assumptions
   //
   always_ff @(posedge clk) begin
-    // Address must be stripe aligned - lower bits should be zero
-    // Size must match full data width
-    // Length must end on stripe boundary
-    if (s_axi_arvalid) begin
-      `ASSUME(a_ar_start, s_axi_araddr[S_WIDTH-1:0] == '0);
-      `ASSUME(a_ar_width, int'(s_axi_arsize) == $clog2(AXI_DATA_WIDTH / 8));
-      `ASSUME(a_ar_end, ((s_axi_arlen + 1) % NUM_S) == 0);
-    end
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      // Address must be stripe aligned - lower bits should be zero
+      // Size must match full data width
+      // Length must end on stripe boundary
+      if (s_axi_arvalid) begin
+        `ASSUME(a_ar_start, s_axi_araddr[S_WIDTH-1:0] == '0);
+        `ASSUME(a_ar_width, int'(s_axi_arsize) == $clog2(AXI_DATA_WIDTH / 8));
+        `ASSUME(a_ar_end, ((s_axi_arlen + 1) % NUM_S) == 0);
+      end
 
-    if (s_axi_awvalid) begin
-      `ASSUME(a_aw_width, int'(s_axi_awsize) == $clog2(AXI_DATA_WIDTH / 8));
+      if (s_axi_awvalid) begin
+        `ASSUME(a_aw_width, int'(s_axi_awsize) == $clog2(AXI_DATA_WIDTH / 8));
+      end
     end
   end
+
+  // TODO: add some coverage checks, including:
+  // * latency
+  // * throughput
+  // * unaligned stripe writes
+  // * partial stripe writes
 
   faxi_slave #(
       .C_AXI_ID_WIDTH    (AXI_ID_WIDTH),
@@ -357,8 +360,14 @@ module svc_axi_stripe #(
       .i_exlock_size ()
   );
 
-  // faxi_master doesn't send back awid and arid in bid and rid, so use the
-  // mem axi for backing instead.
+  // For formal verification we just back the module with a axi_memory.
+  // It would be nice to use zipcpu's formal faxi_m, but it imposes too many
+  // restrictions on what a manager is allowed to do, i.e. AW can't be
+  // pipelined during an active write burst, AW must come before W, and if
+  // they come in the same cycle, the write len must be 0. All of
+  // that is just to restrictive and not representative of how the svc modules
+  // work. assume'ing them into compliance would be formally verifying
+  // something very different than what actually happens during synthesis.
   for (genvar i = 0; i < NUM_S; i++) begin : gen_mem
 `ifndef VERILATOR
     svc_axi_mem #(
@@ -401,117 +410,6 @@ module svc_axi_stripe #(
         .s_axi_rready (m_axi_rready[i])
     );
 `endif
-
-    faxi_master #(
-        .C_AXI_DATA_WIDTH  (AXI_DATA_WIDTH),
-        .C_AXI_ADDR_WIDTH  (S_AXI_ADDR_WIDTH),
-        .C_AXI_ID_WIDTH    (AXI_ID_WIDTH),
-        .F_AXI_MAXDELAY    (4),
-        .F_AXI_MAXRSTALL   (0),
-        .F_OPT_INITIAL     (0),
-        .F_OPT_ASSUME_RESET(1)
-    ) faxi_manager_i (
-        .i_clk        (clk),
-        .i_axi_reset_n(rst_n),
-
-        // Write address
-        .i_axi_awready(m_axi_awready[i]),
-        .i_axi_awid   (m_axi_awid[i]),
-        .i_axi_awaddr (m_axi_awaddr[i]),
-        .i_axi_awlen  (m_axi_awlen[i]),
-        .i_axi_awsize (m_axi_awsize[i]),
-        .i_axi_awburst(m_axi_awburst[i]),
-        .i_axi_awlock (0),
-        .i_axi_awcache(0),
-        .i_axi_awprot (0),
-        .i_axi_awqos  (0),
-        .i_axi_awvalid(m_axi_awvalid[i]),
-
-        // Write data
-        .i_axi_wready(m_axi_wready[i]),
-        .i_axi_wdata (m_axi_wdata[i]),
-        .i_axi_wstrb (m_axi_wstrb[i]),
-        .i_axi_wlast (m_axi_wlast[i]),
-        .i_axi_wvalid(m_axi_wvalid[i]),
-
-        // Write return response
-        .i_axi_bid   (m_axi_bid[i]),
-        .i_axi_bresp (m_axi_bresp[i]),
-        .i_axi_bvalid(m_axi_bvalid[i]),
-        .i_axi_bready(m_axi_bready[i]),
-
-        // Read address
-        .i_axi_arready(m_axi_arready[i]),
-        .i_axi_arid   (m_axi_arid[i]),
-        .i_axi_araddr (m_axi_araddr[i]),
-        .i_axi_arlen  (m_axi_arlen[i]),
-        .i_axi_arsize (m_axi_arsize[i]),
-        .i_axi_arburst(m_axi_arburst[i]),
-        .i_axi_arlock (0),
-        .i_axi_arcache(0),
-        .i_axi_arprot (0),
-        .i_axi_arqos  (0),
-        .i_axi_arvalid(m_axi_arvalid[i]),
-
-        // Read response
-        .i_axi_rid   (m_axi_rid[i]),
-        .i_axi_rresp (m_axi_rresp[i]),
-        .i_axi_rvalid(m_axi_rvalid[i]),
-        .i_axi_rdata (m_axi_rdata[i]),
-        .i_axi_rlast (m_axi_rlast[i]),
-        .i_axi_rready(m_axi_rready[i]),
-
-        // induction properties
-        .f_axi_awr_nbursts   (),
-        .f_axi_wr_pending    (),
-        .f_axi_rd_nbursts    (),
-        .f_axi_rd_outstanding(),
-
-        // Write burst properties
-        .f_axi_wr_checkid  (),
-        .f_axi_wr_ckvalid  (),
-        .f_axi_wrid_nbursts(),
-        .f_axi_wr_addr     (),
-        .f_axi_wr_incr     (),
-        .f_axi_wr_burst    (),
-        .f_axi_wr_size     (),
-        .f_axi_wr_len      (),
-        .f_axi_wr_lockd    (),
-
-        // Read properties
-        .f_axi_rd_checkid(),
-        .f_axi_rd_ckvalid(),
-        .f_axi_rd_cklen  (),
-        .f_axi_rd_ckaddr (),
-        .f_axi_rd_ckincr (),
-        .f_axi_rd_ckburst(),
-        .f_axi_rd_cksize (),
-        .f_axi_rd_ckarlen(),
-        .f_axi_rd_cklockd(),
-
-        .f_axi_rdid_nbursts          (),
-        .f_axi_rdid_outstanding      (),
-        .f_axi_rdid_ckign_nbursts    (),
-        .f_axi_rdid_ckign_outstanding(),
-
-        // Exclusive access handling
-        .f_axi_ex_state              (),
-        .f_axi_ex_checklock          (),
-        .f_axi_rdid_bursts_to_lock   (),
-        .f_axi_wrid_bursts_to_exwrite(),
-
-        .f_axi_exreq_addr  (),
-        .f_axi_exreq_len   (),
-        .f_axi_exreq_burst (),
-        .f_axi_exreq_size  (),
-        .f_axi_exreq_return(),
-
-        .i_active_lock (0),
-        .i_exlock_addr (),
-        .i_exlock_len  (),
-        .i_exlock_burst(),
-        .i_exlock_size ()
-    );
   end
 
   // TODO: coverage statement for throughput
