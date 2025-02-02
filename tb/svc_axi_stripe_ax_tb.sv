@@ -17,6 +17,7 @@ module svc_axi_stripe_ax_tb;
   logic [   U1_AW-1:0]             u1_s_addr;
   logic [         7:0]             u1_s_len;
   logic [   U1_SW-1:0]             u1_start_idx;
+  logic [   U1_SW-1:0]             u1_end_idx;
   logic                            u1_alignment_error;
   logic [U1_NUM_S-1:0]             u1_m_valid;
   logic [U1_NUM_S-1:0][U1_SAW-1:0] u1_m_addr;
@@ -31,6 +32,7 @@ module svc_axi_stripe_ax_tb;
   logic [   U2_AW-1:0]             u2_s_addr;
   logic [         7:0]             u2_s_len;
   logic [   U2_SW-1:0]             u2_start_idx;
+  logic [   U2_SW-1:0]             u2_end_idx;
   logic                            u2_alignment_error;
   logic [U2_NUM_S-1:0]             u2_m_valid;
   logic [U2_NUM_S-1:0][U2_SAW-1:0] u2_m_addr;
@@ -45,6 +47,7 @@ module svc_axi_stripe_ax_tb;
   logic [   U3_AW-1:0]             u3_s_addr;
   logic [         7:0]             u3_s_len;
   logic [   U3_SW-1:0]             u3_start_idx;
+  logic [   U3_SW-1:0]             u3_end_idx;
   logic                            u3_alignment_error;
   logic [U3_NUM_S-1:0]             u3_m_valid;
   logic [U3_NUM_S-1:0][U3_SAW-1:0] u3_m_addr;
@@ -58,6 +61,7 @@ module svc_axi_stripe_ax_tb;
       .s_addr         (u1_s_addr),
       .s_len          (u1_s_len),
       .start_idx      (u1_start_idx),
+      .end_idx        (u1_end_idx),
       .alignment_error(u1_alignment_error),
       .m_valid        (u1_m_valid),
       .m_addr         (u1_m_addr),
@@ -72,6 +76,7 @@ module svc_axi_stripe_ax_tb;
       .s_addr         (u2_s_addr),
       .s_len          (u2_s_len),
       .start_idx      (u2_start_idx),
+      .end_idx        (u2_end_idx),
       .alignment_error(u2_alignment_error),
       .m_valid        (u2_m_valid),
       .m_addr         (u2_m_addr),
@@ -86,6 +91,7 @@ module svc_axi_stripe_ax_tb;
       .s_addr         (u3_s_addr),
       .s_len          (u3_s_len),
       .start_idx      (u3_start_idx),
+      .end_idx        (u3_end_idx),
       .alignment_error(u3_alignment_error),
       .m_valid        (u3_m_valid),
       .m_addr         (u3_m_addr),
@@ -105,6 +111,7 @@ module svc_axi_stripe_ax_tb;
     u1_s_addr = 8'b1000_0000;
     u1_s_len  = 0;
     `CHECK_EQ(u1_start_idx, 0);
+    `CHECK_EQ(u1_end_idx, 0);
     `CHECK_FALSE(u1_alignment_error);
     `CHECK_EQ(u1_m_valid, 2'b01);
     `CHECK_EQ(u1_m_addr[0], 7'b100_0000);
@@ -116,6 +123,7 @@ module svc_axi_stripe_ax_tb;
     u1_s_addr = 8'b1000_0010;
     u1_s_len  = 0;
     `CHECK_EQ(u1_start_idx, 1);
+    `CHECK_EQ(u1_end_idx, 1);
     `CHECK_FALSE(u1_alignment_error);
     `CHECK_EQ(u1_m_valid, 2'b10);
     `CHECK_EQ(u1_m_addr[0], 7'b100_0000);
@@ -127,6 +135,7 @@ module svc_axi_stripe_ax_tb;
     u1_s_addr = 8'b1000_0000;
     u1_s_len  = 1;
     `CHECK_EQ(u1_start_idx, 0);
+    `CHECK_EQ(u1_end_idx, 1);
     `CHECK_FALSE(u1_alignment_error);
     `CHECK_EQ(u1_m_valid, 2'b11);
     `CHECK_EQ(u1_m_addr[0], 7'b100_0000);
@@ -140,6 +149,7 @@ module svc_axi_stripe_ax_tb;
     u1_s_addr = 8'b1000_0010;
     u1_s_len  = 1;
     `CHECK_EQ(u1_start_idx, 1);
+    `CHECK_EQ(u1_end_idx, 0);
     `CHECK_FALSE(u1_alignment_error);
     `CHECK_EQ(u1_m_valid, 2'b11);
     `CHECK_EQ(u1_m_addr[0], 7'b100_0000);
@@ -153,6 +163,7 @@ module svc_axi_stripe_ax_tb;
     u1_s_addr = 8'b1000_0000;
     u1_s_len  = 3;
     `CHECK_EQ(u1_start_idx, 0);
+    `CHECK_EQ(u1_end_idx, 1);
     `CHECK_FALSE(u1_alignment_error);
     `CHECK_EQ(u1_m_valid, 2'b11);
     `CHECK_EQ(u1_m_addr[0], 7'b100_0000);
@@ -166,6 +177,7 @@ module svc_axi_stripe_ax_tb;
     u1_s_addr = 8'b1000_0010;
     u1_s_len  = 3;
     `CHECK_EQ(u1_start_idx, 1);
+    `CHECK_EQ(u1_end_idx, 0);
     `CHECK_FALSE(u1_alignment_error);
     `CHECK_EQ(u1_m_valid, 2'b11);
     `CHECK_EQ(u1_m_addr[0], 7'b100_0000);
@@ -179,6 +191,7 @@ module svc_axi_stripe_ax_tb;
     u1_s_addr = 8'b1000_0001;
     u1_s_len  = 0;
     `CHECK_EQ(u1_start_idx, 0);
+    `CHECK_EQ(u1_end_idx, 0);
     `CHECK_TRUE(u1_alignment_error);
     `CHECK_EQ(u1_m_valid, 2'b01);
     `CHECK_EQ(u1_m_addr[0], 7'b100_0001);
@@ -190,6 +203,7 @@ module svc_axi_stripe_ax_tb;
     u1_s_addr = 8'b1000_0000;
     u1_s_len  = 2;
     `CHECK_EQ(u1_start_idx, 0);
+    `CHECK_EQ(u1_end_idx, 0);
     `CHECK_FALSE(u1_alignment_error);
     `CHECK_EQ(u1_m_valid, 2'b11);
     `CHECK_EQ(u1_m_addr[0], 7'b100_0000);
@@ -203,6 +217,7 @@ module svc_axi_stripe_ax_tb;
     u1_s_addr = 8'b1000_0010;
     u1_s_len  = 2;
     `CHECK_EQ(u1_start_idx, 1);
+    `CHECK_EQ(u1_end_idx, 1);
     `CHECK_FALSE(u1_alignment_error);
     `CHECK_EQ(u1_m_valid, 2'b11);
     `CHECK_EQ(u1_m_addr[0], 7'b100_0000);
@@ -216,6 +231,7 @@ module svc_axi_stripe_ax_tb;
     u2_s_addr = 16'b1000_0000_0000_0000;
     u2_s_len  = 0;
     `CHECK_EQ(u2_start_idx, 0);
+    `CHECK_EQ(u2_end_idx, 0);
     `CHECK_FALSE(u2_alignment_error);
     `CHECK_EQ(u2_m_valid, 4'b0001);
     `CHECK_EQ(u2_m_addr[0], 14'b10_0000_0000_0000);
@@ -227,6 +243,7 @@ module svc_axi_stripe_ax_tb;
     u2_s_addr = 16'b1000_0000_0000_1000;
     u2_s_len  = 0;
     `CHECK_EQ(u2_start_idx, 2);
+    `CHECK_EQ(u2_end_idx, 2);
     `CHECK_FALSE(u2_alignment_error);
     `CHECK_EQ(u2_m_valid, 4'b0100);
     `CHECK_EQ(u2_m_addr[2], 14'b10_0000_0000_0000);
@@ -238,6 +255,7 @@ module svc_axi_stripe_ax_tb;
     u2_s_addr = 16'b1000_0000_0000_0000;
     u2_s_len  = 3;
     `CHECK_EQ(u2_start_idx, 0);
+    `CHECK_EQ(u2_end_idx, 3);
     `CHECK_FALSE(u2_alignment_error);
     `CHECK_EQ(u2_m_valid, 4'b1111);
     `CHECK_EQ(u2_m_addr[0], 14'b10_0000_0000_0000);
@@ -255,6 +273,7 @@ module svc_axi_stripe_ax_tb;
     u2_s_addr = 16'b1000_0000_0000_1000;
     u2_s_len  = 3;
     `CHECK_EQ(u2_start_idx, 2);
+    `CHECK_EQ(u2_end_idx, 1);
     `CHECK_FALSE(u2_alignment_error);
     `CHECK_EQ(u2_m_addr[0], 14'b10_0000_0000_0000);
     `CHECK_EQ(u2_m_len[0], 0);
@@ -271,6 +290,7 @@ module svc_axi_stripe_ax_tb;
     u2_s_addr = 16'b1000_0000_0000_1100;
     u2_s_len  = 10;
     `CHECK_EQ(u2_start_idx, 3);
+    `CHECK_EQ(u2_end_idx, 1);
     `CHECK_FALSE(u2_alignment_error);
     `CHECK_EQ(u2_m_addr[0], 14'b10_0000_0000_0000);
     `CHECK_EQ(u2_m_len[0], 2);
@@ -287,6 +307,7 @@ module svc_axi_stripe_ax_tb;
     u2_s_addr = 16'b1000_0000_0000_0001;
     u2_s_len  = 0;
     `CHECK_EQ(u2_start_idx, 0);
+    `CHECK_EQ(u2_end_idx, 0);
     `CHECK_TRUE(u2_alignment_error);
     `CHECK_EQ(u2_m_valid, 4'b0001);
     `CHECK_EQ(u2_m_addr[0], 14'b10_0000_0000_0001);
@@ -295,6 +316,7 @@ module svc_axi_stripe_ax_tb;
     u2_s_addr = 16'b1000_0000_0000_0010;
     u2_s_len  = 0;
     `CHECK_EQ(u2_start_idx, 0);
+    `CHECK_EQ(u2_end_idx, 0);
     `CHECK_TRUE(u2_alignment_error);
     `CHECK_EQ(u2_m_valid, 4'b0001);
     `CHECK_EQ(u2_m_addr[0], 14'b10_0000_0000_0010);
@@ -303,6 +325,7 @@ module svc_axi_stripe_ax_tb;
     u2_s_addr = 16'b1000_0000_0000_0011;
     u2_s_len  = 0;
     `CHECK_EQ(u2_start_idx, 0);
+    `CHECK_EQ(u2_end_idx, 0);
     `CHECK_TRUE(u2_alignment_error);
     `CHECK_EQ(u2_m_valid, 4'b0001);
     `CHECK_EQ(u2_m_addr[0], 14'b10_0000_0000_0011);
@@ -314,6 +337,7 @@ module svc_axi_stripe_ax_tb;
     u3_s_addr = 8'b1000_0011;
     u3_s_len  = 6;
     `CHECK_EQ(u3_start_idx, 1);
+    `CHECK_EQ(u3_end_idx, 1);
     `CHECK_FALSE(u3_alignment_error);
     `CHECK_EQ(u3_m_valid, 2'b11);
     `CHECK_EQ(u3_m_addr[0], 7'b100_0001);

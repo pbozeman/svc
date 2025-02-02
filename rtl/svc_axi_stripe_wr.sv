@@ -137,6 +137,7 @@ module svc_axi_stripe_wr #(
       .s_addr         (s_axi_awaddr),
       .s_len          (s_axi_awlen),
       .start_idx      (aw_stripe_start_idx),
+      .end_idx        (),
       .alignment_error(),
       .m_valid        (aw_stripe_valid),
       .m_addr         (aw_stripe_addr),
