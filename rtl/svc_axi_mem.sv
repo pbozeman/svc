@@ -164,12 +164,6 @@ module svc_axi_mem #(
           w_burst_next       = s_axi_awburst;
 
           // and also do the first write, if possible, to avoid a cycle of latency
-          // TODO: this currently won't trigger because wready will be low.
-          // Bring ready high in the same cycle as awvalid && awready and this
-          // will be triggered again. (It had to be blocked because we can't
-          // have valid/ready going through before the addr has been accepted
-          // or it vastly complicates state management because we have to defer
-          // the write.)
           if (s_axi_wvalid && s_axi_wready) begin
             mem_wr_en   = 1'b1;
             mem_wr_addr = s_axi_awaddr[AXI_ADDR_WIDTH-1:LSB];
@@ -208,7 +202,7 @@ module svc_axi_mem #(
             if (!s_axi_bvalid || s_axi_bready) begin
               write_state_next   = WRITE_STATE_IDLE;
               s_axi_awready_next = 1'b1;
-              s_axi_wready_next  = 1'b0;
+              s_axi_wready_next  = 1'b1;
               s_axi_bvalid_next  = 1'b1;
               s_axi_bid_next     = w_id;
             end else begin
@@ -223,7 +217,7 @@ module svc_axi_mem #(
         if (s_axi_bvalid && s_axi_bready) begin
           write_state_next   = WRITE_STATE_IDLE;
           s_axi_awready_next = 1'b1;
-          s_axi_wready_next  = 1'b0;
+          s_axi_wready_next  = 1'b1;
           s_axi_bvalid_next  = 1'b1;
           s_axi_bid_next     = w_id;
         end
@@ -235,7 +229,7 @@ module svc_axi_mem #(
     if (!rst_n) begin
       write_state   <= WRITE_STATE_IDLE;
       s_axi_awready <= 1'b1;
-      s_axi_wready  <= 1'b0;
+      s_axi_wready  <= 1'b1;
       s_axi_bvalid  <= 1'b0;
     end else begin
       write_state   <= write_state_next;
