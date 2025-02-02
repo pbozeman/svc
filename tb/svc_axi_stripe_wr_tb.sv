@@ -53,6 +53,8 @@ module svc_axi_stripe_wr_tb;
   logic [NUM_S-1:0][     7:0] s_w_cnt;
   logic [NUM_S-1:0][     7:0] s_b_cnt;
 
+  logic                       auto_valid;
+
   svc_axi_stripe_wr #(
       .NUM_S         (NUM_S),
       .AXI_ADDR_WIDTH(AW),
@@ -176,12 +178,16 @@ module svc_axi_stripe_wr_tb;
       m_axi_wlast   <= 0;
 
       m_axi_bready  <= 1'b0;
+
+      auto_valid    <= 1'b1;
     end
   end
 
   always_ff @(posedge clk) begin
-    if (m_axi_awvalid && m_axi_awready) begin
-      m_axi_awvalid <= 1'b0;
+    if (auto_valid) begin
+      if (m_axi_awvalid && m_axi_awready) begin
+        m_axi_awvalid <= 1'b0;
+      end
     end
   end
 
@@ -246,9 +252,7 @@ module svc_axi_stripe_wr_tb;
     `TICK(clk);
     m_axi_wvalid = 1'b0;
 
-    // TODO: there is a cycle of latency on the bresp that could be optimized
-    // out. (1 cycle is here because wr is pipelined, then 1 more cycle for
-    // bvalid)
+    // 1 cycle is here because wr is pipelined, then 1 more cycle for bvalid
     `CHECK_WAIT_FOR(clk, m_axi_bvalid, 2);
     `CHECK_EQ(m_axi_bid, id);
     `CHECK_EQ(m_axi_bresp, 2'b00);
@@ -311,9 +315,7 @@ module svc_axi_stripe_wr_tb;
     `TICK(clk);
     m_axi_wvalid = 1'b0;
 
-    // TODO: there is a cycle of latency on the bresp that could be optimized
-    // out. (1 cycle is here because wr is pipelined, then 1 more cycle for
-    // bvalid)
+    // 1 cycle is here because wr is pipelined, then 1 more cycle for bvalid
     `CHECK_WAIT_FOR(clk, m_axi_bvalid, 2);
     `CHECK_EQ(m_axi_bid, id);
     `CHECK_EQ(m_axi_bresp, 2'b00);
@@ -349,7 +351,6 @@ module svc_axi_stripe_wr_tb;
     m_axi_wstrb   = '1;
     m_axi_wlast   = 1'b0;
 
-    // FIXME: reduce this
     `CHECK_WAIT_FOR(clk, m_axi_bvalid, 3);
 
     // Wait awhile so that we can measure signal counts end ensure
@@ -388,7 +389,6 @@ module svc_axi_stripe_wr_tb;
     m_axi_wstrb   = '1;
     m_axi_wlast   = 1'b0;
 
-    // FIXME: reduce this
     `CHECK_WAIT_FOR(clk, m_axi_bvalid, 3);
 
     // Wait awhile so that we can measure signal counts end ensure
@@ -406,12 +406,54 @@ module svc_axi_stripe_wr_tb;
     `CHECK_EQ(s_b_cnt[1], 1);
   endtask
 
+  task automatic test_throuput_single_beat;
+    time           time_start;
+
+    logic [AW-1:0] addr = AW'(8'hA0);
+    logic [DW-1:0] data = DW'(16'hD000);
+
+    auto_valid    = 1'b0;
+
+    m_axi_awaddr  = addr;
+    m_axi_awlen   = 8'h00;
+    m_axi_awburst = 2'b01;
+    m_axi_awsize  = 3'b001;
+
+    m_axi_wstrb   = '1;
+    m_axi_wlast   = 1'b0;
+
+    m_axi_bready  = 1'b1;
+
+    time_start    = $time;
+    for (int i = 0; i < 16; i++) begin
+      // stripe aligned single beat burst
+      m_axi_awvalid = 1'b1;
+      m_axi_awid    = IDW'(i);
+      m_axi_wvalid  = 1'b1;
+      m_axi_wdata   = data + DW'(i);
+      `TICK(clk);
+      `CHECK_WAIT_FOR(clk, m_axi_awvalid && m_axi_awready);
+    end
+    m_axi_awvalid = 1'b0;
+
+    `CHECK_LTE($time - time_start, 16 * 10);
+    `CHECK_WAIT_FOR(clk, m_axi_bvalid && m_axi_bready);
+
+    // This is because of the setup latency. Even though we can submit every
+    // every cycle without delay, there is a 3 cycles of latency.
+    //   1 for pipelining the stripe calculation
+    //   1 for the axi mem to finish the write and respond with bvalid
+    //   1 for the stripe to do bvalid tracking and return a registered response
+    `CHECK_EQ(m_axi_bid, 13);
+  endtask
+
   `TEST_SUITE_BEGIN(svc_axi_stripe_wr_tb);
   `TEST_CASE(test_initial);
   `TEST_CASE(test_basic);
   `TEST_CASE(test_unaligned_start);
   `TEST_CASE(test_single_first);
   `TEST_CASE(test_single_last);
+  `TEST_CASE(test_throuput_single_beat);
   `TEST_SUITE_END();
 
 endmodule
