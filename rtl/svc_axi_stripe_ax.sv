@@ -107,6 +107,10 @@ module svc_axi_stripe_ax #(
   logic [S_WIDTH-1:0] partial_beats;
   assign partial_beats = S_WIDTH'(total_beats & 9'(((1 << S_WIDTH) - 1)));
 
+  // I tried a version that had less going on in the loops in the always_comb,
+  // and did more with masking, etc. Yosys reported the exact same cell count
+  // for both, so I kept this version as it's conceptually simpler to
+  // understand.
   always_comb begin
     m_valid = '0;
     m_len   = '0;
