@@ -232,32 +232,49 @@ module svc_axi_stripe_wr #(
       w_idx_next       = aw_stripe_start_idx;
       w_remaining_next = s_axi_awlen;
       w_done_next      = 1'b0;
-    end
 
-    // incoming write data
-    if (sb_s_wvalid && !w_done) begin
-      if (!m_axi_wvalid[w_idx_next] || m_axi_wready[w_idx_next]) begin
-        sb_s_wready                   = 1'b1;
+      // w rose before or with aw, so we need to use the new values
+      if (sb_s_wvalid) begin
+        if (!m_axi_wvalid[aw_stripe_start_idx] ||
+            m_axi_wready[aw_stripe_start_idx]) begin
 
-        m_axi_wvalid_next[w_idx_next] = 1'b1;
-        m_axi_wdata_next[w_idx_next]  = sb_s_wdata;
-        m_axi_wstrb_next[w_idx_next]  = sb_s_wstrb;
-        m_axi_wlast_next[w_idx_next]  = w_remaining_next < NUM_S ? '1 : '0;
+          sb_s_wready = 1'b1;
 
-        // since NUM_S is a power of 2, we don't have to check against
-        // a max value, we can just wrap
-        w_idx_next                    = w_idx + 1;
+          m_axi_wvalid_next[aw_stripe_start_idx] = 1'b1;
+          m_axi_wdata_next[aw_stripe_start_idx] = sb_s_wdata;
+          m_axi_wstrb_next[aw_stripe_start_idx] = sb_s_wstrb;
+          m_axi_wlast_next[aw_stripe_start_idx] = (s_axi_awlen < NUM_S ? '1 :
+                                                   '0);
 
-        // This looks weird, as one would normally want to subtract off of the
-        // prev value. However if we are in the first clock cycle of the burst,
-        // we won't have a prev value. We will, however, just set
-        // w_remaining_next above. On beats other than the first one in the
-        // burst, we set w_remaining_next to the prev value at the top of the
-        // comb block.
-        if (w_remaining_next != 0) begin
-          w_remaining_next = w_remaining_next - 1;
-        end else begin
-          w_done_next = 1'b1;
+          // since NUM_S is a power of 2, we don't have to check against
+          // a max value, we can just wrap
+          w_idx_next = aw_stripe_start_idx + 1;
+
+          if (s_axi_awlen == 0) begin
+            w_done_next = 1'b1;
+          end else begin
+            w_remaining_next = s_axi_awlen - 1;
+          end
+        end
+      end
+    end else begin
+      // we're mid burst so we use the w values
+      if (sb_s_wvalid && !w_done) begin
+        if (!m_axi_wvalid[w_idx] || m_axi_wready[w_idx]) begin
+          sb_s_wready              = 1'b1;
+
+          m_axi_wvalid_next[w_idx] = 1'b1;
+          m_axi_wdata_next[w_idx]  = sb_s_wdata;
+          m_axi_wstrb_next[w_idx]  = sb_s_wstrb;
+          m_axi_wlast_next[w_idx]  = w_remaining_next < NUM_S ? '1 : '0;
+
+          w_idx_next               = w_idx + 1;
+
+          if (w_remaining != 0) begin
+            w_remaining_next = w_remaining - 1;
+          end else begin
+            w_done_next = 1'b1;
+          end
         end
       end
     end
