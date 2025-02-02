@@ -33,6 +33,7 @@ module svc_axi_stripe_ax #(
     input logic [               7:0] s_len,
 
     output logic [S_WIDTH-1:0] start_idx,
+    output logic [S_WIDTH-1:0] end_idx,
     output logic               alignment_error,
 
     output logic [NUM_S-1:0]                       m_valid,
@@ -49,6 +50,7 @@ module svc_axi_stripe_ax #(
   //
   //-------------------------------------------------------------------------
   assign start_idx = s_addr[S_WIDTH+O_WIDTH-1:O_WIDTH];
+  assign end_idx   = (start_idx + S_WIDTH'(s_len)) & S_WIDTH'(NUM_S - 1);
 
   //-------------------------------------------------------------------------
   //
@@ -105,7 +107,7 @@ module svc_axi_stripe_ax #(
   // a multiple of NUM_S. We distribute this many +1 beats to the subordinates
   // at the end of the io.
   logic [S_WIDTH-1:0] partial_beats;
-  assign partial_beats = S_WIDTH'(total_beats & 9'(((1 << S_WIDTH) - 1)));
+  assign partial_beats = S_WIDTH'(total_beats & 9'(NUM_S - 1));
 
   // I tried a version that had less going on in the loops in the always_comb,
   // and did more with masking, etc. Yosys reported the exact same cell count
