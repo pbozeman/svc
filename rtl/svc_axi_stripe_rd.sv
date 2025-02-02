@@ -4,7 +4,6 @@
 `include "svc.sv"
 `include "svc_unused.sv"
 
-//
 // Stripe read requests from 1 manager to N subordinates based on the low
 // order bits in the address. There are some requirements for usage:
 //
@@ -19,7 +18,7 @@
 //
 // TODO: check assumptions and return a rresp error if they don't hold, for
 // now, rely on the asserts during formal verification to catch misuse.
-//
+
 module svc_axi_stripe_rd #(
     parameter NUM_S            = 2,
     parameter AXI_ADDR_WIDTH   = 8,
@@ -64,26 +63,30 @@ module svc_axi_stripe_rd #(
     input  logic [NUM_S-1:0]                       m_axi_rlast,
     output logic [NUM_S-1:0]                       m_axi_rready
 );
-  localparam AXI_STRB_WIDTH = AXI_DATA_WIDTH / 8;
+  localparam AW = AXI_ADDR_WIDTH;
+  localparam IW = AXI_ID_WIDTH;
+  localparam STRBW = AXI_DATA_WIDTH / 8;
+  localparam SAW = S_AXI_ADDR_WIDTH;
+
   localparam S_WIDTH = $clog2(NUM_S);
-  localparam O_WIDTH = $clog2(AXI_STRB_WIDTH);
+  localparam O_WIDTH = $clog2(STRBW);
 
-  logic                                              s_axi_arready_next;
+  logic                        s_axi_arready_next;
 
-  logic [           NUM_S-1:0]                       ar_done;
-  logic [           NUM_S-1:0]                       ar_done_next;
+  logic [  NUM_S-1:0]          ar_done;
+  logic [  NUM_S-1:0]          ar_done_next;
 
-  logic [S_AXI_ADDR_WIDTH-1:0]                       stripe_addr;
+  logic [    SAW-1:0]          stripe_addr;
 
-  logic [           NUM_S-1:0]                       m_axi_arvalid_next;
-  logic [           NUM_S-1:0][    AXI_ID_WIDTH-1:0] m_axi_arid_next;
-  logic [           NUM_S-1:0][S_AXI_ADDR_WIDTH-1:0] m_axi_araddr_next;
-  logic [           NUM_S-1:0][                 7:0] m_axi_arlen_next;
-  logic [           NUM_S-1:0][                 2:0] m_axi_arsize_next;
-  logic [           NUM_S-1:0][                 1:0] m_axi_arburst_next;
+  logic [  NUM_S-1:0]          m_axi_arvalid_next;
+  logic [  NUM_S-1:0][ IW-1:0] m_axi_arid_next;
+  logic [  NUM_S-1:0][SAW-1:0] m_axi_araddr_next;
+  logic [  NUM_S-1:0][    7:0] m_axi_arlen_next;
+  logic [  NUM_S-1:0][    2:0] m_axi_arsize_next;
+  logic [  NUM_S-1:0][    1:0] m_axi_arburst_next;
 
-  logic [         S_WIDTH-1:0]                       idx;
-  logic [         S_WIDTH-1:0]                       idx_next;
+  logic [S_WIDTH-1:0]          idx;
+  logic [S_WIDTH-1:0]          idx_next;
 
   //-------------------------------------------------------------------------
   //
@@ -101,17 +104,15 @@ module svc_axi_stripe_rd #(
   // +-----------------------+-------------------+-----------------+
   //  ^                       ^                   ^                ^
   //  [AXI_ADDR_WIDTH-1 :     (S_WIDTH+O_WIDTH) : O_WIDTH        : 0]
-  //
   if (O_WIDTH > 0) begin : gen_keep_offset
     // skip the sub selection bits in the middle
     assign stripe_addr = {
-      s_axi_araddr[AXI_ADDR_WIDTH-1 : S_WIDTH+O_WIDTH],
-      s_axi_araddr[O_WIDTH-1 : 0]
+      s_axi_araddr[AW-1 : S_WIDTH+O_WIDTH], s_axi_araddr[O_WIDTH-1 : 0]
     };
   end else begin : gen_no_offset
     // O_WIDTH=0 => skip [O_WIDTH-1 : 0] entirely
     // just remove S_WIDTH bits from the middle
-    assign stripe_addr = s_axi_araddr[AXI_ADDR_WIDTH-1 : S_WIDTH];
+    assign stripe_addr = s_axi_araddr[AW-1 : S_WIDTH];
   end
 
   always_comb begin
