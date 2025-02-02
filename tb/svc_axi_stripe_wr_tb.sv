@@ -350,7 +350,7 @@ module svc_axi_stripe_wr_tb;
     m_axi_wlast   = 1'b0;
 
     // FIXME: reduce this
-    `CHECK_WAIT_FOR(clk, m_axi_bvalid, 4);
+    `CHECK_WAIT_FOR(clk, m_axi_bvalid, 3);
 
     // Wait awhile so that we can measure signal counts end ensure
     // there were no stray signals
@@ -389,7 +389,7 @@ module svc_axi_stripe_wr_tb;
     m_axi_wlast   = 1'b0;
 
     // FIXME: reduce this
-    `CHECK_WAIT_FOR(clk, m_axi_bvalid, 4);
+    `CHECK_WAIT_FOR(clk, m_axi_bvalid, 3);
 
     // Wait awhile so that we can measure signal counts end ensure
     // there were no stray signals
