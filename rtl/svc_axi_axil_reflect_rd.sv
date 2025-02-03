@@ -2,8 +2,8 @@
 `define SVC_AXI_AXIL_REFLECT_RD_SV
 
 `include "svc.sv"
-`include "svc_sync_fifo_zl.sv"
-`include "svc_sync_fifo_zl1.sv"
+`include "svc_sync_fifo_n.sv"
+`include "svc_sync_fifo_n1.sv"
 `include "svc_unused.sv"
 
 // Takes an AXI to AXI-Lite read stream with single beat bursts and
@@ -53,9 +53,9 @@ module svc_axi_axil_reflect_rd #(
   logic id_ready;
   logic id_valid;
 
-  svc_sync_fifo_zl1 #(
+  svc_sync_fifo_n1 #(
       .DATA_WIDTH(AXI_ADDR_WIDTH)
-  ) svc_sync_fifo_zl1_ar_i (
+  ) svc_sync_fifo_n1_ar_i (
       .clk  (clk),
       .rst_n(rst_n),
 
@@ -68,10 +68,10 @@ module svc_axi_axil_reflect_rd #(
       .r_empty_n(ar_valid)
   );
 
-  svc_sync_fifo_zl #(
+  svc_sync_fifo_n #(
       .ADDR_WIDTH(OUTSTANDING_READS_WIDTH),
       .DATA_WIDTH(AXI_ID_WIDTH + AXI_USER_WIDTH)
-  ) svc_sync_fifo_zl_id_i (
+  ) svc_sync_fifo_n_id_i (
       .clk  (clk),
       .rst_n(rst_n),
 

@@ -256,7 +256,7 @@ module svc_axi_axil_adapter_tb;
       // should be immediate.
       `TICK(clk);
       for (int i = 0; i < 4; i++) begin
-        `CHECK_TRUE(s_axil_arvalid && s_axil_arready);
+        `CHECK_WAIT_FOR(clk, s_axil_arvalid && s_axil_arready, 1);
         `CHECK_EQ(s_axil_araddr, addr + AW'(i * 2));
 
         s_axil_rvalid = 1'b1;
