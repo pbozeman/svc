@@ -186,7 +186,6 @@ module svc_axi_stripe #(
   // See tb/formal/private/README.md
   //
 `ifdef ZIPCPU_PRIVATE
-  localparam S_WIDTH = $clog2(NUM_S);
 `ifdef FORMAL_SVC_AXI_STRIPE
   `define ASSERT(lable, a) lable: assert(a)
   `define ASSUME(lable, a) lable: assume(a)

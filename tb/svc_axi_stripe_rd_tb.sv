@@ -195,8 +195,6 @@ module svc_axi_stripe_rd_tb;
 
   // note: this also has a latency test built in
   task automatic test_throuput_burst;
-    time           time_start;
-
     logic [AW-1:0] addr = AW'(8'hA0);
 
     // 16 beat burst read
