@@ -2,22 +2,18 @@
 `define SVC_AXI_STRIPE_RD_SV
 
 `include "svc.sv"
+`include "svc_axi_stripe_ax.sv"
+`include "svc_skidbuf.sv"
+`include "svc_sync_fifo.sv"
 `include "svc_unused.sv"
 
 // Stripe read requests from 1 manager to N subordinates based on the low
 // order bits in the address. There are some requirements for usage:
 //
 //  * NUM_S must be a power of 2.
-//  * s_axi_araddr must be stripe aligned.
 //  * s_axi_arsize must be for the full data width.
-//  * s_axi_arlen must end on a stripe boundary
 //
-// These requirements could be lifted, but would introduce more complexity
-// into this module, and would likely come with a performance cost on the
-// boundaries. It's better if the caller just does the right thing.
-//
-// TODO: check assumptions and return a rresp error if they don't hold, for
-// now, rely on the asserts during formal verification to catch misuse.
+// See design comments and TODOs in stripe_wr.
 
 module svc_axi_stripe_rd #(
     parameter NUM_S            = 2,
@@ -64,19 +60,27 @@ module svc_axi_stripe_rd #(
     output logic [NUM_S-1:0]                       m_axi_rready
 );
   localparam AW = AXI_ADDR_WIDTH;
+  localparam DW = AXI_DATA_WIDTH;
   localparam IW = AXI_ID_WIDTH;
-  localparam STRBW = AXI_DATA_WIDTH / 8;
+  localparam STRBW = DW / 8;
   localparam SAW = S_AXI_ADDR_WIDTH;
 
   localparam S_WIDTH = $clog2(NUM_S);
   localparam O_WIDTH = $clog2(STRBW);
 
-  logic                        s_axi_arready_next;
+  logic                        sb_s_arvalid;
+  logic [     AW-1:0]          sb_s_araddr;
+  logic [     IW-1:0]          sb_s_arid;
+  logic [        7:0]          sb_s_arlen;
+  logic [        2:0]          sb_s_arsize;
+  logic [        1:0]          sb_s_arburst;
+  logic                        sb_s_arready;
 
-  logic [  NUM_S-1:0]          ar_done;
-  logic [  NUM_S-1:0]          ar_done_next;
-
-  logic [    SAW-1:0]          stripe_addr;
+  logic [  NUM_S-1:0]          ar_stripe_valid;
+  logic [  NUM_S-1:0][SAW-1:0] ar_stripe_addr;
+  logic [  NUM_S-1:0][    7:0] ar_stripe_len;
+  logic [S_WIDTH-1:0]          ar_stripe_start_idx;
+  logic [S_WIDTH-1:0]          ar_stripe_end_idx;
 
   logic [  NUM_S-1:0]          m_axi_arvalid_next;
   logic [  NUM_S-1:0][ IW-1:0] m_axi_arid_next;
@@ -85,86 +89,80 @@ module svc_axi_stripe_rd #(
   logic [  NUM_S-1:0][    2:0] m_axi_arsize_next;
   logic [  NUM_S-1:0][    1:0] m_axi_arburst_next;
 
-  logic [S_WIDTH-1:0]          idx;
-  logic [S_WIDTH-1:0]          idx_next;
+  logic                        sb_s_rready;
+
+  logic                        r_active;
+  logic                        r_active_next;
+
+  logic [S_WIDTH-1:0]          r_idx;
+  logic [S_WIDTH-1:0]          r_idx_next;
+
+  logic [S_WIDTH-1:0]          r_stripe_end_idx;
+
+  logic                        fifo_r_w_full;
+  logic                        fifo_r_r_empty;
 
   //-------------------------------------------------------------------------
   //
   // AR channel
   //
   //-------------------------------------------------------------------------
+  svc_skidbuf #(
+      .DATA_WIDTH(AXI_ID_WIDTH + AXI_ADDR_WIDTH + 8 + 3 + 2)
+  ) svc_skidbuf_ar_i (
+      .clk(clk),
+      .rst_n(rst_n),
+      .i_valid(s_axi_arvalid),
+      .i_data({
+        s_axi_arid, s_axi_araddr, s_axi_arlen, s_axi_arsize, s_axi_arburst
+      }),
+      .o_ready(s_axi_arready),
+      .i_ready(sb_s_arready),
+      .o_data({sb_s_arid, sb_s_araddr, sb_s_arlen, sb_s_arsize, sb_s_arburst}),
+      .o_valid(sb_s_arvalid)
+  );
 
-  // The addr is adjusted to be word based within the subordinate. Since we
-  // are addressing bytes, we can't just bit shift off the lower bits. We have
-  // to drop the part of the address used to select subordinate (word based),
-  // and then put the byte addr bits on the end.
-  //
-  // +-----------------------+-------------------+-----------------+
-  // |    High bits          | Subordinate Index |  Byte Offset    |
-  // +-----------------------+-------------------+-----------------+
-  //  ^                       ^                   ^                ^
-  //  [AXI_ADDR_WIDTH-1 :     (S_WIDTH+O_WIDTH) : O_WIDTH        : 0]
-  if (O_WIDTH > 0) begin : gen_keep_offset
-    // skip the sub selection bits in the middle
-    assign stripe_addr = {
-      s_axi_araddr[AW-1 : S_WIDTH+O_WIDTH], s_axi_araddr[O_WIDTH-1 : 0]
-    };
-  end else begin : gen_no_offset
-    // O_WIDTH=0 => skip [O_WIDTH-1 : 0] entirely
-    // just remove S_WIDTH bits from the middle
-    assign stripe_addr = s_axi_araddr[AW-1 : S_WIDTH];
-  end
+  assign sb_s_arready = (!r_active && !fifo_r_w_full &&
+                         &(~m_axi_arvalid | m_axi_arready));
 
-  always_comb begin
-    for (int i = 0; i < NUM_S; i++) begin : gen_init
-      ar_done_next[i]       = ar_done[i];
-
-      m_axi_arvalid_next[i] = m_axi_arvalid[i] && !m_axi_arready[i];
-      m_axi_arid_next[i]    = m_axi_arid[i];
-      m_axi_araddr_next[i]  = m_axi_araddr[i];
-      m_axi_arlen_next[i]   = m_axi_arlen[i];
-      m_axi_arsize_next[i]  = m_axi_arsize[i];
-      m_axi_arburst_next[i] = m_axi_arburst[i];
-
-      if (s_axi_arready && s_axi_arvalid) begin
-        ar_done_next[i]       = 1'b0;
-
-        m_axi_arvalid_next[i] = 1'b1;
-        m_axi_arid_next[i]    = s_axi_arid;
-        m_axi_araddr_next[i]  = stripe_addr;
-        m_axi_arsize_next[i]  = s_axi_arsize;
-        m_axi_arburst_next[i] = s_axi_arburst;
-        m_axi_arlen_next[i]   = s_axi_arlen >> S_WIDTH;
-      end else begin
-        if (m_axi_arvalid[i] && m_axi_arready[i]) begin
-          ar_done_next[i] = 1'b1;
-        end
-      end
-    end
-  end
+  svc_axi_stripe_ax #(
+      .NUM_S         (NUM_S),
+      .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
+      .AXI_DATA_WIDTH(AXI_DATA_WIDTH)
+  ) svc_axi_stripe_addr_i (
+      .s_addr         (sb_s_araddr),
+      .s_len          (sb_s_arlen),
+      .start_idx      (ar_stripe_start_idx),
+      .end_idx        (ar_stripe_end_idx),
+      .alignment_error(),
+      .m_valid        (ar_stripe_valid),
+      .m_addr         (ar_stripe_addr),
+      .m_len          (ar_stripe_len)
+  );
 
   always_comb begin
-    s_axi_arready_next = s_axi_arready;
+    m_axi_arvalid_next = m_axi_arvalid & ~m_axi_arready;
+    m_axi_arid_next    = m_axi_arid;
+    m_axi_araddr_next  = m_axi_araddr;
+    m_axi_arlen_next   = m_axi_arlen;
+    m_axi_arsize_next  = m_axi_arsize;
+    m_axi_arburst_next = m_axi_arburst;
 
-    if (s_axi_rvalid && s_axi_rready && s_axi_rlast) begin
-      s_axi_arready_next = 1'b1;
-    end
+    if (sb_s_arvalid && sb_s_arready) begin
+      m_axi_arvalid_next = ar_stripe_valid;
+      m_axi_araddr_next  = ar_stripe_addr;
+      m_axi_arlen_next   = ar_stripe_len;
 
-    if (s_axi_arready && s_axi_arvalid) begin
-      s_axi_arready_next = 1'b0;
+      m_axi_arsize_next  = {NUM_S{sb_s_arsize}};
+      m_axi_arburst_next = {NUM_S{sb_s_arburst}};
+      m_axi_arid_next    = {NUM_S{sb_s_arid}};
     end
   end
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      ar_done       <= '0;
-      s_axi_arready <= 1'b1;
-
       m_axi_arvalid <= '0;
     end else begin
-      ar_done       <= ar_done_next;
-      s_axi_arready <= s_axi_arready_next;
-
       m_axi_arvalid <= m_axi_arvalid_next;
     end
   end
@@ -179,66 +177,81 @@ module svc_axi_stripe_rd #(
 
   //-------------------------------------------------------------------------
   //
-  // index iteration
-  //
-  // (since NUM_S is a power of 2, we don't have to check against a max value,
-  // we can just wrap)
+  // R channel
   //
   //-------------------------------------------------------------------------
-  always_comb begin
-    idx_next = idx;
 
-    if (s_axi_rvalid && s_axi_rready) begin
-      idx_next = idx + 1;
+  // keep track of final idx at the time of ar submission
+  svc_sync_fifo #(
+      .DATA_WIDTH(S_WIDTH)
+  ) svc_sync_fifo_r_i (
+      .clk        (clk),
+      .rst_n      (rst_n),
+      .w_inc      (sb_s_arvalid && sb_s_arready),
+      .w_data     (ar_stripe_end_idx),
+      .w_full     (fifo_r_w_full),
+      .w_half_full(),
+      .r_inc      (s_axi_rvalid && s_axi_rready && s_axi_rlast),
+      .r_data     (r_stripe_end_idx),
+      .r_empty    (fifo_r_r_empty)
+  );
+
+  // skid buf, with muxing to the subs
+  svc_skidbuf #(
+      .DATA_WIDTH(IW + DW + 2 + 1),
+      .OPT_OUTREG(1)
+  ) svc_skidbuf_r_i (
+      .clk(clk),
+      .rst_n(rst_n),
+      .i_valid(m_axi_rvalid[r_idx]),
+      .i_data({
+        m_axi_rid[r_idx],
+        m_axi_rdata[r_idx],
+        m_axi_rresp[r_idx],
+        m_axi_rlast[r_idx] && r_idx == r_stripe_end_idx
+      }),
+      .o_ready(sb_s_rready),
+      .i_ready(s_axi_rready),
+      .o_data({s_axi_rid, s_axi_rdata, s_axi_rresp, s_axi_rlast}),
+      .o_valid(s_axi_rvalid)
+  );
+
+  // mux s_axi_rready to the subs
+  always_comb begin
+    m_axi_rready        = '0;
+    m_axi_rready[r_idx] = sb_s_rready;
+  end
+
+  // index management
+  always_comb begin
+    r_active_next = r_active;
+    r_idx_next    = r_idx;
+
+    if (s_axi_rvalid && s_axi_rready && s_axi_rlast) begin
+      r_active_next = 1'b0;
     end
 
-    if (s_axi_arready && s_axi_arvalid) begin
-      idx_next = 0;
+    if (sb_s_arvalid && sb_s_arready) begin
+      r_active_next = 1'b1;
+      r_idx_next    = ar_stripe_start_idx;
+    end
+
+    if (m_axi_rvalid[r_idx] && m_axi_rready[r_idx]) begin
+      r_idx_next = r_idx + 1;
     end
   end
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      idx <= 0;
+      r_active <= 1'b0;
+      r_idx    <= 0;
     end else begin
-      idx <= idx_next;
+      r_idx    <= r_idx_next;
+      r_active <= r_active_next;
     end
   end
 
-  //-------------------------------------------------------------------------
-  //
-  // r channel
-  //
-  //-------------------------------------------------------------------------
-
-  // r channel signals from caller to active subordinate
-  always_comb begin
-    m_axi_rready      = '0;
-    m_axi_rready[idx] = s_axi_rready;
-  end
-
-  // r channel from subordinate back to caller
-  //
-  // TODO: this is a bit much combinatorial logic for an axi output. This
-  // really should get registered. However, when I attempted this using
-  // skidbuffers, there was some subtle race condition that was getting triggered
-  // when run on real hardware when synthesized by yosys. The svc-examples mem test
-  // was finding mismatches. It wasn't happening under simulation using memory test
-  // parameters that matched what was happening on hw, but that might have been due
-  // to the yosys SB_IO simulation files not matching the actual lattice IP 100%.
-  // Revisit this after beefing up the data validation testing under formal,
-  // and/or adding more rigorous simulated random io testing that catches the issue.
-  always_comb begin
-    s_axi_rvalid = m_axi_rvalid[idx];
-    s_axi_rid    = m_axi_rid[idx];
-    s_axi_rdata  = m_axi_rdata[idx];
-    s_axi_rresp  = m_axi_rresp[idx];
-
-    // only propagate the rlast bit from the last subordinate
-    s_axi_rlast  = m_axi_rlast[idx] && idx == '1;
-  end
-
-  `SVC_UNUSED({s_axi_araddr[S_WIDTH+O_WIDTH-1:O_WIDTH]});
+  `SVC_UNUSED({s_axi_araddr[S_WIDTH+O_WIDTH-1:O_WIDTH], fifo_r_r_empty});
 
 `ifdef FORMAL
   // Formal testing happens in the combined module, but we do have asserts
@@ -254,14 +267,12 @@ module svc_axi_stripe_rd #(
       // the following are assertions about the requirements for usage
       // documented at the top of the module
       if (s_axi_arvalid) begin
-        // Address must be stripe aligned - lower bits should be zero
-        assert (s_axi_araddr[S_WIDTH-1:0] == '0);
-
         // Size must match full data width
         assert (int'(s_axi_arsize) == $clog2(AXI_DATA_WIDTH / 8));
+      end
 
-        // Length must end on stripe boundary
-        assert (((s_axi_arlen + 1) % NUM_S) == 0);
+      if (|m_axi_rvalid) begin
+        assert (!fifo_r_r_empty);
       end
     end
   end

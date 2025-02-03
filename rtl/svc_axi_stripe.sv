@@ -227,13 +227,8 @@ module svc_axi_stripe #(
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      // Address must be stripe aligned - lower bits should be zero
-      // Size must match full data width
-      // Length must end on stripe boundary
       if (s_axi_arvalid) begin
-        `ASSUME(a_ar_start, s_axi_araddr[S_WIDTH-1:0] == '0);
         `ASSUME(a_ar_width, int'(s_axi_arsize) == $clog2(AXI_DATA_WIDTH / 8));
-        `ASSUME(a_ar_end, ((s_axi_arlen + 1) % NUM_S) == 0);
       end
 
       if (s_axi_awvalid) begin
