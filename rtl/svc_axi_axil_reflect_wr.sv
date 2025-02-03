@@ -2,8 +2,8 @@
 `define SVC_AXI_AXIL_REFLECT_WR_SV
 
 `include "svc.sv"
-`include "svc_sync_fifo_zl.sv"
-`include "svc_sync_fifo_zl1.sv"
+`include "svc_sync_fifo_n.sv"
+`include "svc_sync_fifo_n1.sv"
 `include "svc_unused.sv"
 
 // Takes an AXI to AXI-Lite write stream with single beat bursts and
@@ -65,9 +65,9 @@ module svc_axi_axil_reflect_wr #(
   logic id_valid;
   logic id_ready;
 
-  svc_sync_fifo_zl1 #(
+  svc_sync_fifo_n1 #(
       .DATA_WIDTH(AXI_ADDR_WIDTH)
-  ) svc_sync_fifo_zl1_aw_i (
+  ) svc_sync_fifo_n_aw_i (
       .clk  (clk),
       .rst_n(rst_n),
 
@@ -80,9 +80,9 @@ module svc_axi_axil_reflect_wr #(
       .r_empty_n(aw_valid)
   );
 
-  svc_sync_fifo_zl1 #(
+  svc_sync_fifo_n1 #(
       .DATA_WIDTH(AXI_DATA_WIDTH + AXI_STRB_WIDTH)
-  ) svc_sync_fifo_zl1_w_i (
+  ) svc_sync_fifo_n_w_i (
       .clk  (clk),
       .rst_n(rst_n),
 
@@ -95,10 +95,10 @@ module svc_axi_axil_reflect_wr #(
       .r_empty_n(w_valid)
   );
 
-  svc_sync_fifo_zl #(
+  svc_sync_fifo_n #(
       .ADDR_WIDTH(OUTSTANDING_WRITES_WIDTH),
       .DATA_WIDTH(AXI_ID_WIDTH + AXI_USER_WIDTH)
-  ) svc_sync_fifo_zl_id_i (
+  ) svc_sync_fifo_n_id_i (
       .clk  (clk),
       .rst_n(rst_n),
 
