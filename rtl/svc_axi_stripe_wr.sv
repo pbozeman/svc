@@ -114,8 +114,8 @@ module svc_axi_stripe_wr #(
   logic [               7:0]            w_remaining;
   logic [               7:0]            w_remaining_next;
 
-  logic                                 w_done;
-  logic                                 w_done_next;
+  logic                                 w_active;
+  logic                                 w_active_next;
 
   logic [         NUM_S-1:0]            m_axi_awvalid_next;
   logic [         NUM_S-1:0][   IW-1:0] m_axi_awid_next;
@@ -158,6 +158,9 @@ module svc_axi_stripe_wr #(
       .o_valid(sb_s_awvalid)
   );
 
+  assign sb_s_awready = (!w_active && !fifo_b_w_full &&
+                         &(~m_axi_awvalid | m_axi_awready));
+
   svc_axi_stripe_ax #(
       .NUM_S         (NUM_S),
       .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
@@ -191,8 +194,6 @@ module svc_axi_stripe_wr #(
       m_axi_awid_next    = {NUM_S{sb_s_awid}};
     end
   end
-
-  assign sb_s_awready = !fifo_b_w_full;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
@@ -237,13 +238,13 @@ module svc_axi_stripe_wr #(
     sb_s_wready       = 1'b0;
     w_idx_next        = w_idx;
     w_remaining_next  = w_remaining;
-    w_done_next       = w_done;
+    w_active_next     = w_active;
 
     // start of burst
     if (sb_s_awready && sb_s_awvalid) begin
       w_idx_next       = aw_stripe_start_idx;
       w_remaining_next = sb_s_awlen;
-      w_done_next      = 1'b0;
+      w_active_next    = 1'b1;
 
       // w rose before or with aw, so we need to use the new values
       if (sb_s_wvalid) begin
@@ -263,7 +264,7 @@ module svc_axi_stripe_wr #(
           w_idx_next = aw_stripe_start_idx + 1;
 
           if (sb_s_awlen == 0) begin
-            w_done_next = 1'b1;
+            w_active_next = 1'b0;
           end else begin
             w_remaining_next = sb_s_awlen - 1;
           end
@@ -271,7 +272,7 @@ module svc_axi_stripe_wr #(
       end
     end else begin
       // we're mid burst so we use the w values
-      if (sb_s_wvalid && !w_done) begin
+      if (sb_s_wvalid && w_active) begin
         if (!m_axi_wvalid[w_idx] || m_axi_wready[w_idx]) begin
           sb_s_wready              = 1'b1;
 
@@ -285,7 +286,7 @@ module svc_axi_stripe_wr #(
           if (w_remaining != 0) begin
             w_remaining_next = w_remaining - 1;
           end else begin
-            w_done_next = 1'b1;
+            w_active_next = 1'b0;
           end
         end
       end
@@ -295,11 +296,11 @@ module svc_axi_stripe_wr #(
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       w_idx        <= 0;
-      w_done       <= 1'b0;
+      w_active     <= 1'b0;
       m_axi_wvalid <= '0;
     end else begin
       w_idx        <= w_idx_next;
-      w_done       <= w_done_next;
+      w_active     <= w_active_next;
       m_axi_wvalid <= m_axi_wvalid_next;
     end
   end
@@ -318,7 +319,7 @@ module svc_axi_stripe_wr #(
   //
   //-------------------------------------------------------------------------
 
-  // keep track of final idx and count at the time of aw submission
+  // keep track of final idx and active subs at the time of aw submission
   svc_sync_fifo #(
       .DATA_WIDTH(S_WIDTH + NUM_S)
   ) svc_sync_fifo_b_i (
