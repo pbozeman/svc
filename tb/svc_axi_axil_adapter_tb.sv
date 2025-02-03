@@ -205,6 +205,7 @@ module svc_axi_axil_adapter_tb;
         m_axi_wstrb  = '1;
         m_axi_wlast  = i == 3;
 
+        `TICK(clk);
         `CHECK_TRUE(s_axil_awvalid && s_axil_awready);
         `CHECK_EQ(s_axil_awaddr, addr + AW'(i * 2));
 
@@ -216,15 +217,16 @@ module svc_axi_axil_adapter_tb;
 
         `CHECK_TRUE(s_axil_bready);
         `CHECK_FALSE(m_axi_bvalid);
-        `TICK(clk);
       end
 
-      m_axi_wvalid  = 1'b0;
-      s_axil_bvalid = 1'b0;
+      m_axi_wvalid = 1'b0;
 
+      `TICK(clk);
       `CHECK_TRUE(m_axi_bvalid && m_axi_bready);
       `CHECK_EQ(m_axi_bid, 4'hD);
       `CHECK_EQ(m_axi_bresp, 2'b00);
+
+      s_axil_bvalid = 1'b0;
       `TICK(clk);
 
       `CHECK_FALSE(s_axil_awvalid);
