@@ -193,9 +193,42 @@ module svc_axi_stripe_rd_tb;
     `CHECK_FALSE(m_axi_rvalid);
   endtask
 
+  // note: this also has a latency test built in
+  task automatic test_throuput_burst;
+    time           time_start;
+
+    logic [AW-1:0] addr = AW'(8'hA0);
+
+    // 16 beat burst read
+    m_axi_arvalid = 1'b1;
+    m_axi_arid    = 4'hD;
+    m_axi_araddr  = addr;
+    m_axi_arlen   = 8'h0F;
+    m_axi_arburst = 2'b01;
+    m_axi_arsize  = 3'b001;
+
+    m_axi_rready  = 1'b1;
+
+    // First response should be in 3 cycles:
+    //   1 for pipelining the aw stripe calc
+    //   1 for axi mem to return the read
+    //   1 to mux the r response back
+    `CHECK_WAIT_FOR(clk, m_axi_rvalid && m_axi_rready, 3);
+
+    // then we should return a read every clock
+    for (int i = 0; i < 15; i++) begin
+      `TICK(clk);
+      `CHECK_TRUE(m_axi_rvalid && m_axi_rready);
+    end
+
+    `TICK(clk);
+    `CHECK_FALSE(m_axi_rvalid);
+  endtask
+
   `TEST_SUITE_BEGIN(svc_axi_stripe_rd_tb);
   `TEST_CASE(test_initial);
   `TEST_CASE(test_basic);
+  `TEST_CASE(test_throuput_burst);
   `TEST_SUITE_END();
 
 endmodule
