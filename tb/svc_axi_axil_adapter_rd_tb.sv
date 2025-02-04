@@ -96,44 +96,42 @@ module svc_axi_axil_adapter_rd_tb;
 
   // Basic smoke test
   task automatic test_basic;
-    begin
-      logic [AW-1:0] addr = AW'(16'hA000);
-      logic [DW-1:0] data = DW'(16'hD000);
+    logic [AW-1:0] addr = AW'(16'hA000);
+    logic [DW-1:0] data = DW'(16'hD000);
 
-      // setup the burst
-      // length 4, INCR, 2 byte stride
-      m_axi_arvalid  = 1'b1;
-      m_axi_araddr   = addr;
-      m_axi_arid     = 4'hD;
-      m_axi_arlen    = 8'h03;
-      m_axi_arburst  = 2'b01;
-      m_axi_arsize   = 3'b001;
-      m_axi_rready   = 1'b1;
+    // setup the burst
+    // length 4, INCR, 2 byte stride
+    m_axi_arvalid  = 1'b1;
+    m_axi_araddr   = addr;
+    m_axi_arid     = 4'hD;
+    m_axi_arlen    = 8'h03;
+    m_axi_arburst  = 2'b01;
+    m_axi_arsize   = 3'b001;
+    m_axi_rready   = 1'b1;
 
-      s_axil_arready = 1'b1;
+    s_axil_arready = 1'b1;
 
-      // addr beats should be accepted every clock
+    // addr beats should be accepted every clock
+    `TICK(clk);
+    for (int i = 0; i < 4; i++) begin
+      `CHECK_WAIT_FOR(clk, s_axil_arvalid && s_axil_arready, 1);
+      `CHECK_EQ(s_axil_araddr, addr + AW'(i * 2));
+
+      s_axil_rvalid = 1'b1;
+      s_axil_rdata  = data + DW'(i);
+
+      `CHECK_TRUE(s_axil_rready);
+      `CHECK_TRUE(m_axi_rvalid && m_axi_rready);
+      `CHECK_EQ(m_axi_rdata, data + DW'(i));
+      `CHECK_EQ(m_axi_rid, 4'hD);
+      `CHECK_EQ(m_axi_rresp, 2'b00);
+      `CHECK_TRUE(m_axi_rlast || i != 3);
       `TICK(clk);
-      for (int i = 0; i < 4; i++) begin
-        `CHECK_WAIT_FOR(clk, s_axil_arvalid && s_axil_arready, 1);
-        `CHECK_EQ(s_axil_araddr, addr + AW'(i * 2));
-
-        s_axil_rvalid = 1'b1;
-        s_axil_rdata  = data + DW'(i);
-
-        `CHECK_TRUE(s_axil_rready);
-        `CHECK_TRUE(m_axi_rvalid && m_axi_rready);
-        `CHECK_EQ(m_axi_rdata, data + DW'(i));
-        `CHECK_EQ(m_axi_rid, 4'hD);
-        `CHECK_EQ(m_axi_rresp, 2'b00);
-        `CHECK_TRUE(m_axi_rlast || i != 3);
-        `TICK(clk);
-      end
-
-      s_axil_rvalid = 1'b0;
-      `CHECK_FALSE(s_axil_arvalid);
-      `CHECK_FALSE(m_axi_rvalid);
     end
+
+    s_axil_rvalid = 1'b0;
+    `CHECK_FALSE(s_axil_arvalid);
+    `CHECK_FALSE(m_axi_rvalid);
   endtask
 
   `TEST_SUITE_BEGIN(svc_axi_axil_adapter_rd_tb);
