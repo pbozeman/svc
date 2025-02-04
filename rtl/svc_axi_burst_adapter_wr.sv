@@ -3,7 +3,6 @@
 
 `include "svc.sv"
 `include "svc_axi_burst_iter_ax.sv"
-`include "svc_skidbuf.sv"
 `include "svc_sync_fifo.sv"
 `include "svc_unused.sv"
 
@@ -71,50 +70,36 @@ module svc_axi_burst_adapter_wr #(
     input  logic [               1:0] m_axi_bresp,
     output logic                      m_axi_bready
 );
-  logic                      sb_s_awvalid;
-  logic [AXI_ADDR_WIDTH-1:0] sb_s_awaddr;
-  logic [  AXI_ID_WIDTH-1:0] sb_s_awid;
-  logic [               7:0] sb_s_awlen;
-  logic [               2:0] sb_s_awsize;
-  logic [               1:0] sb_s_awburst;
-  logic                      sb_s_awready;
+  localparam AW = AXI_ADDR_WIDTH;
+  localparam IW = AXI_ID_WIDTH;
 
-  logic                      burst_awready;
+  logic          split_awvalid;
+  logic [AW-1:0] split_awaddr;
+  logic [IW-1:0] split_awid;
+  logic [   7:0] split_awlen;
+  logic [   2:0] split_awsize;
+  logic [   1:0] split_awburst;
+  logic          split_last;
+  logic          split_awready;
 
-  logic                      aw_last;
-  logic                      b_last;
+  logic          b_last;
 
-  logic                      s_axi_bvalid_next;
-  logic [  AXI_ID_WIDTH-1:0] s_axi_bid_next;
-  logic [               1:0] s_axi_bresp_next;
+  logic          s_axi_bvalid_next;
+  logic [IW-1:0] s_axi_bid_next;
+  logic [   1:0] s_axi_bresp_next;
 
-  logic                      fifo_b_w_full;
-  logic                      fifo_b_r_empty;
+  logic          fifo_b_w_full;
+  logic          fifo_b_r_empty;
 
   //-------------------------------------------------------------------------
   //
   // AW channel
   //
   //-------------------------------------------------------------------------
-  svc_skidbuf #(
-      .DATA_WIDTH(AXI_ID_WIDTH + AXI_ADDR_WIDTH + 8 + 3 + 2)
-  ) svc_skidbuf_aw_i (
-      .clk(clk),
-      .rst_n(rst_n),
-      .i_valid(s_axi_awvalid),
-      .i_data({
-        s_axi_awid, s_axi_awaddr, s_axi_awlen, s_axi_awsize, s_axi_awburst
-      }),
-      .o_ready(s_axi_awready),
-      .i_ready(sb_s_awready),
-      .o_data({sb_s_awid, sb_s_awaddr, sb_s_awlen, sb_s_awsize, sb_s_awburst}),
-      .o_valid(sb_s_awvalid)
-  );
-
-  assign sb_s_awready = (burst_awready && !fifo_b_w_full &&
-                         (!m_axi_awvalid || m_axi_awready));
 
   // split the burst
+  //
+  // This already registers its signals, so we don't need an incoming sb.
   svc_axi_burst_iter_ax #(
       .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
       .AXI_ID_WIDTH  (AXI_ID_WIDTH)
@@ -122,34 +107,43 @@ module svc_axi_burst_adapter_wr #(
       .clk  (clk),
       .rst_n(rst_n),
 
-      .s_valid(sb_s_awvalid),
-      .s_addr (sb_s_awaddr),
-      .s_id   (sb_s_awid),
-      .s_len  (sb_s_awlen),
-      .s_size (sb_s_awsize),
-      .s_burst(sb_s_awburst),
-      .s_ready(burst_awready),
+      .s_valid(s_axi_awvalid),
+      .s_addr (s_axi_awaddr),
+      .s_id   (s_axi_awid),
+      .s_len  (s_axi_awlen),
+      .s_size (s_axi_awsize),
+      .s_burst(s_axi_awburst),
+      .s_ready(s_axi_awready),
 
-      .m_valid(m_axi_awvalid),
-      .m_addr (m_axi_awaddr),
-      .m_id   (m_axi_awid),
-      .m_len  (m_axi_awlen),
-      .m_size (m_axi_awsize),
-      .m_burst(m_axi_awburst),
-      .m_last (aw_last),
-      .m_ready(m_axi_awready)
+      .m_valid(split_awvalid),
+      .m_addr (split_awaddr),
+      .m_id   (split_awid),
+      .m_len  (split_awlen),
+      .m_size (split_awsize),
+      .m_burst(split_awburst),
+      .m_last (split_last),
+      .m_ready(split_awready)
   );
+
+  assign split_awready = m_axi_awready && !fifo_b_w_full;
+
+  assign m_axi_awvalid = split_awvalid && !fifo_b_w_full;
+  assign m_axi_awaddr  = split_awaddr;
+  assign m_axi_awid    = split_awid;
+  assign m_axi_awlen   = split_awlen;
+  assign m_axi_awsize  = split_awsize;
+  assign m_axi_awburst = split_awburst;
 
   //-------------------------------------------------------------------------
   //
   // W channel
   //
   //-------------------------------------------------------------------------
-  assign m_axi_wvalid = s_axi_wvalid;
-  assign m_axi_wdata  = s_axi_wdata;
-  assign m_axi_wstrb  = s_axi_wstrb;
-  assign m_axi_wlast  = 1'b1;
-  assign s_axi_wready = m_axi_wready;
+  assign m_axi_wvalid  = s_axi_wvalid;
+  assign m_axi_wdata   = s_axi_wdata;
+  assign m_axi_wstrb   = s_axi_wstrb;
+  assign m_axi_wlast   = 1'b1;
+  assign s_axi_wready  = m_axi_wready;
 
   //-------------------------------------------------------------------------
   //
@@ -164,8 +158,8 @@ module svc_axi_burst_adapter_wr #(
   ) svc_sync_fifo_b_i (
       .clk        (clk),
       .rst_n      (rst_n),
-      .w_inc      (m_axi_awvalid && m_axi_awready),
-      .w_data     (aw_last),
+      .w_inc      (split_awvalid && split_awready),
+      .w_data     (split_last),
       .w_full     (fifo_b_w_full),
       .w_half_full(),
       .r_inc      (m_axi_bvalid && m_axi_bready),
