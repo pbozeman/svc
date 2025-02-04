@@ -115,60 +115,58 @@ module svc_axi_axil_adapter_wr_tb;
 
   // Basic smoke test
   task automatic test_basic;
-    begin
-      logic [AW-1:0] addr = AW'(16'hA000);
-      logic [DW-1:0] data = DW'(16'hD000);
+    logic [AW-1:0] addr = AW'(16'hA000);
+    logic [DW-1:0] data = DW'(16'hD000);
 
-      // setup the burst
-      // length 4, INCR, 2 byte stride
-      m_axi_awvalid  = 1'b1;
-      m_axi_awaddr   = addr;
-      m_axi_awid     = 4'hD;
-      m_axi_awlen    = 8'h03;
-      m_axi_awburst  = 2'b01;
-      m_axi_awsize   = 3'b001;
+    // setup the burst
+    // length 4, INCR, 2 byte stride
+    m_axi_awvalid  = 1'b1;
+    m_axi_awaddr   = addr;
+    m_axi_awid     = 4'hD;
+    m_axi_awlen    = 8'h03;
+    m_axi_awburst  = 2'b01;
+    m_axi_awsize   = 3'b001;
 
-      m_axi_bready   = 1'b1;
+    m_axi_bready   = 1'b1;
 
-      s_axil_awready = 1'b1;
-      s_axil_wready  = 1'b1;
+    s_axil_awready = 1'b1;
+    s_axil_wready  = 1'b1;
 
-      // writes should be issued every clock
-      `TICK(clk);
-      for (int i = 0; i < 4; i++) begin
-        m_axi_wvalid = 1'b1;
-        m_axi_wdata  = data + DW'(i);
-        m_axi_wstrb  = '1;
-        m_axi_wlast  = i == 3;
-
-        `TICK(clk);
-        `CHECK_TRUE(s_axil_awvalid && s_axil_awready);
-        `CHECK_EQ(s_axil_awaddr, addr + AW'(i * 2));
-
-        `CHECK_TRUE(m_axi_wready);
-        `CHECK_TRUE(s_axil_wvalid && s_axil_wready);
-        `CHECK_EQ(s_axil_wdata, data + DW'(i));
-        `CHECK_EQ(s_axil_wstrb, '1);
-        s_axil_bvalid = 1'b1;
-
-        `CHECK_TRUE(s_axil_bready);
-        `CHECK_FALSE(m_axi_bvalid);
-      end
-
-      m_axi_wvalid = 1'b0;
+    // writes should be issued every clock
+    `TICK(clk);
+    for (int i = 0; i < 4; i++) begin
+      m_axi_wvalid = 1'b1;
+      m_axi_wdata  = data + DW'(i);
+      m_axi_wstrb  = '1;
+      m_axi_wlast  = i == 3;
 
       `TICK(clk);
-      `CHECK_TRUE(m_axi_bvalid && m_axi_bready);
-      `CHECK_EQ(m_axi_bid, 4'hD);
-      `CHECK_EQ(m_axi_bresp, 2'b00);
+      `CHECK_TRUE(s_axil_awvalid && s_axil_awready);
+      `CHECK_EQ(s_axil_awaddr, addr + AW'(i * 2));
 
-      s_axil_bvalid = 1'b0;
-      `TICK(clk);
+      `CHECK_TRUE(m_axi_wready);
+      `CHECK_TRUE(s_axil_wvalid && s_axil_wready);
+      `CHECK_EQ(s_axil_wdata, data + DW'(i));
+      `CHECK_EQ(s_axil_wstrb, '1);
+      s_axil_bvalid = 1'b1;
 
-      `CHECK_FALSE(s_axil_awvalid);
-      `CHECK_FALSE(s_axil_wvalid);
+      `CHECK_TRUE(s_axil_bready);
       `CHECK_FALSE(m_axi_bvalid);
     end
+
+    m_axi_wvalid = 1'b0;
+
+    `TICK(clk);
+    `CHECK_TRUE(m_axi_bvalid && m_axi_bready);
+    `CHECK_EQ(m_axi_bid, 4'hD);
+    `CHECK_EQ(m_axi_bresp, 2'b00);
+
+    s_axil_bvalid = 1'b0;
+    `TICK(clk);
+
+    `CHECK_FALSE(s_axil_awvalid);
+    `CHECK_FALSE(s_axil_wvalid);
+    `CHECK_FALSE(m_axi_bvalid);
   endtask
 
   `TEST_SUITE_BEGIN(svc_axi_axil_adapter_wr_tb);
