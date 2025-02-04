@@ -3,7 +3,6 @@
 
 `include "svc.sv"
 `include "svc_axi_burst_iter_ax.sv"
-`include "svc_skidbuf.sv"
 `include "svc_sync_fifo.sv"
 `include "svc_unused.sv"
 
@@ -63,17 +62,14 @@ module svc_axi_burst_adapter_rd #(
   localparam AW = AXI_ADDR_WIDTH;
   localparam IW = AXI_ID_WIDTH;
 
-  logic          sb_s_arvalid;
-  logic [AW-1:0] sb_s_araddr;
-  logic [IW-1:0] sb_s_arid;
-  logic [   7:0] sb_s_arlen;
-  logic [   2:0] sb_s_arsize;
-  logic [   1:0] sb_s_arburst;
-  logic          sb_s_arready;
-
-  logic          burst_arready;
-
-  logic          ar_last;
+  logic          split_arvalid;
+  logic [AW-1:0] split_araddr;
+  logic [IW-1:0] split_arid;
+  logic [   7:0] split_arlen;
+  logic [   2:0] split_arsize;
+  logic [   1:0] split_arburst;
+  logic          split_last;
+  logic          split_arready;
 
   logic          fifo_r_w_full;
 
@@ -82,25 +78,10 @@ module svc_axi_burst_adapter_rd #(
   // AR channel
   //
   //-------------------------------------------------------------------------
-  svc_skidbuf #(
-      .DATA_WIDTH(AXI_ID_WIDTH + AXI_ADDR_WIDTH + 8 + 3 + 2)
-  ) svc_skidbuf_ar_i (
-      .clk(clk),
-      .rst_n(rst_n),
-      .i_valid(s_axi_arvalid),
-      .i_data({
-        s_axi_arid, s_axi_araddr, s_axi_arlen, s_axi_arsize, s_axi_arburst
-      }),
-      .o_ready(s_axi_arready),
-      .i_ready(sb_s_arready),
-      .o_data({sb_s_arid, sb_s_araddr, sb_s_arlen, sb_s_arsize, sb_s_arburst}),
-      .o_valid(sb_s_arvalid)
-  );
-
-  assign sb_s_arready = (!burst_arready && !fifo_r_w_full &&
-                         (!m_axi_arvalid || m_axi_arready));
 
   // split the burst
+  //
+  // This already registers its signals, so we don't need an incoming sb.
   svc_axi_burst_iter_ax #(
       .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
       .AXI_ID_WIDTH  (AXI_ID_WIDTH)
@@ -108,23 +89,32 @@ module svc_axi_burst_adapter_rd #(
       .clk  (clk),
       .rst_n(rst_n),
 
-      .s_valid(sb_s_arvalid),
-      .s_addr (sb_s_araddr),
-      .s_id   (sb_s_arid),
-      .s_len  (sb_s_arlen),
-      .s_size (sb_s_arsize),
-      .s_burst(sb_s_arburst),
-      .s_ready(burst_arready),
+      .s_valid(s_axi_arvalid),
+      .s_addr (s_axi_araddr),
+      .s_id   (s_axi_arid),
+      .s_len  (s_axi_arlen),
+      .s_size (s_axi_arsize),
+      .s_burst(s_axi_arburst),
+      .s_ready(s_axi_arready),
 
-      .m_valid(m_axi_arvalid),
-      .m_addr (m_axi_araddr),
-      .m_id   (m_axi_arid),
-      .m_len  (m_axi_arlen),
-      .m_size (m_axi_arsize),
-      .m_burst(m_axi_arburst),
-      .m_last (ar_last),
-      .m_ready(m_axi_arready)
+      .m_valid(split_arvalid),
+      .m_addr (split_araddr),
+      .m_id   (split_arid),
+      .m_len  (split_arlen),
+      .m_size (split_arsize),
+      .m_burst(split_arburst),
+      .m_last (split_last),
+      .m_ready(split_arready)
   );
+
+  assign split_arready = m_axi_arready && !fifo_r_w_full;
+
+  assign m_axi_arvalid = split_arvalid && !fifo_r_w_full;
+  assign m_axi_araddr  = split_araddr;
+  assign m_axi_arid    = split_arid;
+  assign m_axi_arlen   = split_arlen;
+  assign m_axi_arsize  = split_arsize;
+  assign m_axi_arburst = split_arburst;
 
   //-------------------------------------------------------------------------
   //
@@ -140,8 +130,8 @@ module svc_axi_burst_adapter_rd #(
       .clk  (clk),
       .rst_n(rst_n),
 
-      .w_inc      (m_axi_arvalid && m_axi_arready),
-      .w_data     (ar_last),
+      .w_inc      (split_arvalid && split_arready),
+      .w_data     (split_last),
       .w_full     (fifo_r_w_full),
       .w_half_full(),
       .r_inc      (s_axi_rvalid && s_axi_rready),
