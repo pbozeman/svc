@@ -2,6 +2,7 @@
 `define SVC_AXI_MEM_SV
 
 `include "svc.sv"
+`include "svc_skidbuf.sv"
 `include "svc_unused.sv"
 
 //
@@ -87,51 +88,62 @@ module svc_axi_mem #(
   //
   // Write signals
   //
-  write_state_t          write_state;
-  write_state_t          write_state_next;
+  write_state_t             write_state;
+  write_state_t             write_state_next;
 
-  logic                  s_axi_awready_next;
-  logic                  s_axi_wready_next;
-  logic                  s_axi_bvalid_next;
-  logic         [IW-1:0] s_axi_bid_next;
+  logic                     sb_s_awvalid;
+  logic         [   AW-1:0] sb_s_awaddr;
+  logic         [   IW-1:0] sb_s_awid;
+  logic         [      2:0] sb_s_awsize;
+  logic         [      1:0] sb_s_awburst;
+  logic                     sb_s_awready;
 
-  logic         [IW-1:0] w_id;
-  logic         [IW-1:0] w_id_next;
+  logic                     sb_s_wvalid;
+  logic         [   DW-1:0] sb_s_wdata;
+  logic         [STRBW-1:0] sb_s_wstrb;
+  logic                     sb_s_wlast;
+  logic                     sb_s_wready;
 
-  logic         [AW-1:0] w_addr;
-  logic         [AW-1:0] w_addr_next;
+  logic                     s_axi_bvalid_next;
+  logic         [   IW-1:0] s_axi_bid_next;
 
-  logic         [   2:0] w_size;
-  logic         [   2:0] w_size_next;
+  logic         [   IW-1:0] w_id;
+  logic         [   IW-1:0] w_id_next;
 
-  logic         [   1:0] w_burst;
-  logic         [   1:0] w_burst_next;
+  logic         [   AW-1:0] w_addr;
+  logic         [   AW-1:0] w_addr_next;
+
+  logic         [      2:0] w_size;
+  logic         [      2:0] w_size_next;
+
+  logic         [      1:0] w_burst;
+  logic         [      1:0] w_burst_next;
 
   //
   // Read signals
   //
-  read_state_t           read_state;
-  read_state_t           read_state_next;
+  read_state_t              read_state;
+  read_state_t              read_state_next;
 
-  logic                  s_axi_arready_next;
-  logic                  s_axi_rvalid_next;
-  logic         [IW-1:0] s_axi_rid_next;
-  logic                  s_axi_rlast_next;
+  logic                     s_axi_arready_next;
+  logic                     s_axi_rvalid_next;
+  logic         [   IW-1:0] s_axi_rid_next;
+  logic                     s_axi_rlast_next;
 
-  logic         [IW-1:0] r_id;
-  logic         [IW-1:0] r_id_next;
+  logic         [   IW-1:0] r_id;
+  logic         [   IW-1:0] r_id_next;
 
-  logic         [AW-1:0] r_addr;
-  logic         [AW-1:0] r_addr_next;
+  logic         [   AW-1:0] r_addr;
+  logic         [   AW-1:0] r_addr_next;
 
-  logic         [   7:0] r_len;
-  logic         [   7:0] r_len_next;
+  logic         [      7:0] r_len;
+  logic         [      7:0] r_len_next;
 
-  logic         [   2:0] r_size;
-  logic         [   2:0] r_size_next;
+  logic         [      2:0] r_size;
+  logic         [      2:0] r_size_next;
 
-  logic         [   1:0] r_burst;
-  logic         [   1:0] r_burst_next;
+  logic         [      1:0] r_burst;
+  logic         [      1:0] r_burst_next;
 
 
   //-------------------------------------------------------------------------
@@ -139,53 +151,78 @@ module svc_axi_mem #(
   // Write state machine
   //
   //-------------------------------------------------------------------------
+  svc_skidbuf #(
+      .DATA_WIDTH(AXI_ID_WIDTH + AXI_ADDR_WIDTH + 3 + 2)
+  ) svc_skidbuf_aw_i (
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .i_valid(s_axi_awvalid),
+      .i_data ({s_axi_awid, s_axi_awaddr, s_axi_awsize, s_axi_awburst}),
+      .o_ready(s_axi_awready),
+      .i_ready(sb_s_awready),
+      .o_data ({sb_s_awid, sb_s_awaddr, sb_s_awsize, sb_s_awburst}),
+      .o_valid(sb_s_awvalid)
+  );
+
+  svc_skidbuf #(
+      .DATA_WIDTH(DW + 2 + 1)
+  ) svc_skidbuf_w_i (
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .i_valid(s_axi_wvalid),
+      .i_data ({s_axi_wdata, s_axi_wstrb, s_axi_wlast}),
+      .o_ready(s_axi_wready),
+      .i_ready(sb_s_wready),
+      .o_data ({sb_s_wdata, sb_s_wstrb, sb_s_wlast}),
+      .o_valid(sb_s_wvalid)
+  );
 
   always @(*) begin
-    write_state_next   = write_state;
+    write_state_next  = write_state;
 
-    w_id_next          = w_id;
-    w_addr_next        = w_addr;
-    w_size_next        = w_size;
-    w_burst_next       = w_burst;
+    w_id_next         = w_id;
+    w_addr_next       = w_addr;
+    w_size_next       = w_size;
+    w_burst_next      = w_burst;
 
-    s_axi_awready_next = s_axi_awready;
-    s_axi_wready_next  = s_axi_wready;
+    s_axi_bid_next    = s_axi_bid;
+    s_axi_bvalid_next = s_axi_bvalid && !s_axi_bready;
 
-    s_axi_bid_next     = s_axi_bid;
-    s_axi_bvalid_next  = s_axi_bvalid && !s_axi_bready;
+    mem_wr_en         = 1'b0;
 
-    mem_wr_en          = 1'b0;
+    sb_s_awready      = 1'b0;
+    sb_s_wready       = 1'b0;
 
     case (write_state)
       WRITE_STATE_IDLE: begin
-        if (s_axi_awvalid && s_axi_awready) begin
-          write_state_next   = WRITE_STATE_BURST;
-          s_axi_awready_next = 1'b0;
-          s_axi_wready_next  = 1'b1;
+        sb_s_awready = 1'b1;
 
-          w_id_next          = s_axi_awid;
-          w_addr_next        = s_axi_awaddr;
-          w_size_next        = s_axi_awsize;
-          w_burst_next       = s_axi_awburst;
+        if (sb_s_awvalid && sb_s_awready) begin
+          sb_s_wready      = !s_axi_bvalid || s_axi_bready;
+
+          write_state_next = WRITE_STATE_BURST;
+
+          w_id_next        = sb_s_awid;
+          w_addr_next      = sb_s_awaddr;
+          w_size_next      = sb_s_awsize;
+          w_burst_next     = sb_s_awburst;
 
           // and also do the first write, if possible, to avoid a cycle of latency
-          if (s_axi_wvalid && s_axi_wready) begin
+          if (sb_s_wvalid && sb_s_wready) begin
             mem_wr_en   = 1'b1;
-            mem_wr_addr = s_axi_awaddr[AW-1:LSB];
+            mem_wr_addr = sb_s_awaddr[AW-1:LSB];
 
-            if (s_axi_awburst != 2'b00) begin
-              w_addr_next = s_axi_awaddr + (1 << s_axi_awsize);
+            if (sb_s_awburst != 2'b00) begin
+              w_addr_next = sb_s_awaddr + (1 << sb_s_awsize);
             end
 
-            if (s_axi_wlast) begin
+            if (sb_s_wlast) begin
               if (!s_axi_bvalid || s_axi_bready) begin
-                write_state_next   = WRITE_STATE_IDLE;
-                s_axi_awready_next = 1'b1;
-                s_axi_bvalid_next  = 1'b1;
-                s_axi_bid_next     = s_axi_awid;
+                write_state_next  = WRITE_STATE_IDLE;
+                s_axi_bvalid_next = 1'b1;
+                s_axi_bid_next    = sb_s_awid;
               end else begin
-                write_state_next  = WRITE_STATE_RESP;
-                s_axi_wready_next = 1'b0;
+                write_state_next = WRITE_STATE_RESP;
               end
             end
           end
@@ -193,7 +230,7 @@ module svc_axi_mem #(
       end
 
       WRITE_STATE_BURST: begin
-        s_axi_wready_next = 1'b1;
+        sb_s_wready = !s_axi_bvalid || s_axi_bready;
 
         if (s_axi_wvalid && s_axi_wready) begin
           mem_wr_en   = 1'b1;
@@ -205,14 +242,11 @@ module svc_axi_mem #(
 
           if (s_axi_wlast) begin
             if (!s_axi_bvalid || s_axi_bready) begin
-              write_state_next   = WRITE_STATE_IDLE;
-              s_axi_awready_next = 1'b1;
-              s_axi_wready_next  = 1'b1;
-              s_axi_bvalid_next  = 1'b1;
-              s_axi_bid_next     = w_id;
+              write_state_next  = WRITE_STATE_IDLE;
+              s_axi_bvalid_next = 1'b1;
+              s_axi_bid_next    = w_id;
             end else begin
-              write_state_next  = WRITE_STATE_RESP;
-              s_axi_wready_next = 1'b0;
+              write_state_next = WRITE_STATE_RESP;
             end
           end
         end
@@ -220,11 +254,9 @@ module svc_axi_mem #(
 
       WRITE_STATE_RESP: begin
         if (s_axi_bvalid && s_axi_bready) begin
-          write_state_next   = WRITE_STATE_IDLE;
-          s_axi_awready_next = 1'b1;
-          s_axi_wready_next  = 1'b1;
-          s_axi_bvalid_next  = 1'b1;
-          s_axi_bid_next     = w_id;
+          write_state_next  = WRITE_STATE_IDLE;
+          s_axi_bvalid_next = 1'b1;
+          s_axi_bid_next    = w_id;
         end
       end
     endcase
@@ -232,15 +264,11 @@ module svc_axi_mem #(
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      write_state   <= WRITE_STATE_IDLE;
-      s_axi_awready <= 1'b1;
-      s_axi_wready  <= 1'b1;
-      s_axi_bvalid  <= 1'b0;
+      write_state  <= WRITE_STATE_IDLE;
+      s_axi_bvalid <= 1'b0;
     end else begin
-      write_state   <= write_state_next;
-      s_axi_awready <= s_axi_awready_next;
-      s_axi_wready  <= s_axi_wready_next;
-      s_axi_bvalid  <= s_axi_bvalid_next;
+      write_state  <= write_state_next;
+      s_axi_bvalid <= s_axi_bvalid_next;
     end
   end
 
@@ -256,9 +284,9 @@ module svc_axi_mem #(
 
   always_ff @(posedge clk) begin
     for (int i = 0; i < WORD_WIDTH; i = i + 1) begin
-      if (mem_wr_en & s_axi_wstrb[i]) begin
+      if (mem_wr_en & sb_s_wstrb[i]) begin
         mem[mem_wr_addr][WORD_SIZE*i+:WORD_SIZE] <=
-            s_axi_wdata[WORD_SIZE*i+:WORD_SIZE];
+            sb_s_wdata[WORD_SIZE*i+:WORD_SIZE];
       end
     end
   end
