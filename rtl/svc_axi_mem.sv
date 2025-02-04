@@ -54,11 +54,16 @@ module svc_axi_mem #(
     output logic                      s_axi_rlast,
     input  logic                      s_axi_rready
 );
-  parameter LSB = $clog2(AXI_DATA_WIDTH) - 3;
+  localparam AW = AXI_ADDR_WIDTH;
+  localparam DW = AXI_DATA_WIDTH;
+  localparam IW = AXI_ID_WIDTH;
+  localparam STRBW = AXI_STRB_WIDTH;
 
-  parameter MEM_ADDR_WIDTH = AXI_ADDR_WIDTH - LSB;
-  parameter WORD_WIDTH = AXI_STRB_WIDTH;
-  parameter WORD_SIZE = AXI_DATA_WIDTH / WORD_WIDTH;
+  parameter LSB = $clog2(DW) - 3;
+
+  parameter MEM_ADDR_WIDTH = AW - LSB;
+  parameter WORD_WIDTH = STRBW;
+  parameter WORD_SIZE = DW / WORD_WIDTH;
 
   logic [AXI_DATA_WIDTH-1:0] mem         [(1 << MEM_ADDR_WIDTH)-1:0];
 
@@ -82,51 +87,51 @@ module svc_axi_mem #(
   //
   // Write signals
   //
-  write_state_t                      write_state;
-  write_state_t                      write_state_next;
+  write_state_t          write_state;
+  write_state_t          write_state_next;
 
-  logic                              s_axi_awready_next;
-  logic                              s_axi_wready_next;
-  logic                              s_axi_bvalid_next;
-  logic         [  AXI_ID_WIDTH-1:0] s_axi_bid_next;
+  logic                  s_axi_awready_next;
+  logic                  s_axi_wready_next;
+  logic                  s_axi_bvalid_next;
+  logic         [IW-1:0] s_axi_bid_next;
 
-  logic         [  AXI_ID_WIDTH-1:0] w_id;
-  logic         [  AXI_ID_WIDTH-1:0] w_id_next;
+  logic         [IW-1:0] w_id;
+  logic         [IW-1:0] w_id_next;
 
-  logic         [AXI_ADDR_WIDTH-1:0] w_addr;
-  logic         [AXI_ADDR_WIDTH-1:0] w_addr_next;
+  logic         [AW-1:0] w_addr;
+  logic         [AW-1:0] w_addr_next;
 
-  logic         [               2:0] w_size;
-  logic         [               2:0] w_size_next;
+  logic         [   2:0] w_size;
+  logic         [   2:0] w_size_next;
 
-  logic         [               1:0] w_burst;
-  logic         [               1:0] w_burst_next;
+  logic         [   1:0] w_burst;
+  logic         [   1:0] w_burst_next;
 
   //
   // Read signals
   //
-  read_state_t                       read_state;
-  read_state_t                       read_state_next;
+  read_state_t           read_state;
+  read_state_t           read_state_next;
 
-  logic                              s_axi_arready_next;
-  logic                              s_axi_rvalid_next;
-  logic         [  AXI_ID_WIDTH-1:0] s_axi_rid_next;
-  logic                              s_axi_rlast_next;
+  logic                  s_axi_arready_next;
+  logic                  s_axi_rvalid_next;
+  logic         [IW-1:0] s_axi_rid_next;
+  logic                  s_axi_rlast_next;
 
-  logic         [  AXI_ID_WIDTH-1:0] r_id;
-  logic         [  AXI_ID_WIDTH-1:0] r_id_next;
+  logic         [IW-1:0] r_id;
+  logic         [IW-1:0] r_id_next;
 
-  logic         [AXI_ADDR_WIDTH-1:0] r_addr;
-  logic         [AXI_ADDR_WIDTH-1:0] r_addr_next;
+  logic         [AW-1:0] r_addr;
+  logic         [AW-1:0] r_addr_next;
 
-  logic         [               7:0] r_len;
-  logic         [               7:0] r_len_next;
+  logic         [   7:0] r_len;
+  logic         [   7:0] r_len_next;
 
-  logic         [               2:0] r_size;
-  logic         [               2:0] r_size_next;
+  logic         [   2:0] r_size;
+  logic         [   2:0] r_size_next;
 
-  logic         [               1:0] r_burst;
-  logic         [               1:0] r_burst_next;
+  logic         [   1:0] r_burst;
+  logic         [   1:0] r_burst_next;
 
 
   //-------------------------------------------------------------------------
@@ -166,7 +171,7 @@ module svc_axi_mem #(
           // and also do the first write, if possible, to avoid a cycle of latency
           if (s_axi_wvalid && s_axi_wready) begin
             mem_wr_en   = 1'b1;
-            mem_wr_addr = s_axi_awaddr[AXI_ADDR_WIDTH-1:LSB];
+            mem_wr_addr = s_axi_awaddr[AW-1:LSB];
 
             if (s_axi_awburst != 2'b00) begin
               w_addr_next = s_axi_awaddr + (1 << s_axi_awsize);
@@ -192,7 +197,7 @@ module svc_axi_mem #(
 
         if (s_axi_wvalid && s_axi_wready) begin
           mem_wr_en   = 1'b1;
-          mem_wr_addr = w_addr[AXI_ADDR_WIDTH-1:LSB];
+          mem_wr_addr = w_addr[AW-1:LSB];
 
           if (w_burst != 2'b00) begin
             w_addr_next = w_addr + (1 << w_size);
@@ -296,7 +301,7 @@ module svc_axi_mem #(
           // and also do the first read, if possible, to avoid a cycle of latency
           if (!s_axi_rvalid || s_axi_rready) begin
             mem_rd_en         = 1'b1;
-            mem_rd_addr       = s_axi_araddr[AXI_ADDR_WIDTH-1:LSB];
+            mem_rd_addr       = s_axi_araddr[AW-1:LSB];
 
             s_axi_rvalid_next = 1'b1;
             s_axi_rid_next    = s_axi_arid;
@@ -318,7 +323,7 @@ module svc_axi_mem #(
       READ_STATE_BURST: begin
         if (!s_axi_rvalid || s_axi_rready) begin
           mem_rd_en         = 1'b1;
-          mem_rd_addr       = r_addr[AXI_ADDR_WIDTH-1:LSB];
+          mem_rd_addr       = r_addr[AW-1:LSB];
 
           s_axi_rvalid_next = 1'b1;
           s_axi_rid_next    = r_id;
