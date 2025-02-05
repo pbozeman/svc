@@ -1,10 +1,10 @@
 `include "svc_unit.sv"
 
-`include "svc_vga.sv"
+`include "svc_pix_vga.sv"
 `include "svc_vga_mode.sv"
 
 // verilator lint_off: UNUSEDSIGNAL
-module svc_vga_tb;
+module svc_pix_vga_tb;
   localparam HW = 12;
   localparam VW = 12;
   localparam CW = 4;
@@ -12,13 +12,11 @@ module svc_vga_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
-  logic          en;
-
-  logic          m_valid;
-  logic [CW-1:0] m_red;
-  logic [CW-1:0] m_grn;
-  logic [CW-1:0] m_blu;
-  logic          m_ready;
+  logic          m_pix_valid;
+  logic [CW-1:0] m_pix_red;
+  logic [CW-1:0] m_pix_grn;
+  logic [CW-1:0] m_pix_blu;
+  logic          m_pix_ready;
 
   logic [HW-1:0] h_visible;
   logic [HW-1:0] h_sync_start;
@@ -37,20 +35,19 @@ module svc_vga_tb;
   logic [CW-1:0] vga_blu;
   logic          vga_error;
 
-  svc_vga #(
+  svc_pix_vga #(
       .H_WIDTH    (HW),
       .V_WIDTH    (VW),
       .COLOR_WIDTH(CW)
   ) uut (
       .clk  (clk),
       .rst_n(rst_n),
-      .en   (en),
 
-      .s_valid(m_valid),
-      .s_red  (m_red),
-      .s_grn  (m_grn),
-      .s_blu  (m_blu),
-      .s_ready(m_ready),
+      .s_pix_valid(m_pix_valid),
+      .s_pix_red  (m_pix_red),
+      .s_pix_grn  (m_pix_grn),
+      .s_pix_blu  (m_pix_blu),
+      .s_pix_ready(m_pix_ready),
 
       .h_visible   (h_visible),
       .h_sync_start(h_sync_start),
@@ -72,12 +69,10 @@ module svc_vga_tb;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      en      <= 1'b0;
-
-      m_valid <= 1'b0;
-      m_red   <= 0;
-      m_grn   <= 0;
-      m_blu   <= 0;
+      m_pix_valid <= 1'b0;
+      m_pix_red   <= 0;
+      m_pix_grn   <= 0;
+      m_pix_blu   <= 0;
     end
   end
 
@@ -86,14 +81,14 @@ module svc_vga_tb;
     input logic vsync;
 
     for (int i = 0; i < h_visible; i++) begin
-
+      `TICK(clk);
       if (!vblank) begin
-        `CHECK_TRUE(m_ready);
+        `CHECK_TRUE(m_pix_ready);
         `CHECK_EQ(vga_red, 4'h2);
         `CHECK_EQ(vga_grn, 4'h4);
         `CHECK_EQ(vga_blu, 4'h8);
       end else begin
-        `CHECK_FALSE(m_ready);
+        `CHECK_FALSE(m_pix_ready);
         `CHECK_EQ(vga_red, 0);
         `CHECK_EQ(vga_grn, 0);
         `CHECK_EQ(vga_blu, 0);
@@ -103,11 +98,12 @@ module svc_vga_tb;
       `CHECK_EQ(vga_vsync, vsync);
       `CHECK_FALSE(vga_error);
 
-      `TICK(clk);
     end
 
     for (int i = 0; i < `VGA_MODE_640x480_H_FRONT_PORCH; i++) begin
-      `CHECK_FALSE(m_ready);
+      `TICK(clk);
+
+      `CHECK_FALSE(m_pix_ready);
 
       `CHECK_EQ(vga_red, 0);
       `CHECK_EQ(vga_grn, 0);
@@ -116,12 +112,11 @@ module svc_vga_tb;
       `CHECK_EQ(vga_hsync, 1'b1);
       `CHECK_EQ(vga_vsync, vsync);
       `CHECK_FALSE(vga_error);
-
-      `TICK(clk);
     end
 
     for (int i = 0; i < `VGA_MODE_640x480_H_SYNC_PULSE; i++) begin
-      `CHECK_FALSE(m_ready);
+      `TICK(clk);
+      `CHECK_FALSE(m_pix_ready);
 
       `CHECK_EQ(vga_red, 0);
       `CHECK_EQ(vga_grn, 0);
@@ -130,8 +125,6 @@ module svc_vga_tb;
       `CHECK_EQ(vga_hsync, 1'b0);
       `CHECK_EQ(vga_vsync, vsync);
       `CHECK_FALSE(vga_error);
-
-      `TICK(clk);
     end
 
     for (
@@ -139,7 +132,8 @@ module svc_vga_tb;
         i < (`VGA_MODE_640x480_H_WHOLE_LINE - `VGA_MODE_640x480_H_SYNC_END);
         i++
     ) begin
-      `CHECK_FALSE(m_ready);
+      `TICK(clk);
+      `CHECK_FALSE(m_pix_ready);
 
       `CHECK_EQ(vga_red, 0);
       `CHECK_EQ(vga_grn, 0);
@@ -148,16 +142,13 @@ module svc_vga_tb;
       `CHECK_EQ(vga_hsync, 1'b1);
       `CHECK_EQ(vga_vsync, vsync);
       `CHECK_FALSE(vga_error);
-
-      `TICK(clk);
     end
   endtask
 
   task automatic test_line;
-    m_valid      = 1'b1;
-    m_red        = 4'h2;
-    m_grn        = 4'h4;
-    m_blu        = 4'h8;
+    m_pix_red    = 4'h2;
+    m_pix_grn    = 4'h4;
+    m_pix_blu    = 4'h8;
 
     h_visible    = `VGA_MODE_640x480_H_VISIBLE;
     h_sync_start = `VGA_MODE_640x480_H_SYNC_START;
@@ -169,22 +160,19 @@ module svc_vga_tb;
     v_sync_end   = `VGA_MODE_640x480_V_SYNC_END;
     v_frame_end  = `VGA_MODE_640x480_V_FRAME_END;
 
-    // just a weird amount of waiting to make sure we sync on the en signal
-    // correctly
+    // just a weird amount of waiting to make sure we sync at startup
     for (int i = 0; i < 5; i++) begin
       `TICK(clk);
     end
 
-    en = 1'b1;
-
+    m_pix_valid = 1'b1;
     check_line(1'b0, 1'b1);
   endtask
 
   task automatic test_frame;
-    m_valid      = 1'b1;
-    m_red        = 4'h2;
-    m_grn        = 4'h4;
-    m_blu        = 4'h8;
+    m_pix_red    = 4'h2;
+    m_pix_grn    = 4'h4;
+    m_pix_blu    = 4'h8;
 
     h_visible    = `VGA_MODE_640x480_H_VISIBLE;
     h_sync_start = `VGA_MODE_640x480_H_SYNC_START;
@@ -196,14 +184,12 @@ module svc_vga_tb;
     v_sync_end   = `VGA_MODE_640x480_V_SYNC_END;
     v_frame_end  = `VGA_MODE_640x480_V_FRAME_END;
 
-    // just a weird amount of waiting to make sure we sync on the en signal
-    // correctly
+    // just a weird amount of waiting to make sure we sync at startup
     for (int i = 0; i < 7; i++) begin
       `TICK(clk);
     end
 
-    en = 1'b1;
-
+    m_pix_valid = 1'b1;
     for (int i = 0; i < `VGA_MODE_640x480_V_VISIBLE; i++) begin
       check_line(1'b0, 1'b1);
     end
@@ -225,7 +211,7 @@ module svc_vga_tb;
     end
   endtask
 
-  `TEST_SUITE_BEGIN(svc_vga_tb, 500000);
+  `TEST_SUITE_BEGIN(svc_pix_vga_tb, 500000);
   `TEST_CASE(test_line);
   `TEST_CASE(test_frame);
   `TEST_SUITE_END();
