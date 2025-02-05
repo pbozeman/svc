@@ -81,7 +81,7 @@ $(BUILD_DIR)/%.json: | $(BUILD_DIR)
 		awk '{gsub(",", "", $$NF); print $$NF}' | \
 		grep -v '^$$' | while read -r signal; do \
 			grep -E "set_io $${signal}[[:space:]]|set_io $${signal}\\[[0-9:]*\\][[:space:]]" $(PCF_FILE); \
-		done > $(SYNTH_TARGET_PCF)
+		done > $(SYNTH_TARGET_PCF) || true
 	@cat $(YOSYS_TARGET_DEP) | tr ' ' '\n' | grep -v '^/' | tr '\n' ' ' | \
 		awk '{$$1=$$1":"; print}' > $(YOSYS_TARGET_D)
 
