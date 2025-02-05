@@ -164,11 +164,11 @@
       `CHECK_MSG_1("WAIT_FOR", `__FILE__, `__LINE__, signal);                \
     end
 
-`define TEST_SUITE_BEGIN(tb_module_name)                                     \
+`define TEST_SUITE_BEGIN(tb_module_name, watchdog_cnt = 10000)               \
 `ifndef VERILATOR                                                            \
   int line_num;                                                              \
   int svc_wait_cnt;                                                          \
-  int svc_watchdog_cnt = 10000;                                              \
+  int svc_watchdog_cnt = watchdog_cnt;                                       \
   logic svc_tiny_ticked;                                                     \
 `endif                                                                       \
   string svc_tb_module_name;                                                 \
