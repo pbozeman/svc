@@ -104,7 +104,7 @@ module svc_gfx_fb_tb;
     m_gfx_y     = 1;
     m_gfx_pixel = 12'hDAB;
 
-    `CHECK_TRUE(s_axi_awvalid);
+    `CHECK_WAIT_FOR(clk, s_axi_awvalid, 1);
     `CHECK_EQ(s_axi_awaddr, H_VISIBLE);
     `CHECK_EQ(s_axi_awlen, 0);
 
