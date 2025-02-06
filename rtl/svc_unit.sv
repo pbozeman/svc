@@ -164,7 +164,7 @@
       `CHECK_MSG_1("WAIT_FOR", `__FILE__, `__LINE__, signal);                \
     end
 
-`define TEST_SUITE_BEGIN(tb_module_name, watchdog_cnt = 10000)               \
+`define TEST_SUITE_BEGIN(tb_module_name, watchdog_cnt = 10000, depth = 0)    \
 `ifndef VERILATOR                                                            \
   int line_num;                                                              \
   int svc_wait_cnt;                                                          \
@@ -181,7 +181,7 @@
                                                                              \
   initial begin                                                              \
     $dumpfile({".build/", `"tb_module_name`", ".vcd"});                      \
-    $dumpvars(0, tb_module_name);                                            \
+    $dumpvars(depth, tb_module_name);                                        \
   end                                                                        \
                                                                              \
 `ifndef VERILATOR                                                            \
