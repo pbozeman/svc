@@ -8,7 +8,7 @@
 module svc_ice40_axi_sram #(
     parameter AXI_ADDR_WIDTH       = 8,
     parameter AXI_DATA_WIDTH       = 16,
-    parameter OUTSTANDING_IO_WIDTH = 2,
+    parameter OUTSTANDING_IO_WIDTH = 3,
     parameter AXI_STRB_WIDTH       = AXI_DATA_WIDTH / 8,
     parameter AXI_ID_WIDTH         = 4,
     parameter LSB                  = $clog2(AXI_DATA_WIDTH) - 3,
