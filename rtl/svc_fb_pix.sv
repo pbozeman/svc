@@ -52,25 +52,17 @@ module svc_fb_pix #(
 
   localparam PIXEL_WIDTH = COLOR_WIDTH * 3;
 
-  typedef enum {
-    STATE_BURST_INIT,
-    STATE_BURST
-  } state_t;
+  logic [BW-1:0] burst_total;
+  logic [AW-1:0] burst_bytes;
 
-  state_t          state;
-  state_t          state_next;
+  logic [BW-1:0] burst_cnt;
+  logic [BW-1:0] burst_cnt_next;
 
-  logic   [BW-1:0] burst_total;
-  logic   [AW-1:0] burst_bytes;
+  logic [AW-1:0] burst_addr;
+  logic [AW-1:0] burst_addr_next;
 
-  logic   [BW-1:0] burst_cnt;
-  logic   [BW-1:0] burst_cnt_next;
-
-  logic   [AW-1:0] burst_addr;
-  logic   [AW-1:0] burst_addr_next;
-
-  logic            m_axi_arvalid_next;
-  logic   [AW-1:0] m_axi_araddr_next;
+  logic          m_axi_arvalid_next;
+  logic [AW-1:0] m_axi_araddr_next;
 
   // if this becomes an issue for timing, pass it in with x_visible since all
   // the values are actually known ahead of time, even if the set we use is
@@ -89,50 +81,35 @@ module svc_fb_pix #(
   assign {m_pix_red, m_pix_grn, m_pix_blu} = m_axi_rdata[PIXEL_WIDTH-1:0];
   assign m_axi_rready = m_pix_ready;
 
-  // state machine for ar channel and burst setup
+  // pipeline the AR setup. Don't wait for rlast before starting the next one.
   always_comb begin
-    state_next         = state;
     m_axi_arvalid_next = m_axi_arvalid && !m_axi_arready;
     m_axi_araddr_next  = m_axi_araddr;
 
     burst_cnt_next     = burst_cnt;
     burst_addr_next    = burst_addr;
 
-    case (state)
-      STATE_BURST_INIT: begin
-        if (m_axi_arvalid || m_axi_arready) begin
-          state_next         = STATE_BURST;
+    if (!m_axi_arvalid || m_axi_arready) begin
+      m_axi_arvalid_next = 1'b1;
+      m_axi_araddr_next  = burst_addr;
 
-          m_axi_arvalid_next = 1'b1;
-          m_axi_araddr_next  = burst_addr;
-
-          burst_cnt_next     = burst_cnt + 1;
-        end
+      if (burst_cnt != burst_total) begin
+        burst_cnt_next  = burst_cnt + 1;
+        burst_addr_next = burst_addr + burst_bytes;
+      end else begin
+        burst_addr_next = 0;
+        burst_cnt_next  = 0;
       end
-
-      STATE_BURST: begin
-        if (m_axi_rvalid && m_axi_rready && m_axi_rlast) begin
-          state_next = STATE_BURST_INIT;
-          if (burst_cnt != burst_total) begin
-            burst_addr_next = burst_addr + burst_bytes;
-          end else begin
-            burst_addr_next = 0;
-            burst_cnt_next  = 0;
-          end
-        end
-      end
-    endcase
+    end
   end
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      state         <= STATE_BURST_INIT;
       burst_cnt     <= 0;
       burst_addr    <= 0;
 
       m_axi_arvalid <= 1'b0;
     end else begin
-      state         <= state_next;
       burst_cnt     <= burst_cnt_next;
       burst_addr    <= burst_addr_next;
 
@@ -144,7 +121,8 @@ module svc_fb_pix #(
     m_axi_araddr <= m_axi_araddr_next;
   end
 
-  `SVC_UNUSED({m_axi_rid, m_axi_rresp, m_axi_rdata});
+  `SVC_UNUSED({m_axi_rid, m_axi_rresp, m_axi_rdata, m_axi_rlast,
+               h_visible[BURST_SHIFT-1:0]});
 
 endmodule
 `endif

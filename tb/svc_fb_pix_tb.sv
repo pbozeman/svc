@@ -17,10 +17,9 @@ module svc_fb_pix_tb;
   parameter H_VISIBLE = 256;
   parameter V_VISIBLE = 3;
 
-  parameter BURST_LATENCY = 2;
+  parameter LATENCY = 2;
   parameter EXPECTED_BURSTS = (H_VISIBLE / 128) * V_VISIBLE;
-  parameter EXPECTED_READS = ((H_VISIBLE * V_VISIBLE) -
-                              (BURST_LATENCY * EXPECTED_BURSTS));
+  parameter EXPECTED_READS = (H_VISIBLE * V_VISIBLE) - LATENCY;
 
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
