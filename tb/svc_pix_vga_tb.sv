@@ -81,14 +81,11 @@ module svc_pix_vga_tb;
     input logic vsync;
 
     for (int i = 0; i < h_visible; i++) begin
-      `TICK(clk);
       if (!vblank) begin
-        `CHECK_TRUE(m_pix_ready);
         `CHECK_EQ(vga_red, 4'h2);
         `CHECK_EQ(vga_grn, 4'h4);
         `CHECK_EQ(vga_blu, 4'h8);
       end else begin
-        `CHECK_FALSE(m_pix_ready);
         `CHECK_EQ(vga_red, 0);
         `CHECK_EQ(vga_grn, 0);
         `CHECK_EQ(vga_blu, 0);
@@ -98,13 +95,10 @@ module svc_pix_vga_tb;
       `CHECK_EQ(vga_vsync, vsync);
       `CHECK_FALSE(vga_error);
 
+      `TICK(clk);
     end
 
     for (int i = 0; i < `VGA_MODE_640x480_H_FRONT_PORCH; i++) begin
-      `TICK(clk);
-
-      `CHECK_FALSE(m_pix_ready);
-
       `CHECK_EQ(vga_red, 0);
       `CHECK_EQ(vga_grn, 0);
       `CHECK_EQ(vga_blu, 0);
@@ -112,12 +106,11 @@ module svc_pix_vga_tb;
       `CHECK_EQ(vga_hsync, 1'b1);
       `CHECK_EQ(vga_vsync, vsync);
       `CHECK_FALSE(vga_error);
+
+      `TICK(clk);
     end
 
     for (int i = 0; i < `VGA_MODE_640x480_H_SYNC_PULSE; i++) begin
-      `TICK(clk);
-      `CHECK_FALSE(m_pix_ready);
-
       `CHECK_EQ(vga_red, 0);
       `CHECK_EQ(vga_grn, 0);
       `CHECK_EQ(vga_blu, 0);
@@ -125,6 +118,8 @@ module svc_pix_vga_tb;
       `CHECK_EQ(vga_hsync, 1'b0);
       `CHECK_EQ(vga_vsync, vsync);
       `CHECK_FALSE(vga_error);
+
+      `TICK(clk);
     end
 
     for (
@@ -132,9 +127,6 @@ module svc_pix_vga_tb;
         i < (`VGA_MODE_640x480_H_WHOLE_LINE - `VGA_MODE_640x480_H_SYNC_END);
         i++
     ) begin
-      `TICK(clk);
-      `CHECK_FALSE(m_pix_ready);
-
       `CHECK_EQ(vga_red, 0);
       `CHECK_EQ(vga_grn, 0);
       `CHECK_EQ(vga_blu, 0);
@@ -142,6 +134,8 @@ module svc_pix_vga_tb;
       `CHECK_EQ(vga_hsync, 1'b1);
       `CHECK_EQ(vga_vsync, vsync);
       `CHECK_FALSE(vga_error);
+
+      `TICK(clk);
     end
   endtask
 
@@ -166,6 +160,8 @@ module svc_pix_vga_tb;
     end
 
     m_pix_valid = 1'b1;
+
+    `CHECK_WAIT_FOR(clk, uut.enabled, 2);
     check_line(1'b0, 1'b1);
   endtask
 
@@ -190,6 +186,8 @@ module svc_pix_vga_tb;
     end
 
     m_pix_valid = 1'b1;
+    `CHECK_WAIT_FOR(clk, uut.enabled, 2);
+
     for (int i = 0; i < `VGA_MODE_640x480_V_VISIBLE; i++) begin
       check_line(1'b0, 1'b1);
     end

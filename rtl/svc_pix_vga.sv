@@ -1,6 +1,8 @@
 `ifndef SVC_PIX_VGA_SV
 `define SVC_PIX_VGA_SV
 
+`include "svc_skidbuf.sv"
+
 //
 // Pixel stream to vga signals
 //
@@ -46,20 +48,77 @@ module svc_pix_vga #(
     output logic [COLOR_WIDTH-1:0] vga_blu,
     output logic                   vga_error
 );
-  logic               enabled;
-  logic               visible;
+  logic                   sb_valid;
+  logic [COLOR_WIDTH-1:0] sb_pix_red;
+  logic [COLOR_WIDTH-1:0] sb_pix_grn;
+  logic [COLOR_WIDTH-1:0] sb_pix_blu;
 
-  logic [H_WIDTH-1:0] x;
-  logic [H_WIDTH-1:0] x_next;
+  logic [    H_WIDTH-1:0] sb_h_visible;
+  logic [    H_WIDTH-1:0] sb_h_sync_start;
+  logic [    H_WIDTH-1:0] sb_h_sync_end;
+  logic [    H_WIDTH-1:0] sb_h_line_end;
 
-  logic [V_WIDTH-1:0] y;
-  logic [V_WIDTH-1:0] y_next;
+  logic [    V_WIDTH-1:0] sb_v_visible;
+  logic [    V_WIDTH-1:0] sb_v_sync_start;
+  logic [    V_WIDTH-1:0] sb_v_sync_end;
+  logic [    V_WIDTH-1:0] sb_v_frame_end;
+
+  logic                   sb_ready;
+
+  logic                   enabled;
+  logic                   visible;
+
+  logic [    H_WIDTH-1:0] x;
+  logic [    H_WIDTH-1:0] x_next;
+
+  logic [    V_WIDTH-1:0] y;
+  logic [    V_WIDTH-1:0] y_next;
+
+  svc_skidbuf #(
+      .DATA_WIDTH(COLOR_WIDTH * 3 + H_WIDTH * 4 + V_WIDTH * 4),
+      .OPT_OUTREG(1)
+  ) svc_skidbuf_i (
+      .clk  (clk),
+      .rst_n(rst_n),
+
+      .i_valid(s_pix_valid),
+      .i_data({
+        s_pix_red,
+        s_pix_grn,
+        s_pix_blu,
+        h_visible,
+        h_sync_start,
+        h_sync_end,
+        h_line_end,
+        v_visible,
+        v_sync_start,
+        v_sync_end,
+        v_frame_end
+      }),
+      .o_ready(s_pix_ready),
+
+      .i_ready(sb_ready),
+      .o_data({
+        sb_pix_red,
+        sb_pix_grn,
+        sb_pix_blu,
+        sb_h_visible,
+        sb_h_sync_start,
+        sb_h_sync_end,
+        sb_h_line_end,
+        sb_v_visible,
+        sb_v_sync_start,
+        sb_v_sync_end,
+        sb_v_frame_end
+      }),
+      .o_valid(sb_valid)
+  );
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       enabled <= 1'b0;
     end else begin
-      enabled <= enabled || s_pix_valid;
+      enabled <= enabled || sb_valid;
     end
   end
 
@@ -67,12 +126,12 @@ module svc_pix_vga #(
     x_next = x;
     y_next = y;
 
-    if (x < h_line_end) begin
+    if (x < sb_h_line_end) begin
       x_next = x + 1;
     end else begin
       x_next = 0;
 
-      if (y < v_frame_end) begin
+      if (y < sb_v_frame_end) begin
         y_next = y + 1;
       end else begin
         y_next = 0;
@@ -92,16 +151,16 @@ module svc_pix_vga #(
     end
   end
 
-  assign visible     = enabled && x < h_visible && y < v_visible;
-  assign s_pix_ready = visible;
+  assign visible   = enabled && x < sb_h_visible && y < sb_v_visible;
+  assign sb_ready  = visible;
 
-  assign vga_hsync   = (x >= h_sync_start && x < h_sync_end) ? 1'b0 : 1'b1;
-  assign vga_vsync   = (y >= v_sync_start && y < v_sync_end) ? 1'b0 : 1'b1;
-  assign vga_red     = visible ? s_pix_red : 0;
-  assign vga_grn     = visible ? s_pix_grn : 0;
-  assign vga_blu     = visible ? s_pix_blu : 0;
+  assign vga_hsync = (x >= sb_h_sync_start && x < sb_h_sync_end) ? 1'b0 : 1'b1;
+  assign vga_vsync = (y >= sb_v_sync_start && y < sb_v_sync_end) ? 1'b0 : 1'b1;
+  assign vga_red   = visible ? sb_pix_red : 0;
+  assign vga_grn   = visible ? sb_pix_grn : 0;
+  assign vga_blu   = visible ? sb_pix_blu : 0;
 
-  assign vga_error   = visible && !s_pix_valid;
+  assign vga_error = visible && !sb_valid;
 
 endmodule
 `endif
