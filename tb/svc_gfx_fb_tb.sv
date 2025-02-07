@@ -15,6 +15,8 @@ module svc_gfx_fb_tb;
   parameter H_VISIBLE = 128;
   parameter V_VISIBLE = 128;
 
+  localparam WORD_SHIFT = $clog2(DW / 8);
+
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
@@ -105,7 +107,7 @@ module svc_gfx_fb_tb;
     m_gfx_pixel = 12'hDAB;
 
     `CHECK_WAIT_FOR(clk, s_axi_awvalid, 1);
-    `CHECK_EQ(s_axi_awaddr, H_VISIBLE);
+    `CHECK_EQ(s_axi_awaddr, H_VISIBLE << WORD_SHIFT);
     `CHECK_EQ(s_axi_awlen, 0);
 
     `CHECK_TRUE(s_axi_wvalid);
