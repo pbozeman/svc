@@ -93,7 +93,7 @@ module svc_fb_pix #(
       m_axi_arvalid_next = 1'b1;
       m_axi_araddr_next  = burst_addr;
 
-      if (burst_cnt != burst_total) begin
+      if (burst_cnt < burst_total) begin
         burst_cnt_next  = burst_cnt + 1;
         burst_addr_next = burst_addr + burst_bytes;
       end else begin
