@@ -62,7 +62,9 @@ module svc_ice40_sram_io_if #(
     output logic                        sram_io_oe_n,
     output logic                        sram_io_ce_n
 );
-  localparam FIFO_ADDR_WIDTH = 1;
+  // We can have 2 read and 2 write in flight and can't stop them once they go
+  // into sram io. Make sure we can buffer them.
+  localparam FIFO_ADDR_WIDTH = 3;
   localparam FIFO_DATA_WIDTH = SRAM_RDATA_WIDTH;
 
   typedef enum {
