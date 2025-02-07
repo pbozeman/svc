@@ -64,10 +64,15 @@ module svc_fb_pix #(
   logic          m_axi_arvalid_next;
   logic [AW-1:0] m_axi_araddr_next;
 
-  // if this becomes an issue for timing, pass it in with x_visible since all
+  // Do the shift/bit-select first so that we don't overflow.
+  //
+  // if this math becomes an issue for timing, pass it in with x_visible since all
   // the values are actually known ahead of time, even if the set we use is
   // dynamic
-  assign burst_total = ((h_visible * v_visible) >> BURST_SHIFT);
+  //
+  // TODO: the optimization described above should be done even if there
+  // aren't timing issues, just to save resources.
+  assign burst_total = (h_visible[H_WIDTH-1:BURST_SHIFT] * v_visible) - 1;
   assign burst_bytes = BURST_LEN << WORD_SHIFT;
 
   // fixed ar values
