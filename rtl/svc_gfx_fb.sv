@@ -45,11 +45,16 @@ module svc_gfx_fb #(
     input  logic [               1:0] m_axi_bresp,
     output logic                      m_axi_bready
 );
+  localparam WORD_SHIFT = $clog2(AXI_STRB_WIDTH);
+
   logic                      aw_ready;
   logic                      w_ready;
 
   logic [AXI_ADDR_WIDTH-1:0] fb_addr;
-  assign fb_addr     = h_visible * s_gfx_y + AXI_ADDR_WIDTH'(s_gfx_x);
+
+  always_comb begin
+    fb_addr = (h_visible * s_gfx_y + AXI_ADDR_WIDTH'(s_gfx_x) << WORD_SHIFT);
+  end
 
   // split the gfx stream into an AW and W stream with a fifo for each
   assign s_gfx_ready = aw_ready && w_ready;
