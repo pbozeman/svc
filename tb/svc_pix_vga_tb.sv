@@ -161,7 +161,8 @@ module svc_pix_vga_tb;
 
     m_pix_valid = 1'b1;
 
-    `CHECK_WAIT_FOR(clk, uut.enabled, 2);
+    `CHECK_WAIT_FOR(clk, uut.visible, 3);
+    `TICK(clk);
     check_line(1'b0, 1'b1);
   endtask
 
@@ -186,7 +187,8 @@ module svc_pix_vga_tb;
     end
 
     m_pix_valid = 1'b1;
-    `CHECK_WAIT_FOR(clk, uut.enabled, 2);
+    `CHECK_WAIT_FOR(clk, uut.visible, 3);
+    `TICK(clk);
 
     for (int i = 0; i < `VGA_MODE_640x480_V_VISIBLE; i++) begin
       check_line(1'b0, 1'b1);
