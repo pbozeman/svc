@@ -89,18 +89,27 @@ module svc_axi_stripe_rd #(
   logic [  NUM_S-1:0][    2:0] m_axi_arsize_next;
   logic [  NUM_S-1:0][    1:0] m_axi_arburst_next;
 
+  logic                        sb_s_rvalid;
+  logic [     IW-1:0]          sb_s_rid;
+  logic [     DW-1:0]          sb_s_rdata;
+  logic [        1:0]          sb_s_rresp;
+  logic                        sb_s_rlast;
   logic                        sb_s_rready;
 
-  logic                        r_active;
-  logic                        r_active_next;
+
+  // TODO: clean up these, and the ar version, signal names
+  logic [S_WIDTH-1:0]          r_idx_start;
+  logic [S_WIDTH-1:0]          r_idx_end;
+
+  logic [S_WIDTH-1:0]          r_idx_offset;
+  logic [S_WIDTH-1:0]          r_idx_offset_next;
 
   logic [S_WIDTH-1:0]          r_idx;
-  logic [S_WIDTH-1:0]          r_idx_next;
-
-  logic [S_WIDTH-1:0]          r_stripe_end_idx;
 
   logic                        fifo_r_w_full;
   logic                        fifo_r_r_empty;
+
+  logic                        r_idx_valid;
 
   //-------------------------------------------------------------------------
   //
@@ -122,8 +131,7 @@ module svc_axi_stripe_rd #(
       .o_valid(sb_s_arvalid)
   );
 
-  assign sb_s_arready = (!r_active && !fifo_r_w_full &&
-                         &(~m_axi_arvalid | m_axi_arready));
+  assign sb_s_arready = (!fifo_r_w_full && &(~m_axi_arvalid | m_axi_arready));
 
   svc_axi_stripe_ax #(
       .NUM_S         (NUM_S),
@@ -181,18 +189,19 @@ module svc_axi_stripe_rd #(
   //
   //-------------------------------------------------------------------------
 
-  // keep track of final idx at the time of ar submission
+  // start/end idx at the time of ar submission
   svc_sync_fifo #(
-      .DATA_WIDTH(S_WIDTH)
+      .DATA_WIDTH(S_WIDTH * 2),
+      .ADDR_WIDTH(1)
   ) svc_sync_fifo_r_i (
       .clk        (clk),
       .rst_n      (rst_n),
       .w_inc      (sb_s_arvalid && sb_s_arready),
-      .w_data     (ar_stripe_end_idx),
+      .w_data     ({ar_stripe_start_idx, ar_stripe_end_idx}),
       .w_full     (fifo_r_w_full),
       .w_half_full(),
-      .r_inc      (s_axi_rvalid && s_axi_rready && s_axi_rlast),
-      .r_data     (r_stripe_end_idx),
+      .r_inc      (sb_s_rvalid && sb_s_rready && sb_s_rlast),
+      .r_data     ({r_idx_start, r_idx_end}),
       .r_empty    (fifo_r_r_empty)
   );
 
@@ -201,53 +210,74 @@ module svc_axi_stripe_rd #(
       .DATA_WIDTH(IW + DW + 2 + 1),
       .OPT_OUTREG(1)
   ) svc_skidbuf_r_i (
-      .clk(clk),
-      .rst_n(rst_n),
-      .i_valid(m_axi_rvalid[r_idx]),
-      .i_data({
-        m_axi_rid[r_idx],
-        m_axi_rdata[r_idx],
-        m_axi_rresp[r_idx],
-        m_axi_rlast[r_idx] && r_idx == r_stripe_end_idx
-      }),
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .i_valid(sb_s_rvalid),
+      .i_data ({sb_s_rid, sb_s_rdata, sb_s_rresp, sb_s_rlast}),
       .o_ready(sb_s_rready),
       .i_ready(s_axi_rready),
-      .o_data({s_axi_rid, s_axi_rdata, s_axi_rresp, s_axi_rlast}),
+      .o_data ({s_axi_rid, s_axi_rdata, s_axi_rresp, s_axi_rlast}),
       .o_valid(s_axi_rvalid)
   );
 
-  // mux s_axi_rready to the subs
+  assign r_idx_valid = !fifo_r_r_empty;
+  assign r_idx       = r_idx_valid ? r_idx_start + r_idx_offset : 0;
+
+  // mux r channel from subs
+  always_comb begin
+    sb_s_rvalid = 1'b0;
+    sb_s_rid    = 0;
+    sb_s_rdata  = 0;
+    sb_s_rresp  = 2'b0;
+    sb_s_rlast  = 1'b0;
+
+    if (r_idx_valid) begin
+      sb_s_rvalid = m_axi_rvalid[r_idx];
+      sb_s_rid    = m_axi_rid[r_idx];
+      sb_s_rdata  = m_axi_rdata[r_idx];
+      sb_s_rresp  = m_axi_rresp[r_idx];
+      sb_s_rlast  = m_axi_rlast[r_idx] && r_idx == r_idx_end;
+    end
+  end
+
+  // mux to subs
   always_comb begin
     m_axi_rready        = '0;
+
+    // This looks wrong in that it seems we should be checking r_idx_valid
+    // here before using r_idx to route a ready signal. However, this is
+    // actually safe because we are "guaranteed" to have a valid r_idx because
+    // the push to the R fifo happened at the same time as sending the AR
+    // signal to the subordinate. That said, I hate this and it give me the
+    // heeby jeebies. But, adding a r_idx_valid check here keeps us from
+    // meeting timing in the demo striped gfx apps. Those are just barely
+    // meeting timing, and is probably a sign that some
+    // pipelining/registration needs happen between this module and the
+    // subordinates. Maybe each should get it's own skidbuf.
+    //
+    // TODO: see above about breaking the combo logic of the ready signal to
+    // the subordinates.
     m_axi_rready[r_idx] = sb_s_rready;
   end
 
   // index management
   always_comb begin
-    r_active_next = r_active;
-    r_idx_next    = r_idx;
+    r_idx_offset_next = r_idx_offset;
 
-    if (s_axi_rvalid && s_axi_rready && s_axi_rlast) begin
-      r_active_next = 1'b0;
-    end
-
-    if (sb_s_arvalid && sb_s_arready) begin
-      r_active_next = 1'b1;
-      r_idx_next    = ar_stripe_start_idx;
-    end
-
-    if (m_axi_rvalid[r_idx] && m_axi_rready[r_idx]) begin
-      r_idx_next = r_idx + 1;
+    if (sb_s_rvalid && sb_s_rready) begin
+      if (sb_s_rlast) begin
+        r_idx_offset_next = 0;
+      end else begin
+        r_idx_offset_next = r_idx_offset + 1;
+      end
     end
   end
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      r_active <= 1'b0;
-      r_idx    <= 0;
+      r_idx_offset <= 0;
     end else begin
-      r_idx    <= r_idx_next;
-      r_active <= r_active_next;
+      r_idx_offset <= r_idx_offset_next;
     end
   end
 
