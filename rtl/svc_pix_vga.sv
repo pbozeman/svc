@@ -151,16 +151,19 @@ module svc_pix_vga #(
     end
   end
 
-  assign visible   = enabled && x < sb_h_visible && y < sb_v_visible;
-  assign sb_ready  = visible;
+  assign visible = enabled && x < sb_h_visible && y < sb_v_visible;
 
-  assign vga_hsync = (x >= sb_h_sync_start && x < sb_h_sync_end) ? 1'b0 : 1'b1;
-  assign vga_vsync = (y >= sb_v_sync_start && y < sb_v_sync_end) ? 1'b0 : 1'b1;
-  assign vga_red   = visible ? sb_pix_red : 0;
-  assign vga_grn   = visible ? sb_pix_grn : 0;
-  assign vga_blu   = visible ? sb_pix_blu : 0;
+  always_ff @(posedge clk) begin
+    sb_ready  <= visible;
 
-  assign vga_error = visible && !sb_valid;
+    vga_hsync <= (x >= sb_h_sync_start && x < sb_h_sync_end) ? 1'b0 : 1'b1;
+    vga_vsync <= (y >= sb_v_sync_start && y < sb_v_sync_end) ? 1'b0 : 1'b1;
+    vga_red   <= visible ? sb_pix_red : 0;
+    vga_grn   <= visible ? sb_pix_grn : 0;
+    vga_blu   <= visible ? sb_pix_blu : 0;
+
+    vga_error <= visible && !sb_valid;
+  end
 
 endmodule
 `endif
