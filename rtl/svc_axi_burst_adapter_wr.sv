@@ -3,6 +3,7 @@
 
 `include "svc.sv"
 `include "svc_axi_burst_iter_ax.sv"
+`include "svc_skidbuf.sv"
 `include "svc_sync_fifo.sv"
 `include "svc_unused.sv"
 
@@ -91,6 +92,11 @@ module svc_axi_burst_adapter_wr #(
   logic          fifo_b_w_full;
   logic          fifo_b_r_empty;
 
+  logic          sb_m_bvalid;
+  logic [IW-1:0] sb_m_bid;
+  logic [   1:0] sb_m_bresp;
+  logic          sb_m_bready;
+
   //-------------------------------------------------------------------------
   //
   // AW channel
@@ -150,6 +156,20 @@ module svc_axi_burst_adapter_wr #(
   // B channel
   //
   //-------------------------------------------------------------------------
+  svc_skidbuf #(
+      .DATA_WIDTH(AXI_ID_WIDTH + 2)
+  ) svc_skidbuf_b_i (
+      .clk  (clk),
+      .rst_n(rst_n),
+
+      .i_valid(m_axi_bvalid),
+      .i_data ({m_axi_bid, m_axi_bresp}),
+      .o_ready(m_axi_bready),
+
+      .i_ready(sb_m_bready),
+      .o_data ({sb_m_bid, sb_m_bresp}),
+      .o_valid(sb_m_bvalid)
+  );
 
   // last io tracking
   svc_sync_fifo #(
@@ -162,22 +182,22 @@ module svc_axi_burst_adapter_wr #(
       .w_data     (split_last),
       .w_full     (fifo_b_w_full),
       .w_half_full(),
-      .r_inc      (m_axi_bvalid && m_axi_bready),
+      .r_inc      (sb_m_bvalid && sb_m_bready),
       .r_data     (b_last),
       .r_empty    (fifo_b_r_empty)
   );
 
-  assign m_axi_bready = !fifo_b_r_empty && (!s_axi_bvalid || s_axi_bready);
+  assign sb_m_bready = !fifo_b_r_empty && (!s_axi_bvalid || s_axi_bready);
 
   always_comb begin
     s_axi_bvalid_next = s_axi_bvalid && !s_axi_bready;
     s_axi_bid_next    = s_axi_bid;
     s_axi_bresp_next  = s_axi_bresp;
 
-    if (m_axi_bvalid && m_axi_bready && b_last) begin
+    if (sb_m_bvalid && sb_m_bready && b_last) begin
       s_axi_bvalid_next = 1'b1;
-      s_axi_bid_next    = m_axi_bid;
-      s_axi_bresp_next  = m_axi_bresp;
+      s_axi_bid_next    = sb_m_bid;
+      s_axi_bresp_next  = sb_m_bresp;
     end
   end
 
