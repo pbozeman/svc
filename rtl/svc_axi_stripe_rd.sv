@@ -96,6 +96,12 @@ module svc_axi_stripe_rd #(
   logic                        sb_s_rlast;
   logic                        sb_s_rready;
 
+  logic [  NUM_S-1:0]          sb_m_rvalid;
+  logic [  NUM_S-1:0][ IW-1:0] sb_m_rid;
+  logic [  NUM_S-1:0][ DW-1:0] sb_m_rdata;
+  logic [  NUM_S-1:0][    1:0] sb_m_rresp;
+  logic [  NUM_S-1:0]          sb_m_rlast;
+  logic [  NUM_S-1:0]          sb_m_rready;
 
   // TODO: clean up these, and the ar version, signal names
   logic [S_WIDTH-1:0]          r_idx_start;
@@ -205,11 +211,11 @@ module svc_axi_stripe_rd #(
       .r_empty    (fifo_r_r_empty)
   );
 
-  // skid buf, with muxing to the subs
+  // s side skid buf
   svc_skidbuf #(
       .DATA_WIDTH(IW + DW + 2 + 1),
       .OPT_OUTREG(1)
-  ) svc_skidbuf_r_i (
+  ) svc_skidbuf_s_r_i (
       .clk    (clk),
       .rst_n  (rst_n),
       .i_valid(sb_s_rvalid),
@@ -219,6 +225,24 @@ module svc_axi_stripe_rd #(
       .o_data ({s_axi_rid, s_axi_rdata, s_axi_rresp, s_axi_rlast}),
       .o_valid(s_axi_rvalid)
   );
+
+  // m side skidbufs
+  for (genvar i = 0; i < NUM_S; i++) begin : gen_r_sb
+    svc_skidbuf #(
+        .DATA_WIDTH(IW + DW + 2 + 1)
+    ) svc_skidbuf_m_r_i (
+        .clk  (clk),
+        .rst_n(rst_n),
+
+        .i_valid(m_axi_rvalid[i]),
+        .i_data({m_axi_rid[i], m_axi_rdata[i], m_axi_rresp[i], m_axi_rlast[i]}),
+        .o_ready(m_axi_rready[i]),
+
+        .i_ready(sb_m_rready[i]),
+        .o_data ({sb_m_rid[i], sb_m_rdata[i], sb_m_rresp[i], sb_m_rlast[i]}),
+        .o_valid(sb_m_rvalid[i])
+    );
+  end
 
   assign r_idx_valid = !fifo_r_r_empty;
   assign r_idx       = r_idx_valid ? r_idx_start + r_idx_offset : 0;
@@ -232,32 +256,21 @@ module svc_axi_stripe_rd #(
     sb_s_rlast  = 1'b0;
 
     if (r_idx_valid) begin
-      sb_s_rvalid = m_axi_rvalid[r_idx];
-      sb_s_rid    = m_axi_rid[r_idx];
-      sb_s_rdata  = m_axi_rdata[r_idx];
-      sb_s_rresp  = m_axi_rresp[r_idx];
-      sb_s_rlast  = m_axi_rlast[r_idx] && r_idx == r_idx_end;
+      sb_s_rvalid = sb_m_rvalid[r_idx];
+      sb_s_rid    = sb_m_rid[r_idx];
+      sb_s_rdata  = sb_m_rdata[r_idx];
+      sb_s_rresp  = sb_m_rresp[r_idx];
+      sb_s_rlast  = sb_m_rlast[r_idx] && r_idx == r_idx_end;
     end
   end
 
   // mux to subs
   always_comb begin
-    m_axi_rready        = '0;
+    sb_m_rready = '0;
 
-    // This looks wrong in that it seems we should be checking r_idx_valid
-    // here before using r_idx to route a ready signal. However, this is
-    // actually safe because we are "guaranteed" to have a valid r_idx because
-    // the push to the R fifo happened at the same time as sending the AR
-    // signal to the subordinate. That said, I hate this and it give me the
-    // heeby jeebies. But, adding a r_idx_valid check here keeps us from
-    // meeting timing in the demo striped gfx apps. Those are just barely
-    // meeting timing, and is probably a sign that some
-    // pipelining/registration needs happen between this module and the
-    // subordinates. Maybe each should get it's own skidbuf.
-    //
-    // TODO: see above about breaking the combo logic of the ready signal to
-    // the subordinates.
-    m_axi_rready[r_idx] = sb_s_rready;
+    if (r_idx_valid) begin
+      sb_m_rready[r_idx] = sb_s_rready;
+    end
   end
 
   // index management
