@@ -242,6 +242,7 @@ module svc_axi_mem #(
 
           if (s_axi_wlast) begin
             if (!s_axi_bvalid || s_axi_bready) begin
+              sb_s_awready      = 1'b1;
               write_state_next  = WRITE_STATE_IDLE;
               s_axi_bvalid_next = 1'b1;
               s_axi_bid_next    = w_id;
