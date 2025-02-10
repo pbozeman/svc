@@ -91,11 +91,7 @@ module svc_ice40_sram_io #(
   end
 
   always @(negedge clk) begin
-    if (~rst_n) begin
-      pad_we_n_p2 <= 1'b1;
-    end else begin
-      pad_we_n_p2 <= pad_we_n_p1;
-    end
+    pad_we_n_p2 <= pad_we_n_p1;
   end
 
   assign pad_we_n_ddr = {pad_we_n_p2, pad_we_n_p1};
@@ -136,11 +132,7 @@ module svc_ice40_sram_io #(
   end
 
   always @(negedge clk) begin
-    if (~rst_n) begin
-      pad_oe_n_p2 <= 1'b1;
-    end else begin
-      pad_oe_n_p2 <= pad_oe_n_p1;
-    end
+    pad_oe_n_p2 <= pad_oe_n_p1;
   end
 
   assign pad_oe_n_ddr = {pad_oe_n_p2, pad_oe_n_p1};
