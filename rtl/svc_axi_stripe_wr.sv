@@ -108,6 +108,9 @@ module svc_axi_stripe_wr #(
   logic [         STRBW-1:0]            sb_s_wstrb;
   logic                                 sb_s_wready;
 
+  logic [       S_WIDTH-1:0]            w_idx_start;
+  logic [               7:0]            w_awlen;
+
   logic [       S_WIDTH-1:0]            w_idx;
   logic [       S_WIDTH-1:0]            w_idx_next;
 
@@ -135,6 +138,9 @@ module svc_axi_stripe_wr #(
   logic [       S_WIDTH-1:0]            b_stripe_end_idx;
   logic [         NUM_S-1:0]            b_stripe_valid;
 
+  logic                                 fifo_w_w_full;
+  logic                                 fifo_w_r_empty;
+
   logic                                 fifo_b_w_full;
   logic                                 fifo_b_r_empty;
 
@@ -158,7 +164,7 @@ module svc_axi_stripe_wr #(
       .o_valid(sb_s_awvalid)
   );
 
-  assign sb_s_awready = (!w_active && !fifo_b_w_full &&
+  assign sb_s_awready = (!fifo_w_w_full && !fifo_b_w_full &&
                          &(~m_axi_awvalid | m_axi_awready));
 
   svc_axi_stripe_ax #(
@@ -216,6 +222,23 @@ module svc_axi_stripe_wr #(
   // W channel
   //
   //-------------------------------------------------------------------------
+
+  logic fifo_w_r_inc;
+
+  svc_sync_fifo #(
+      .DATA_WIDTH(S_WIDTH + 8)
+  ) svc_sync_fifo_w_i (
+      .clk        (clk),
+      .rst_n      (rst_n),
+      .w_inc      (sb_s_awvalid && sb_s_awready),
+      .w_data     ({aw_stripe_start_idx, sb_s_awlen}),
+      .w_full     (fifo_w_w_full),
+      .w_half_full(),
+      .r_inc      (fifo_w_r_inc),
+      .r_data     ({w_idx_start, w_awlen}),
+      .r_empty    (fifo_w_r_empty)
+  );
+
   svc_skidbuf #(
       .DATA_WIDTH(DW + 2)
   ) svc_skidbuf_w_i (
@@ -240,39 +263,35 @@ module svc_axi_stripe_wr #(
     w_remaining_next  = w_remaining;
     w_active_next     = w_active;
 
-    // start of burst
-    if (sb_s_awready && sb_s_awvalid) begin
-      w_idx_next       = aw_stripe_start_idx;
-      w_remaining_next = sb_s_awlen;
-      w_active_next    = 1'b1;
+    fifo_w_r_inc      = 1'b0;
 
-      // w rose before or with aw, so we need to use the new values
-      if (sb_s_wvalid) begin
-        if (!m_axi_wvalid[aw_stripe_start_idx] ||
-            m_axi_wready[aw_stripe_start_idx]) begin
+    if (!w_active) begin
+      if (!fifo_w_r_empty) begin
+        fifo_w_r_inc     = 1'b1;
+        w_active_next    = 1'b1;
+        w_remaining_next = w_awlen;
+        w_idx_next       = w_idx_start;
 
-          sb_s_wready = 1'b1;
+        if (sb_s_wvalid) begin
+          if (!m_axi_wvalid[w_idx] || m_axi_wready[w_idx]) begin
+            sb_s_wready                    = 1'b1;
 
-          m_axi_wvalid_next[aw_stripe_start_idx] = 1'b1;
-          m_axi_wdata_next[aw_stripe_start_idx] = sb_s_wdata;
-          m_axi_wstrb_next[aw_stripe_start_idx] = sb_s_wstrb;
-          m_axi_wlast_next[aw_stripe_start_idx] = (sb_s_awlen < NUM_S ? '1 :
-                                                   '0);
+            m_axi_wvalid_next[w_idx_start] = 1'b1;
+            m_axi_wdata_next[w_idx_start]  = sb_s_wdata;
+            m_axi_wstrb_next[w_idx_start]  = sb_s_wstrb;
+            m_axi_wlast_next[w_idx_start]  = w_remaining_next < NUM_S ? '1 : '0;
 
-          // since NUM_S is a power of 2, we don't have to check against
-          // a max value, we can just wrap
-          w_idx_next = aw_stripe_start_idx + 1;
-
-          if (sb_s_awlen == 0) begin
-            w_active_next = 1'b0;
-          end else begin
-            w_remaining_next = sb_s_awlen - 1;
+            w_idx_next                     = w_idx_start + 1;
+            if (w_awlen == 0) begin
+              w_active_next = 1'b0;
+            end else begin
+              w_remaining_next = w_awlen - 1;
+            end
           end
         end
       end
     end else begin
-      // we're mid burst so we use the w values
-      if (sb_s_wvalid && w_active) begin
+      if (sb_s_wvalid) begin
         if (!m_axi_wvalid[w_idx] || m_axi_wready[w_idx]) begin
           sb_s_wready              = 1'b1;
 

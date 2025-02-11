@@ -351,7 +351,7 @@ module svc_axi_stripe_wr_tb;
     m_axi_wstrb   = '1;
     m_axi_wlast   = 1'b0;
 
-    `CHECK_WAIT_FOR(clk, m_axi_bvalid, 3);
+    `CHECK_WAIT_FOR(clk, m_axi_bvalid, 4);
 
     // Wait awhile so that we can measure signal counts end ensure
     // there were no stray signals
@@ -389,7 +389,7 @@ module svc_axi_stripe_wr_tb;
     m_axi_wstrb   = '1;
     m_axi_wlast   = 1'b0;
 
-    `CHECK_WAIT_FOR(clk, m_axi_bvalid, 3);
+    `CHECK_WAIT_FOR(clk, m_axi_bvalid, 4);
 
     // Wait awhile so that we can measure signal counts end ensure
     // there were no stray signals
@@ -432,11 +432,12 @@ module svc_axi_stripe_wr_tb;
       m_axi_wvalid  = 1'b1;
       m_axi_wdata   = data + DW'(i);
       `TICK(clk);
-      `CHECK_WAIT_FOR(clk, m_axi_awvalid && m_axi_awready);
+      `CHECK_WAIT_FOR(clk, m_axi_wvalid && m_axi_wready);
     end
     m_axi_awvalid = 1'b0;
 
-    `CHECK_LTE($time - time_start, 16 * 10);
+    // one cycle of latency to start the writes
+    `CHECK_LTE($time - time_start, 16 * 10 + 10);
     `CHECK_WAIT_FOR(clk, m_axi_bvalid && m_axi_bready);
 
     // This is because of the setup latency. Even though we can submit every
