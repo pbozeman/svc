@@ -158,9 +158,26 @@ module svc_model_sram #(
   always @(negedge we_n) begin
     if (!ce_n) begin
       we_n_initial_addr <= addr;
-      we_n_initial_data <= data_io;
       writes_active     <= 1'b1;
     end
+  end
+
+  always begin
+    if (!we_n) begin
+      if (we_n_initial_data === 'x || we_n_initial_data === 'z) begin
+        // verilator lint_off BLKSEQ
+        we_n_initial_data = data_io;
+        // verilator lint_on BLKSEQ
+      end else begin
+        if (we_n_initial_data !== data_io && rst_n) begin
+          $display("data changed during write %h %h", we_n_initial_data,
+                   data_io);
+          $fatal;
+        end
+      end
+    end
+
+    #0.01;
   end
 
   always @(posedge we_n) begin
@@ -170,10 +187,7 @@ module svc_model_sram #(
         $fatal;
       end
 
-      if (we_n_initial_data !== data_io && rst_n) begin
-        $display("data changed during write");
-        $fatal;
-      end
+      we_n_initial_data <= 'x;
     end
   end
 endmodule
