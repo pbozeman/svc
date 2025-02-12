@@ -95,13 +95,13 @@ module svc_model_sram #(
       end
     end
 
-    #1;
+    #0.01;
   end
 
   // Write operation
   logic write_enable = 0;
 
-  always @(we_n, ce_n, addr) begin
+  always @(*) begin
     // verilator lint_off SYNCASYNCNET
     // verilator lint_off BLKSEQ
     if (!we_n && !ce_n) begin
@@ -133,14 +133,16 @@ module svc_model_sram #(
   logic                  writes_active = 0;
 
   always @(negedge oe_n) begin
-    // Do not add rst_n to this check, we don't ever want this to happen as it
-    // can damage the hardwaare
-    if (data_io !== {DATA_WIDTH{1'bz}}) begin
-      $display("oe_n low while fpga driving bus");
-      $fatal;
+    if (!ce_n) begin
+      // Do not add rst_n to this check, we don't ever want this to happen as it
+      // can damage the hardwaare
+      if (data_io !== {DATA_WIDTH{1'bz}}) begin
+        $display("oe_n low while fpga driving bus");
+        $fatal;
+      end
+      oe_n_initial_addr <= addr;
+      reads_active      <= 1'b1;
     end
-    oe_n_initial_addr <= addr;
-    reads_active      <= 1'b1;
   end
 
   always @(posedge oe_n) begin
@@ -154,9 +156,11 @@ module svc_model_sram #(
   end
 
   always @(negedge we_n) begin
-    we_n_initial_addr <= addr;
-    we_n_initial_data <= data_io;
-    writes_active     <= 1'b1;
+    if (!ce_n) begin
+      we_n_initial_addr <= addr;
+      we_n_initial_data <= data_io;
+      writes_active     <= 1'b1;
+    end
   end
 
   always @(posedge we_n) begin
