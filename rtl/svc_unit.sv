@@ -115,14 +115,15 @@
     `CHECK_MSG_2("GTE", `__FILE__, `__LINE__, a, b);                          \
   end
 
-`define TEST_CLK_NS(clk, ns)                                                 \
+`define TEST_CLK_NS(clk, ns, shift = 0)                                      \
 `ifndef SVC_CLK                                                              \
 `define SVC_CLK clk                                                          \
 `endif                                                                       \
   logic clk;                                                                 \
   initial begin                                                              \
     clk = 0;                                                                 \
-    forever #(ns / 2) clk = ~clk;                                            \
+    if (shift) #(ns / 2.0);                                                  \
+    forever #(ns / 2.0) clk = ~clk;                                          \
   end                                                                        \
 `ifndef VERILATOR                                                            \
   always_ff @(posedge clk) svc_tiny_ticked = 1'b0;                           \
