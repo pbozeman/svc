@@ -129,9 +129,6 @@ module svc_model_sram #(
   logic [ADDR_WIDTH-1:0] we_n_initial_addr;
   logic [DATA_WIDTH-1:0] we_n_initial_data;
 
-  logic                  reads_active = 0;
-  logic                  writes_active = 0;
-
   always @(negedge oe_n) begin
     if (!ce_n) begin
       // Do not add rst_n to this check, we don't ever want this to happen as it
@@ -141,24 +138,23 @@ module svc_model_sram #(
         $fatal;
       end
       oe_n_initial_addr <= addr;
-      reads_active      <= 1'b1;
     end
   end
 
-  always @(posedge oe_n) begin
-    if (reads_active) begin
+  always begin
+    if (!oe_n) begin
       if (oe_n_initial_addr != addr && rst_n) begin
         $display("addr changed during read, old: %h new: %h",
                  oe_n_initial_addr, addr);
         $fatal;
       end
     end
+    #0.01;
   end
 
   always @(negedge we_n) begin
     if (!ce_n) begin
       we_n_initial_addr <= addr;
-      writes_active     <= 1'b1;
     end
   end
 
@@ -181,8 +177,11 @@ module svc_model_sram #(
   end
 
   always @(posedge we_n) begin
-    if (writes_active) begin
-      if (we_n_initial_addr !== addr && rst_n) begin
+    if (we_n_initial_addr !== addr && rst_n) begin
+      $display("addr changed during write");
+      $fatal;
+    end
+
     // ensure data hold. Note: the sram chip does not require a hold time,
     // but we want to make sure the fpga is actually still driving the
     // signal at the time we_n goes high.
@@ -190,12 +189,10 @@ module svc_model_sram #(
       if (data_io === 'z && rst_n) begin
         $display("data not held past we_n");
         $fatal;
-        if (data_io === 'z && rst_n) begin
-        end
       end
-
-      we_n_initial_data <= 'x;
     end
+
+    we_n_initial_data <= 'x;
   end
 endmodule
 `endif
