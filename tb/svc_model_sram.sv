@@ -183,8 +183,15 @@ module svc_model_sram #(
   always @(posedge we_n) begin
     if (writes_active) begin
       if (we_n_initial_addr !== addr && rst_n) begin
-        $display("addr changed during write");
+    // ensure data hold. Note: the sram chip does not require a hold time,
+    // but we want to make sure the fpga is actually still driving the
+    // signal at the time we_n goes high.
+    #1 begin
+      if (data_io === 'z && rst_n) begin
+        $display("data not held past we_n");
         $fatal;
+        if (data_io === 'z && rst_n) begin
+        end
       end
 
       we_n_initial_data <= 'x;
