@@ -2,6 +2,9 @@ ifndef SV_MK
 
 MAKEFLAGS += -I$(dir $(realpath $(lastword $(MAKEFILE_LIST))))/..
 
+# see comment in svc.sv for why may want to allow default nets (tldr: vivado)
+SYNTH_DEFS := -DSVC_DEF_NET_NONE
+
 include mk/formal.mk
 include mk/format.mk
 include mk/iverilog.mk
