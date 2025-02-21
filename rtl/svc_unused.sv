@@ -13,6 +13,7 @@
 //
 //   `SVC_UNUSED({clk, rst_n, s_axil_araddr[LSB-1:0]});
 
+`ifdef VERILATOR
 module svc_unused (
     // verilator lint_off: UNUSEDSIGNAL
     input logic unused
@@ -24,5 +25,8 @@ endmodule
   svc_unused svc_unused_i (                           \
     .unused(& signal)                                 \
   );
+`else
+`define SVC_UNUSED(signal)
+`endif
 
 `endif
