@@ -5,6 +5,12 @@
 `include "svc_unused.sv"
 
 // Sends a frame buffer as a pixel stream
+//
+// TODO: add x/y to the stream, or eol/eof like in axi video streams. This is
+// because if there is ever a dropped pixel, the consumer of the pixel stream
+// has no idea how many pixels were dropped and will resync to the wrong spot.
+// In the pattern gen demo, this results in the color bars shifting out of
+// phase with the display.
 module svc_fb_pix #(
     parameter H_WIDTH        = 12,
     parameter V_WIDTH        = 12,
