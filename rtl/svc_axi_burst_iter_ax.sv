@@ -121,12 +121,14 @@ module svc_axi_burst_iter_ax #(
             burst_len_next = burst_len - 1;
             m_last_next    = burst_len_next == 0;
             if (burst_type != 2'b00) begin
-              m_addr_next = m_addr + (1 << burst_size);
+              m_addr_next = m_addr + (AXI_ADDR_WIDTH'(1'b1) << burst_size);
             end
           end
         end
       end
 
+      default: begin
+      end
     endcase
   end
 
