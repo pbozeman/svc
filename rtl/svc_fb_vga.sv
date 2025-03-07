@@ -10,7 +10,7 @@ module svc_fb_vga #(
     parameter H_WIDTH        = 12,
     parameter V_WIDTH        = 12,
     parameter COLOR_WIDTH    = 4,
-    parameter AXI_ADDR_WIDTH = 12,
+    parameter AXI_ADDR_WIDTH = 16,
     parameter AXI_DATA_WIDTH = 16,
     parameter AXI_ID_WIDTH   = 4
 ) (
@@ -55,17 +55,28 @@ module svc_fb_vga #(
     output logic                   vga_vsync,
     output logic                   vga_error
 );
-  logic                   fb_pix_valid;
-  logic [COLOR_WIDTH-1:0] fb_pix_red;
-  logic [COLOR_WIDTH-1:0] fb_pix_grn;
-  logic [COLOR_WIDTH-1:0] fb_pix_blu;
-  logic                   fb_pix_ready;
+  localparam AW = AXI_ADDR_WIDTH;
+  localparam CW = COLOR_WIDTH;
+  localparam HW = H_WIDTH;
+  localparam VW = V_WIDTH;
 
-  logic                   vga_pix_valid;
-  logic [COLOR_WIDTH-1:0] vga_pix_red;
-  logic [COLOR_WIDTH-1:0] vga_pix_grn;
-  logic [COLOR_WIDTH-1:0] vga_pix_blu;
-  logic                   vga_pix_ready;
+  logic          fb_pix_valid;
+  logic [CW-1:0] fb_pix_red;
+  logic [CW-1:0] fb_pix_grn;
+  logic [CW-1:0] fb_pix_blu;
+  // verilator lint_off UNUSEDSIGNAL
+  // FIXME: use these and remove pragam
+  logic [HW-1:0] fb_pix_x;
+  logic [VW-1:0] fb_pix_y;
+  logic [AW-1:0] fb_pix_addr;
+  // verilator lint_on UNUSEDSIGNAL
+  logic          fb_pix_ready;
+
+  logic          vga_pix_valid;
+  logic [CW-1:0] vga_pix_red;
+  logic [CW-1:0] vga_pix_grn;
+  logic [CW-1:0] vga_pix_blu;
+  logic          vga_pix_ready;
 
   svc_fb_pix #(
       .H_WIDTH       (H_WIDTH),
@@ -82,6 +93,9 @@ module svc_fb_vga #(
       .m_pix_grn    (fb_pix_grn),
       .m_pix_blu    (fb_pix_blu),
       .m_pix_ready  (fb_pix_ready),
+      .m_pix_x      (fb_pix_x),
+      .m_pix_y      (fb_pix_y),
+      .m_pix_addr   (fb_pix_addr),
       .h_visible    (h_visible),
       .v_visible    (v_visible),
       .m_axi_arvalid(m_axi_arvalid),

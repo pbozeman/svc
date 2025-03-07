@@ -2,6 +2,7 @@
 `define SVC_FB_PIX_SV
 
 `include "svc.sv"
+`include "svc_sync_fifo_n.sv"
 `include "svc_unused.sv"
 
 // Sends a frame buffer as a pixel stream
@@ -13,21 +14,25 @@
 // phase with the display.
 
 module svc_fb_pix #(
-    parameter H_WIDTH        = 12,
-    parameter V_WIDTH        = 12,
-    parameter COLOR_WIDTH    = 4,
-    parameter AXI_ADDR_WIDTH = 12,
-    parameter AXI_DATA_WIDTH = 16,
-    parameter AXI_ID_WIDTH   = 4
+    parameter H_WIDTH         = 12,
+    parameter V_WIDTH         = 12,
+    parameter COLOR_WIDTH     = 4,
+    parameter AXI_ADDR_WIDTH  = 16,
+    parameter AXI_DATA_WIDTH  = 16,
+    parameter AXI_ID_WIDTH    = 4,
+    parameter FIFO_ADDR_WIDTH = 3
 ) (
     input logic clk,
     input logic rst_n,
 
-    output logic                   m_pix_valid,
-    output logic [COLOR_WIDTH-1:0] m_pix_red,
-    output logic [COLOR_WIDTH-1:0] m_pix_grn,
-    output logic [COLOR_WIDTH-1:0] m_pix_blu,
-    input  logic                   m_pix_ready,
+    output logic                      m_pix_valid,
+    output logic [   COLOR_WIDTH-1:0] m_pix_red,
+    output logic [   COLOR_WIDTH-1:0] m_pix_grn,
+    output logic [   COLOR_WIDTH-1:0] m_pix_blu,
+    output logic [       H_WIDTH-1:0] m_pix_x,
+    output logic [       V_WIDTH-1:0] m_pix_y,
+    output logic [AXI_ADDR_WIDTH-1:0] m_pix_addr,
+    input  logic                      m_pix_ready,
 
     input logic [H_WIDTH-1:0] h_visible,
     input logic [V_WIDTH-1:0] v_visible,
@@ -60,6 +65,8 @@ module svc_fb_pix #(
   logic          m_axi_arvalid_next;
   logic [AW-1:0] m_axi_araddr_next;
 
+  logic          fifo_ready;
+
   // fixed ar values
   assign m_axi_arid                        = 0;
   assign m_axi_arsize                      = `SVC_MAX_AXSIZE(AXI_DATA_WIDTH);
@@ -68,7 +75,7 @@ module svc_fb_pix #(
 
   // directly connect the r channel signals to the pixel stream
   assign m_pix_valid                       = m_axi_rvalid;
-  assign m_axi_rready                      = m_pix_ready;
+  assign m_axi_rready                      = m_pix_ready && fifo_ready;
   assign {m_pix_red, m_pix_grn, m_pix_blu} = m_axi_rdata[PIXEL_WIDTH-1:0];
 
   always_comb begin
@@ -115,6 +122,20 @@ module svc_fb_pix #(
       m_axi_araddr  <= m_axi_araddr_next;
     end
   end
+
+  svc_sync_fifo_n #(
+      .DATA_WIDTH(HW + VW + AW),
+      .ADDR_WIDTH(FIFO_ADDR_WIDTH)
+  ) svc_sync_fifo_i (
+      .clk      (clk),
+      .rst_n    (rst_n),
+      .w_inc    (m_axi_arvalid && m_axi_arready),
+      .w_data   ({x, y, m_axi_araddr}),
+      .w_full_n (fifo_ready),
+      .r_inc    (m_pix_valid && m_pix_ready),
+      .r_empty_n(),
+      .r_data   ({m_pix_x, m_pix_y, m_pix_addr})
+  );
 
   `SVC_UNUSED({m_axi_rid, m_axi_rresp, m_axi_rdata, m_axi_rlast});
 
