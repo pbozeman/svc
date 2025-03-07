@@ -8,6 +8,10 @@
 - `make lint`: Lint all code with Verilator
 - `make format`: Format all code to match style guidelines
 
+## Important Workflow Notes
+- ALWAYS run `make format` after making any code changes
+- Run `make lint` to check for linting issues before committing
+
 ## Running Single Tests
 - Single testbench: `make <module_name>_tb` (e.g., `make svc_arbiter_tb`)
 - Single formal check: `make <module_name>_f` (e.g., `make svc_arbiter_f`)
