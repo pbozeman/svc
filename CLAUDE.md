@@ -11,6 +11,7 @@
 ## Important Workflow Notes
 - ALWAYS run `make format` after making any code changes
 - Run `make lint` to check for linting issues before committing
+- Add [🤖] emoji to commit message tags when commits are Claude-generated
 
 ## Running Single Tests
 - Single testbench: `make <module_name>_tb` (e.g., `make svc_arbiter_tb`)
