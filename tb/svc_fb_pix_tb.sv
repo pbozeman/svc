@@ -3,6 +3,8 @@
 `include "svc_axi_mem.sv"
 `include "svc_fb_pix.sv"
 
+// TODO: test x/y/addr returns from m_pix
+
 // verilator lint_off: UNUSEDSIGNAL
 module svc_fb_pix_tb;
   parameter AW = 20;
@@ -41,6 +43,9 @@ module svc_fb_pix_tb;
   logic [COLOR_WIDTH-1:0] s_pix_red;
   logic [COLOR_WIDTH-1:0] s_pix_grn;
   logic [COLOR_WIDTH-1:0] s_pix_blu;
+  logic [    H_WIDTH-1:0] s_pix_x;
+  logic [    V_WIDTH-1:0] s_pix_y;
+  logic [         AW-1:0] s_pix_addr;
   logic                   s_pix_ready;
 
   logic [    H_WIDTH-1:0] h_visible = H_VISIBLE;
@@ -65,6 +70,9 @@ module svc_fb_pix_tb;
       .m_pix_grn    (s_pix_grn),
       .m_pix_blu    (s_pix_blu),
       .m_pix_ready  (s_pix_ready),
+      .m_pix_x      (s_pix_x),
+      .m_pix_y      (s_pix_y),
+      .m_pix_addr   (s_pix_addr),
       .h_visible    (h_visible),
       .v_visible    (v_visible),
       .m_axi_arvalid(s_axi_arvalid),
