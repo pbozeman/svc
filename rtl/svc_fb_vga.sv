@@ -64,18 +64,18 @@ module svc_fb_vga #(
   logic [CW-1:0] fb_pix_red;
   logic [CW-1:0] fb_pix_grn;
   logic [CW-1:0] fb_pix_blu;
-  // verilator lint_off UNUSEDSIGNAL
-  // FIXME: use these and remove pragam
   logic [HW-1:0] fb_pix_x;
   logic [VW-1:0] fb_pix_y;
   logic [AW-1:0] fb_pix_addr;
-  // verilator lint_on UNUSEDSIGNAL
   logic          fb_pix_ready;
 
   logic          vga_pix_valid;
   logic [CW-1:0] vga_pix_red;
   logic [CW-1:0] vga_pix_grn;
   logic [CW-1:0] vga_pix_blu;
+  logic [HW-1:0] vga_pix_x;
+  logic [VW-1:0] vga_pix_y;
+  logic [AW-1:0] vga_pix_addr;
   logic          vga_pix_ready;
 
   svc_fb_pix #(
@@ -114,7 +114,10 @@ module svc_fb_vga #(
   );
 
   svc_pix_cdc #(
-      .COLOR_WIDTH(COLOR_WIDTH)
+      .H_WIDTH    (H_WIDTH),
+      .V_WIDTH    (V_WIDTH),
+      .COLOR_WIDTH(COLOR_WIDTH),
+      .ADDR_WIDTH (AXI_ADDR_WIDTH)
   ) svc_pix_cdc_i (
       .s_clk  (clk),
       .s_rst_n(rst_n),
@@ -123,6 +126,9 @@ module svc_fb_vga #(
       .s_pix_red  (fb_pix_red),
       .s_pix_grn  (fb_pix_grn),
       .s_pix_blu  (fb_pix_blu),
+      .s_pix_x    (fb_pix_x),
+      .s_pix_y    (fb_pix_y),
+      .s_pix_addr (fb_pix_addr),
       .s_pix_ready(fb_pix_ready),
 
       .m_clk      (pixel_clk),
@@ -131,13 +137,17 @@ module svc_fb_vga #(
       .m_pix_red  (vga_pix_red),
       .m_pix_grn  (vga_pix_grn),
       .m_pix_blu  (vga_pix_blu),
+      .m_pix_x    (vga_pix_x),
+      .m_pix_y    (vga_pix_y),
+      .m_pix_addr (vga_pix_addr),
       .m_pix_ready(vga_pix_ready)
   );
 
   svc_pix_vga #(
       .H_WIDTH    (H_WIDTH),
       .V_WIDTH    (V_WIDTH),
-      .COLOR_WIDTH(COLOR_WIDTH)
+      .COLOR_WIDTH(COLOR_WIDTH),
+      .ADDR_WIDTH (AXI_ADDR_WIDTH)
   ) svc_pix_vga_i (
       .clk  (pixel_clk),
       .rst_n(pixel_rst_n),
@@ -146,6 +156,9 @@ module svc_fb_vga #(
       .s_pix_red  (vga_pix_red),
       .s_pix_grn  (vga_pix_grn),
       .s_pix_blu  (vga_pix_blu),
+      .s_pix_x    (vga_pix_x),
+      .s_pix_y    (vga_pix_y),
+      .s_pix_addr (vga_pix_addr),
       .s_pix_ready(vga_pix_ready),
 
       .h_visible   (h_visible),
