@@ -196,9 +196,15 @@ module svc_axi_stripe_rd #(
   //-------------------------------------------------------------------------
 
   // start/end idx at the time of ar submission
+  //
+  // If this is being used with large bursts, the addr width can be small, but
+  // if used with small bursts, then this needs to be large enough to cover
+  // the outstanding/pipelined ios.
+  //
+  // TODO: make addr_width configurable. See note above.
   svc_sync_fifo #(
       .DATA_WIDTH(S_WIDTH * 2),
-      .ADDR_WIDTH(1)
+      .ADDR_WIDTH(3)
   ) svc_sync_fifo_r_i (
       .clk        (clk),
       .rst_n      (rst_n),

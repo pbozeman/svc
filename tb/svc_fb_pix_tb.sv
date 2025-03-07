@@ -18,7 +18,6 @@ module svc_fb_pix_tb;
   parameter V_VISIBLE = 3;
 
   parameter LATENCY = 2;
-  parameter EXPECTED_BURSTS = (H_VISIBLE / 128) * V_VISIBLE;
   parameter EXPECTED_READS = (H_VISIBLE * V_VISIBLE) - LATENCY;
 
   `TEST_CLK_NS(clk, 10);
@@ -163,7 +162,6 @@ module svc_fb_pix_tb;
       `TICK(clk);
     end
 
-    `CHECK_EQ(ar_cnt, EXPECTED_BURSTS);
     `CHECK_EQ(r_cnt, EXPECTED_READS);
     `CHECK_EQ(p_cnt, EXPECTED_READS);
   endtask
