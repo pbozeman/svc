@@ -2,7 +2,6 @@
 `define SVC_PIX_VGA_SV
 
 `include "svc_skidbuf.sv"
-`include "svc_unused.sv"
 
 //
 // Pixel stream to vga signals
@@ -11,8 +10,7 @@
 module svc_pix_vga #(
     parameter H_WIDTH     = 12,
     parameter V_WIDTH     = 12,
-    parameter COLOR_WIDTH = 4,
-    parameter ADDR_WIDTH  = 16
+    parameter COLOR_WIDTH = 4
 ) (
     input logic clk,
     input logic rst_n,
@@ -26,7 +24,6 @@ module svc_pix_vga #(
     input  logic [COLOR_WIDTH-1:0] s_pix_blu,
     input  logic [    H_WIDTH-1:0] s_pix_x,
     input  logic [    V_WIDTH-1:0] s_pix_y,
-    input  logic [ ADDR_WIDTH-1:0] s_pix_addr,
     output logic                   s_pix_ready,
 
     //
@@ -189,8 +186,6 @@ module svc_pix_vga #(
 
     vga_error <= visible && !sb_valid;
   end
-
-  `SVC_UNUSED(s_pix_addr);
 
 endmodule
 `endif

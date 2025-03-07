@@ -8,7 +8,6 @@ module svc_pix_cdc #(
     parameter H_WIDTH         = 12,
     parameter V_WIDTH         = 12,
     parameter COLOR_WIDTH     = 4,
-    parameter ADDR_WIDTH      = 16,
     parameter FIFO_ADDR_WIDTH = 3
 ) (
     //
@@ -23,7 +22,6 @@ module svc_pix_cdc #(
     input  logic [COLOR_WIDTH-1:0] s_pix_blu,
     input  logic [    H_WIDTH-1:0] s_pix_x,
     input  logic [    V_WIDTH-1:0] s_pix_y,
-    input  logic [ ADDR_WIDTH-1:0] s_pix_addr,
     output logic                   s_pix_ready,
 
     //
@@ -38,7 +36,6 @@ module svc_pix_cdc #(
     output logic [COLOR_WIDTH-1:0] m_pix_blu,
     output logic [    H_WIDTH-1:0] m_pix_x,
     output logic [    V_WIDTH-1:0] m_pix_y,
-    output logic [ ADDR_WIDTH-1:0] m_pix_addr,
     input  logic                   m_pix_ready
 );
   logic s_full;
@@ -49,20 +46,20 @@ module svc_pix_cdc #(
 
   // ship it
   svc_cdc_fifo #(
-      .DATA_WIDTH(COLOR_WIDTH * 3 + H_WIDTH + V_WIDTH + ADDR_WIDTH),
+      .DATA_WIDTH(COLOR_WIDTH * 3 + H_WIDTH + V_WIDTH),
       .ADDR_WIDTH(FIFO_ADDR_WIDTH)
   ) cdc_fifo_i (
       .w_clk  (s_clk),
       .w_rst_n(s_rst_n),
       .w_inc  (s_pix_valid && s_pix_ready),
-      .w_data ({s_pix_red, s_pix_grn, s_pix_blu, s_pix_x, s_pix_y, s_pix_addr}),
+      .w_data ({s_pix_red, s_pix_grn, s_pix_blu, s_pix_x, s_pix_y}),
       .w_full (s_full),
 
       .r_clk  (m_clk),
       .r_rst_n(m_rst_n),
       .r_inc  (m_pix_valid && m_pix_ready),
       .r_empty(m_empty),
-      .r_data ({m_pix_red, m_pix_grn, m_pix_blu, m_pix_x, m_pix_y, m_pix_addr})
+      .r_data ({m_pix_red, m_pix_grn, m_pix_blu, m_pix_x, m_pix_y})
   );
 
 endmodule
