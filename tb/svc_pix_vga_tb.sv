@@ -3,8 +3,11 @@
 `include "svc_pix_vga.sv"
 `include "svc_vga_mode.sv"
 
+// TODO: add x/y and resync tests
+
 // verilator lint_off: UNUSEDSIGNAL
 module svc_pix_vga_tb;
+  localparam AW = 16;
   localparam HW = 12;
   localparam VW = 12;
   localparam CW = 4;
@@ -16,6 +19,9 @@ module svc_pix_vga_tb;
   logic [CW-1:0] m_pix_red;
   logic [CW-1:0] m_pix_grn;
   logic [CW-1:0] m_pix_blu;
+  logic [HW-1:0] m_pix_x;
+  logic [VW-1:0] m_pix_y;
+  logic [AW-1:0] m_pix_addr;
   logic          m_pix_ready;
 
   logic [HW-1:0] h_visible;
@@ -47,6 +53,9 @@ module svc_pix_vga_tb;
       .s_pix_red  (m_pix_red),
       .s_pix_grn  (m_pix_grn),
       .s_pix_blu  (m_pix_blu),
+      .s_pix_x    (m_pix_x),
+      .s_pix_y    (m_pix_y),
+      .s_pix_addr (m_pix_addr),
       .s_pix_ready(m_pix_ready),
 
       .h_visible   (h_visible),
@@ -73,6 +82,26 @@ module svc_pix_vga_tb;
       m_pix_red   <= 0;
       m_pix_grn   <= 0;
       m_pix_blu   <= 0;
+
+      m_pix_x     <= 0;
+      m_pix_y     <= 0;
+      m_pix_addr  <= 0;
+    end else begin
+      if (m_pix_valid && m_pix_ready) begin
+        m_pix_addr <= m_pix_addr + 1;
+
+        if (m_pix_x < h_visible - 1) begin
+          m_pix_x <= m_pix_x + 1;
+        end else begin
+          m_pix_x <= 0;
+          if (m_pix_y < v_visible - 1) begin
+            m_pix_y <= m_pix_y + 1;
+          end else begin
+            m_pix_y    <= 0;
+            m_pix_addr <= 0;
+          end
+        end
+      end
     end
   end
 

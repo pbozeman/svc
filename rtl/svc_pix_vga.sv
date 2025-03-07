@@ -2,6 +2,7 @@
 `define SVC_PIX_VGA_SV
 
 `include "svc_skidbuf.sv"
+`include "svc_unused.sv"
 
 //
 // Pixel stream to vga signals
@@ -10,7 +11,8 @@
 module svc_pix_vga #(
     parameter H_WIDTH     = 12,
     parameter V_WIDTH     = 12,
-    parameter COLOR_WIDTH = 4
+    parameter COLOR_WIDTH = 4,
+    parameter ADDR_WIDTH  = 16
 ) (
     input logic clk,
     input logic rst_n,
@@ -22,6 +24,9 @@ module svc_pix_vga #(
     input  logic [COLOR_WIDTH-1:0] s_pix_red,
     input  logic [COLOR_WIDTH-1:0] s_pix_grn,
     input  logic [COLOR_WIDTH-1:0] s_pix_blu,
+    input  logic [    H_WIDTH-1:0] s_pix_x,
+    input  logic [    V_WIDTH-1:0] s_pix_y,
+    input  logic [ ADDR_WIDTH-1:0] s_pix_addr,
     output logic                   s_pix_ready,
 
     //
@@ -48,34 +53,48 @@ module svc_pix_vga #(
     output logic [COLOR_WIDTH-1:0] vga_blu,
     output logic                   vga_error
 );
-  logic                   sb_valid;
-  logic [COLOR_WIDTH-1:0] sb_pix_red;
-  logic [COLOR_WIDTH-1:0] sb_pix_grn;
-  logic [COLOR_WIDTH-1:0] sb_pix_blu;
+  localparam CW = COLOR_WIDTH;
+  localparam HW = H_WIDTH;
+  localparam VW = V_WIDTH;
 
-  logic [    H_WIDTH-1:0] sb_h_visible;
-  logic [    H_WIDTH-1:0] sb_h_sync_start;
-  logic [    H_WIDTH-1:0] sb_h_sync_end;
-  logic [    H_WIDTH-1:0] sb_h_line_end;
+  // pixel + x/y + v mode settings + h mode settings
+  localparam SB_DATA_WIDTH = CW * 3 + HW * 5 + VW * 5;
 
-  logic [    V_WIDTH-1:0] sb_v_visible;
-  logic [    V_WIDTH-1:0] sb_v_sync_start;
-  logic [    V_WIDTH-1:0] sb_v_sync_end;
-  logic [    V_WIDTH-1:0] sb_v_frame_end;
+  logic          sb_valid;
+  logic [CW-1:0] sb_pix_red;
+  logic [CW-1:0] sb_pix_grn;
+  logic [CW-1:0] sb_pix_blu;
 
-  logic                   sb_ready;
+  // verilator lint_off: UNUSEDSIGNAL
+  // FIXME: use these for sync
+  logic [HW-1:0] sb_pix_x;
+  logic [VW-1:0] sb_pix_y;
+  // verilator lint_on: UNUSEDSIGNAL
 
-  logic                   enabled;
-  logic                   visible;
+  logic [HW-1:0] sb_h_visible;
+  logic [HW-1:0] sb_h_sync_start;
+  logic [HW-1:0] sb_h_sync_end;
+  logic [HW-1:0] sb_h_line_end;
 
-  logic [    H_WIDTH-1:0] x;
-  logic [    H_WIDTH-1:0] x_next;
+  logic [VW-1:0] sb_v_visible;
+  logic [VW-1:0] sb_v_sync_start;
+  logic [VW-1:0] sb_v_sync_end;
+  logic [VW-1:0] sb_v_frame_end;
 
-  logic [    V_WIDTH-1:0] y;
-  logic [    V_WIDTH-1:0] y_next;
+  logic          sb_ready;
 
+  logic          enabled;
+  logic          visible;
+
+  logic [HW-1:0] x;
+  logic [HW-1:0] x_next;
+
+  logic [VW-1:0] y;
+  logic [VW-1:0] y_next;
+
+  // TODO: could optimize by converting to x/y to eol, eof
   svc_skidbuf #(
-      .DATA_WIDTH(COLOR_WIDTH * 3 + H_WIDTH * 4 + V_WIDTH * 4),
+      .DATA_WIDTH(SB_DATA_WIDTH),
       .OPT_OUTREG(1)
   ) svc_skidbuf_i (
       .clk  (clk),
@@ -86,6 +105,8 @@ module svc_pix_vga #(
         s_pix_red,
         s_pix_grn,
         s_pix_blu,
+        s_pix_x,
+        s_pix_y,
         h_visible,
         h_sync_start,
         h_sync_end,
@@ -102,6 +123,8 @@ module svc_pix_vga #(
         sb_pix_red,
         sb_pix_grn,
         sb_pix_blu,
+        sb_pix_x,
+        sb_pix_y,
         sb_h_visible,
         sb_h_sync_start,
         sb_h_sync_end,
@@ -125,6 +148,8 @@ module svc_pix_vga #(
   always_comb begin
     x_next = x;
     y_next = y;
+
+    // TODO: resync using sb_x/y
 
     if (x < sb_h_line_end) begin
       x_next = x + 1;
@@ -164,6 +189,8 @@ module svc_pix_vga #(
 
     vga_error <= visible && !sb_valid;
   end
+
+  `SVC_UNUSED(s_pix_addr);
 
 endmodule
 `endif
