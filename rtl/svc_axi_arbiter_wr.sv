@@ -76,27 +76,27 @@ module svc_axi_arbiter_wr #(
   logic                                           grant_done;
   logic [GRANT_IDX_WIDTH-1:0]                     grant_idx;
 
-  logic [          NUM_M-1:0]                     axi_awvalid;
-  logic [          NUM_M-1:0][  AXI_ID_WIDTH-1:0] axi_awid;
-  logic [          NUM_M-1:0][AXI_ADDR_WIDTH-1:0] axi_awaddr;
-  logic [          NUM_M-1:0][               7:0] axi_awlen;
-  logic [          NUM_M-1:0][               2:0] axi_awsize;
-  logic [          NUM_M-1:0][               1:0] axi_awburst;
-  logic [          NUM_M-1:0]                     axi_awready;
+  logic [          NUM_M-1:0]                     sb_s_awvalid;
+  logic [          NUM_M-1:0][  AXI_ID_WIDTH-1:0] sb_s_awid;
+  logic [          NUM_M-1:0][AXI_ADDR_WIDTH-1:0] sb_s_awaddr;
+  logic [          NUM_M-1:0][               7:0] sb_s_awlen;
+  logic [          NUM_M-1:0][               2:0] sb_s_awsize;
+  logic [          NUM_M-1:0][               1:0] sb_s_awburst;
+  logic [          NUM_M-1:0]                     sb_s_awready;
 
-  logic [          NUM_M-1:0]                     axi_wvalid;
-  logic [          NUM_M-1:0][AXI_DATA_WIDTH-1:0] axi_wdata;
-  logic [          NUM_M-1:0][AXI_STRB_WIDTH-1:0] axi_wstrb;
-  logic [          NUM_M-1:0]                     axi_wlast;
-  logic [          NUM_M-1:0]                     axi_wready;
-
-  logic [          NUM_M-1:0]                     axi_bready;
+  logic [          NUM_M-1:0]                     sb_s_wvalid;
+  logic [          NUM_M-1:0][AXI_DATA_WIDTH-1:0] sb_s_wdata;
+  logic [          NUM_M-1:0][AXI_STRB_WIDTH-1:0] sb_s_wstrb;
+  logic [          NUM_M-1:0]                     sb_s_wlast;
+  logic [          NUM_M-1:0]                     sb_s_wready;
 
   logic                                           aw_accepted;
   logic                                           aw_accepted_next;
 
-  logic [   AXI_ID_WIDTH-1:0]                     b_bid;
   logic [GRANT_IDX_WIDTH-1:0]                     b_grant_idx;
+
+  logic [   AXI_ID_WIDTH-1:0]                     sb_s_bid;
+  logic [          NUM_M-1:0]                     sb_s_bready;
 
   //-------------------------------------------------------------------------
   //
@@ -121,15 +121,15 @@ module svc_axi_arbiter_wr #(
           s_axi_awburst[i]
         }),
         .o_ready(s_axi_awready[i]),
-        .i_ready(axi_awready[i]),
+        .i_ready(sb_s_awready[i]),
         .o_data({
-          axi_awid[i],
-          axi_awaddr[i],
-          axi_awlen[i],
-          axi_awsize[i],
-          axi_awburst[i]
+          sb_s_awid[i],
+          sb_s_awaddr[i],
+          sb_s_awlen[i],
+          sb_s_awsize[i],
+          sb_s_awburst[i]
         }),
-        .o_valid(axi_awvalid[i])
+        .o_valid(sb_s_awvalid[i])
     );
 
     // w
@@ -141,9 +141,9 @@ module svc_axi_arbiter_wr #(
         .i_valid(s_axi_wvalid[i]),
         .i_data ({s_axi_wdata[i], s_axi_wstrb[i], s_axi_wlast[i]}),
         .o_ready(s_axi_wready[i]),
-        .i_ready(axi_wready[i]),
-        .o_data ({axi_wdata[i], axi_wstrb[i], axi_wlast[i]}),
-        .o_valid(axi_wvalid[i])
+        .i_ready(sb_s_wready[i]),
+        .o_data ({sb_s_wdata[i], sb_s_wstrb[i], sb_s_wlast[i]}),
+        .o_valid(sb_s_wvalid[i])
     );
   end
 
@@ -165,7 +165,7 @@ module svc_axi_arbiter_wr #(
   ) svc_arbiter_i (
       .clk        (clk),
       .rst_n      (rst_n),
-      .request    (axi_awvalid & request_mask),
+      .request    (sb_s_awvalid & request_mask),
       .done       (m_axi_wvalid && m_axi_wready && m_axi_wlast),
       .grant_valid(grant_valid),
       .grant_idx  (grant_idx)
@@ -176,10 +176,10 @@ module svc_axi_arbiter_wr #(
 
     if (grant_done) begin
       aw_accepted_next = 1'b0;
-    end
-
-    if (m_axi_awvalid && m_axi_awready) begin
-      aw_accepted_next = 1'b1;
+    end else begin
+      if (m_axi_awvalid && m_axi_awready) begin
+        aw_accepted_next = 1'b1;
+      end
     end
   end
 
@@ -196,31 +196,31 @@ module svc_axi_arbiter_wr #(
   //
   // AW out to subordinate mux
   assign m_axi_awvalid = grant_valid && !aw_accepted;
-  assign m_axi_awid    = grant_valid ? {grant_idx, axi_awid[grant_idx]} : 0;
-  assign m_axi_awaddr  = grant_valid ? axi_awaddr[grant_idx] : 0;
-  assign m_axi_awlen   = grant_valid ? axi_awlen[grant_idx] : 0;
-  assign m_axi_awsize  = grant_valid ? axi_awsize[grant_idx] : 0;
-  assign m_axi_awburst = grant_valid ? axi_awburst[grant_idx] : 0;
+  assign m_axi_awid    = grant_valid ? {grant_idx, sb_s_awid[grant_idx]} : 0;
+  assign m_axi_awaddr  = grant_valid ? sb_s_awaddr[grant_idx] : 0;
+  assign m_axi_awlen   = grant_valid ? sb_s_awlen[grant_idx] : 0;
+  assign m_axi_awsize  = grant_valid ? sb_s_awsize[grant_idx] : 0;
+  assign m_axi_awburst = grant_valid ? sb_s_awburst[grant_idx] : 0;
 
   // AW in from subordinate mux
   always_comb begin
-    axi_awready = '0;
+    sb_s_awready = '0;
     if (grant_valid) begin
-      axi_awready[grant_idx] = m_axi_awready;
+      sb_s_awready[grant_idx] = m_axi_awready;
     end
   end
 
   // W out mux to subordinate mux
-  assign m_axi_wvalid = grant_valid ? axi_wvalid[grant_idx] : 0;
-  assign m_axi_wdata  = grant_valid ? axi_wdata[grant_idx] : 0;
-  assign m_axi_wstrb  = grant_valid ? axi_wstrb[grant_idx] : 0;
-  assign m_axi_wlast  = grant_valid ? axi_wlast[grant_idx] : 0;
+  assign m_axi_wvalid = grant_valid ? sb_s_wvalid[grant_idx] : 0;
+  assign m_axi_wdata  = grant_valid ? sb_s_wdata[grant_idx] : 0;
+  assign m_axi_wstrb  = grant_valid ? sb_s_wstrb[grant_idx] : 0;
+  assign m_axi_wlast  = grant_valid ? sb_s_wlast[grant_idx] : 0;
 
   // W in from subordinate mux
   always_comb begin
-    axi_wready = '0;
+    sb_s_wready = '0;
     if (grant_valid) begin
-      axi_wready[grant_idx] = m_axi_wready;
+      sb_s_wready[grant_idx] = m_axi_wready;
     end
   end
 
@@ -230,8 +230,8 @@ module svc_axi_arbiter_wr #(
   //
   //-------------------------------------------------------------------------
   //
-  assign {b_grant_idx, b_bid} = m_axi_bid;
-  assign m_axi_bready         = m_axi_bvalid ? axi_bready[b_grant_idx] : 1'b0;
+  assign {b_grant_idx, sb_s_bid} = m_axi_bid;
+  assign m_axi_bready = m_axi_bvalid ? sb_s_bready[b_grant_idx] : 1'b0;
 
   //
   // b channel skid buffers
@@ -247,8 +247,8 @@ module svc_axi_arbiter_wr #(
         .rst_n(rst_n),
 
         .i_valid(b_grant_idx == i && m_axi_bvalid),
-        .i_data ({b_bid, m_axi_bresp}),
-        .o_ready(axi_bready[i]),
+        .i_data ({sb_s_bid, m_axi_bresp}),
+        .o_ready(sb_s_bready[i]),
 
         .i_ready(s_axi_bvalid[i] && s_axi_bready[i]),
         .o_data ({s_axi_bid[i], s_axi_bresp[i]}),
