@@ -93,10 +93,6 @@ module svc_axi_stripe_wr #(
   logic [               1:0]            sb_s_awburst;
   logic                                 sb_s_awready;
 
-  logic                                 s_axi_bvalid_next;
-  logic [            IW-1:0]            s_axi_bid_next;
-  logic [               1:0]            s_axi_bresp_next;
-
   logic [         NUM_S-1:0]            aw_stripe_valid;
   logic [         NUM_S-1:0][  SAW-1:0] aw_stripe_addr;
   logic [         NUM_S-1:0][      7:0] aw_stripe_len;
@@ -132,10 +128,6 @@ module svc_axi_stripe_wr #(
   logic [         NUM_S-1:0][STRBW-1:0] m_axi_wstrb_next;
   logic [         NUM_S-1:0]            m_axi_wlast_next;
 
-  logic [         NUM_S-1:0]            b_done;
-  logic [         NUM_S-1:0]            b_done_next;
-
-  logic [       S_WIDTH-1:0]            b_stripe_end_idx;
   logic [         NUM_S-1:0]            b_stripe_valid;
 
   logic                                 fifo_w_w_full;
@@ -338,9 +330,23 @@ module svc_axi_stripe_wr #(
   //
   //-------------------------------------------------------------------------
 
+  logic                       sb_s_bvalid;
+  logic [     IW-1:0]         sb_s_bid;
+  logic [        1:0]         sb_s_bresp;
+  logic                       sb_s_bready;
+
+  logic [  NUM_S-1:0]         sb_m_bvalid;
+  logic [  NUM_S-1:0][IW-1:0] sb_m_bid;
+  logic [  NUM_S-1:0][   1:0] sb_m_bresp;
+  logic [  NUM_S-1:0]         sb_m_bready;
+
+  logic [S_WIDTH-1:0]         b_idx_end;
+  logic                       b_idx_valid;
+
   // keep track of final idx and active subs at the time of aw submission
   svc_sync_fifo #(
-      .DATA_WIDTH(S_WIDTH + NUM_S)
+      .DATA_WIDTH(S_WIDTH + NUM_S),
+      .ADDR_WIDTH(3)
   ) svc_sync_fifo_b_i (
       .clk        (clk),
       .rst_n      (rst_n),
@@ -348,70 +354,70 @@ module svc_axi_stripe_wr #(
       .w_data     ({aw_stripe_end_idx, aw_stripe_valid}),
       .w_full     (fifo_b_w_full),
       .w_half_full(),
-      .r_inc      (s_axi_bvalid && s_axi_bready),
-      .r_data     ({b_stripe_end_idx, b_stripe_valid}),
+      .r_inc      (sb_s_bvalid && sb_s_bready),
+      .r_data     ({b_idx_end, b_stripe_valid}),
       .r_empty    (fifo_b_r_empty)
   );
 
-  // we don't want to complete, and possibly lose, transactions
-  // from the next burst
-  assign m_axi_bready = (b_stripe_valid & {NUM_S{s_axi_bready}});
+  // s side skid buf
+  svc_skidbuf #(
+      .DATA_WIDTH(IW + 2),
+      .OPT_OUTREG(1)
+  ) svc_skidbuf_s_b_i (
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .i_valid(sb_s_bvalid),
+      .i_data ({sb_s_bid, sb_s_bresp}),
+      .o_ready(sb_s_bready),
+      .i_ready(s_axi_bready),
+      .o_data ({s_axi_bid, s_axi_bresp}),
+      .o_valid(s_axi_bvalid)
+  );
 
-  // sub b done tracking.
-  //
-  // I considered using &m_axi_bvalid ? '1 : '0 to drive s_axi_bvalid
-  // and m_axi_bready all at the same time , somewhat simplifying this logic.
-  // However, doing so will stall the b channel on the earlier subordinates,
-  // potentially preventing interleaved usage with some other manager when
-  // used with an arbiter. This implementation is slightly more complicated,
-  // but provides better aggregate throughput.
+  // m side skidbufs
+  for (genvar i = 0; i < NUM_S; i++) begin : gen_b_sb
+    svc_skidbuf #(
+        .DATA_WIDTH(IW + 2)
+    ) svc_skidbuf_m_b_i (
+        .clk  (clk),
+        .rst_n(rst_n),
+
+        .i_valid(m_axi_bvalid[i]),
+        .i_data ({m_axi_bid[i], m_axi_bresp[i]}),
+        .o_ready(m_axi_bready[i]),
+
+        .i_ready(sb_m_bready[i]),
+        .o_data ({sb_m_bid[i], sb_m_bresp[i]}),
+        .o_valid(sb_m_bvalid[i])
+    );
+  end
+
+  assign b_idx_valid = !fifo_b_r_empty;
+
+  // mux b channel from subs - we use the end_idx for response
   always_comb begin
-    b_done_next = b_done;
+    sb_s_bvalid = 1'b0;
+    sb_s_bid    = 0;
+    sb_s_bresp  = 2'b0;
 
-    if (s_axi_bvalid && s_axi_bready) begin
-      b_done_next = '0;
+    if (b_idx_valid) begin
+      sb_s_bvalid = sb_m_bvalid[b_idx_end];
+      sb_s_bid    = sb_m_bid[b_idx_end];
+      sb_s_bresp  = sb_m_bresp[b_idx_end];
     end
-
-    b_done_next = b_done_next | (m_axi_bvalid & m_axi_bready);
   end
 
-  // b channel back to the caller
+  // mux to subs - ready signals to all active subordinates
   always_comb begin
-    s_axi_bvalid_next = s_axi_bvalid && !s_axi_bready;
-    s_axi_bid_next    = s_axi_bid;
-    s_axi_bresp_next  = s_axi_bresp;
+    sb_m_bready = '0;
 
-    if (m_axi_bvalid[b_stripe_end_idx] && m_axi_bready[b_stripe_end_idx]) begin
-      s_axi_bid_next   = m_axi_bid[b_stripe_end_idx];
-      s_axi_bresp_next = m_axi_bresp[b_stripe_end_idx];
-    end
-
-    if (!s_axi_bvalid || s_axi_bready) begin
-      if (fifo_b_r_empty) begin
-        s_axi_bvalid_next = 1'b0;
-      end else begin
-        s_axi_bvalid_next = &(b_done_next | ~b_stripe_valid);
-      end
+    if (b_idx_valid) begin
+      // Only set ready for the subordinates that are part of this transaction
+      sb_m_bready = b_stripe_valid & {NUM_S{sb_s_bready}};
     end
   end
 
-  always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      s_axi_bvalid <= 1'b0;
-      b_done       <= '0;
-    end else begin
-      s_axi_bvalid <= s_axi_bvalid_next;
-      b_done       <= b_done_next;
-    end
-  end
-
-  always_ff @(posedge clk) begin
-    s_axi_bid   <= s_axi_bid_next;
-    s_axi_bresp <= s_axi_bresp_next;
-  end
-
-  `SVC_UNUSED({sb_s_awaddr[S_WIDTH+O_WIDTH-1:O_WIDTH], s_axi_wlast,
-               m_axi_bid[NUM_S-1:1], m_axi_bresp[NUM_S-1:1], fifo_b_r_empty});
+  `SVC_UNUSED({sb_s_awaddr[S_WIDTH+O_WIDTH-1:O_WIDTH], s_axi_wlast});
 
 `ifdef FORMAL
   // Formal testing happens in the combined module, but we do have asserts
