@@ -13,6 +13,7 @@
 - Run `make lint` to check for linting issues before committing
 - Add [🤖] emoji to commit message tags when commits are Claude-generated
 - Add "✨🤖✨ vibe coded with claude" comment at the top of Claude-generated files
+- NEVER add Co-Authored-By blocks in commit messages - this policy is strictly enforced
 
 ## Running Single Tests
 - Single testbench: `make <module_name>_tb` (e.g., `make svc_arbiter_tb`)
@@ -27,3 +28,15 @@
 - Indentation: Spaces (no tabs)
 - Structure: Parameters first, then ports in module declarations
 - Next-cycle signals: Use `_next` suffix (e.g., `grant_valid_next`)
+- NO end-of-line comments - place comments on the line above the code
+
+## Testbench Guidelines
+- Each testbench should use the `svc_unit.sv` framework (`TEST_SUITE_BEGIN`/`TEST_SUITE_END`)
+- Create individual test tasks for different test cases (e.g., `test_reset`, `test_basic_operation`)
+- Use `TEST_CASE(task_name)` to register each test task
+- Include reset test as first test in every testbench
+- Use `TICK(clk)` to advance simulation by one clock cycle
+- Use `CHECK_*` macros for assertions (`CHECK_EQ`, `CHECK_TRUE`, etc.)
+- Use `CHECK_WAIT_FOR(clk, condition, max_cycles)` for waiting on conditions
+- Pipeline stages should use `_p1`, `_p2` suffixes for signal naming
+- Verify proper behavior with backpressure in streaming interfaces
