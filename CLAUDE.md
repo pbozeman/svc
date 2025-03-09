@@ -28,7 +28,7 @@
 - Indentation: Spaces (no tabs)
 - Structure: Parameters first, then ports in module declarations
 - Next-cycle signals: Use `_next` suffix (e.g., `grant_valid_next`)
-- NO end-of-line comments - place comments on the line above the code
+- NEVER use end-of-line comments - ALL comments must be placed on the line above the code
 - Signal declarations: Each signal must be declared on a separate line, never group declarations
 - Code organization: Add new lines between logical groupings of declarations and assignments
 - Casting: Always use proper type casting instead of disabling lint warnings
