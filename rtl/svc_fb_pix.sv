@@ -2,7 +2,7 @@
 `define SVC_FB_PIX_SV
 
 `include "svc.sv"
-`include "svc_sync_fifo_n.sv"
+`include "svc_sync_fifo.sv"
 `include "svc_unused.sv"
 
 // Sends a frame buffer as a pixel stream
@@ -75,14 +75,16 @@ module svc_fb_pix #(
 
   // directly connect the r channel signals to the pixel stream
   assign m_pix_valid                       = m_axi_rvalid;
-  assign m_axi_rready                      = m_pix_ready && fifo_ready;
+  assign m_axi_rready                      = m_pix_ready;
   assign {m_pix_red, m_pix_grn, m_pix_blu} = m_axi_rdata[PIXEL_WIDTH-1:0];
 
   always_comb begin
-    m_axi_arvalid_next = m_axi_arvalid;
+    m_axi_arvalid_next = m_axi_arvalid && !m_axi_arready;
 
     if (!m_axi_arvalid || m_axi_arready) begin
-      m_axi_arvalid_next = 1'b1;
+      if (fifo_ready) begin
+        m_axi_arvalid_next = 1'b1;
+      end
     end
   end
 
@@ -123,21 +125,29 @@ module svc_fb_pix #(
     end
   end
 
-  svc_sync_fifo_n #(
+
+  logic fifo_w_half_full;
+  assign fifo_ready = !fifo_w_half_full;
+
+  svc_sync_fifo #(
       .DATA_WIDTH(HW + VW + AW),
       .ADDR_WIDTH(FIFO_ADDR_WIDTH)
   ) svc_sync_fifo_i (
-      .clk      (clk),
-      .rst_n    (rst_n),
-      .w_inc    (m_axi_arvalid && m_axi_arready),
-      .w_data   ({x, y, m_axi_araddr}),
-      .w_full_n (fifo_ready),
-      .r_inc    (m_pix_valid && m_pix_ready),
-      .r_empty_n(),
-      .r_data   ({m_pix_x, m_pix_y, m_pix_addr})
+      .clk        (clk),
+      .rst_n      (rst_n),
+      .w_inc      (m_axi_arvalid && m_axi_arready),
+      .w_data     ({x, y, m_axi_araddr}),
+      .w_full     (),
+      .w_half_full(fifo_w_half_full),
+      .r_inc      (m_pix_valid && m_pix_ready),
+      .r_empty    (),
+      .r_data     ({m_pix_x, m_pix_y, m_pix_addr})
   );
 
   `SVC_UNUSED({m_axi_rid, m_axi_rresp, m_axi_rdata, m_axi_rlast});
+
+  // TODO: add formal. There was an axi bus error where valid got pegged high.
+  // This would have been caught with formal testing using the faxi_m module.
 
 endmodule
 `endif
