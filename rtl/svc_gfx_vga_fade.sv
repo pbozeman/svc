@@ -338,30 +338,71 @@ module svc_gfx_vga_fade #(
   assign as_axi_wlast[1]   = 0;
   assign as_axi_bready[1]  = 1'b1;
 
-  // Prepare the aged pixel data for writing back to memory
-  // Combine the age with RGB data from the pixel stream
-  // TODO: clean this up, it's a bit messy.
+  // Pipeline registers for aged pixel calculation
   logic [AXI_DATA_WIDTH-1:0] aged_pixel;
-  always_comb begin
-    if (fb_pix_age == 1) begin
-      aged_pixel = 0;
-    end else begin
-      aged_pixel = {
-        fb_pix_age - 1'b1, fb_pix_red >> 1, fb_pix_grn >> 1, fb_pix_blu >> 1
-      };
+  logic [AXI_DATA_WIDTH-1:0] aged_pixel_p1;
+  logic [      AGE_BITS-1:0] fb_pix_age_p1;
+  logic [   COLOR_WIDTH-1:0] fb_pix_red_p1;
+  logic [   COLOR_WIDTH-1:0] fb_pix_grn_p1;
+  logic [   COLOR_WIDTH-1:0] fb_pix_blu_p1;
+  logic [AXI_ADDR_WIDTH-1:0] fb_pix_addr_p1;
+  logic                      fb_pix_valid_p1;
+
+  // Control signals for FIFOs
+  logic                      aw_ready;
+  logic                      w_ready;
+  logic                      pipeline_ready;
+
+  // Pipeline can accept new data when FIFO is ready or pipeline isn't valid
+  assign pipeline_ready = (aw_ready && w_ready) || !fb_pix_valid_p1;
+
+  // Connection between pixel stream and pipeline
+  assign fb_pix_ready   = pipeline_ready;
+
+  // First pipeline stage - register inputs
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      fb_pix_age_p1   <= '0;
+      fb_pix_red_p1   <= '0;
+      fb_pix_grn_p1   <= '0;
+      fb_pix_blu_p1   <= '0;
+      fb_pix_addr_p1  <= '0;
+      fb_pix_valid_p1 <= 1'b0;
+    end else if (pipeline_ready) begin
+      fb_pix_age_p1   <= fb_pix_age;
+      fb_pix_red_p1   <= fb_pix_red;
+      fb_pix_grn_p1   <= fb_pix_grn;
+      fb_pix_blu_p1   <= fb_pix_blu;
+      fb_pix_addr_p1  <= fb_pix_addr;
+      fb_pix_valid_p1 <= fb_pix_valid;
     end
   end
 
+  // Second pipeline stage - calculate aged pixel value
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      aged_pixel_p1 <= '0;
+    end else if (pipeline_ready) begin
+      if (fb_pix_age_p1 == 1) begin
+        aged_pixel_p1 <= '0;
+      end else begin
+        aged_pixel_p1 <= {
+          fb_pix_age_p1 - 1'b1,
+          fb_pix_red_p1 >> 1,
+          fb_pix_grn_p1 >> 1,
+          fb_pix_blu_p1 >> 1
+        };
+      end
+    end
+  end
+
+  // Output to FIFO - determine if pixel should be written back
   logic write_aged;
-  assign write_aged = (fb_pix_valid && fb_pix_age != 0 &&
-                       |{fb_pix_red, fb_pix_grn, fb_pix_blu});
+  assign write_aged = fb_pix_valid_p1 && fb_pix_age_p1 != 0 &&
+      |{fb_pix_red_p1, fb_pix_grn_p1, fb_pix_blu_p1} && aw_ready && w_ready;
 
-  // Control signals for FIFOs
-  logic aw_ready;
-  logic w_ready;
-
-  // Connection between pixel stream and AXI write
-  assign fb_pix_ready = aw_ready && w_ready;
+  // Pass aged pixel to FIFO input
+  assign aged_pixel = aged_pixel_p1;
 
   // Address write channel FIFO
   // TODO: clean up inc
@@ -371,7 +412,7 @@ module svc_gfx_vga_fade #(
       .clk      (clk),
       .rst_n    (rst_n),
       .w_inc    (write_aged),
-      .w_data   (fb_pix_addr),
+      .w_data   (fb_pix_addr_p1),
       .w_full_n (aw_ready),
       .r_inc    (as_axi_awvalid[2] && as_axi_awready[2]),
       .r_data   (as_axi_awaddr[2]),
