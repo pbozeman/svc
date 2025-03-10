@@ -33,10 +33,14 @@ module svc_gfx_line #(
 );
 
   // State machine states
-  typedef enum logic [1:0] {
+  typedef enum logic [3:0] {
     STATE_IDLE,
-    STATE_SETUP,
-    STATE_DRAWING,
+    STATE_SETUP_1,    // Calculate steepness
+    STATE_SETUP_2,    // Initialize coordinates and calculate deltas
+    STATE_SETUP_3,    // Initialize error and check for single pixel
+    STATE_DRAWING_1,  // Emit current pixel
+    STATE_DRAWING_2,  // Calculate next error
+    STATE_DRAWING_3,  // Update coordinates and check for last pixel
     STATE_DONE
   } state_t;
 
@@ -94,17 +98,21 @@ module svc_gfx_line #(
     case (state)
       STATE_IDLE: begin
         if (start) begin
-          state_next = STATE_SETUP;
+          state_next = STATE_SETUP_1;
         end
       end
 
-      STATE_SETUP: begin
-        // Determine if line is steep (|dy| > |dx|)
+      STATE_SETUP_1: begin
+        // Stage 1: Determine if line is steep (|dy| > |dx|)
         steep_next = ($signed({1'b0, y1}) - $signed({1'b0, y0})) >
             ($signed({1'b0, x1}) - $signed({1'b0, x0})) ? 1'b1 : 1'b0;
 
-        // If steep, swap x and y coordinates
-        if (steep_next) begin
+        state_next = STATE_SETUP_2;
+      end
+
+      STATE_SETUP_2: begin
+        // Stage 2: Initialize coordinates and calculate deltas based on steepness
+        if (steep) begin
           // Initialize with swapped coordinates for steep line
           current_x_next = y0;
           current_y_next = x0;
@@ -130,42 +138,66 @@ module svc_gfx_line #(
           step_y_next    = y1 > y0 ? 1'b1 : 1'b0;
         end
 
-        // Initialize error
-        error_next      = (dx_next >> 1);
-
-        // Check if this is a single pixel
-        last_pixel_next = (dx_next == 0 && dy_next == 0) ? 1'b1 : 1'b0;
-
-        state_next      = STATE_DRAWING;
+        state_next = STATE_SETUP_3;
       end
 
-      STATE_DRAWING: begin
+      STATE_SETUP_3: begin
+        // Stage 3: Initialize error and check for single pixel
+
+        // Initialize error
+        error_next      = (dx >> 1);
+
+        // Check if this is a single pixel
+        last_pixel_next = (dx == 0 && dy == 0) ? 1'b1 : 1'b0;
+
+        state_next      = STATE_DRAWING_1;
+      end
+
+      STATE_DRAWING_1: begin
+        // Stage 1: Emit current pixel
         m_gfx_valid = 1'b1;
 
         if (m_gfx_ready) begin
           if (last_pixel) begin
             state_next = STATE_DONE;
           end else begin
-            // Calculate next position
-            error_next = error - dy;
-
-            // Update y if needed
-            if ($signed(error_next) < 0) begin
-              current_y_next = step_y ? current_y + 1'b1 : current_y - 1'b1;
-              error_next     = error_next + dx;
-            end
-
-            // Always update x
-            current_x_next = step_x ? current_x + 1'b1 : current_x - 1'b1;
-
-            // Check if this is the last pixel
-            if (steep) begin
-              last_pixel_next = current_x_next == y1;
-            end else begin
-              last_pixel_next = current_x_next == x1;
-            end
+            state_next = STATE_DRAWING_2;
           end
         end
+      end
+
+      STATE_DRAWING_2: begin
+        // Stage 2: Calculate next error
+        error_next = error - dy;
+
+        // Check if error will be negative and prepare y update
+        if ($signed(error_next) < 0) begin
+          // Precompute the adjusted error for the next stage
+          error_next = error_next + dx;
+        end
+
+        state_next = STATE_DRAWING_3;
+      end
+
+      STATE_DRAWING_3: begin
+        // Stage 3: Update coordinates and check for last pixel
+
+        // Update y if needed (based on error calc from previous stage)
+        if ($signed(error - dy) < 0) begin
+          current_y_next = step_y ? current_y + 1'b1 : current_y - 1'b1;
+        end
+
+        // Always update x
+        current_x_next = step_x ? current_x + 1'b1 : current_x - 1'b1;
+
+        // Check if this is the last pixel
+        if (steep) begin
+          last_pixel_next = current_x_next == y1;
+        end else begin
+          last_pixel_next = current_x_next == x1;
+        end
+
+        state_next = STATE_DRAWING_1;
       end
 
       STATE_DONE: begin
