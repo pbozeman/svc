@@ -141,6 +141,15 @@ module svc_sync_fifo #(
     end
   end
 
+`ifndef FORMAL_SVC_SYNC_FIFO
+  always @(posedge clk) begin
+    if (rst_n) begin
+      assert (!(w_inc && w_full));
+      assert (!(r_inc && r_empty));
+    end
+  end
+`endif
+
   // track how many elements are in the fifo
   int f_count = 0;
   int f_max_count = (1 << ADDR_WIDTH);
