@@ -42,6 +42,11 @@
 - For line drawing implementations, use fixed-width math to avoid truncation issues
 - Start/done control interfaces should be used for graphics operations that take multiple cycles
 - Ensure registers are properly sized for pixel coordinates to avoid overflow
+- Include guards: Use `ifndef`/`define`/`endif` with module name in uppercase followed by _SV
+- Include header: Always add `include "svc.sv"` after the include guard definition
+- Module structure: Define combinational blocks first, followed by sequential blocks
+- State machines: Use type enum for state definitions with meaningful state names
+- Signal alignment: Align all declarations and assignments for better readability
 
 ## Testbench Guidelines
 
@@ -56,4 +61,10 @@
 - Pipeline stages should use `_p1`, `_p2` suffixes for signal naming
 - Verify proper behavior with backpressure in streaming interfaces
 - Use explicit type casting in function calls when needed (`int'(x)`, etc.)
+- Declare local variables at the top of test tasks, not inline
+- Testbenches must explicitly include module being tested with `include` directive
+- Use virtual framebuffer for testing graphics operations
+- Create specialized verification functions for complex validation 
+- Use consistent color values for different test cases (12'hF00 for red, 12'h0F0 for green, etc.)
+- Add sufficient comments for each test section (setup, execute, verify)
 
