@@ -274,9 +274,9 @@ module svc_fb_pix #(
   // verilator lint_on: PINMISSING
 `endif
 
-`undef ASSERT
-`undef ASSUME
-`undef COVER
+  `undef ASSERT
+  `undef ASSUME
+  `undef COVER
 `endif
 
 endmodule
