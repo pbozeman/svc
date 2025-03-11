@@ -59,6 +59,9 @@ z40=0000000000000000000000000000000000000000
 while read local_ref local_sha remote_ref remote_sha; do
   # Only examine actual branches being pushed (not tags, etc)
   if [[ "$local_ref" == refs/heads/* ]]; then
+    # Extract branch name from ref
+    branch_name=${local_ref#refs/heads/}
+
     # Check if we're creating a new branch or deleting a branch
     if [[ "$remote_sha" == $z40 ]]; then
       # New branch, examine all commits
@@ -66,6 +69,16 @@ while read local_ref local_sha remote_ref remote_sha; do
     else
       # Update to existing branch, examine new commits
       range="$remote_sha..$local_sha"
+
+      # Check if this is a fast-forward push
+      if ! git merge-base --is-ancestor "$remote_sha" "$local_sha"; then
+        echo >&2 "ERROR: Non-fast-forward push detected for branch $branch_name"
+        echo >&2 "Please pull the latest changes from the remote repository first:"
+        echo >&2 "  git fetch origin"
+        echo >&2 "  git merge origin/$branch_name" # or git pull
+        echo >&2 "Alternatively, use --force if you really want to push these changes."
+        exit 1
+      fi
     fi
 
     echo "Examining commits in range: $range"
