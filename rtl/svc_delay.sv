@@ -12,19 +12,17 @@ module svc_delay #(
     input  logic [WIDTH-1:0] in,
     output logic [WIDTH-1:0] out
 );
-
-  logic   [WIDTH-1:0] shift_reg[CYCLES-1:0];
-  integer             i;
+  logic [WIDTH-1:0] shift_reg[CYCLES-1:0];
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      for (i = 0; i < CYCLES; i = i + 1) begin
-        shift_reg[i] <= 0;
+      for (int i = 0; i < CYCLES; i++) begin
+        shift_reg[i] <= '0;
       end
-      out <= 0;
+      out <= '0;
     end else begin
       shift_reg[0] <= in;
-      for (i = 1; i < CYCLES; i = i + 1) begin
+      for (int i = 1; i < CYCLES; i++) begin
         shift_reg[i] <= shift_reg[i-1];
       end
       out <= shift_reg[CYCLES-1];
@@ -32,5 +30,4 @@ module svc_delay #(
   end
 
 endmodule
-
 `endif
