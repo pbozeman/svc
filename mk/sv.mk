@@ -8,6 +8,7 @@ SYNTH_DEFS := -DSVC_DEF_NET_NONE
 include mk/formal.mk
 include mk/format.mk
 include mk/iverilog.mk
+include mk/md.mk
 include mk/rtl.mk
 include mk/tb.mk
 include mk/top.mk
