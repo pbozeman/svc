@@ -9,6 +9,8 @@
 `include "svc_unused.sv"
 
 // ✨🤖✨ vibe coded with claude
+//
+// lots of fixes made since then, but there might be some residual weirdness
 
 module svc_fb_pix_vga #(
     parameter H_WIDTH         = 12,
@@ -229,5 +231,172 @@ module svc_fb_pix_vga #(
       .vga_blu  (vga_blu),
       .vga_error(vga_error)
   );
+
+`ifdef FORMAL
+`ifdef ZIPCPU_PRIVATE
+`ifdef FORMAL_SVC_FB_PIX_VGA
+  `define ASSERT(lable, a) lable: assert(a)
+  `define ASSUME(lable, a) lable: assume(a)
+  `define COVER(lable, a) lable: cover(a)
+`else
+  `define ASSERT(lable, a) lable: assume(a)
+  `define ASSUME(lable, a) lable: assert(a)
+  `define COVER(lable, a)
+`endif
+
+  logic f_past_valid = 0;
+  always @(posedge clk) begin
+    f_past_valid <= 1;
+  end
+
+  logic f_pixel_past_valid = 0;
+  always @(posedge pixel_clk) begin
+    f_pixel_past_valid <= 1;
+  end
+
+  always @(*) begin
+    // assume reset at the start, and then, we don't reset randomly
+    assume (rst_n == f_past_valid);
+    assume (pixel_rst_n == f_past_valid);
+  end
+
+  // Stability assertions - pixel stream
+  always @(posedge clk) begin
+    if (f_past_valid && $past(rst_n)) begin
+      // m_pix_valid should remain stable when m_pix_ready is low
+      if ($past(m_pix_valid && !m_pix_ready)) begin
+        `ASSERT(as_m_pix_valid_stable, m_pix_valid);
+      end
+    end
+  end
+
+  // Data stability assertions - pixel stream
+  always @(posedge clk) begin
+    if (f_past_valid && $past(rst_n)) begin
+      // output signals should be stable until accepted
+      if ($past(m_pix_valid && !m_pix_ready) && !m_pix_ready) begin
+        `ASSERT(as_stable_m_pix_red, $stable(m_pix_red));
+        `ASSERT(as_stable_m_pix_grn, $stable(m_pix_grn));
+        `ASSERT(as_stable_m_pix_blu, $stable(m_pix_blu));
+        `ASSERT(as_stable_m_pix_x, $stable(m_pix_x));
+        `ASSERT(as_stable_m_pix_y, $stable(m_pix_y));
+        `ASSERT(as_stable_m_pix_addr, $stable(m_pix_addr));
+      end
+    end
+  end
+
+  // TODO: VGA stream assertions
+
+  // Stall detection from caller
+  logic [3:0] stall_cnt;
+  always @(posedge clk) begin
+    if (!rst_n) begin
+      stall_cnt <= 0;
+    end else begin
+      if (m_pix_valid) begin
+        if (m_pix_ready) begin
+          stall_cnt <= 0;
+        end else begin
+          stall_cnt <= stall_cnt + 1;
+        end
+      end
+    end
+  end
+
+  // Stall detection - vga signal
+  logic [3:0] pixel_stall_cnt;
+  always @(posedge pixel_clk) begin
+    if (!pixel_rst_n) begin
+      pixel_stall_cnt <= 0;
+    end else begin
+      if (vga_pix_valid) begin
+        if (vga_pix_ready) begin
+          pixel_stall_cnt <= 0;
+        end else begin
+          pixel_stall_cnt <= pixel_stall_cnt + 1;
+        end
+      end
+    end
+  end
+
+`ifdef FORMAL_SVC_FB_PIX_VGA
+  // We don't to make such an assertion for our callers
+  always @(posedge clk) begin
+    if (f_past_valid && $past(rst_n)) begin
+      assume (stall_cnt < 2);
+    end
+  end
+
+  // dito from above
+  always @(posedge pixel_clk) begin
+    if (f_pixel_past_valid && $past(pixel_rst_n)) begin
+      assume (pixel_stall_cnt < 2);
+    end
+  end
+`endif
+
+  // AXI interface compliance
+  // verilator lint_off: PINMISSING
+  faxi_master #(
+      .C_AXI_ID_WIDTH  (AXI_ID_WIDTH),
+      .C_AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
+      .C_AXI_DATA_WIDTH(AXI_DATA_WIDTH),
+      .F_OPT_INITIAL   (1'b0),
+      .OPT_EXCLUSIVE   (1'b0),
+      .OPT_NARROW_BURST(1'b0),
+      .F_LGDEPTH       (9),
+      .F_AXI_MAXSTALL  (3),
+      .F_AXI_MAXRSTALL (2),
+      .F_AXI_MAXDELAY  (3)
+  ) faxi_manager_i (
+      .i_clk        (clk),
+      .i_axi_reset_n(rst_n),
+      .i_axi_awvalid(1'b0),
+      .i_axi_awready(1'b0),
+      .i_axi_awid   (0),
+      .i_axi_awaddr (0),
+      .i_axi_awlen  (0),
+      .i_axi_awsize (0),
+      .i_axi_awburst(0),
+      .i_axi_awlock (0),
+      .i_axi_awcache(0),
+      .i_axi_awprot (0),
+      .i_axi_awqos  (0),
+      .i_axi_wvalid (0),
+      .i_axi_wready (0),
+      .i_axi_wdata  (0),
+      .i_axi_wstrb  (0),
+      .i_axi_wlast  (0),
+      .i_axi_bvalid (1'b0),
+      .i_axi_bready (1'b0),
+      .i_axi_bid    (0),
+      .i_axi_bresp  (2'b00),
+
+      .i_axi_arvalid(m_axi_arvalid),
+      .i_axi_arready(m_axi_arready),
+      .i_axi_arid   (m_axi_arid),
+      .i_axi_araddr (m_axi_araddr),
+      .i_axi_arlen  (m_axi_arlen),
+      .i_axi_arsize (m_axi_arsize),
+      .i_axi_arburst(m_axi_arburst),
+      .i_axi_arlock (0),
+      .i_axi_arcache(0),
+      .i_axi_arprot (0),
+      .i_axi_arqos  (0),
+      .i_axi_rvalid (m_axi_rvalid),
+      .i_axi_rready (m_axi_rready),
+      .i_axi_rdata  (m_axi_rdata),
+      .i_axi_rid    (m_axi_rid),
+      .i_axi_rlast  (m_axi_rlast),
+      .i_axi_rresp  (m_axi_rresp)
+  );
+  // verilator lint_on: PINMISSING
+`endif
+
+  `undef ASSERT
+  `undef ASSUME
+  `undef COVER
+`endif
+
 endmodule
 `endif
