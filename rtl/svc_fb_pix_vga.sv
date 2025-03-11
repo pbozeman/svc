@@ -249,10 +249,12 @@ module svc_fb_pix_vga #(
     f_past_valid <= 1;
   end
 
+`ifdef FORMAL_SVC_FB_PIX_VGA
   logic f_pixel_past_valid = 0;
   always @(posedge pixel_clk) begin
     f_pixel_past_valid <= 1;
   end
+`endif
 
   always @(*) begin
     // assume reset at the start, and then, we don't reset randomly
