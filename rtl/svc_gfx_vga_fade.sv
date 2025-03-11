@@ -398,7 +398,13 @@ module svc_gfx_vga_fade #(
 
   // Output to FIFO - determine if pixel should be written back
   logic write_aged;
-  assign write_aged = fb_pix_valid_p1 && fb_pix_age_p1 != 0 &&
+
+  // FIXME: fb_pix_age_p1 != 0 seems like it should work since if we aged it to
+  // 0, the pixel is black, but it doesn't. This implies there is some sort of
+  // age bug. Investigate.
+  //
+  // Also: even aside from that, this is kinda of a mess.
+  assign write_aged = fb_pix_valid_p1 &&
       |{fb_pix_red_p1, fb_pix_grn_p1, fb_pix_blu_p1} && aw_ready && w_ready;
 
   // Pass aged pixel to FIFO input
