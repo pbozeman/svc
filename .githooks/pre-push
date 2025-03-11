@@ -1,0 +1,163 @@
+#!/bin/sh
+
+# Pre-push hook to prevent commits with [wip] or "wip" from being pushed
+# Also runs make format and make full to ensure code quality before pushing
+
+# Function to check if a commit message contains WIP
+contains_wip() {
+  local commit_msg="$1"
+  echo "$commit_msg" | grep -i -E '\[wip\]|"wip"|wip' >/dev/null
+  return $?
+}
+
+# Store the current working directory
+current_dir=$(pwd)
+
+# Check if there are any uncommitted changes
+has_uncommitted_changes() {
+  ! git diff-index --quiet HEAD -- || [ -n "$(git ls-files --others --exclude-standard)" ]
+}
+
+# Cleanup function to ensure we return to the original state
+cleanup() {
+  local exit_code=$?
+  echo "Cleaning up..."
+
+  # If we're on a temporary branch, switch back to the original branch
+  if [ -n "$temp_branch" ] && git rev-parse --verify "$temp_branch" >/dev/null 2>&1; then
+    echo "Returning to branch $current_branch..."
+    git checkout "$current_branch" >/dev/null 2>&1
+    git branch -D "$temp_branch" >/dev/null 2>&1
+  fi
+
+  # Restore stashed changes if there were any
+  if [ "$stashed" = true ]; then
+    if git stash list | head -n1 | grep -q "Pre-push hook stash"; then
+      echo "Restoring stashed changes and untracked files..."
+      git stash pop -q || true
+    fi
+  fi
+
+  # Clean up temporary files
+  rm -f /tmp/pre-push-hook-refs
+
+  # If this was called due to an error or interrupt, propagate the exit code
+  if [ $exit_code -ne 0 ]; then
+    echo "Operation was interrupted or failed with exit code $exit_code"
+    exit $exit_code
+  fi
+}
+
+# This is STDIN for the pre-push hook from git
+# It contains the ref information being pushed
+cat >/tmp/pre-push-hook-refs
+
+echo "Checking for WIP commits in push..."
+
+# Check each commit that would be pushed
+z40=0000000000000000000000000000000000000000
+while read local_ref local_sha remote_ref remote_sha; do
+  # Only examine actual branches being pushed (not tags, etc)
+  if [[ "$local_ref" == refs/heads/* ]]; then
+    # Check if we're creating a new branch or deleting a branch
+    if [[ "$remote_sha" == $z40 ]]; then
+      # New branch, examine all commits
+      range="$local_sha"
+    else
+      # Update to existing branch, examine new commits
+      range="$remote_sha..$local_sha"
+    fi
+
+    echo "Examining commits in range: $range"
+
+    # Get list of commits in range
+    commits_to_check=$(git log --format=%H "$range")
+
+    # If there are commits to check
+    if [ -n "$commits_to_check" ]; then
+      # Check each commit in the range for WIP
+      for commit in $commits_to_check; do
+        commit_msg=$(git log -1 --format=%B "$commit")
+
+        if contains_wip "$commit_msg"; then
+          echo >&2 "ERROR: Attempting to push commit with [wip] or \"wip\" in the message:"
+          echo >&2 "Commit: $commit"
+          echo >&2 "Message: $commit_msg"
+          echo >&2 ""
+          echo >&2 "Push rejected. Please rebase/amend the WIP commit before pushing."
+          exit 1
+        fi
+      done
+    else
+      echo "No new commits to check"
+    fi
+
+    # Save current branch name
+    current_branch=$(git rev-parse --abbrev-ref HEAD)
+
+    # Check if there are uncommitted changes or untracked files
+    stashed=false
+    if has_uncommitted_changes; then
+      echo "Stashing uncommitted changes and untracked files..."
+      # Stash both tracked and untracked changes
+      git stash save --include-untracked -q "Pre-push hook stash"
+      if [ $? -eq 0 ]; then
+        stashed=true
+      fi
+    fi
+
+    # Set up trap to ensure cleanup on exit or interrupt
+    temp_branch="temp-pre-push-check-$(date +%s)"
+    trap cleanup EXIT INT TERM
+
+    # Check out the code being pushed
+    echo "Creating temporary branch $temp_branch for validation..."
+    git checkout -b "$temp_branch" "$local_sha" >/dev/null 2>&1
+
+    # Always run make format unconditionally
+    echo "Running make format before pushing..."
+    make format
+    format_result=$?
+
+    # Run make full to ensure all tests pass before pushing
+    if [ $format_result -eq 0 ]; then
+      echo "Running make full before pushing..."
+      make full
+      full_result=$?
+    else
+      full_result=1
+    fi
+
+    # Return to original state - the trap ensures this happens on interrupts too
+    git checkout "$current_branch" >/dev/null 2>&1
+    git branch -D "$temp_branch" >/dev/null 2>&1
+
+    # Restore stashed changes if there were any
+    # We've already handled this manual restore, so set stashed to false to prevent
+    # the cleanup function from trying to restore a non-existent stash
+    if [ "$stashed" = true ]; then
+      if git stash list | head -n1 | grep -q "Pre-push hook stash"; then
+        echo "Restoring stashed changes and untracked files..."
+        git stash pop -q || true
+      fi
+      stashed=false
+    fi
+
+    # Reset the trap since we've manually cleaned up
+    trap - EXIT INT TERM
+
+    # Check results
+    if [ $format_result -ne 0 ]; then
+      echo >&2 "ERROR: 'make format' failed. Please run 'make format' locally and commit the changes before pushing."
+      exit 1
+    fi
+
+    if [ $full_result -ne 0 ]; then
+      echo >&2 "ERROR: 'make full' failed. Please fix the issues before pushing."
+      exit 1
+    fi
+  fi
+done </tmp/pre-push-hook-refs
+
+echo "Pre-push checks passed!"
+exit 0

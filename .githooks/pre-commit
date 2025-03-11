@@ -1,0 +1,97 @@
+#!/bin/sh
+
+# Exit immediately if a command exits with a non-zero status
+set -e
+
+echo "Running pre-commit hook..."
+
+# Cleanup function to ensure we return to the original state
+cleanup() {
+  local exit_code=$?
+  echo "Cleaning up pre-commit hook..."
+
+  # Restore stashed changes if they exist
+  if [ "${STASHED:-1}" -eq 0 ]; then
+    # Only try to pop if there's actually a stash with our message
+    if git stash list | head -n1 | grep -q "pre-commit-formatting-stash"; then
+      echo "Restoring unstaged changes..."
+      git stash pop >/dev/null 2>&1 || true
+    fi
+  fi
+
+  # If this was called due to an error or interrupt, propagate the exit code
+  if [ $exit_code -ne 0 ]; then
+    echo "Pre-commit operation was interrupted or failed with exit code $exit_code"
+    exit $exit_code
+  fi
+}
+
+# Set up trap to ensure cleanup on exit or interrupt
+trap cleanup EXIT INT TERM
+
+# Check if we have any files staged for commit
+ANY_STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+
+if [ -z "$ANY_STAGED" ]; then
+  echo "No files staged for commit. Skipping checks."
+  trap - EXIT INT TERM # Reset trap since we're exiting normally
+  exit 0
+fi
+
+echo "Running format check for all files..."
+
+# Save the current unstaged changes to apply later
+# Stash both tracked and untracked changes
+git stash save --keep-index --include-untracked -q "pre-commit-formatting-stash" >/dev/null 2>&1
+STASHED=$? # 0 means success in shell
+
+# Function to restore changes and exit with error
+restore_and_exit() {
+  echo "Error: $1"
+
+  # If we're manually restoring stashed changes here,
+  # set STASHED to indicate the cleanup trap shouldn't try again
+  if [ "${STASHED:-1}" -eq 0 ]; then
+    # Only try to pop if there's actually a stash with our message
+    if git stash list | head -n1 | grep -q "pre-commit-formatting-stash"; then
+      echo "Restoring unstaged changes..."
+      git stash pop >/dev/null 2>&1 || true
+    fi
+    STASHED=1
+  fi
+
+  exit 1
+}
+
+# Run make format
+echo "Running 'make format'..."
+make format >/dev/null 2>&1
+
+# Check if any staged files were modified by the formatter
+FORMAT_CHANGED=$(git diff --name-only | grep -E '\.(sv|v)$' || true)
+
+if [ -n "$FORMAT_CHANGED" ]; then
+  echo "The following files were modified by 'make format':"
+  echo "$FORMAT_CHANGED"
+  restore_and_exit "Please run 'make format' before committing."
+fi
+
+# Run lint on all files
+echo "Running 'make lint'..."
+if ! make lint; then
+  restore_and_exit "Linting failed. Please fix the issues before committing."
+fi
+
+# Run quick tests
+echo "Running 'make quick'..."
+if ! make quick; then
+  restore_and_exit "Tests failed. Please fix the issues before committing."
+fi
+
+# We don't need to restore stashed changes here as the cleanup trap will handle it
+
+# Reset trap since we're exiting normally
+trap - EXIT INT TERM
+
+echo "Pre-commit checks passed successfully!"
+exit 0
