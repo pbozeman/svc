@@ -1,0 +1,46 @@
+[tasks]
+bmc
+cover
+
+[options]
+bmc: mode bmc
+bmc: depth 20
+cover: mode cover
+cover: depth 16
+
+[engines]
+smtbmc boolector
+
+[script]
+--pycode-begin--
+import glob
+import os
+
+f_files = glob.glob("tb/formal/private/*.v")
+
+read_cmd = "read_verilog -formal -DFORMAL_SVC_FB_PIX_VGA "
+if f_files:
+  read_cmd += "-DZIPCPU_PRIVATE "
+else:
+  read_cmd += " -DFORMAL_NO_SUBMODULES "
+
+read_cmd += "-sv svc_fb_pix_vga.sv\n"
+
+for f in f_files:
+  read_cmd += f"read_verilog -formal -sv {os.path.basename(f)}\n"
+
+output(read_cmd)
+--pycode-end--
+
+prep -top svc_fb_pix_vga
+
+[files]
+--pycode-begin--
+import glob
+files = "\n".join(glob.glob("tb/formal/private/*.v"))
+files += "\n"
+files += "\n".join(glob.glob("tb/formal/*.v"))
+files += "\n"
+files += "\n".join(glob.glob("rtl/*.sv"))
+output(files)
+--pycode-end--
