@@ -15,6 +15,7 @@
 
         # Python package with required dependencies
         pythonEnv = pkgs.python3.withPackages (ps: with ps; [
+          mdformat-gfm
         ]);
 
         # Base build inputs common to all systems
@@ -23,6 +24,7 @@
           flock
           gtkwave
           icestorm
+          mdformat
           nextpnr
           pythonEnv
           sby
