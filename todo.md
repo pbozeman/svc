@@ -4,3 +4,4 @@
   need to be set when interfacing with vivado mig gen'd axi interfaces.
 - test bench for svc_pix_cdc (although, this gets a workout in the example repo)
 - test bench for svc_fb_vga (although, this gets a workout in the example repo)
+- test item
