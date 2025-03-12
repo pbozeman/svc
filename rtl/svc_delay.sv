@@ -14,20 +14,28 @@ module svc_delay #(
 );
   logic [WIDTH-1:0] shift_reg[CYCLES-1:0];
 
-  always_ff @(posedge clk) begin
+  // using an always_ff here confuses iverilog and results in
+  //
+  // warning: A for statement must use the index (i) in the condition
+  // expression to be synthesized in an always_ff process.
+  //
+  // But only if the CYCLES parameter isn't a single integer. If
+  // its made from something like localparam DELAY = ADC_DELAY + 2,
+  // then there is a warning, which tbh, doesn't make much sense.
+  always @(posedge clk) begin
     if (!rst_n) begin
       for (int i = 0; i < CYCLES; i++) begin
         shift_reg[i] <= '0;
       end
-      out <= '0;
     end else begin
       shift_reg[0] <= in;
       for (int i = 1; i < CYCLES; i++) begin
         shift_reg[i] <= shift_reg[i-1];
       end
-      out <= shift_reg[CYCLES-1];
     end
   end
+
+  assign out = shift_reg[CYCLES-1];
 
 endmodule
 `endif
