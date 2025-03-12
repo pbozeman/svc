@@ -14,8 +14,15 @@ cleanup() {
   if [ "${STASHED:-1}" -eq 0 ]; then
     # Only try to pop if there's actually a stash with our message
     if git stash list | head -n1 | grep -q "pre-commit-formatting-stash"; then
-      echo "Restoring unstaged changes..."
-      git stash pop >/dev/null 2>&1 || true
+      echo "Restoring unstaged changes and untracked files..."
+      # Use apply instead of pop to avoid issues if there are conflicts
+      git stash apply --index >/dev/null 2>&1
+      if [ $? -eq 0 ]; then
+        # Only drop if apply was successful
+        git stash drop >/dev/null 2>&1 || true
+      else
+        echo "Warning: Could not automatically restore your changes. Run 'git stash pop' manually."
+      fi
     fi
   fi
 
@@ -54,8 +61,15 @@ restore_and_exit() {
   if [ "${STASHED:-1}" -eq 0 ]; then
     # Only try to pop if there's actually a stash with our message
     if git stash list | head -n1 | grep -q "pre-commit-formatting-stash"; then
-      echo "Restoring unstaged changes..."
-      git stash pop >/dev/null 2>&1 || true
+      echo "Restoring unstaged changes and untracked files..."
+      # Use apply instead of pop to avoid issues if there are conflicts
+      git stash apply --index >/dev/null 2>&1
+      if [ $? -eq 0 ]; then
+        # Only drop if apply was successful
+        git stash drop >/dev/null 2>&1 || true
+      else
+        echo "Warning: Could not automatically restore your changes. Run 'git stash pop' manually."
+      fi
     fi
     STASHED=1
   fi
