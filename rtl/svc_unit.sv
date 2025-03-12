@@ -165,7 +165,8 @@
       `CHECK_MSG_1("WAIT_FOR", `__FILE__, `__LINE__, signal);                \
     end
 
-`define TEST_SUITE_BEGIN(tb_module_name, watchdog_cnt = 10000, depth = 0)    \
+// verilog_format: off
+`define TEST_SUITE_BEGIN(tb_module_name, watchdog_cnt = 10000, depth = 0, is_slow=0) \
 `ifndef VERILATOR                                                            \
   int line_num;                                                              \
   int svc_wait_cnt;                                                          \
@@ -175,6 +176,7 @@
   string svc_tb_module_name;                                                 \
   string svc_tb_test_name;                                                   \
   string svc_tb_test_name_run;                                               \
+  logic svc_skip_slow_tests;                                                 \
                                                                              \
   initial begin                                                              \
     svc_tb_module_name = `"tb_module_name`";                                 \
@@ -183,6 +185,16 @@
   initial begin                                                              \
     $dumpfile({".build/", `"tb_module_name`", ".vcd"});                      \
     $dumpvars(depth, tb_module_name);                                        \
+  end                                                                        \
+                                                                             \
+  initial begin                                                              \
+    if ($value$plusargs("SKIP_SLOW_TESTS=%b", svc_skip_slow_tests)) begin    \
+      if (svc_skip_slow_tests && is_slow == 1) begin                         \
+        #10;                                                                 \
+        $display("%sSKIPPED%s", `COLOR_YELLOW, `COLOR_RESET);                \
+        $finish(0);                                                          \
+      end                                                                    \
+    end                                                                      \
   end                                                                        \
                                                                              \
 `ifndef VERILATOR                                                            \
@@ -197,6 +209,10 @@
 `endif                                                                       \
                                                                              \
   initial begin
+
+`define TEST_SUITE_BEGIN_SLOW(tb_module_name, watchdog_cnt = 20000000, depth = 5) \
+  `TEST_SUITE_BEGIN(tb_module_name, watchdog_cnt, depth, 1'b1)
+
 
 `define TEST_SETUP(setup_task) \
   `define TEST_SETUP_TASK setup_task();
