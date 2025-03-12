@@ -34,7 +34,14 @@ cleanup() {
   if [ "$stashed" = true ]; then
     if git stash list | head -n1 | grep -q "Pre-push hook stash"; then
       echo "Restoring stashed changes and untracked files..."
-      git stash pop -q || true
+      # Use apply instead of pop to avoid issues if there are conflicts
+      git stash apply --index -q
+      if [ $? -eq 0 ]; then
+        # Only drop if apply was successful
+        git stash drop -q || true
+      else
+        echo "Warning: Could not automatically restore your changes. Run 'git stash pop' manually."
+      fi
     fi
   fi
 
@@ -151,7 +158,14 @@ while read local_ref local_sha remote_ref remote_sha; do
     if [ "$stashed" = true ]; then
       if git stash list | head -n1 | grep -q "Pre-push hook stash"; then
         echo "Restoring stashed changes and untracked files..."
-        git stash pop -q || true
+        # Use apply instead of pop to avoid issues if there are conflicts
+        git stash apply --index -q
+        if [ $? -eq 0 ]; then
+          # Only drop if apply was successful
+          git stash drop -q || true
+        else
+          echo "Warning: Could not automatically restore your changes. Run 'git stash pop' manually."
+        fi
       fi
       stashed=false
     fi
