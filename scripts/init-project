@@ -8,8 +8,6 @@ cp ${SVC_TOP}/flake.lock ${DEST_DIR}
 cp ${SVC_TOP}/.envrc ${DEST_DIR}
 cp ${SVC_TOP}/.gitignore ${DEST_DIR}
 
-ln -sf ${SVC_TOP}/.githooks ${DEST_DIR}
-
 if [ ! -f ${DEST_DIR}/Makefile ]; then
   cp ${SVC_TOP}/mk/makefile.template ${DEST_DIR}/Makefile
 fi
@@ -21,3 +19,7 @@ mkdir -p ${DEST_DIR}/scripts
 cd scripts
 SCRIPT_REL=$(realpath --relative-to=. ${SVC_TOP}/scripts)
 ln -sf ${SCRIPT_REL}/* .
+
+cd ${DEST_DIR}
+HOOKS_REL=$(realpath --relative-to=. ${SVC_TOP}/.githooks)
+ln -sf ${HOOKS_REL} ${DEST_DIR}
