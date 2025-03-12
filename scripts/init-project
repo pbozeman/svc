@@ -8,6 +8,8 @@ cp ${SVC_TOP}/flake.lock ${DEST_DIR}
 cp ${SVC_TOP}/.envrc ${DEST_DIR}
 cp ${SVC_TOP}/.gitignore ${DEST_DIR}
 
+ln -sf ${SVC_TOP}/.githooks ${DEST_DIR}
+
 if [ ! -f ${DEST_DIR}/Makefile ]; then
   cp ${SVC_TOP}/mk/makefile.template ${DEST_DIR}/Makefile
 fi
