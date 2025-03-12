@@ -22,7 +22,7 @@ module svc_ice40_vga_pll (
       .DIVF         (`VGA_MODE_PLL_DIVF),
       .DIVQ         (`VGA_MODE_PLL_DIVQ),
       .FILTER_RANGE (`VGA_MODE_PLL_FILTER_RANGE)
-  ) pll_inst (
+  ) sb_pll40_core_i (
       .LOCK        (pll_lock),
       .RESETB      (1'b1),
       .BYPASS      (1'b0),
