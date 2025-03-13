@@ -109,25 +109,25 @@ module svc_axi_arbiter_wr #(
     // aw
     svc_skidbuf #(
         .DATA_WIDTH(SKIDBUF_AW_WIDTH)
-    ) svc_skidbuf_ar_i (
+    ) svc_skidbuf_aw_i (
         .clk(clk),
         .rst_n(rst_n),
         .i_valid(s_axi_awvalid[i]),
         .i_data({
-          s_axi_awid[i],
-          s_axi_awaddr[i],
-          s_axi_awlen[i],
+          s_axi_awburst[i],
           s_axi_awsize[i],
-          s_axi_awburst[i]
+          s_axi_awid[i],
+          s_axi_awlen[i],
+          s_axi_awaddr[i]
         }),
         .o_ready(s_axi_awready[i]),
         .i_ready(sb_s_awready[i]),
         .o_data({
-          sb_s_awid[i],
-          sb_s_awaddr[i],
-          sb_s_awlen[i],
+          sb_s_awburst[i],
           sb_s_awsize[i],
-          sb_s_awburst[i]
+          sb_s_awid[i],
+          sb_s_awlen[i],
+          sb_s_awaddr[i]
         }),
         .o_valid(sb_s_awvalid[i])
     );
