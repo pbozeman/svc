@@ -186,17 +186,7 @@ module svc_axi_arbiter #(
     assume (rst_n == f_past_valid);
   end
 
-  logic [8:0] f_axi_wr_pending[NUM_M-1:0];
-
   for (genvar i = 0; i < NUM_M; i++) begin : gen_faxi_s
-    always @(*) begin
-      // FIXME: this over constrains the state space as this can actually happen
-      // in real usage, but is necessary for faxi_slave.v. See faxi_slave.v:664
-      if (f_axi_wr_pending[i] > 0) begin
-        assume (!s_axi_awready[i]);
-      end
-    end
-
     faxi_slave #(
         .C_AXI_ID_WIDTH    (AXI_ID_WIDTH),
         .C_AXI_DATA_WIDTH  (AXI_DATA_WIDTH),
@@ -259,7 +249,7 @@ module svc_axi_arbiter #(
         .i_axi_rready(s_axi_rready[i]),
 
         .f_axi_awr_nbursts   (),
-        .f_axi_wr_pending    (f_axi_wr_pending[i]),
+        .f_axi_wr_pending    (),
         .f_axi_rd_nbursts    (),
         .f_axi_rd_outstanding(),
 
