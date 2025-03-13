@@ -151,7 +151,7 @@ module svc_axi_arbiter_wr_tb;
     m_axi_wvalid     = '0;
     m_axi_bready     = '1;
 
-    // Set up a burst from master 0
+    // Set up a burst from 0
     // length 2, INCR, 2 byte stride
     m_axi_awvalid[0] = 1'b1;
     m_axi_awaddr[0]  = addr;
@@ -221,12 +221,138 @@ module svc_axi_arbiter_wr_tb;
     `CHECK_EQ(m_axi_bvalid, 3'b000);
   endtask
 
+  // The release tests are here from a time when we used to allow
+  // aw ready to go high even when writes were still outstanding.
+  //
+  // The zipcpu formal verification didn't allow that, despite it being
+  // allowed by the protocol, so we had to SV assume it to be the case.
+  // This over-constrained the verifier, so these tests were added to
+  // make sure grants were handled correctly. Since then, the implementation
+  // changed, but there didn't seem to be any reason to throw these tests
+  // away. They run much faster than formal.
+
+  task automatic test_grant_release_w_first;
+    logic [AW-1:0] addr = AW'(16'hA000);
+    logic [DW-1:0] data = DW'(16'hD000);
+
+    // Block both AW and W channels initially
+    s_axi_awready    = 1'b0;
+    s_axi_wready     = 1'b0;
+
+    // Set up a transfer from 0
+    m_axi_awvalid[0] = 1'b1;
+    m_axi_awaddr[0]  = addr;
+    m_axi_awid[0]    = 4'h1;
+    m_axi_awlen[0]   = 8'h00;
+    m_axi_awburst[0] = 2'b01;
+    m_axi_awsize[0]  = 3'b001;
+
+    `TICK(clk);
+
+    // Verify grant is given to 0 but AW is blocked
+    `CHECK_TRUE(uut.grant_valid);
+    `CHECK_EQ(uut.grant_idx, 0);
+    `CHECK_TRUE(s_axi_awvalid);
+    `CHECK_FALSE(s_axi_awready);
+
+    // Send W data
+    m_axi_wvalid[0] = 1'b1;
+    m_axi_wdata[0]  = data;
+    m_axi_wstrb[0]  = '1;
+    m_axi_wlast[0]  = 1'b1;
+
+    `TICK(clk);
+    `CHECK_TRUE(uut.grant_valid);
+    `CHECK_EQ(uut.grant_idx, 0);
+
+    // Now allow W to complete while keeping AW blocked
+    s_axi_wready = 1'b1;
+
+    // The grant should stay valid because we haven't released AW
+    repeat (10) begin
+      `CHECK_TRUE(uut.grant_valid);
+      `CHECK_EQ(uut.grant_idx, 0);
+      `TICK(clk);
+    end
+
+    // Now allow AW to complete
+    s_axi_awready = 1'b1;
+    `CHECK_WAIT_FOR(clk, s_axi_awvalid && s_axi_awready);
+    `TICK(clk);
+    `TICK(clk);
+    `CHECK_FALSE(uut.grant_valid);
+  endtask
+
+  task automatic test_grant_release_aw_first;
+    logic [AW-1:0] addr = AW'(16'hA000);
+    logic [DW-1:0] data = DW'(16'hD000);
+
+    // Block both AW and W channels initially
+    s_axi_awready    = 1'b0;
+    s_axi_wready     = 1'b0;
+
+    // Set up a transfer from 0
+    m_axi_awvalid[0] = 1'b1;
+    m_axi_awaddr[0]  = addr;
+    m_axi_awid[0]    = 4'h1;
+    m_axi_awlen[0]   = 8'h00;
+    m_axi_awburst[0] = 2'b01;
+    m_axi_awsize[0]  = 3'b001;
+
+    `TICK(clk);
+
+    // Verify grant is given to 0 but blocked
+    `CHECK_TRUE(uut.grant_valid);
+    `CHECK_EQ(uut.grant_idx, 0);
+    `CHECK_TRUE(s_axi_awvalid);
+    `CHECK_FALSE(s_axi_awready);
+
+    // Allow AW to complete while keeping W blocked
+    s_axi_awready = 1'b1;
+
+    // Wait for AW handshake
+    `CHECK_WAIT_FOR(clk, s_axi_awvalid && s_axi_awready);
+
+    // The grant should still be valid because we haven't completed W yet
+    `CHECK_TRUE(uut.grant_valid);
+    `CHECK_EQ(uut.grant_idx, 0);
+
+    // Now send W data
+    m_axi_wvalid[0] = 1'b1;
+    m_axi_wdata[0]  = data;
+    m_axi_wstrb[0]  = '1;
+    m_axi_wlast[0]  = 1'b1;
+
+    // The grant should stay valid because we haven't released W
+    repeat (10) begin
+      `CHECK_TRUE(uut.grant_valid);
+      `CHECK_EQ(uut.grant_idx, 0);
+      `TICK(clk);
+    end
+
+    // Verify W is valid but stalled
+    `CHECK_TRUE(s_axi_wvalid);
+    `CHECK_FALSE(s_axi_wready);
+
+    // Now allow W to complete
+    s_axi_wready = 1'b1;
+
+    // Wait for W handshake
+    `CHECK_WAIT_FOR(clk, m_axi_wvalid[0] && m_axi_wready[0]);
+    `CHECK_FALSE(s_axi_wvalid);
+
+    // Grant should be released after W completes with wlast
+    `CHECK_FALSE(uut.grant_valid);
+  endtask
+
   `SVC_UNUSED({m_axi_wready[NUM_M-1:1], m_axi_bid[NUM_M-1:1],
                m_axi_bresp[NUM_M-1:1]});
 
   `TEST_SUITE_BEGIN(svc_axi_arbiter_wr_tb);
   `TEST_CASE(test_initial);
   `TEST_CASE(test_basic);
+  `TEST_CASE(test_grant_release_w_first);
+  `TEST_CASE(test_grant_release_aw_first);
   `TEST_SUITE_END();
 
 endmodule

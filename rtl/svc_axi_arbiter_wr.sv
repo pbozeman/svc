@@ -4,6 +4,7 @@
 `include "svc.sv"
 `include "svc_arbiter.sv"
 `include "svc_skidbuf.sv"
+`include "svc_sticky_bit.sv"
 
 //
 // AXI write arbiter from N managers to 1 subordinate.
@@ -90,8 +91,8 @@ module svc_axi_arbiter_wr #(
   logic [          NUM_M-1:0]                     sb_s_wlast;
   logic [          NUM_M-1:0]                     sb_s_wready;
 
-  logic                                           aw_accepted;
-  logic                                           aw_accepted_next;
+  logic                                           aw_done;
+  logic                                           w_done;
 
   logic [GRANT_IDX_WIDTH-1:0]                     b_grant_idx;
 
@@ -147,6 +148,22 @@ module svc_axi_arbiter_wr #(
     );
   end
 
+  svc_sticky_bit svc_sticky_bit_aw_i (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clear(grant_done),
+      .in   (m_axi_awvalid && m_axi_awready),
+      .out  (aw_done)
+  );
+
+  svc_sticky_bit svc_sticky_bit_w_i (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clear(grant_done),
+      .in   (m_axi_wvalid && m_axi_wready && m_axi_wlast),
+      .out  (w_done)
+  );
+
   // arbiter
   //
   // Write grants happen on awvalid and are held through wlast. In theory this
@@ -155,10 +172,14 @@ module svc_axi_arbiter_wr #(
   // for any svc modules. Revist this if that changes. Keep the arbitration
   // design simple for now.
   //
-  // If we have the grant, we don't want to request it again because the sb
-  // will still be valid until ready raises.
-  assign request_mask = grant_valid ? ~(1 << grant_idx) : '1;
-  assign grant_done   = m_axi_wvalid && m_axi_wready && m_axi_wlast;
+  // If we have the grant, we don't want to request it again. grant_done goes
+  // high when m_aw has been accepted, and when m_w is final. If m_aw is the
+  // one that is triggering this, the sb's version of valid will go low the
+  // next cycle.
+  always_comb begin
+    request_mask = grant_valid ? ~(1 << grant_idx) : '1;
+    grant_done   = aw_done && w_done;
+  end
 
   svc_arbiter #(
       .NUM_M(NUM_M)
@@ -166,36 +187,22 @@ module svc_axi_arbiter_wr #(
       .clk        (clk),
       .rst_n      (rst_n),
       .request    (sb_s_awvalid & request_mask),
-      .done       (m_axi_wvalid && m_axi_wready && m_axi_wlast),
+      .done       (grant_done),
       .grant_valid(grant_valid),
       .grant_idx  (grant_idx)
   );
 
-  always_comb begin
-    aw_accepted_next = aw_accepted;
-
-    if (grant_done) begin
-      aw_accepted_next = 1'b0;
-    end else begin
-      if (m_axi_awvalid && m_axi_awready) begin
-        aw_accepted_next = 1'b1;
-      end
-    end
-  end
-
+  // break combo loop for m_axi_awvalid
+  logic aw_done_reg;
   always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      aw_accepted <= 1'b0;
-    end else begin
-      aw_accepted <= aw_accepted_next;
-    end
+    aw_done_reg <= aw_done;
   end
 
   //
   // Muxing
   //
   // AW out to subordinate mux
-  assign m_axi_awvalid = grant_valid && !aw_accepted;
+  assign m_axi_awvalid = grant_valid && !aw_done_reg;
   assign m_axi_awid    = grant_valid ? {grant_idx, sb_s_awid[grant_idx]} : 0;
   assign m_axi_awaddr  = grant_valid ? sb_s_awaddr[grant_idx] : 0;
   assign m_axi_awlen   = grant_valid ? sb_s_awlen[grant_idx] : 0;
@@ -206,7 +213,7 @@ module svc_axi_arbiter_wr #(
   always_comb begin
     sb_s_awready = '0;
     if (grant_valid) begin
-      sb_s_awready[grant_idx] = m_axi_awready;
+      sb_s_awready[grant_idx] = grant_done;
     end
   end
 
