@@ -4,6 +4,9 @@
 `include "svc.sv"
 
 // ✨🤖✨ vibe coded with claude
+//
+// .. and then I had to fix it up a lot :/
+// there might be residual issues
 
 module svc_gfx_rect_fill #(
     parameter int H_WIDTH     = 12,
@@ -42,7 +45,6 @@ module svc_gfx_rect_fill #(
   state_t                   state;
   state_t                   state_next;
 
-  // Scan variables
   logic   [    H_WIDTH-1:0] x_min;
   logic   [    H_WIDTH-1:0] x_max;
   logic   [    H_WIDTH-1:0] x_min_next;
@@ -62,7 +64,12 @@ module svc_gfx_rect_fill #(
   logic   [PIXEL_WIDTH-1:0] pixel_color;
   logic   [PIXEL_WIDTH-1:0] pixel_color_next;
 
-  // Next state logic
+  logic                     m_gfx_valid_next;
+  logic   [    H_WIDTH-1:0] m_gfx_x_next;
+  logic   [    V_WIDTH-1:0] m_gfx_y_next;
+  logic   [PIXEL_WIDTH-1:0] m_gfx_pixel_next;
+  logic                     done_next;
+
   always_comb begin
     state_next       = state;
 
@@ -76,15 +83,17 @@ module svc_gfx_rect_fill #(
 
     pixel_color_next = pixel_color;
 
-    done             = 1'b0;
-    m_gfx_valid      = 1'b0;
-    m_gfx_x          = curr_x;
-    m_gfx_y          = curr_y;
-    m_gfx_pixel      = pixel_color;
+    done_next        = done;
+
+    m_gfx_valid_next = m_gfx_valid && !m_gfx_ready;
+    m_gfx_x_next     = m_gfx_x;
+    m_gfx_y_next     = m_gfx_y;
+    m_gfx_pixel_next = m_gfx_pixel;
 
     case (state)
       STATE_IDLE: begin
         if (start) begin
+          done_next  = 1'b0;
           state_next = STATE_SETUP;
         end
       end
@@ -105,23 +114,21 @@ module svc_gfx_rect_fill #(
       end
 
       STATE_CLEARING: begin
-        // Valid pixel to draw
-        m_gfx_valid = 1'b1;
+        m_gfx_valid_next = 1'b1;
 
-        if (m_gfx_ready) begin
-          // Move to next pixel
+        if (!m_gfx_valid || m_gfx_ready) begin
+          m_gfx_x_next     = curr_x;
+          m_gfx_y_next     = curr_y;
+          m_gfx_pixel_next = pixel_color;
+
           if (curr_x < x_max) begin
-            // Move right
             curr_x_next = curr_x + 1'b1;
           end else begin
-            // Move to beginning of next row
             curr_x_next = x_min;
 
             if (curr_y < y_max) begin
-              // Move to next row
               curr_y_next = curr_y + 1'b1;
             end else begin
-              // Finished all rows
               state_next = STATE_DONE;
             end
           end
@@ -129,7 +136,7 @@ module svc_gfx_rect_fill #(
       end
 
       STATE_DONE: begin
-        done = 1'b1;
+        done_next = 1'b1;
         if (!start) begin
           state_next = STATE_IDLE;
         end
@@ -137,16 +144,18 @@ module svc_gfx_rect_fill #(
     endcase
   end
 
-  // Update state
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      state <= STATE_IDLE;
+      state       <= STATE_IDLE;
+      m_gfx_valid <= 1'b0;
+      done        <= 1'b0;
     end else begin
-      state <= state_next;
+      state       <= state_next;
+      m_gfx_valid <= m_gfx_valid_next;
+      done        <= done_next;
     end
   end
 
-  // Update state
   always_ff @(posedge clk) begin
     x_min       <= x_min_next;
     x_max       <= x_max_next;
@@ -157,8 +166,11 @@ module svc_gfx_rect_fill #(
     curr_y      <= curr_y_next;
 
     pixel_color <= pixel_color_next;
+
+    m_gfx_x     <= m_gfx_x_next;
+    m_gfx_y     <= m_gfx_y_next;
+    m_gfx_pixel <= m_gfx_pixel_next;
   end
 
 endmodule
-
 `endif
