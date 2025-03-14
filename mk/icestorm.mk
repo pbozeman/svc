@@ -115,7 +115,7 @@ SEED_LOCK := $(BUILD_DIR)/.seed_lock
 .PRECIOUS: $(BIN_DIR)/%.seed
 $(BIN_DIR)/%.seed: $(BUILD_DIR)/%.json
 	@mkdir -p $(BIN_DIR)
-	@flock -w 30 $(SEED_LOCK) scripts/find_seed.py -o $@ $(NEXTPNR) --asc /dev/null
+	@flock -w 180 $(SEED_LOCK) scripts/find_seed.py -o $@ $(NEXTPNR) --asc /dev/null
 
 # pnr
 .PRECIOUS: $(BIN_DIR)/%.asc
