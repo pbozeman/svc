@@ -20,7 +20,7 @@ module svc_fb_pix #(
     parameter AXI_ADDR_WIDTH  = 16,
     parameter AXI_DATA_WIDTH  = 16,
     parameter AXI_ID_WIDTH    = 4,
-    parameter FIFO_ADDR_WIDTH = 3
+    parameter FIFO_ADDR_WIDTH = 4
 ) (
     input logic clk,
     input logic rst_n,
