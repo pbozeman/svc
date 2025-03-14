@@ -373,6 +373,68 @@ module svc_gfx_rect_fill_tb;
     `CHECK_EQ(actual_count, expected_pixels);
   endtask
 
+  // Test signal stability during backpressure
+  task automatic test_signal_stability;
+    int                     actual_count;
+    logic [    H_WIDTH-1:0] stable_x;
+    logic [    V_WIDTH-1:0] stable_y;
+    logic [PIXEL_WIDTH-1:0] stable_pixel;
+
+    // Small area for testing (2x2 = 4 pixels)
+    x0 = 70;
+    y0 = 70;
+    x1 = 71;
+    y1 = 71;
+    color = 12'hA5A;
+
+    expected_pixels = count_rect_pixels(int'(x0), int'(y0), int'(x1), int'(y1));
+    received_pixels = 0;
+
+    // Start operation
+    start = 1;
+    `TICK(clk);
+    start = 0;
+
+    // Wait until we see valid asserted
+    repeat (5) begin
+      if (!m_gfx_valid) `TICK(clk);
+    end
+
+    // Ensure valid is high
+    `CHECK_TRUE(m_gfx_valid);
+
+    // Store current output values
+    stable_x     = m_gfx_x;
+    stable_y     = m_gfx_y;
+    stable_pixel = m_gfx_pixel;
+
+    // Apply backpressure
+    m_gfx_ready  = 0;
+
+    // Check stability over multiple cycles
+    repeat (5) begin
+      `TICK(clk);
+      `CHECK_TRUE(m_gfx_valid);
+      `CHECK_EQ(m_gfx_x, stable_x);
+      `CHECK_EQ(m_gfx_y, stable_y);
+      `CHECK_EQ(m_gfx_pixel, stable_pixel);
+    end
+
+    // Release backpressure to complete the operation
+    m_gfx_ready = 1;
+
+    // Wait for operation to complete
+    `CHECK_WAIT_FOR(clk, done, 1000);
+
+    // Check pixel count
+    `CHECK_EQ(received_pixels, expected_pixels);
+
+    // Verify rectangle area
+    actual_count =
+        verify_rectangular_area(int'(x0), int'(y0), int'(x1), int'(y1), color);
+    `CHECK_EQ(actual_count, expected_pixels);
+  endtask
+
   `TEST_SUITE_BEGIN(svc_gfx_rect_fill_tb);
 
   `TEST_SETUP(setup);
@@ -382,6 +444,8 @@ module svc_gfx_rect_fill_tb;
   `TEST_CASE(test_single_pixel);
   `TEST_CASE(test_horizontal_line);
   `TEST_CASE(test_vertical_line);
+  `TEST_CASE(test_with_backpressure);
+  `TEST_CASE(test_signal_stability);
 
   `TEST_SUITE_END();
 
