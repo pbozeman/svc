@@ -136,9 +136,14 @@ module svc_gfx_rect_fill #(
       end
 
       STATE_DONE: begin
-        done_next = 1'b1;
-        if (!start) begin
-          state_next = STATE_IDLE;
+        // doing a txn completion check here for the final pixel makes the
+        // interface a lot easier to use as a caller
+        if (m_gfx_valid && m_gfx_ready) begin
+          done_next = 1'b1;
+
+          if (!start) begin
+            state_next = STATE_IDLE;
+          end
         end
       end
     endcase
