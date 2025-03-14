@@ -10,39 +10,27 @@ contains_wip() {
   return $?
 }
 
-# Store the current working directory
-current_dir=$(pwd)
+# Store the current branch name
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+temp_branch="pre-push-$(date +%s)"
 
-# Check if there are any uncommitted changes
-has_uncommitted_changes() {
-  ! git diff-index --quiet HEAD -- || [ -n "$(git ls-files --others --exclude-standard)" ]
-}
+# Create unique stash name
+STASH_NAME="pre-push-$(date +%s)"
+git stash save --quiet --include-untracked $STASH_NAME
 
-# Cleanup function to ensure we return to the original state
 cleanup() {
   local exit_code=$?
-  echo "Cleaning up..."
 
-  # If we're on a temporary branch, switch back to the original branch
-  if [ -n "$temp_branch" ] && git rev-parse --verify "$temp_branch" >/dev/null 2>&1; then
-    echo "Returning to branch $current_branch..."
+  # First return to original branch if on temp branch
+  if git rev-parse --verify "$temp_branch" >/dev/null 2>&1; then
     git checkout "$current_branch" >/dev/null 2>&1
     git branch -D "$temp_branch" >/dev/null 2>&1
   fi
 
-  # Restore stashed changes if there were any
-  if [ "$stashed" = true ]; then
-    if git stash list | head -n1 | grep -q "Pre-push hook stash"; then
-      echo "Restoring stashed changes and untracked files..."
-      # Use apply instead of pop to avoid issues if there are conflicts
-      git stash apply --index -q
-      if [ $? -eq 0 ]; then
-        # Only drop if apply was successful
-        git stash drop -q || true
-      else
-        echo "Warning: Could not automatically restore your changes. Run 'git stash pop' manually."
-      fi
-    fi
+  # Then restore stashed changes
+  STASHES=$(git stash list)
+  if [[ $STASHES == *"$STASH_NAME" ]]; then
+    git stash pop --quiet
   fi
 
   # Clean up temporary files
@@ -50,7 +38,6 @@ cleanup() {
 
   # If this was called due to an error or interrupt, propagate the exit code
   if [ $exit_code -ne 0 ]; then
-    echo "Operation was interrupted or failed with exit code $exit_code"
     exit $exit_code
   fi
 }
@@ -78,13 +65,11 @@ while read local_ref local_sha remote_ref remote_sha; do
       range="$remote_sha..$local_sha"
 
       # Check if this is a fast-forward push
+      # Note: We'll accept non-fast-forward since the user may be using -f/--force
+      # The remote will reject the push if -f isn't specified, so we don't need to check here
       if ! git merge-base --is-ancestor "$remote_sha" "$local_sha"; then
-        echo >&2 "ERROR: Non-fast-forward push detected for branch $branch_name"
-        echo >&2 "Please pull the latest changes from the remote repository first:"
-        echo >&2 "  git fetch origin"
-        echo >&2 "  git merge origin/$branch_name" # or git pull
-        echo >&2 "Alternatively, use --force if you really want to push these changes."
-        exit 1
+        echo "Non-fast-forward push detected for branch $branch_name"
+        echo "Continuing with validation (the remote will reject if --force isn't used)"
       fi
     fi
 
@@ -112,22 +97,7 @@ while read local_ref local_sha remote_ref remote_sha; do
       echo "No new commits to check"
     fi
 
-    # Save current branch name
-    current_branch=$(git rev-parse --abbrev-ref HEAD)
-
-    # Check if there are uncommitted changes or untracked files
-    stashed=false
-    if has_uncommitted_changes; then
-      echo "Stashing uncommitted changes and untracked files..."
-      # Stash both tracked and untracked changes
-      git stash save --include-untracked -q "Pre-push hook stash"
-      if [ $? -eq 0 ]; then
-        stashed=true
-      fi
-    fi
-
     # Set up trap to ensure cleanup on exit or interrupt
-    temp_branch="temp-pre-push-check-$(date +%s)"
     trap cleanup EXIT INT TERM
 
     # Check out the code being pushed
@@ -148,31 +118,6 @@ while read local_ref local_sha remote_ref remote_sha; do
       full_result=1
     fi
 
-    # Return to original state - the trap ensures this happens on interrupts too
-    git checkout "$current_branch" >/dev/null 2>&1
-    git branch -D "$temp_branch" >/dev/null 2>&1
-
-    # Restore stashed changes if there were any
-    # We've already handled this manual restore, so set stashed to false to prevent
-    # the cleanup function from trying to restore a non-existent stash
-    if [ "$stashed" = true ]; then
-      if git stash list | head -n1 | grep -q "Pre-push hook stash"; then
-        echo "Restoring stashed changes and untracked files..."
-        # Use apply instead of pop to avoid issues if there are conflicts
-        git stash apply --index -q
-        if [ $? -eq 0 ]; then
-          # Only drop if apply was successful
-          git stash drop -q || true
-        else
-          echo "Warning: Could not automatically restore your changes. Run 'git stash pop' manually."
-        fi
-      fi
-      stashed=false
-    fi
-
-    # Reset the trap since we've manually cleaned up
-    trap - EXIT INT TERM
-
     # Check results
     if [ $format_result -ne 0 ]; then
       echo >&2 "ERROR: 'make format' failed. Please run 'make format' locally and commit the changes before pushing."
@@ -183,8 +128,13 @@ while read local_ref local_sha remote_ref remote_sha; do
       echo >&2 "ERROR: 'make full' failed. Please fix the issues before pushing."
       exit 1
     fi
+
+    # Use cleanup function to restore state
+    cleanup
+    trap - EXIT INT TERM
   fi
 done </tmp/pre-push-hook-refs
 
-echo "Pre-push checks passed!"
+cleanup
+trap - EXIT INT TERM
 exit 0
