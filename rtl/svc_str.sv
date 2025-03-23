@@ -12,9 +12,8 @@ task automatic svc_str_init(output logic [8*SVC_STR_MAX_LEN-1:0] str,
                             input logic [8*SVC_STR_MAX_LEN-1:0] literal,
                             input int len);
   str = '0;
-  // If this file is included, but the macro is not used in that module,
-  // directly, there will be an UNUSEDLOOP warning, e.g. if a module is used
-  // that uses svc_print, this can happen at the top level. Silence it.
+  // If this file is included, but the macro is not used in that module
+  // directly, there will be an UNUSEDLOOP warning. Silence it.
   // verilator lint_off: UNUSEDLOOP
   for (int i = 0; i < SVC_STR_MAX_LEN; i++) begin
     if (i < len) begin
