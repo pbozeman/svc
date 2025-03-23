@@ -165,7 +165,7 @@ module svc_axi_mem #(
   );
 
   svc_skidbuf #(
-      .DATA_WIDTH(DW + 2 + 1)
+      .DATA_WIDTH(DW + AXI_STRB_WIDTH + 1)
   ) svc_skidbuf_w_i (
       .clk    (clk),
       .rst_n  (rst_n),
