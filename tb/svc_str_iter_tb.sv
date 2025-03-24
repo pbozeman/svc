@@ -35,18 +35,22 @@ module svc_str_iter_tb;
       .m_ready(s_ready)
   );
 
+  logic auto_valid;
+
   always_ff @(posedge clk) begin
     if (~rst_n) begin
-      m_valid   <= 1'b0;
-      s_ready   <= 1'b0;
-      m_bin     <= 1'b0;
-      m_bin_len <= 0;
+      m_valid    <= 1'b0;
+      s_ready    <= 1'b0;
+      m_bin      <= 1'b0;
+      m_bin_len  <= 0;
+
+      auto_valid <= 1'b1;
 
       for (int i = 0; i < MAX_STR_LEN; i++) begin
         m_msg[8*i+:8] <= 8'h00;
       end
     end else begin
-      if (m_valid && m_ready) begin
+      if (m_valid && m_ready && auto_valid) begin
         m_valid <= 1'b0;
       end
     end
@@ -127,14 +131,12 @@ module svc_str_iter_tb;
 
     s_ready = 1'b1;
 
-    m_valid = 1'b0;
     repeat (5) `TICK(clk);
     `CHECK_FALSE(s_valid);
   endtask
 
   task automatic test_reset();
     `CHECK_FALSE(s_valid);
-    `CHECK_FALSE(m_valid);
   endtask
 
   task automatic test_empty_string();
@@ -196,7 +198,6 @@ module svc_str_iter_tb;
       char_idx++;
     end
 
-    m_valid = 1'b0;
     repeat (5) `TICK(clk);
     `CHECK_FALSE(s_valid);
   endtask
@@ -209,6 +210,8 @@ module svc_str_iter_tb;
     string first_msg;
     string second_msg;
     int    char_idx;
+
+    auto_valid = 1'b0;
 
     first_msg  = "First";
     second_msg = "Second";
@@ -226,12 +229,13 @@ module svc_str_iter_tb;
       char_idx++;
     end
 
-    `CHECK_WAIT_FOR(clk, s_ready, 16);
+    `CHECK_WAIT_FOR(clk, m_ready, 16);
+    `TICK(clk);
     set_test_string(second_msg);
-    m_valid  = 1'b1;
 
-    char_idx = 0;
-    s_ready  = 1'b1;
+    char_idx   = 0;
+    s_ready    = 1'b1;
+    auto_valid = 1'b1;
 
     while (char_idx < second_msg.len()) begin
       `CHECK_WAIT_FOR(clk, s_valid, 16);
@@ -240,7 +244,7 @@ module svc_str_iter_tb;
       char_idx++;
     end
 
-    m_valid = 1'b0;
+
     repeat (5) `TICK(clk);
     `CHECK_FALSE(s_valid);
   endtask
