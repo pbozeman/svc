@@ -15,7 +15,7 @@ task automatic svc_str_init(output logic [8*SVC_STR_MAX_LEN-1:0] str,
   // If this file is included, but the macro is not used in that module
   // directly, there will be an UNUSEDLOOP warning. Silence it.
   // verilator lint_off: UNUSEDLOOP
-  for (int i = 0; i < SVC_STR_MAX_LEN; i++) begin
+  for (int i = 0; i < SVC_STR_MAX_LEN - 1; i++) begin
     if (i < len) begin
       str[8*i+:8] = literal[8*(len-1-i)+:8];
     end
