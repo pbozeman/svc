@@ -5,10 +5,13 @@ module svc_str_iter_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
-  localparam MAX_LEN = 16;
+  localparam MAX_STR_LEN = 16;
+  localparam MSG_WIDTH = MAX_STR_LEN * 8;
 
   logic                 m_valid;
-  logic [MAX_LEN*8-1:0] m_msg;
+  logic [MSG_WIDTH-1:0] m_msg;
+  logic                 m_bin;
+  logic [          3:0] m_bin_len;
   logic                 m_ready;
 
   logic                 s_valid;
@@ -16,14 +19,16 @@ module svc_str_iter_tb;
   logic                 s_ready;
 
   svc_str_iter #(
-      .MAX_STR_LEN(MAX_LEN)
+      .MAX_STR_LEN(MAX_STR_LEN)
   ) uut (
       .clk  (clk),
       .rst_n(rst_n),
 
-      .s_valid(m_valid),
-      .s_msg  (m_msg),
-      .s_ready(m_ready),
+      .s_valid  (m_valid),
+      .s_msg    (m_msg),
+      .s_bin    (m_bin),
+      .s_bin_len(m_bin_len),
+      .s_ready  (m_ready),
 
       .m_valid(s_valid),
       .m_char (s_char),
@@ -32,10 +37,12 @@ module svc_str_iter_tb;
 
   always_ff @(posedge clk) begin
     if (~rst_n) begin
-      m_valid <= 1'b0;
-      s_ready <= 1'b0;
+      m_valid   <= 1'b0;
+      s_ready   <= 1'b0;
+      m_bin     <= 1'b0;
+      m_bin_len <= 0;
 
-      for (int i = 0; i < MAX_LEN; i++) begin
+      for (int i = 0; i < MAX_STR_LEN; i++) begin
         m_msg[8*i+:8] <= 8'h00;
       end
     end else begin
@@ -50,13 +57,13 @@ module svc_str_iter_tb;
 
     str_len = test_str.len();
 
-    if (str_len > MAX_LEN - 1) begin
+    if (str_len > MAX_STR_LEN - 1) begin
       $display("Warning: String too long, truncating to %0d characters",
-               MAX_LEN - 1);
-      str_len = MAX_LEN - 1;
+               MAX_STR_LEN - 1);
+      str_len = MAX_STR_LEN - 1;
     end
 
-    for (int i = 0; i < MAX_LEN; i++) begin
+    for (int i = 0; i < MAX_STR_LEN; i++) begin
       m_msg[8*i+:8] = 8'h00;
     end
 
@@ -125,7 +132,6 @@ module svc_str_iter_tb;
     `CHECK_FALSE(s_valid);
   endtask
 
-  // 4. Individual test tasks
   task automatic test_reset();
     `CHECK_FALSE(s_valid);
     `CHECK_FALSE(m_valid);
@@ -149,8 +155,8 @@ module svc_str_iter_tb;
     string long_str;
     long_str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij";
 
-    if (long_str.len() > MAX_LEN - 1) begin
-      long_str = long_str.substr(0, MAX_LEN - 2);
+    if (long_str.len() > MAX_STR_LEN - 1) begin
+      long_str = long_str.substr(0, MAX_STR_LEN - 2);
     end
 
     send_and_verify_string(long_str);
@@ -160,7 +166,7 @@ module svc_str_iter_tb;
     string test_str;
     int    char_idx;
 
-    for (int i = 0; i < MAX_LEN; i++) begin
+    for (int i = 0; i < MAX_STR_LEN; i++) begin
       m_msg[8*i+:8] = 8'h00;
     end
 
@@ -239,6 +245,48 @@ module svc_str_iter_tb;
     `CHECK_FALSE(s_valid);
   endtask
 
+  task automatic test_bin_to_hex_2();
+    string expected = "cafe";
+    int    char_idx;
+
+    s_ready   = 1'b1;
+
+    m_valid   = 1'b1;
+    m_msg     = MSG_WIDTH'(16'hCAFE);
+    m_bin     = 1'b1;
+    m_bin_len = 2;
+    `TICK(clk);
+
+    char_idx = 0;
+    while (char_idx < expected.len()) begin
+      `CHECK_WAIT_FOR(clk, s_valid, 16);
+      `CHECK_EQ(s_char, expected[char_idx]);
+      `TICK(clk);
+      char_idx++;
+    end
+  endtask
+
+  task automatic test_bin_to_hex_8();
+    string expected = "cafe0000babef00d";
+    int    char_idx;
+
+    s_ready   = 1'b1;
+
+    m_valid   = 1'b1;
+    m_msg     = MSG_WIDTH'(64'hCAFE0000BABEF00D);
+    m_bin     = 1'b1;
+    m_bin_len = 8;
+    `TICK(clk);
+
+    char_idx = 0;
+    while (char_idx < expected.len()) begin
+      `CHECK_WAIT_FOR(clk, s_valid, 16);
+      `CHECK_EQ(s_char, expected[char_idx]);
+      `TICK(clk);
+      char_idx++;
+    end
+  endtask
+
   `TEST_SUITE_BEGIN(svc_str_iter_tb);
   `TEST_CASE(test_reset);
   `TEST_CASE(test_empty_string);
@@ -247,5 +295,7 @@ module svc_str_iter_tb;
   `TEST_CASE(test_with_null_chars);
   `TEST_CASE(test_backpressure_handling);
   `TEST_CASE(test_sequential_messages);
+  `TEST_CASE(test_bin_to_hex_2);
+  `TEST_CASE(test_bin_to_hex_8);
   `TEST_SUITE_END();
 endmodule
