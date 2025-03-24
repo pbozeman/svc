@@ -48,12 +48,15 @@ module svc_stats_counter #(
     end
   end
 
+  // Pipeline the max stat by using stat_cnt rather than stat_cnt_next.
+  // This was necessary to meet timing on the ice40 at 100mhz, with 32 bit
+  // counters.
   always_ff @(posedge clk) begin
     if (!rst_n || stat_clear) begin
       stat_max <= 0;
     end else begin
-      if (stat_cnt_next > stat_max) begin
-        stat_max <= stat_cnt_next;
+      if (stat_cnt > stat_max) begin
+        stat_max <= stat_cnt;
       end
     end
   end

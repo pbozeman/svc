@@ -42,7 +42,6 @@ module svc_stats_counter_tb;
     `TICK(clk);
 
     `CHECK_EQ(stat_cnt, 1);
-    `CHECK_EQ(stat_max, 1);
 
     stat_inc = 1'b0;
     `TICK(clk);
@@ -51,14 +50,16 @@ module svc_stats_counter_tb;
     stat_inc = 1'b1;
     repeat (5) `TICK(clk);
     `CHECK_EQ(stat_cnt, 6);
-    `CHECK_EQ(stat_max, 6);
+
+    // there is one cycle of max latency
+    `CHECK_EQ(stat_max, 5);
   endtask
 
   task automatic test_basic_decrement();
     stat_inc = 1'b1;
     repeat (10) `TICK(clk);
     `CHECK_EQ(stat_cnt, 10);
-    `CHECK_EQ(stat_max, 10);
+    `CHECK_EQ(stat_max, 9);
 
     stat_inc = 1'b0;
     `TICK(clk);
@@ -91,7 +92,7 @@ module svc_stats_counter_tb;
     stat_clear = 1'b0;
     `TICK(clk);
     `CHECK_EQ(stat_cnt, 1);
-    `CHECK_EQ(stat_max, 1);
+    `CHECK_EQ(stat_max, 0);
   endtask
 
   task automatic test_simultaneous_inc_dec();
@@ -124,7 +125,7 @@ module svc_stats_counter_tb;
     repeat (10) `TICK(clk);
     stat_inc = 1'b0;
     `CHECK_EQ(stat_cnt, 10);
-    `CHECK_EQ(stat_max, 10);
+    `CHECK_EQ(stat_max, 9);
 
     // Then go down to 2
     stat_dec = 1'b1;
@@ -137,7 +138,7 @@ module svc_stats_counter_tb;
     repeat (13) `TICK(clk);
     stat_inc = 1'b0;
     `CHECK_EQ(stat_cnt, 15);
-    `CHECK_EQ(stat_max, 15);
+    `CHECK_EQ(stat_max, 14);
 
     // And finally to 0
     stat_dec = 1'b1;
