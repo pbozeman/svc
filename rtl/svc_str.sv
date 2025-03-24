@@ -23,6 +23,11 @@ task automatic svc_str_init(output logic [8*SVC_STR_MAX_LEN-1:0] str,
   // verilator lint_on: UNUSEDLOOP
 endtask
 
+task automatic svc_str_init_val(output logic [8*SVC_STR_MAX_LEN-1:0] str,
+                                input logic [8*SVC_STR_MAX_LEN-1:0] val);
+  str = val;
+endtask
+
 // helper macro to avoid having to specify the len
 `define SVC_STR_INIT(out_str, str_literal) \
    svc_str_init(out_str, str_literal, $bits(str_literal)/8)
