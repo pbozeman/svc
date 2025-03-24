@@ -9,8 +9,15 @@
 //
 // I would prefer to use unpacked array, but yosys doesn't support them
 // in ports
+//
+// TODO: I'm not stoked about the blob of a state machine. It ended up this
+// way fro putting both numbers and strings into the same iterator. It's
+// compounded by the fact that the strs are put in "backwards", so the
+// iteration for the 2 modes goes in different directions. And, despite this
+// being a large amount of space (in fpga terms), it's not getting synthesized
+// with block ram. All of that could be addressed, but I'm not sure if this
+// api will be the final form. Revisit all of this once the api settles down.
 
-// verilator lint_off: UNUSEDSIGNAL
 module svc_str_iter #(
     parameter MAX_STR_LEN = 128,
     parameter MSG_WIDTH   = MAX_STR_LEN * 8
@@ -35,8 +42,12 @@ module svc_str_iter #(
   typedef enum {
     STATE_IDLE,
     STATE_ITER_STR,
+    STATE_ITER_STR_CHAR,
+    STATE_ITER_BIN,
+    STATE_ITER_BIN_CHAR,
     STATE_ITER_BIN_1,
-    STATE_ITER_BIN_2
+    STATE_ITER_BIN_2,
+    STATE_ITER_DONE
   } state_t;
 
   state_t             state;
@@ -49,9 +60,7 @@ module svc_str_iter #(
   logic   [      7:0] m_char_next;
 
   // hex conversion table
-  // verilog_format: off
-  logic [7:0] hex_conv [15:0];
-  // verilog_format: on
+  logic   [      7:0] hex_conv     [15:0];
   assign hex_conv[4'h0] = 8'h30;
   assign hex_conv[4'h1] = 8'h31;
   assign hex_conv[4'h2] = 8'h32;
@@ -70,11 +79,10 @@ module svc_str_iter #(
   assign hex_conv[4'hF] = 8'h66;
 
   logic [7:0] char;
+  logic [7:0] char_next;
+
   logic [3:0] nibble_1;
   logic [3:0] nibble_2;
-
-  // for str conv
-  assign char     = s_msg[8*idx+:8];
 
   // for hex conv
   assign nibble_1 = char[7:4];
@@ -82,11 +90,14 @@ module svc_str_iter #(
 
   always_comb begin
     state_next   = state;
-    s_ready      = 1'b0;
     idx_next     = idx;
+
+    s_ready      = 1'b0;
 
     m_valid_next = m_valid && !m_ready;
     m_char_next  = m_char;
+
+    char_next    = char;
 
     case (state)
       STATE_IDLE: begin
@@ -97,7 +108,7 @@ module svc_str_iter #(
             state_next = STATE_ITER_STR;
             idx_next   = 0;
           end else begin
-            state_next = STATE_ITER_BIN_1;
+            state_next = STATE_ITER_BIN;
             idx_next   = IDX_W'(s_bin_len) - 1'b1;
           end
         end
@@ -105,27 +116,36 @@ module svc_str_iter #(
 
       STATE_ITER_STR: begin
         if (!m_valid || m_ready) begin
-          if (char != 8'h00) begin
-            m_valid_next = 1'b1;
-            m_char_next  = char;
-            idx_next     = idx + 1;
-          end else begin
-            s_ready    = 1'b1;
-            state_next = STATE_IDLE;
-          end
+          state_next = STATE_ITER_STR_CHAR;
+          char_next  = s_msg[8*idx+:8];
+        end
+      end
+
+      STATE_ITER_STR_CHAR: begin
+        if (char != 8'h00) begin
+          m_valid_next = 1'b1;
+          m_char_next  = char;
+          idx_next     = idx + 1;
+          state_next   = STATE_ITER_STR;
+        end else begin
+          state_next = STATE_ITER_DONE;
+        end
+      end
+
+      STATE_ITER_BIN: begin
+        if (!m_valid || m_ready) begin
+          state_next = STATE_ITER_BIN_1;
+          char_next  = s_msg[8*idx+:8];
         end
       end
 
       STATE_ITER_BIN_1: begin
-        if (!m_valid || m_ready) begin
-          if (idx < MAX_STR_LEN) begin
-            m_valid_next = 1'b1;
-            m_char_next  = hex_conv[nibble_1];
-            state_next   = STATE_ITER_BIN_2;
-          end else begin
-            s_ready    = 1'b1;
-            state_next = STATE_IDLE;
-          end
+        if (idx < MAX_STR_LEN) begin
+          m_valid_next = 1'b1;
+          m_char_next  = hex_conv[nibble_1];
+          state_next   = STATE_ITER_BIN_2;
+        end else begin
+          state_next = STATE_ITER_DONE;
         end
       end
 
@@ -133,10 +153,19 @@ module svc_str_iter #(
         if (!m_valid || m_ready) begin
           m_valid_next = 1'b1;
           m_char_next  = hex_conv[nibble_2];
-          state_next   = STATE_ITER_BIN_1;
+          state_next   = STATE_ITER_BIN;
           idx_next     = idx - 1;
         end
       end
+
+      STATE_ITER_DONE: begin
+        // This module uses ready as a single pulse done. This is because
+        // we want the caller to hold the large value we are iterating
+        // constant. Otherwise, we would have to register it here.
+        s_ready    = 1'b1;
+        state_next = STATE_IDLE;
+      end
+
     endcase
   end
 
@@ -152,6 +181,7 @@ module svc_str_iter #(
 
   always_ff @(posedge clk) begin
     idx    <= idx_next;
+    char   <= char_next;
     m_char <= m_char_next;
   end
 
