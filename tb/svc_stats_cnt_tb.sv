@@ -6,7 +6,7 @@ module svc_stats_cnt_tb;
   `TEST_RST_N(clk, rst_n);
 
   localparam STAT_WIDTH = 32;
-  localparam STAT_STAGES = 0;
+  localparam STAGES = 0;
 
   logic                  clr;
   logic                  inc;
@@ -14,8 +14,8 @@ module svc_stats_cnt_tb;
   logic [STAT_WIDTH-1:0] cnt;
 
   svc_stats_cnt #(
-      .STAT_WIDTH (STAT_WIDTH),
-      .STAT_STAGES(STAT_STAGES)
+      .STAT_WIDTH(STAT_WIDTH),
+      .STAGES    (STAGES)
   ) uut (
       .clk  (clk),
       .rst_n(rst_n),
