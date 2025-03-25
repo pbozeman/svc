@@ -8,9 +8,9 @@
 // along side other stat modules with consistent naming.
 
 module svc_stats_sum #(
-    parameter WIDTH       = 8,
-    parameter STAT_WIDTH  = 32,
-    parameter STAT_STAGES = 4
+    parameter WIDTH      = 8,
+    parameter STAT_WIDTH = 32,
+    parameter STAGES     = 4
 ) (
     input logic clk,
     input logic rst_n,
@@ -23,7 +23,7 @@ module svc_stats_sum #(
 );
   svc_accumulator #(
       .WIDTH (STAT_WIDTH),
-      .STAGES(STAT_STAGES)
+      .STAGES(STAGES)
   ) svc_acc_i (
       .clk  (clk),
       .rst_n(rst_n),
