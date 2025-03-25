@@ -20,6 +20,7 @@ module svc_stats_val #(
     output logic [     WIDTH-1:0] stat_max,
     output logic [STAT_WIDTH-1:0] stat_sum
 );
+
   always_ff @(posedge clk) begin
     if (!rst_n || stat_clear) begin
       stat_min <= '1;
