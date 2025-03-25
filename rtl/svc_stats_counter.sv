@@ -13,11 +13,11 @@ module svc_stats_counter #(
     input logic clk,
     input logic rst_n,
 
-    input logic stat_clear,
-    input logic stat_inc,
-    input logic stat_dec,
+    input logic clr,
+    input logic inc,
+    input logic dec,
 
-    output logic [STAT_WIDTH-1:0] stat_cnt
+    output logic [STAT_WIDTH-1:0] cnt
 );
   logic                  acc_en;
   logic [STAT_WIDTH-1:0] acc_val;
@@ -28,15 +28,15 @@ module svc_stats_counter #(
   ) svc_acc_i (
       .clk  (clk),
       .rst_n(rst_n),
-      .clr  (stat_clear),
+      .clr  (clr),
       .en   (acc_en),
       .val  (acc_val),
-      .acc  (stat_cnt)
+      .acc  (cnt)
   );
 
   always_comb begin
     case ({
-      stat_dec, stat_inc
+      dec, inc
     })
       2'b01: begin
         acc_en  = 1;

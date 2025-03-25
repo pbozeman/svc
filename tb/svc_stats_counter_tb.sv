@@ -8,114 +8,114 @@ module svc_stats_counter_tb;
   localparam STAT_WIDTH = 32;
   localparam STAT_STAGES = 0;
 
-  logic                  stat_clear;
-  logic                  stat_inc;
-  logic                  stat_dec;
-  logic [STAT_WIDTH-1:0] stat_cnt;
+  logic                  clr;
+  logic                  inc;
+  logic                  dec;
+  logic [STAT_WIDTH-1:0] cnt;
 
   svc_stats_counter #(
       .STAT_WIDTH (STAT_WIDTH),
       .STAT_STAGES(STAT_STAGES)
   ) uut (
-      .clk       (clk),
-      .rst_n     (rst_n),
-      .stat_clear(stat_clear),
-      .stat_inc  (stat_inc),
-      .stat_dec  (stat_dec),
-      .stat_cnt  (stat_cnt)
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (clr),
+      .inc  (inc),
+      .dec  (dec),
+      .cnt  (cnt)
   );
 
   always_ff @(posedge clk) begin
     if (~rst_n) begin
-      stat_clear <= 1'b0;
-      stat_inc   <= 1'b0;
-      stat_dec   <= 1'b0;
+      clr <= 1'b0;
+      inc <= 1'b0;
+      dec <= 1'b0;
     end
   end
 
   task automatic test_reset();
-    `CHECK_EQ(stat_cnt, 0);
+    `CHECK_EQ(cnt, 0);
   endtask
 
   task automatic test_basic_increment();
-    `CHECK_EQ(stat_cnt, 0);
+    `CHECK_EQ(cnt, 0);
 
-    stat_inc = 1'b1;
+    inc = 1'b1;
     `TICK(clk);
 
-    `CHECK_EQ(stat_cnt, 1);
+    `CHECK_EQ(cnt, 1);
 
-    stat_inc = 1'b0;
+    inc = 1'b0;
     `TICK(clk);
-    `CHECK_EQ(stat_cnt, 1);
+    `CHECK_EQ(cnt, 1);
 
-    stat_inc = 1'b1;
+    inc = 1'b1;
     repeat (5) `TICK(clk);
-    `CHECK_EQ(stat_cnt, 6);
+    `CHECK_EQ(cnt, 6);
   endtask
 
   task automatic test_basic_decrement();
-    stat_inc = 1'b1;
+    inc = 1'b1;
     repeat (10) `TICK(clk);
-    `CHECK_EQ(stat_cnt, 10);
+    `CHECK_EQ(cnt, 10);
 
-    stat_inc = 1'b0;
+    inc = 1'b0;
     `TICK(clk);
 
-    stat_dec = 1'b1;
+    dec = 1'b1;
     `TICK(clk);
-    `CHECK_EQ(stat_cnt, 9);
+    `CHECK_EQ(cnt, 9);
 
     repeat (5) `TICK(clk);
-    `CHECK_EQ(stat_cnt, 4);
+    `CHECK_EQ(cnt, 4);
   endtask
 
-  task automatic test_clear();
-    stat_inc = 1'b1;
-    stat_dec = 1'b0;
+  task automatic test_clr();
+    inc = 1'b1;
+    dec = 1'b0;
     repeat (5) `TICK(clk);
-    `CHECK_EQ(stat_cnt, 5);
+    `CHECK_EQ(cnt, 5);
 
-    stat_inc   = 1'b0;
-    stat_clear = 1'b1;
+    inc = 1'b0;
+    clr = 1'b1;
     `TICK(clk);
 
-    `CHECK_EQ(stat_cnt, 0);
+    `CHECK_EQ(cnt, 0);
 
-    stat_inc = 1'b1;
+    inc = 1'b1;
     `TICK(clk);
-    `CHECK_EQ(stat_cnt, 0);
+    `CHECK_EQ(cnt, 0);
 
-    stat_clear = 1'b0;
+    clr = 1'b0;
     `TICK(clk);
-    `CHECK_EQ(stat_cnt, 1);
+    `CHECK_EQ(cnt, 1);
   endtask
 
   task automatic test_simultaneous_inc_dec();
-    stat_clear = 1'b1;
+    clr = 1'b1;
     `TICK(clk);
 
-    stat_clear = 1'b0;
-    stat_inc   = 1'b1;
+    clr = 1'b0;
+    inc = 1'b1;
     repeat (5) `TICK(clk);
-    `CHECK_EQ(stat_cnt, 5);
+    `CHECK_EQ(cnt, 5);
 
-    stat_inc = 1'b1;
-    stat_dec = 1'b1;
+    inc = 1'b1;
+    dec = 1'b1;
     `TICK(clk);
-    `CHECK_EQ(stat_cnt, 5);
+    `CHECK_EQ(cnt, 5);
 
-    stat_inc = 1'b0;
-    stat_dec = 1'b1;
+    inc = 1'b0;
+    dec = 1'b1;
     `TICK(clk);
-    `CHECK_EQ(stat_cnt, 4);
+    `CHECK_EQ(cnt, 4);
   endtask
 
   `TEST_SUITE_BEGIN(svc_stats_counter_tb);
   `TEST_CASE(test_reset);
   `TEST_CASE(test_basic_increment);
   `TEST_CASE(test_basic_decrement);
-  `TEST_CASE(test_clear);
+  `TEST_CASE(test_clr);
   `TEST_CASE(test_simultaneous_inc_dec);
   `TEST_SUITE_END();
 endmodule
