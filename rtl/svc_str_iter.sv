@@ -106,7 +106,7 @@ module svc_str_iter #(
         if (s_valid) begin
           if (!s_bin) begin
             state_next = STATE_ITER_STR;
-            idx_next   = 0;
+            idx_next   = MAX_STR_LEN - 1;
           end else begin
             state_next = STATE_ITER_BIN;
             idx_next   = IDX_W'(s_bin_len) - 1'b1;
@@ -117,16 +117,19 @@ module svc_str_iter #(
       STATE_ITER_STR: begin
         if (!m_valid || m_ready) begin
           state_next = STATE_ITER_STR_CHAR;
-          char_next  = s_msg[8*idx+:8];
+          char_next  = s_msg[8*idx+7-:8];
         end
       end
 
       STATE_ITER_STR_CHAR: begin
-        if (char != 8'h00) begin
+        if (char != 0) begin
           m_valid_next = 1'b1;
           m_char_next  = char;
-          idx_next     = idx + 1;
-          state_next   = STATE_ITER_STR;
+        end
+
+        idx_next = idx - 1;
+        if (idx < MAX_STR_LEN) begin
+          state_next = STATE_ITER_STR;
         end else begin
           state_next = STATE_ITER_DONE;
         end
