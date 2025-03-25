@@ -2,9 +2,11 @@
 `define SVC_PRINT_SV
 
 `include "svc.sv"
-`include "svc_str.sv"
 `include "svc_str_iter.sv"
 `include "svc_unused.sv"
+
+parameter SVC_STR_MAX_LEN = 128;
+parameter SVC_STR_WIDTH = 8 * SVC_STR_MAX_LEN;
 
 module svc_print (
     input logic clk,
@@ -95,28 +97,29 @@ endmodule
 `define SVC_PRINT_INIT_FF \
   svc_prn_en <= 1'b0;
 
-`define SVC_PRINT(str)                                                       \
-`ifndef VERILATOR                                                            \
-  `SVC_STR_INIT(svc_prn_msg, str);                                           \
-`else                                                                        \
-  `SVC_STR_INIT(svc_prn_msg, "");                                            \
-`endif                                                                       \
-   svc_prn_bin <= 1'b0;                                                      \
-   svc_prn_bin_len <= 0;                                                     \
-   svc_prn_en <= 1'b1;
-
 `define SVC_PRINT_BUSY svc_prn_msg_busy
 
 `define SVC_PRINT_U8(val)                                                    \
-   svc_str_init_val(svc_prn_msg, SVC_STR_WIDTH'(val));                       \
+   svc_prn_msg <= SVC_STR_WIDTH'(val);                                       \
    svc_prn_bin <= 1'b1;                                                      \
    svc_prn_bin_len <= 1;                                                     \
    svc_prn_en <= 1'b1
 
+`define SVC_PRINT_U16(val)                                                   \
+   svc_prn_msg <= SVC_STR_WIDTH'(val);                                       \
+   svc_prn_bin <= 1'b1;                                                      \
+   svc_prn_bin_len <= 2;                                                     \
+   svc_prn_en <= 1'b1
+
 `define SVC_PRINT_U32(val)                                                   \
-   svc_str_init_val(svc_prn_msg, SVC_STR_WIDTH'(val));                       \
+   svc_prn_msg <= SVC_STR_WIDTH'(val);                                       \
    svc_prn_bin <= 1'b1;                                                      \
    svc_prn_bin_len <= 4;                                                     \
+   svc_prn_en <= 1'b1
+
+`define SVC_PRINT(val)                                                       \
+   svc_prn_msg <= SVC_STR_WIDTH'(val);                                       \
+   svc_prn_bin <= 1'b0;                                                      \
    svc_prn_en <= 1'b1
 
 `endif
