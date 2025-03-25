@@ -230,6 +230,71 @@ module svc_axi_stats_wr #(
             16: begin
               stat_iter_name_next = "w_awr_beat_cnt";
               stat_iter_val_next  = w_awr_early_cnt;
+            end
+
+            17: begin
+              stat_iter_name_next = "w_data_lag_cnt";
+              stat_iter_val_next  = w_data_lag_cnt;
+            end
+
+            18: begin
+              stat_iter_name_next = "w_idle_cycles_cnt";
+              stat_iter_val_next  = w_idle_cycles_cnt;
+            end
+
+            19: begin
+              stat_iter_name_next = "w_early_beat_cnt";
+              stat_iter_val_next  = w_early_beat_cnt;
+            end
+
+            20: begin
+              stat_iter_name_next = "w_idle_cycles_cnt";
+              stat_iter_val_next  = w_idle_cycles_cnt;
+            end
+
+            21: begin
+              stat_iter_name_next = "w_awr_early_cnt";
+              stat_iter_val_next  = w_awr_early_cnt;
+            end
+
+            22: begin
+              stat_iter_name_next = "w_b_lag_count_cnt";
+              stat_iter_val_next  = w_b_lag_count_cnt;
+            end
+
+            23: begin
+              stat_iter_name_next = "w_b_stall_count_cnt";
+              stat_iter_val_next  = w_b_stall_count_cnt;
+            end
+
+            24: begin
+              stat_iter_name_next = "w_b_end_count_cnt";
+              stat_iter_val_next  = w_b_end_count_cnt;
+            end
+
+            25: begin
+              stat_iter_name_next = "w_slow_data_cnt";
+              stat_iter_val_next  = w_slow_data_cnt;
+            end
+
+            26: begin
+              stat_iter_name_next = "w_stall_cnt";
+              stat_iter_val_next  = w_stall_cnt;
+            end
+
+            27: begin
+              stat_iter_name_next = "w_addr_stall_cnt";
+              stat_iter_val_next  = w_addr_stall_cnt;
+            end
+
+            28: begin
+              stat_iter_name_next = "w_addr_lag_cnt";
+              stat_iter_val_next  = w_addr_lag_cnt;
+            end
+
+            29: begin
+              stat_iter_name_next = "w_early_stall_cnt";
+              stat_iter_val_next  = w_early_stall_cnt;
               stat_iter_last_next = 1'b1;
               state_next          = STATE_IDLE;
             end
