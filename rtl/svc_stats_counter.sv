@@ -2,11 +2,13 @@
 `define SVC_STATS_COUNTER_SV
 
 `include "svc.sv"
+`include "svc_accumulator.sv"
 
 // counter stat
 
 module svc_stats_counter #(
-    parameter STAT_WIDTH = 32
+    parameter STAT_WIDTH  = 32,
+    parameter STAT_STAGES = 4
 ) (
     input logic clk,
     input logic rst_n,
@@ -18,39 +20,44 @@ module svc_stats_counter #(
     output logic [STAT_WIDTH-1:0] stat_cnt,
     output logic [STAT_WIDTH-1:0] stat_max
 );
+  logic                  acc_en;
+  logic [STAT_WIDTH-1:0] acc_val;
 
-  logic [STAT_WIDTH-1:0] stat_cnt_next;
+  svc_accumulator #(
+      .WIDTH (STAT_WIDTH),
+      .STAGES(STAT_STAGES)
+  ) svc_acc_i (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .en   (acc_en),
+      .val  (acc_val),
+      .acc  (stat_cnt)
+  );
 
   always_comb begin
-    stat_cnt_next = stat_cnt;
-
     case ({
       stat_dec, stat_inc
     })
       2'b01: begin
-        stat_cnt_next = stat_cnt + 1;
+        acc_en  = 1;
+        acc_val = 1;
       end
 
       2'b10: begin
-        stat_cnt_next = stat_cnt - 1;
+        acc_en  = 1;
+        acc_val = -1;
       end
 
       default: begin
+        acc_en  = 0;
+        acc_val = 0;
       end
     endcase
   end
 
-  always_ff @(posedge clk) begin
-    if (!rst_n || stat_clear) begin
-      stat_cnt <= 0;
-    end else begin
-      stat_cnt <= stat_cnt_next;
-    end
-  end
-
-  // Pipeline the max stat by using stat_cnt rather than stat_cnt_next.
-  // This was necessary to meet timing on the ice40 at 100mhz, with 32 bit
-  // counters.
+  // Note: max is implicitly pipelined because the accumulator
+  // registers its output
   always_ff @(posedge clk) begin
     if (!rst_n || stat_clear) begin
       stat_max <= 0;
