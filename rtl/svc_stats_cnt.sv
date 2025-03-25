@@ -1,12 +1,12 @@
-`ifndef SVC_STATS_COUNTER_SV
-`define SVC_STATS_COUNTER_SV
+`ifndef SVC_STATS_CNT_SV
+`define SVC_STATS_CNT_SV
 
 `include "svc.sv"
 `include "svc_accumulator.sv"
 
 // counter stat
 
-module svc_stats_counter #(
+module svc_stats_cnt #(
     parameter STAT_WIDTH  = 32,
     parameter STAT_STAGES = 4
 ) (

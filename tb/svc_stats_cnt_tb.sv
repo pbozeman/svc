@@ -1,7 +1,7 @@
 `include "svc_unit.sv"
-`include "svc_stats_counter.sv"
+`include "svc_stats_cnt.sv"
 
-module svc_stats_counter_tb;
+module svc_stats_cnt_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
@@ -13,7 +13,7 @@ module svc_stats_counter_tb;
   logic                  dec;
   logic [STAT_WIDTH-1:0] cnt;
 
-  svc_stats_counter #(
+  svc_stats_cnt #(
       .STAT_WIDTH (STAT_WIDTH),
       .STAT_STAGES(STAT_STAGES)
   ) uut (
@@ -111,7 +111,7 @@ module svc_stats_counter_tb;
     `CHECK_EQ(cnt, 4);
   endtask
 
-  `TEST_SUITE_BEGIN(svc_stats_counter_tb);
+  `TEST_SUITE_BEGIN(svc_stats_cnt_tb);
   `TEST_CASE(test_reset);
   `TEST_CASE(test_basic_increment);
   `TEST_CASE(test_basic_decrement);
