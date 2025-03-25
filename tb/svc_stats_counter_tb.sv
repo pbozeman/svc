@@ -1,9 +1,13 @@
 `include "svc_unit.sv"
 `include "svc_stats_counter.sv"
+
 module svc_stats_counter_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
+
   localparam STAT_WIDTH = 32;
+  localparam STAT_STAGES = 0;
+
   logic                  stat_clear;
   logic                  stat_inc;
   logic                  stat_dec;
@@ -11,7 +15,8 @@ module svc_stats_counter_tb;
   logic [STAT_WIDTH-1:0] stat_max;
 
   svc_stats_counter #(
-      .STAT_WIDTH(STAT_WIDTH)
+      .STAT_WIDTH (STAT_WIDTH),
+      .STAT_STAGES(STAT_STAGES)
   ) uut (
       .clk       (clk),
       .rst_n     (rst_n),
