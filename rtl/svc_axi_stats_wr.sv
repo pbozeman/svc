@@ -20,11 +20,13 @@
 // verilator lint_off: UNUSEDSIGNAL
 // verilator lint_off: UNUSEDPARAM
 module svc_axi_stats_wr #(
-    parameter AXI_ADDR_WIDTH = 20,
-    parameter AXI_DATA_WIDTH = 16,
-    parameter AXI_ID_WIDTH   = 4,
-    parameter AXI_STRB_WIDTH = AXI_DATA_WIDTH / 8,
-    parameter STAT_WIDTH     = 32
+    parameter AXI_ADDR_WIDTH  = 20,
+    parameter AXI_DATA_WIDTH  = 16,
+    parameter AXI_ID_WIDTH    = 4,
+    parameter AXI_STRB_WIDTH  = AXI_DATA_WIDTH / 8,
+    parameter STAT_WIDTH      = 32,
+    parameter STAT_NAME_LEN   = 16,
+    parameter STAT_NAME_WIDTH = STAT_NAME_LEN * 8
     // parameter STAT_ADDR_WIDTH = 3
 ) (
     input logic clk,
@@ -33,7 +35,16 @@ module svc_axi_stats_wr #(
     input  logic stat_clear,
     output logic stat_err,
 
-    output logic [SW-1:0] stat_aw_burst_cnt,
+    // If we get a soft core running, this should change to be memory mapped
+    // via an axi register interface, but for now, this is easy. It also
+    // let's us add new stats without having to change code anyplace else,
+    // other than the final (off fpga) consumer.
+    input  logic                       stat_iter_start,
+    output logic                       stat_iter_valid,
+    output logic [STAT_NAME_WIDTH-1:0] stat_iter_name,
+    output logic [     STAT_WIDTH-1:0] stat_iter_val,
+    output logic                       stat_iter_last,
+    input  logic                       stat_iter_ready,
 
     input logic                      m_axi_awvalid,
     input logic [AXI_ADDR_WIDTH-1:0] m_axi_awaddr,
@@ -54,47 +65,121 @@ module svc_axi_stats_wr #(
 );
   localparam SW = STAT_WIDTH;
   localparam ASW = AXI_STRB_WIDTH;
+  localparam NW = STAT_NAME_WIDTH;
 
-  logic [ SW-1:0] aw_outstanding_cnt;
-  logic [ SW-1:0] aw_outstanding_max;
+  typedef enum {
+    STATE_IDLE,
+    STATE_ITER
+  } state_t;
 
-  logic [ SW-1:0] w_outstanding_cnt;
-  logic [ SW-1:0] w_outstanding_max;
+  state_t           state;
+  state_t           state_next;
 
-  logic           w_in_progress;
+  // not part of the state machine to make it easy to add new ones
+  logic   [    4:0] iter_idx;
+  logic   [    4:0] iter_idx_next;
 
-  logic [ SW-1:0] aw_burst_cnt;
-  logic [ SW-1:0] w_burst_cnt;
+  logic             stat_iter_valid_next;
+  logic   [ NW-1:0] stat_iter_name_next;
+  logic   [ SW-1:0] stat_iter_val_next;
+  logic             stat_iter_last_next;
 
-  logic [ SW-1:0] w_beat_cnt;
+  logic   [ SW-1:0] aw_outstanding_cnt;
+  logic   [ SW-1:0] aw_outstanding_max;
 
-  logic [    7:0] awlen_min;
-  logic [    7:0] awlen_max;
+  logic   [ SW-1:0] w_outstanding_cnt;
+  logic   [ SW-1:0] w_outstanding_max;
 
-  logic [ SW-1:0] aw_bytes_min;
-  logic [ SW-1:0] aw_bytes_max;
-  logic [ SW-1:0] aw_bytes_sum;
+  logic             w_in_progress;
 
-  logic [ASW-1:0] w_bytes;
-  logic [ASW-1:0] w_bytes_min;
-  logic [ASW-1:0] w_bytes_max;
-  logic [ SW-1:0] w_bytes_sum;
+  logic   [ SW-1:0] aw_burst_cnt;
+  logic   [ SW-1:0] w_burst_cnt;
+
+  logic   [ SW-1:0] w_beat_cnt;
+
+  logic   [    7:0] awlen_min;
+  logic   [    7:0] awlen_max;
+
+  logic   [ SW-1:0] aw_bytes_min;
+  logic   [ SW-1:0] aw_bytes_max;
+  logic   [ SW-1:0] aw_bytes_sum;
+
+  logic   [ASW-1:0] w_bytes;
+  logic   [ASW-1:0] w_bytes_min;
+  logic   [ASW-1:0] w_bytes_max;
+  logic   [ SW-1:0] w_bytes_sum;
 
   // the cycle counters. see the zipcpu blog post
-  logic [ SW-1:0] w_data_lag_cnt;
-  logic [ SW-1:0] w_idle_cycles_cnt;
-  logic [ SW-1:0] w_early_beat_cnt;
-  logic [ SW-1:0] w_awr_early_cnt;
-  logic [ SW-1:0] w_b_lag_count_cnt;
-  logic [ SW-1:0] w_b_stall_count_cnt;
-  logic [ SW-1:0] w_b_end_count_cnt;
-  logic [ SW-1:0] w_slow_data_cnt;
-  logic [ SW-1:0] w_stall_cnt;
-  logic [ SW-1:0] w_addr_stall_cnt;
-  logic [ SW-1:0] w_addr_lag_cnt;
-  logic [ SW-1:0] w_early_stall_cnt;
+  logic   [ SW-1:0] w_data_lag_cnt;
+  logic   [ SW-1:0] w_idle_cycles_cnt;
+  logic   [ SW-1:0] w_early_beat_cnt;
+  logic   [ SW-1:0] w_awr_early_cnt;
+  logic   [ SW-1:0] w_b_lag_count_cnt;
+  logic   [ SW-1:0] w_b_stall_count_cnt;
+  logic   [ SW-1:0] w_b_end_count_cnt;
+  logic   [ SW-1:0] w_slow_data_cnt;
+  logic   [ SW-1:0] w_stall_cnt;
+  logic   [ SW-1:0] w_addr_stall_cnt;
+  logic   [ SW-1:0] w_addr_lag_cnt;
+  logic   [ SW-1:0] w_early_stall_cnt;
 
-  assign stat_aw_burst_cnt = aw_burst_cnt;
+  always_comb begin
+    state_next           = state;
+    iter_idx_next        = iter_idx;
+
+    stat_iter_valid_next = stat_iter_valid && !stat_iter_ready;
+    stat_iter_name_next  = stat_iter_name;
+    stat_iter_val_next   = stat_iter_val;
+    stat_iter_last_next  = stat_iter_last;
+
+    case (state)
+      STATE_IDLE: begin
+        if (stat_iter_start) begin
+          state_next          = STATE_ITER;
+          iter_idx_next       = 0;
+          stat_iter_last_next = 1'b0;
+        end
+      end
+
+      STATE_ITER: begin
+        if (!stat_iter_valid || stat_iter_ready) begin
+          stat_iter_valid_next = 1'b1;
+
+          case (iter_idx)
+            0: begin
+              stat_iter_name_next = "aw_depth_max";
+              stat_iter_val_next  = aw_outstanding_max;
+              iter_idx_next       = iter_idx_next + 1;
+            end
+
+            1: begin
+              stat_iter_name_next = "aw_burst_cnt";
+              stat_iter_val_next  = aw_burst_cnt;
+              stat_iter_last_next = 1'b1;
+              state_next          = STATE_IDLE;
+            end
+          endcase
+        end
+      end
+    endcase
+  end
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      state           <= STATE_IDLE;
+      stat_iter_valid <= 1'b0;
+    end else begin
+      state           <= state_next;
+      stat_iter_valid <= stat_iter_valid_next;
+    end
+  end
+
+  always_ff @(posedge clk) begin
+    iter_idx       <= iter_idx_next;
+    stat_iter_name <= stat_iter_name_next;
+    stat_iter_val  <= stat_iter_val_next;
+    stat_iter_last <= stat_iter_last_next;
+  end
 
   // aw bursts
   svc_stats_counter #(
