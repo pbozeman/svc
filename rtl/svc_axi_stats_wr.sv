@@ -144,19 +144,97 @@ module svc_axi_stats_wr #(
       STATE_ITER: begin
         if (!stat_iter_valid || stat_iter_ready) begin
           stat_iter_valid_next = 1'b1;
+          iter_idx_next        = iter_idx_next + 1;
 
           case (iter_idx)
             0: begin
-              stat_iter_name_next = "aw_depth_max";
-              stat_iter_val_next  = aw_outstanding_max;
-              iter_idx_next       = iter_idx_next + 1;
+              stat_iter_name_next = "aw_burst_cnt";
+              stat_iter_val_next  = aw_burst_cnt;
             end
 
             1: begin
-              stat_iter_name_next = "aw_burst_cnt";
-              stat_iter_val_next  = aw_burst_cnt;
+              stat_iter_name_next = "aw_depth_max";
+              stat_iter_val_next  = aw_outstanding_max;
+            end
+
+            2: begin
+              stat_iter_name_next = "aw_len_min";
+              stat_iter_val_next  = STAT_WIDTH'(awlen_min);
+            end
+
+            3: begin
+              stat_iter_name_next = "aw_len_max";
+              stat_iter_val_next  = STAT_WIDTH'(awlen_max);
+            end
+
+            4: begin
+              stat_iter_name_next = "aw_bytes_sum";
+              stat_iter_val_next  = aw_bytes_sum;
+            end
+
+            5: begin
+              stat_iter_name_next = "aw_bytes_min";
+              stat_iter_val_next  = aw_bytes_min;
+            end
+
+            6: begin
+              stat_iter_name_next = "aw_bytes_max";
+              stat_iter_val_next  = aw_bytes_max;
+            end
+
+            7: begin
+              stat_iter_name_next = "w_burst_cnt";
+              stat_iter_val_next  = w_burst_cnt;
+            end
+
+            8: begin
+              stat_iter_name_next = "w_depth_max";
+              stat_iter_val_next  = w_outstanding_max;
+            end
+
+            9: begin
+              stat_iter_name_next = "w_beat_cnt";
+              stat_iter_val_next  = w_beat_cnt;
+            end
+
+            10: begin
+              stat_iter_name_next = "w_bytes_sum";
+              stat_iter_val_next  = w_bytes_sum;
+            end
+
+            11: begin
+              stat_iter_name_next = "w_bytes_min";
+              stat_iter_val_next  = STAT_WIDTH'(w_bytes_min);
+            end
+
+            12: begin
+              stat_iter_name_next = "w_bytes_max";
+              stat_iter_val_next  = STAT_WIDTH'(w_bytes_max);
+            end
+
+            13: begin
+              stat_iter_name_next = "w_data_lag_cnt";
+              stat_iter_val_next  = w_data_lag_cnt;
+            end
+
+            14: begin
+              stat_iter_name_next = "w_idle_cnt";
+              stat_iter_val_next  = w_idle_cycles_cnt;
+            end
+
+            15: begin
+              stat_iter_name_next = "w_early_beat_cnt";
+              stat_iter_val_next  = w_early - beat_cnt;
+            end
+
+            16: begin
+              stat_iter_name_next = "w_awr_beat_cnt";
+              stat_iter_val_next  = w_awr_early_cnt;
               stat_iter_last_next = 1'b1;
               state_next          = STATE_IDLE;
+            end
+
+            default: begin
             end
           endcase
         end
