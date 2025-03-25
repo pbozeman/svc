@@ -17,8 +17,7 @@ module svc_stats_counter #(
     input logic stat_inc,
     input logic stat_dec,
 
-    output logic [STAT_WIDTH-1:0] stat_cnt,
-    output logic [STAT_WIDTH-1:0] stat_max
+    output logic [STAT_WIDTH-1:0] stat_cnt
 );
   logic                  acc_en;
   logic [STAT_WIDTH-1:0] acc_val;
@@ -54,18 +53,6 @@ module svc_stats_counter #(
         acc_val = 0;
       end
     endcase
-  end
-
-  // Note: max is implicitly pipelined because the accumulator
-  // registers its output
-  always_ff @(posedge clk) begin
-    if (!rst_n || stat_clear) begin
-      stat_max <= 0;
-    end else begin
-      if (stat_cnt > stat_max) begin
-        stat_max <= stat_cnt;
-      end
-    end
   end
 
 endmodule
