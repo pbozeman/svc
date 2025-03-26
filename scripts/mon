@@ -1,0 +1,20 @@
+#!/bin/sh
+
+DEV_ARG="$1"
+BAUD_ARG="$2"
+
+BAUD=${BAUD_ARG:-115200}
+
+# someday this could get fancy and iterate over the devices matching
+# the right pattern and then use something like udevadm info -n <dev>
+# to find one with the right FTDI chip on the other side, but for now,
+# this is easy:
+DEVS="${DEV_ARG:-/dev/ttyUSB1 /dev/cu.usbserial-21101}"
+
+for DEV in $DEVS; do
+  if [ -e "$DEV" ]; then
+    echo "Found device: $DEV"
+    socat -u "$DEV",b$BAUD -
+    break
+  fi
+done
