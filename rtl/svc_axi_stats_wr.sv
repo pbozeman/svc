@@ -69,36 +69,31 @@ module svc_axi_stats_wr #(
   } state_t;
 
   typedef enum logic [7:0] {
-    STAT_AW_BURST_CNT       = 0,
-    STAT_AW_DEPTH_MAX       = 1,
-    STAT_AW_LEN_MIN         = 2,
-    STAT_AW_LEN_MAX         = 3,
-    STAT_AW_BYTES_SUM       = 4,
-    STAT_AW_BYTES_MIN       = 5,
-    STAT_AW_BYTES_MAX       = 6,
-    STAT_W_BURST_CNT        = 7,
-    STAT_W_DEPTH_MAX        = 8,
-    STAT_W_BEAT_CNT         = 9,
-    STAT_W_BYTES_SUM        = 10,
-    STAT_W_BYTES_MIN        = 11,
-    STAT_W_BYTES_MAX        = 12,
-    STAT_W_DATA_LAG_CNT     = 13,
-    STAT_W_IDLE_CNT         = 14,
-    STAT_W_EARLY_BEAT_CNT   = 15,
-    STAT_W_AWR_BEAT_CNT     = 16,
-    STAT_W_DATA_LAG_CNT2    = 17,
-    STAT_W_IDLE_CYCLES_CNT1 = 18,
-    STAT_W_EARLY_BEAT_CNT2  = 19,
-    STAT_W_IDLE_CYCLES_CNT2 = 20,
-    STAT_W_AWR_EARLY_CNT    = 21,
-    STAT_W_B_LAG_CNT        = 22,
-    STAT_W_B_STALL_CNT      = 23,
-    STAT_W_B_END_CNT        = 24,
-    STAT_W_SLOW_DATA_CNT    = 25,
-    STAT_W_STALL_CNT        = 26,
-    STAT_W_ADDR_STALL_CNT   = 27,
-    STAT_W_ADDR_LAG_CNT     = 28,
-    STAT_W_EARLY_STALL_CNT  = 29
+    STAT_AW_BURST_CNT      = 0,
+    STAT_AW_DEPTH_MAX      = 1,
+    STAT_AW_LEN_MIN        = 2,
+    STAT_AW_LEN_MAX        = 3,
+    STAT_AW_BYTES_SUM      = 4,
+    STAT_AW_BYTES_MIN      = 5,
+    STAT_AW_BYTES_MAX      = 6,
+    STAT_W_BURST_CNT       = 7,
+    STAT_W_DEPTH_MAX       = 8,
+    STAT_W_BEAT_CNT        = 9,
+    STAT_W_BYTES_SUM       = 10,
+    STAT_W_BYTES_MIN       = 11,
+    STAT_W_BYTES_MAX       = 12,
+    STAT_W_DATA_LAG_CNT    = 13,
+    STAT_W_IDLE_CNT        = 14,
+    STAT_W_EARLY_BEAT_CNT  = 15,
+    STAT_W_AWR_EARLY_CNT   = 16,
+    STAT_W_B_LAG_CNT       = 17,
+    STAT_W_B_STALL_CNT     = 18,
+    STAT_W_B_END_CNT       = 19,
+    STAT_W_SLOW_DATA_CNT   = 20,
+    STAT_W_STALL_CNT       = 21,
+    STAT_W_ADDR_STALL_CNT  = 22,
+    STAT_W_ADDR_LAG_CNT    = 23,
+    STAT_W_EARLY_STALL_CNT = 24
   } stat_id_t;
 
   state_t           state;
@@ -268,31 +263,6 @@ module svc_axi_stats_wr #(
             STAT_W_EARLY_BEAT_CNT: begin
               stat_iter_id_next  = STAT_W_EARLY_BEAT_CNT;
               stat_iter_val_next = w_early_beat_cnt;
-            end
-
-            STAT_W_AWR_BEAT_CNT: begin
-              stat_iter_id_next  = STAT_W_AWR_BEAT_CNT;
-              stat_iter_val_next = w_awr_early_cnt;
-            end
-
-            STAT_W_DATA_LAG_CNT2: begin
-              stat_iter_id_next  = STAT_W_DATA_LAG_CNT2;
-              stat_iter_val_next = w_data_lag_cnt;
-            end
-
-            STAT_W_IDLE_CYCLES_CNT1: begin
-              stat_iter_id_next  = STAT_W_IDLE_CYCLES_CNT1;
-              stat_iter_val_next = w_idle_cycles_cnt;
-            end
-
-            STAT_W_EARLY_BEAT_CNT2: begin
-              stat_iter_id_next  = STAT_W_EARLY_BEAT_CNT2;
-              stat_iter_val_next = w_early_beat_cnt;
-            end
-
-            STAT_W_IDLE_CYCLES_CNT2: begin
-              stat_iter_id_next  = STAT_W_IDLE_CYCLES_CNT2;
-              stat_iter_val_next = w_idle_cycles_cnt;
             end
 
             STAT_W_AWR_EARLY_CNT: begin
