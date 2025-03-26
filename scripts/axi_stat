@@ -10,8 +10,6 @@
 import sys
 from pprint import pprint
 
-import reprlib
-
 #
 # These must match the enum ordering in the rtl for the axi perf stats.
 # TODO:: some code gen tool to create these and the sv enum
@@ -47,43 +45,17 @@ signal_names = [
 # TODO: pass clock speed back with stats
 clock_mhz = 100
 
+EXPECTED_STATS = set(signal_names)
+hex_map = {f"{i:02X}": name for i, name in enumerate(signal_names)}
+current_block = None
+blocks = {}
+
 
 def safe_div(numerator, denominator):
     return numerator / denominator if denominator else float("nan")
 
 
-hex_map = {f"{i:02X}": name for i, name in enumerate(signal_names)}
-current_block = None
-blocks = {}
-
-try:
-    for line in sys.stdin:
-        line = line.strip()
-
-        if line.startswith("name:"):
-            current_block = line.split(":", 1)[1].strip()
-            print(f"# Block name: {current_block}")
-            blocks[current_block] = {}
-
-        elif ":" in line and line[:2].isalnum() and current_block:
-            key, val = line.split(":", 1)
-            key = key.strip().upper()
-            val = val.strip()
-            if key in hex_map:
-                stat_name = hex_map[key]
-                print(
-                    f" {int(key, 16):02d}\t{stat_name:<18}\t{val}\t{int(val, 16)}",
-                    file=sys.stderr,
-                )
-                blocks[current_block][stat_name] = int(val, 16)
-except KeyboardInterrupt:
-    pass
-
-print("\n# Final stats dump:\n")
-pprint(blocks)
-
-# Compute latency, throughput, and bandwidth
-for block_name, stats in blocks.items():
+def print_stats(block_name, stats):
     try:
         write_latency_numerator = (
             stats.get("w_early_beat_cnt", 0)
@@ -106,8 +78,6 @@ for block_name, stats in blocks.items():
         )
         write_throughput = safe_div(write_beats, write_throughput_denominator)
 
-        # Bandwidth = total bytes written / total time (in cycles)
-        # Then multiplied by clock frequency (in MHz) to get MB/s
         total_write_bytes = stats.get("w_bytes_sum", 0)
         bandwidth_bytes_per_cycle = safe_div(
             total_write_bytes, write_throughput_denominator
@@ -116,8 +86,42 @@ for block_name, stats in blocks.items():
         bandwidth_MBps = bandwidth_bytes_per_cycle * clock_mhz
 
         print(f"\n# Stats for block: {block_name}", file=sys.stderr)
-        print(f"  LATENCY    = {write_latency:.2f} cycles/burst", file=sys.stderr)
-        print(f"  THROUGHPUT = {write_throughput:.2f} beats/cycle", file=sys.stderr)
-        print(f"  BANDWIDTH  = {bandwidth_MBps:.2f} MB/s", file=sys.stderr)
+        print(f" {'LATENCY':<12}= {write_latency:8.2f} cycles/burst", file=sys.stderr)
+        print(
+            f" {'THROUGHPUT':<12}= {write_throughput:8.2f} beats/cycle",
+            file=sys.stderr,
+        )
+        print(f" {'BANDWIDTH':<12}= {bandwidth_MBps:8.2f} MB/s", file=sys.stderr)
     except Exception as e:
-        print(f"  Failed to compute stats for {block_name}: {e}", file=sys.stderr)
+        print(f" Failed to compute stats for {block_name}: {e}", file=sys.stderr)
+
+
+try:
+    for line in sys.stdin:
+        line = line.strip()
+
+        if line.startswith("name:"):
+            current_block = line.split(":", 1)[1].strip()
+            print(f"# Block name: {current_block}")
+            blocks[current_block] = {}
+
+        elif ":" in line and line[:2].isalnum() and current_block:
+            key, val = line.split(":", 1)
+            key = key.strip().upper()
+            val = val.strip()
+            if key in hex_map:
+                stat_name = hex_map[key]
+                print(
+                    f" {int(key, 16):02d}\t{stat_name:<18}\t{val}\t{int(val, 16)}",
+                    file=sys.stderr,
+                )
+                blocks[current_block][stat_name] = int(val, 16)
+
+                # If all expected stats are present, print immediately
+                if EXPECTED_STATS.issubset(blocks[current_block].keys()):
+                    print_stats(current_block, blocks[current_block])
+except KeyboardInterrupt:
+    pass
+
+print("\n# Final stats dump:\n")
+pprint(blocks)
