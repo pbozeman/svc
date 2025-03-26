@@ -604,6 +604,20 @@ module svc_axi_stats_wr #(
   always_ff @(posedge clk)
     if (!rst_n || stat_clear) begin
     end else begin
+      w_idle_cycles_cnt_en   <= 1'b0;
+      w_slow_data_cnt_en     <= 1'b0;
+      w_stall_cnt_en         <= 1'b0;
+      w_stall_cnt_en         <= 1'b0;
+      w_early_beat_cnt_en    <= 1'b0;
+      w_awr_early_cnt_en     <= 1'b0;
+      w_addr_stall_cnt_en    <= 1'b0;
+      w_data_lag_cnt_en      <= 1'b0;
+      w_addr_lag_cnt_en      <= 1'b0;
+      w_addr_lag_cnt_en      <= 1'b0;
+      w_early_stall_cnt_en   <= 1'b0;
+      w_b_lag_count_cnt_en   <= 1'b0;
+      w_b_stall_count_cnt_en <= 1'b0;
+      w_b_end_count_cnt_en   <= 1'b0;
       casez ({
         aw_outstanding_cnt != 0,
         w_outstanding_cnt != 0,
