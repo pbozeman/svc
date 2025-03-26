@@ -2,7 +2,8 @@
 `define SVC_AXI_STATS_WR_SV
 
 `include "svc.sv"
-`include "svc_stats_counter.sv"
+`include "svc_stats_cnt.sv"
+`include "svc_stats_max.sv"
 `include "svc_stats_val.sv"
 
 // TODO: error detection in the stat modules.
@@ -39,12 +40,12 @@ module svc_axi_stats_wr #(
     // via an axi register interface, but for now, this is easy. It also
     // let's us add new stats without having to change code anyplace else,
     // other than the final (off fpga) consumer.
-    input  logic                       stat_iter_start,
-    output logic                       stat_iter_valid,
-    output logic [STAT_NAME_WIDTH-1:0] stat_iter_name,
-    output logic [     STAT_WIDTH-1:0] stat_iter_val,
-    output logic                       stat_iter_last,
-    input  logic                       stat_iter_ready,
+    input  logic                  stat_iter_start,
+    output logic                  stat_iter_valid,
+    output logic [           7:0] stat_iter_id,
+    output logic [STAT_WIDTH-1:0] stat_iter_val,
+    output logic                  stat_iter_last,
+    input  logic                  stat_iter_ready,
 
     input logic                      m_axi_awvalid,
     input logic [AXI_ADDR_WIDTH-1:0] m_axi_awaddr,
@@ -72,15 +73,48 @@ module svc_axi_stats_wr #(
     STATE_ITER
   } state_t;
 
+  typedef enum logic [7:0] {
+    STAT_AW_BURST_CNT       = 0,
+    STAT_AW_DEPTH_MAX       = 1,
+    STAT_AW_LEN_MIN         = 2,
+    STAT_AW_LEN_MAX         = 3,
+    STAT_AW_BYTES_SUM       = 4,
+    STAT_AW_BYTES_MIN       = 5,
+    STAT_AW_BYTES_MAX       = 6,
+    STAT_W_BURST_CNT        = 7,
+    STAT_W_DEPTH_MAX        = 8,
+    STAT_W_BEAT_CNT         = 9,
+    STAT_W_BYTES_SUM        = 10,
+    STAT_W_BYTES_MIN        = 11,
+    STAT_W_BYTES_MAX        = 12,
+    STAT_W_DATA_LAG_CNT     = 13,
+    STAT_W_IDLE_CNT         = 14,
+    STAT_W_EARLY_BEAT_CNT   = 15,
+    STAT_W_AWR_BEAT_CNT     = 16,
+    STAT_W_DATA_LAG_CNT2    = 17,
+    STAT_W_IDLE_CYCLES_CNT1 = 18,
+    STAT_W_EARLY_BEAT_CNT2  = 19,
+    STAT_W_IDLE_CYCLES_CNT2 = 20,
+    STAT_W_AWR_EARLY_CNT    = 21,
+    STAT_W_B_LAG_CNT        = 22,
+    STAT_W_B_STALL_CNT      = 23,
+    STAT_W_B_END_CNT        = 24,
+    STAT_W_SLOW_DATA_CNT    = 25,
+    STAT_W_STALL_CNT        = 26,
+    STAT_W_ADDR_STALL_CNT   = 27,
+    STAT_W_ADDR_LAG_CNT     = 28,
+    STAT_W_EARLY_STALL_CNT  = 29
+  } stat_id_t;
+
   state_t           state;
   state_t           state_next;
 
   // not part of the state machine to make it easy to add new ones
-  logic   [    4:0] iter_idx;
-  logic   [    4:0] iter_idx_next;
+  logic   [    7:0] iter_idx;
+  logic   [    7:0] iter_idx_next;
 
   logic             stat_iter_valid_next;
-  logic   [ NW-1:0] stat_iter_name_next;
+  logic   [    7:0] stat_iter_id_next;
   logic   [ SW-1:0] stat_iter_val_next;
   logic             stat_iter_last_next;
 
@@ -123,12 +157,26 @@ module svc_axi_stats_wr #(
   logic   [ SW-1:0] w_addr_lag_cnt;
   logic   [ SW-1:0] w_early_stall_cnt;
 
+  logic             w_data_lag_cnt_en;
+  logic             w_idle_cycles_cnt_en;
+  logic             w_early_beat_cnt_en;
+  logic             w_awr_early_cnt_en;
+  logic             w_b_lag_count_cnt_en;
+  logic             w_b_stall_count_cnt_en;
+  logic             w_b_end_count_cnt_en;
+  logic             w_slow_data_cnt_en;
+  logic             w_stall_cnt_en;
+  logic             w_addr_stall_cnt_en;
+  logic             w_addr_lag_cnt_en;
+  logic             w_early_stall_cnt_en;
+
+
   always_comb begin
     state_next           = state;
     iter_idx_next        = iter_idx;
 
     stat_iter_valid_next = stat_iter_valid && !stat_iter_ready;
-    stat_iter_name_next  = stat_iter_name;
+    stat_iter_id_next    = stat_iter_id;
     stat_iter_val_next   = stat_iter_val;
     stat_iter_last_next  = stat_iter_last;
 
@@ -147,159 +195,161 @@ module svc_axi_stats_wr #(
           iter_idx_next        = iter_idx_next + 1;
 
           case (iter_idx)
-            0: begin
-              stat_iter_name_next = "aw_burst_cnt";
-              stat_iter_val_next  = aw_burst_cnt;
+            STAT_AW_BURST_CNT: begin
+              stat_iter_id_next  = STAT_AW_BURST_CNT;
+              stat_iter_val_next = aw_burst_cnt;
             end
 
-            1: begin
-              stat_iter_name_next = "aw_depth_max";
-              stat_iter_val_next  = aw_outstanding_max;
+            STAT_AW_DEPTH_MAX: begin
+              stat_iter_id_next  = STAT_AW_DEPTH_MAX;
+              stat_iter_val_next = aw_outstanding_max;
             end
 
-            2: begin
-              stat_iter_name_next = "aw_len_min";
-              stat_iter_val_next  = STAT_WIDTH'(awlen_min);
+            STAT_AW_LEN_MIN: begin
+              stat_iter_id_next  = STAT_AW_LEN_MIN;
+              stat_iter_val_next = STAT_WIDTH'(awlen_min);
             end
 
-            3: begin
-              stat_iter_name_next = "aw_len_max";
-              stat_iter_val_next  = STAT_WIDTH'(awlen_max);
+            STAT_AW_LEN_MAX: begin
+              stat_iter_id_next  = STAT_AW_LEN_MAX;
+              stat_iter_val_next = STAT_WIDTH'(awlen_max);
             end
 
-            4: begin
-              stat_iter_name_next = "aw_bytes_sum";
-              stat_iter_val_next  = aw_bytes_sum;
+            STAT_AW_BYTES_SUM: begin
+              stat_iter_id_next  = STAT_AW_BYTES_SUM;
+              stat_iter_val_next = aw_bytes_sum;
             end
 
-            5: begin
-              stat_iter_name_next = "aw_bytes_min";
-              stat_iter_val_next  = aw_bytes_min;
+            STAT_AW_BYTES_MIN: begin
+              stat_iter_id_next  = STAT_AW_BYTES_MIN;
+              stat_iter_val_next = aw_bytes_min;
             end
 
-            6: begin
-              stat_iter_name_next = "aw_bytes_max";
-              stat_iter_val_next  = aw_bytes_max;
+            STAT_AW_BYTES_MAX: begin
+              stat_iter_id_next  = STAT_AW_BYTES_MAX;
+              stat_iter_val_next = aw_bytes_max;
             end
 
-            7: begin
-              stat_iter_name_next = "w_burst_cnt";
-              stat_iter_val_next  = w_burst_cnt;
+            STAT_W_BURST_CNT: begin
+              stat_iter_id_next  = STAT_W_BURST_CNT;
+              stat_iter_val_next = w_burst_cnt;
             end
 
-            8: begin
-              stat_iter_name_next = "w_depth_max";
-              stat_iter_val_next  = w_outstanding_max;
+            STAT_W_DEPTH_MAX: begin
+              stat_iter_id_next  = STAT_W_DEPTH_MAX;
+              stat_iter_val_next = w_outstanding_max;
             end
 
-            9: begin
-              stat_iter_name_next = "w_beat_cnt";
-              stat_iter_val_next  = w_beat_cnt;
+            STAT_W_BEAT_CNT: begin
+              stat_iter_id_next  = STAT_W_BEAT_CNT;
+              stat_iter_val_next = w_beat_cnt;
             end
 
-            10: begin
-              stat_iter_name_next = "w_bytes_sum";
-              stat_iter_val_next  = w_bytes_sum;
+            STAT_W_BYTES_SUM: begin
+              stat_iter_id_next  = STAT_W_BYTES_SUM;
+              stat_iter_val_next = w_bytes_sum;
             end
 
-            11: begin
-              stat_iter_name_next = "w_bytes_min";
-              stat_iter_val_next  = STAT_WIDTH'(w_bytes_min);
+            STAT_W_BYTES_MIN: begin
+              stat_iter_id_next  = STAT_W_BYTES_MIN;
+              stat_iter_val_next = STAT_WIDTH'(w_bytes_min);
             end
 
-            12: begin
-              stat_iter_name_next = "w_bytes_max";
-              stat_iter_val_next  = STAT_WIDTH'(w_bytes_max);
+            STAT_W_BYTES_MAX: begin
+              stat_iter_id_next  = STAT_W_BYTES_MAX;
+              stat_iter_val_next = STAT_WIDTH'(w_bytes_max);
             end
 
-            13: begin
-              stat_iter_name_next = "w_data_lag_cnt";
-              stat_iter_val_next  = w_data_lag_cnt;
+            STAT_W_DATA_LAG_CNT: begin
+              stat_iter_id_next  = STAT_W_DATA_LAG_CNT;
+              stat_iter_val_next = w_data_lag_cnt;
             end
 
-            14: begin
-              stat_iter_name_next = "w_idle_cnt";
-              stat_iter_val_next  = w_idle_cycles_cnt;
+            STAT_W_IDLE_CNT: begin
+              stat_iter_id_next  = STAT_W_IDLE_CNT;
+              stat_iter_val_next = w_idle_cycles_cnt;
             end
 
-            15: begin
-              stat_iter_name_next = "w_early_beat_cnt";
-              stat_iter_val_next  = w_early - beat_cnt;
+            STAT_W_EARLY_BEAT_CNT: begin
+              stat_iter_id_next  = STAT_W_EARLY_BEAT_CNT;
+              stat_iter_val_next = w_early_beat_cnt;
             end
 
-            16: begin
-              stat_iter_name_next = "w_awr_beat_cnt";
-              stat_iter_val_next  = w_awr_early_cnt;
+            STAT_W_AWR_BEAT_CNT: begin
+              stat_iter_id_next  = STAT_W_AWR_BEAT_CNT;
+              stat_iter_val_next = w_awr_early_cnt;
             end
 
-            17: begin
-              stat_iter_name_next = "w_data_lag_cnt";
-              stat_iter_val_next  = w_data_lag_cnt;
+            STAT_W_DATA_LAG_CNT2: begin
+              stat_iter_id_next  = STAT_W_DATA_LAG_CNT2;
+              stat_iter_val_next = w_data_lag_cnt;
             end
 
-            18: begin
-              stat_iter_name_next = "w_idle_cycles_cnt";
-              stat_iter_val_next  = w_idle_cycles_cnt;
+            STAT_W_IDLE_CYCLES_CNT1: begin
+              stat_iter_id_next  = STAT_W_IDLE_CYCLES_CNT1;
+              stat_iter_val_next = w_idle_cycles_cnt;
             end
 
-            19: begin
-              stat_iter_name_next = "w_early_beat_cnt";
-              stat_iter_val_next  = w_early_beat_cnt;
+            STAT_W_EARLY_BEAT_CNT2: begin
+              stat_iter_id_next  = STAT_W_EARLY_BEAT_CNT2;
+              stat_iter_val_next = w_early_beat_cnt;
             end
 
-            20: begin
-              stat_iter_name_next = "w_idle_cycles_cnt";
-              stat_iter_val_next  = w_idle_cycles_cnt;
+            STAT_W_IDLE_CYCLES_CNT2: begin
+              stat_iter_id_next  = STAT_W_IDLE_CYCLES_CNT2;
+              stat_iter_val_next = w_idle_cycles_cnt;
             end
 
-            21: begin
-              stat_iter_name_next = "w_awr_early_cnt";
-              stat_iter_val_next  = w_awr_early_cnt;
+            STAT_W_AWR_EARLY_CNT: begin
+              stat_iter_id_next  = STAT_W_AWR_EARLY_CNT;
+              stat_iter_val_next = w_awr_early_cnt;
             end
 
-            22: begin
-              stat_iter_name_next = "w_b_lag_count_cnt";
-              stat_iter_val_next  = w_b_lag_count_cnt;
+            STAT_W_B_LAG_CNT: begin
+              stat_iter_id_next  = STAT_W_B_LAG_CNT;
+              stat_iter_val_next = w_b_lag_count_cnt;
             end
 
-            23: begin
-              stat_iter_name_next = "w_b_stall_count_cnt";
-              stat_iter_val_next  = w_b_stall_count_cnt;
+            STAT_W_B_STALL_CNT: begin
+              stat_iter_id_next  = STAT_W_B_STALL_CNT;
+              stat_iter_val_next = w_b_stall_count_cnt;
             end
 
-            24: begin
-              stat_iter_name_next = "w_b_end_count_cnt";
-              stat_iter_val_next  = w_b_end_count_cnt;
+            STAT_W_B_END_CNT: begin
+              stat_iter_id_next  = STAT_W_B_END_CNT;
+              stat_iter_val_next = w_b_end_count_cnt;
             end
 
-            25: begin
-              stat_iter_name_next = "w_slow_data_cnt";
-              stat_iter_val_next  = w_slow_data_cnt;
+            STAT_W_SLOW_DATA_CNT: begin
+              stat_iter_id_next  = STAT_W_SLOW_DATA_CNT;
+              stat_iter_val_next = w_slow_data_cnt;
             end
 
-            26: begin
-              stat_iter_name_next = "w_stall_cnt";
-              stat_iter_val_next  = w_stall_cnt;
+            STAT_W_STALL_CNT: begin
+              stat_iter_id_next  = STAT_W_STALL_CNT;
+              stat_iter_val_next = w_stall_cnt;
             end
 
-            27: begin
-              stat_iter_name_next = "w_addr_stall_cnt";
-              stat_iter_val_next  = w_addr_stall_cnt;
+            STAT_W_ADDR_STALL_CNT: begin
+              stat_iter_id_next  = STAT_W_ADDR_STALL_CNT;
+              stat_iter_val_next = w_addr_stall_cnt;
             end
 
-            28: begin
-              stat_iter_name_next = "w_addr_lag_cnt";
-              stat_iter_val_next  = w_addr_lag_cnt;
+            STAT_W_ADDR_LAG_CNT: begin
+              stat_iter_id_next  = STAT_W_ADDR_LAG_CNT;
+              stat_iter_val_next = w_addr_lag_cnt;
             end
 
-            29: begin
-              stat_iter_name_next = "w_early_stall_cnt";
+            STAT_W_EARLY_STALL_CNT: begin
+              stat_iter_id_next   = STAT_W_EARLY_STALL_CNT;
               stat_iter_val_next  = w_early_stall_cnt;
               stat_iter_last_next = 1'b1;
               state_next          = STATE_IDLE;
             end
 
             default: begin
+              stat_iter_id_next  = '0;
+              stat_iter_val_next = '0;
             end
           endcase
         end
@@ -319,38 +369,36 @@ module svc_axi_stats_wr #(
 
   always_ff @(posedge clk) begin
     iter_idx       <= iter_idx_next;
-    stat_iter_name <= stat_iter_name_next;
+    stat_iter_id   <= stat_iter_id_next;
     stat_iter_val  <= stat_iter_val_next;
     stat_iter_last <= stat_iter_last_next;
   end
 
   // aw bursts
-  svc_stats_counter #(
+  svc_stats_cnt #(
       .STAT_WIDTH(STAT_WIDTH)
-  ) svc_stats_counter_aw_burst (
-      .clk       (clk),
-      .rst_n     (rst_n),
-      .stat_clear(stat_clear),
-      .stat_inc  (m_axi_awvalid && m_axi_awready),
-      .stat_dec  (1'b0),
-      .stat_cnt  (aw_burst_cnt),
-      .stat_max  ()
+  ) svc_stats_cnt_aw_burst (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .inc  (m_axi_awvalid && m_axi_awready),
+      .dec  (1'b0),
+      .cnt  (aw_burst_cnt)
   );
 
   // awlen
   svc_stats_val #(
-      .WIDTH     (8),
-      .STAT_WIDTH(STAT_WIDTH)
+      .WIDTH(8)
   ) svc_stats_val_awlen (
       .clk  (clk),
       .rst_n(rst_n),
 
-      .stat_clear(stat_clear),
-      .stat_en   (m_axi_awvalid && m_axi_awready),
-      .stat_val  (m_axi_awlen),
-      .stat_min  (awlen_min),
-      .stat_max  (awlen_max),
-      .stat_sum  ()
+      .clr(stat_clear),
+      .en (m_axi_awvalid && m_axi_awready),
+      .val(m_axi_awlen),
+      .min(awlen_min),
+      .max(awlen_max),
+      .sum()
   );
 
   // aw_bytes
@@ -361,38 +409,36 @@ module svc_axi_stats_wr #(
       .clk  (clk),
       .rst_n(rst_n),
 
-      .stat_clear(stat_clear),
-      .stat_en   (m_axi_awvalid && m_axi_awready),
-      .stat_val  ((STAT_WIDTH'(m_axi_awlen) + 1) << m_axi_awsize),
-      .stat_min  (aw_bytes_min),
-      .stat_max  (aw_bytes_max),
-      .stat_sum  (aw_bytes_sum)
+      .clr(stat_clear),
+      .en (m_axi_awvalid && m_axi_awready),
+      .val((STAT_WIDTH'(m_axi_awlen) + 1) << m_axi_awsize),
+      .min(aw_bytes_min),
+      .max(aw_bytes_max),
+      .sum(aw_bytes_sum)
   );
 
   // w bursts
-  svc_stats_counter #(
+  svc_stats_cnt #(
       .STAT_WIDTH(STAT_WIDTH)
-  ) svc_stats_counter_w_burst (
-      .clk       (clk),
-      .rst_n     (rst_n),
-      .stat_clear(stat_clear),
-      .stat_inc  (m_axi_wvalid && m_axi_wready && m_axi_wlast),
-      .stat_dec  (1'b0),
-      .stat_cnt  (w_burst_cnt),
-      .stat_max  ()
+  ) svc_stats_cnt_w_burst (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .inc  (m_axi_wvalid && m_axi_wready && m_axi_wlast),
+      .dec  (1'b0),
+      .cnt  (w_burst_cnt)
   );
 
   // w beats
-  svc_stats_counter #(
+  svc_stats_cnt #(
       .STAT_WIDTH(STAT_WIDTH)
-  ) svc_stats_counter_w_beat (
-      .clk       (clk),
-      .rst_n     (rst_n),
-      .stat_clear(stat_clear),
-      .stat_inc  (m_axi_wvalid && m_axi_wready),
-      .stat_dec  (1'b0),
-      .stat_cnt  (w_beat_cnt),
-      .stat_max  ()
+  ) svc_stats_cnt_w_beat (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .inc  (m_axi_wvalid && m_axi_wready),
+      .dec  (1'b0),
+      .cnt  (w_beat_cnt)
   );
 
   always_comb begin
@@ -410,12 +456,12 @@ module svc_axi_stats_wr #(
       .clk  (clk),
       .rst_n(rst_n),
 
-      .stat_clear(stat_clear),
-      .stat_en   (m_axi_wvalid && m_axi_wready),
-      .stat_val  (w_bytes),
-      .stat_min  (w_bytes_min),
-      .stat_max  (w_bytes_max),
-      .stat_sum  (w_bytes_sum)
+      .clr(stat_clear),
+      .en (m_axi_wvalid && m_axi_wready),
+      .val(w_bytes),
+      .min(w_bytes_min),
+      .max(w_bytes_max),
+      .sum(w_bytes_sum)
   );
 
   // The AW and W outstanding might seem like odd definitions. Why not
@@ -426,29 +472,49 @@ module svc_axi_stats_wr #(
   // zipcpu blog link above.
 
   // aw outstanding (aw txn accept to b txn accept)
-  svc_stats_counter #(
+  svc_stats_cnt #(
       .STAT_WIDTH(STAT_WIDTH)
-  ) svc_stats_counter_aw_outstanding (
-      .clk       (clk),
-      .rst_n     (rst_n),
-      .stat_clear(stat_clear),
-      .stat_inc  (m_axi_awvalid && m_axi_awready),
-      .stat_dec  (m_axi_bvalid && m_axi_bready),
-      .stat_cnt  (aw_outstanding_cnt),
-      .stat_max  (aw_outstanding_max)
+  ) svc_stats_cnt_aw_outstanding (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .inc  (m_axi_awvalid && m_axi_awready),
+      .dec  (m_axi_bvalid && m_axi_bready),
+      .cnt  (aw_outstanding_cnt)
+  );
+
+  svc_stats_max #(
+      .WIDTH(STAT_WIDTH)
+  ) svc_stats_max_aw_outstanding (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .en   (1'b1),
+      .val  (aw_outstanding_cnt),
+      .max  (aw_outstanding_max)
   );
 
   // w outstanding (last w txn accept to b txn accept)
-  svc_stats_counter #(
+  svc_stats_cnt #(
       .STAT_WIDTH(STAT_WIDTH)
-  ) svc_stats_counter_w_outstanding (
-      .clk       (clk),
-      .rst_n     (rst_n),
-      .stat_clear(stat_clear),
-      .stat_inc  (m_axi_wvalid && m_axi_wready && m_axi_wlast),
-      .stat_dec  (m_axi_bvalid && m_axi_bready),
-      .stat_cnt  (w_outstanding_cnt),
-      .stat_max  (w_outstanding_max)
+  ) svc_stats_cnt_w_outstanding (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .inc  (m_axi_wvalid && m_axi_wready && m_axi_wlast),
+      .dec  (m_axi_bvalid && m_axi_bready),
+      .cnt  (w_outstanding_cnt)
+  );
+
+  svc_stats_max #(
+      .WIDTH(STAT_WIDTH)
+  ) svc_stats_max_w_outstanding (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .en   (1'b1),
+      .val  (w_outstanding_cnt),
+      .max  (w_outstanding_max)
   );
 
   always_ff @(posedge clk) begin
@@ -461,23 +527,141 @@ module svc_axi_stats_wr #(
     end
   end
 
+  svc_stats_cnt #(
+      .STAT_WIDTH(STAT_WIDTH)
+  ) svc_stats_cnt_w_data_lag (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .inc  (w_data_lag_cnt_en),
+      .dec  (1'b0),
+      .cnt  (w_data_lag_cnt)
+  );
+
+  svc_stats_cnt #(
+      .STAT_WIDTH(STAT_WIDTH)
+  ) svc_stats_cnt_w_idle_cycles (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .inc  (w_idle_cycles_cnt_en),
+      .dec  (1'b0),
+      .cnt  (w_idle_cycles_cnt)
+  );
+
+  svc_stats_cnt #(
+      .STAT_WIDTH(STAT_WIDTH)
+  ) svc_stats_cnt_w_early_beat (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .inc  (w_early_beat_cnt_en),
+      .dec  (1'b0),
+      .cnt  (w_early_beat_cnt)
+  );
+
+  svc_stats_cnt #(
+      .STAT_WIDTH(STAT_WIDTH)
+  ) svc_stats_cnt_w_awr_early (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .inc  (w_awr_early_cnt_en),
+      .dec  (1'b0),
+      .cnt  (w_awr_early_cnt)
+  );
+
+  svc_stats_cnt #(
+      .STAT_WIDTH(STAT_WIDTH)
+  ) svc_stats_cnt_w_b_lag_count (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .inc  (w_b_lag_count_cnt_en),
+      .dec  (1'b0),
+      .cnt  (w_b_lag_count_cnt)
+  );
+
+  svc_stats_cnt #(
+      .STAT_WIDTH(STAT_WIDTH)
+  ) svc_stats_cnt_w_b_stall_count (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .inc  (w_b_stall_count_cnt_en),
+      .dec  (1'b0),
+      .cnt  (w_b_stall_count_cnt)
+  );
+
+  svc_stats_cnt #(
+      .STAT_WIDTH(STAT_WIDTH)
+  ) svc_stats_cnt_w_b_end_count (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .inc  (w_b_end_count_cnt_en),
+      .dec  (1'b0),
+      .cnt  (w_b_end_count_cnt)
+  );
+
+  svc_stats_cnt #(
+      .STAT_WIDTH(STAT_WIDTH)
+  ) svc_stats_cnt_w_slow_data (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .inc  (w_slow_data_cnt_en),
+      .dec  (1'b0),
+      .cnt  (w_slow_data_cnt)
+  );
+
+  svc_stats_cnt #(
+      .STAT_WIDTH(STAT_WIDTH)
+  ) svc_stats_cnt_w_stall (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .inc  (w_stall_cnt_en),
+      .dec  (1'b0),
+      .cnt  (w_stall_cnt)
+  );
+
+  svc_stats_cnt #(
+      .STAT_WIDTH(STAT_WIDTH)
+  ) svc_stats_cnt_w_addr_stall (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .inc  (w_addr_stall_cnt_en),
+      .dec  (1'b0),
+      .cnt  (w_addr_stall_cnt)
+  );
+
+  svc_stats_cnt #(
+      .STAT_WIDTH(STAT_WIDTH)
+  ) svc_stats_cnt_w_addr_lag (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .inc  (w_addr_lag_cnt_en),
+      .dec  (1'b0),
+      .cnt  (w_addr_lag_cnt)
+  );
+
+  svc_stats_cnt #(
+      .STAT_WIDTH(STAT_WIDTH)
+  ) svc_stats_cnt_w_early_stall (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .inc  (w_early_stall_cnt_en),
+      .dec  (1'b0),
+      .cnt  (w_early_stall_cnt)
+  );
+
   // see the zipcpu blog to better understand these bins
-  // (and yes, this part was pretty much a direct copy with renames)
   always_ff @(posedge clk)
     if (!rst_n || stat_clear) begin
-      w_data_lag_cnt      <= 0;
-      w_idle_cycles_cnt   <= 0;
-      w_early_beat_cnt    <= 0;
-      w_awr_early_cnt     <= 0;
-      w_b_lag_count_cnt   <= 0;
-      w_b_stall_count_cnt <= 0;
-      w_b_end_count_cnt   <= 0;
-      w_slow_data_cnt     <= 0;
-      w_stall_cnt         <= 0;
-      w_data_lag_cnt      <= 0;
-      w_addr_stall_cnt    <= 0;
-      w_addr_lag_cnt      <= 0;
-      w_early_stall_cnt   <= 0;
     end else begin
       casez ({
         aw_outstanding_cnt != 0,
@@ -493,30 +677,30 @@ module svc_axi_stats_wr #(
         //
         // Idle
         //
-        9'b0000?0???: w_idle_cycles_cnt <= w_idle_cycles_cnt + 1;
+        9'b0000?0???: w_idle_cycles_cnt_en <= 1'b1;
 
         //
         // Throughput
         //
-        9'b1?1??0???: w_slow_data_cnt <= w_slow_data_cnt + 1;
-        9'b1????10??: w_stall_cnt <= w_stall_cnt + 1;
-        9'b0?1??10??: w_stall_cnt <= w_stall_cnt + 1;
-        9'b0??0?11??: w_early_beat_cnt <= w_early_beat_cnt + 1;
+        9'b1?1??0???: w_slow_data_cnt_en <= 1'b1;
+        9'b1????10??: w_stall_cnt_en <= 1'b1;
+        9'b0?1??10??: w_stall_cnt_en <= 1'b1;
+        9'b0??0?11??: w_early_beat_cnt_en <= 1'b1;
 
         //
         // Latency
         //
-        9'b000110???: w_awr_early_cnt <= w_awr_early_cnt + 1;
-        9'b000100???: w_addr_stall_cnt <= w_addr_stall_cnt + 1;
+        9'b000110???: w_awr_early_cnt_en <= 1'b1;
+        9'b000100???: w_addr_stall_cnt_en <= 1'b1;
 
-        9'b100??0???: w_data_lag_cnt <= w_data_lag_cnt + 1;
-        9'b010??0???: w_addr_lag_cnt <= w_addr_lag_cnt + 1;
-        9'b0?1??0???: w_addr_lag_cnt <= w_addr_lag_cnt + 1;
-        9'b0?0??10??: w_early_stall_cnt <= w_early_stall_cnt + 1;
+        9'b100??0???: w_data_lag_cnt_en <= 1'b1;
+        9'b010??0???: w_addr_lag_cnt_en <= 1'b1;
+        9'b0?1??0???: w_addr_lag_cnt_en <= 1'b1;
+        9'b0?0??10??: w_early_stall_cnt_en <= 1'b1;
 
-        9'b110??0?0?: w_b_lag_count_cnt <= w_b_lag_count_cnt + 1;
-        9'b110??0?10: w_b_stall_count_cnt <= w_b_stall_count_cnt + 1;
-        9'b110??0?11: w_b_end_count_cnt <= w_b_end_count_cnt + 1;
+        9'b110??0?0?: w_b_lag_count_cnt_en <= 1'b1;
+        9'b110??0?10: w_b_stall_count_cnt_en <= 1'b1;
+        9'b110??0?11: w_b_end_count_cnt_en <= 1'b1;
 
         default: begin
         end
