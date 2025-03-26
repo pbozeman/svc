@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+
+# quick hack to convert the axi perf counters to textual names
+#
+# run with something like:
+#
+# socat -u /dev/ttyUSB1,b115200 - | scripts/axi_stat
+#
+
+import sys
+from pprint import pprint
+
+import reprlib
+
+#
+# These must match the enum ordering in the rtl for the axi perf stats.
+# TODO:: some code gen tool to create these and the sv enum
+#
+signal_names = [
+    "aw_burst_cnt",
+    "aw_burst_cnt",
+    "aw_depth_max",
+    "aw_len_min",
+    "aw_len_max",
+    "aw_bytes_sum",
+    "aw_bytes_min",
+    "aw_bytes_max",
+    "w_burst_cnt",
+    "w_depth_max",
+    "w_beat_cnt",
+    "w_bytes_sum",
+    "w_bytes_min",
+    "w_bytes_max",
+    "w_data_lag_cnt",
+    "w_idle_cnt",
+    "w_early_beat_cnt",
+    "w_awr_early_cnt",
+    "w_b_lag_cnt",
+    "w_b_stall_cnt",
+    "w_b_end_cnt",
+    "w_slow_data_cnt",
+    "w_stall_cnt",
+    "w_addr_stall_cnt",
+    "w_addr_lag_cnt",
+    "w_early_stall_cnt",
+]
+
+hex_map = {f"{i:02X}": name for i, name in enumerate(signal_names)}
+current_block = None
+blocks = {}
+
+try:
+    for line in sys.stdin:
+        line = line.strip()
+
+        if line.startswith("name:"):
+            current_block = line.split(":", 1)[1].strip()
+            print(f"# Block name: {current_block}")
+            blocks[current_block] = {}
+
+        elif ":" in line and line[:2].isalnum() and current_block:
+            key, val = line.split(":", 1)
+            key = key.strip().upper()
+            val = val.strip()
+            if key in hex_map:
+                stat_name = hex_map[key]
+                print(
+                    f" {int(key, 16):02d}\t{stat_name:<18}\t{val}\t{int(val, 16)}",
+                    file=sys.stderr,
+                )
+                blocks[current_block][stat_name] = int(val, 16)
+except KeyboardInterrupt:
+    pass
+
+print("\n# Final stats dump:\n")
+pprint(blocks)
