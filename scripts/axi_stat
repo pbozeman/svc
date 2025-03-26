@@ -18,7 +18,6 @@ import reprlib
 #
 signal_names = [
     "aw_burst_cnt",
-    "aw_burst_cnt",
     "aw_depth_max",
     "aw_len_min",
     "aw_len_max",
@@ -44,6 +43,14 @@ signal_names = [
     "w_addr_lag_cnt",
     "w_early_stall_cnt",
 ]
+
+# TODO: pass clock speed back with stats
+clock_mhz = 100
+
+
+def safe_div(numerator, denominator):
+    return numerator / denominator if denominator else float("nan")
+
 
 hex_map = {f"{i:02X}": name for i, name in enumerate(signal_names)}
 current_block = None
@@ -74,3 +81,43 @@ except KeyboardInterrupt:
 
 print("\n# Final stats dump:\n")
 pprint(blocks)
+
+# Compute latency, throughput, and bandwidth
+for block_name, stats in blocks.items():
+    try:
+        write_latency_numerator = (
+            stats.get("w_early_beat_cnt", 0)
+            + stats.get("w_data_lag_cnt", 0)
+            + stats.get("w_early_stall_cnt", 0)
+            + stats.get("w_b_stall_cnt", 0)
+            + stats.get("w_addr_stall_cnt", 0)
+            + stats.get("w_addr_lag_cnt", 0)
+            + stats.get("w_b_lag_cnt", 0)
+        )
+        write_bursts = stats.get("w_burst_cnt", 1)
+        write_latency = safe_div(write_latency_numerator, write_bursts)
+
+        write_beats = stats.get("w_beat_cnt", 0)
+        write_throughput_denominator = (
+            write_beats
+            + stats.get("w_stall_cnt", 0)
+            + stats.get("w_awr_early_cnt", 0)
+            + stats.get("w_slow_data_cnt", 0)
+        )
+        write_throughput = safe_div(write_beats, write_throughput_denominator)
+
+        # Bandwidth = total bytes written / total time (in cycles)
+        # Then multiplied by clock frequency (in MHz) to get MB/s
+        total_write_bytes = stats.get("w_bytes_sum", 0)
+        bandwidth_bytes_per_cycle = safe_div(
+            total_write_bytes, write_throughput_denominator
+        )
+
+        bandwidth_MBps = bandwidth_bytes_per_cycle * clock_mhz
+
+        print(f"\n# Stats for block: {block_name}", file=sys.stderr)
+        print(f"  LATENCY    = {write_latency:.2f} cycles/burst", file=sys.stderr)
+        print(f"  THROUGHPUT = {write_throughput:.2f} beats/cycle", file=sys.stderr)
+        print(f"  BANDWIDTH  = {bandwidth_MBps:.2f} MB/s", file=sys.stderr)
+    except Exception as e:
+        print(f"  Failed to compute stats for {block_name}: {e}", file=sys.stderr)
