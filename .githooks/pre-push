@@ -4,7 +4,7 @@ SCRIPT_DIR=$(dirname "$0")
 . "$SCRIPT_DIR/hook-lib.sh"
 
 contains_wip() {
-  echo "$1" | grep -i -E '\[wip\]|"wip"|wip' >/dev/null
+  echo "$1" | grep -i -E '(^|[^a-z0-9_])("wip"|\[wip\]|wip)([^a-z0-9_]|$)' >/dev/null
 }
 
 # First read stdin into a temp file
