@@ -182,131 +182,107 @@ module svc_axi_stats_wr #(
       STATE_ITER: begin
         if (!stat_iter_valid || stat_iter_ready) begin
           stat_iter_valid_next = 1'b1;
+          stat_iter_id_next    = iter_idx;
           iter_idx_next        = iter_idx_next + 1;
 
           case (iter_idx)
             STAT_AW_BURST_CNT: begin
-              stat_iter_id_next  = STAT_AW_BURST_CNT;
               stat_iter_val_next = aw_burst_cnt;
             end
 
             STAT_AW_DEPTH_MAX: begin
-              stat_iter_id_next  = STAT_AW_DEPTH_MAX;
               stat_iter_val_next = aw_outstanding_max;
             end
 
             STAT_AW_LEN_MIN: begin
-              stat_iter_id_next  = STAT_AW_LEN_MIN;
               stat_iter_val_next = STAT_WIDTH'(awlen_min);
             end
 
             STAT_AW_LEN_MAX: begin
-              stat_iter_id_next  = STAT_AW_LEN_MAX;
               stat_iter_val_next = STAT_WIDTH'(awlen_max);
             end
 
             STAT_AW_BYTES_SUM: begin
-              stat_iter_id_next  = STAT_AW_BYTES_SUM;
               stat_iter_val_next = aw_bytes_sum;
             end
 
             STAT_AW_BYTES_MIN: begin
-              stat_iter_id_next  = STAT_AW_BYTES_MIN;
               stat_iter_val_next = aw_bytes_min;
             end
 
             STAT_AW_BYTES_MAX: begin
-              stat_iter_id_next  = STAT_AW_BYTES_MAX;
               stat_iter_val_next = aw_bytes_max;
             end
 
             STAT_W_BURST_CNT: begin
-              stat_iter_id_next  = STAT_W_BURST_CNT;
               stat_iter_val_next = w_burst_cnt;
             end
 
             STAT_W_DEPTH_MAX: begin
-              stat_iter_id_next  = STAT_W_DEPTH_MAX;
               stat_iter_val_next = w_outstanding_max;
             end
 
             STAT_W_BEAT_CNT: begin
-              stat_iter_id_next  = STAT_W_BEAT_CNT;
               stat_iter_val_next = w_beat_cnt;
             end
 
             STAT_W_BYTES_SUM: begin
-              stat_iter_id_next  = STAT_W_BYTES_SUM;
               stat_iter_val_next = w_bytes_sum;
             end
 
             STAT_W_BYTES_MIN: begin
-              stat_iter_id_next  = STAT_W_BYTES_MIN;
               stat_iter_val_next = STAT_WIDTH'(w_bytes_min);
             end
 
             STAT_W_BYTES_MAX: begin
-              stat_iter_id_next  = STAT_W_BYTES_MAX;
               stat_iter_val_next = STAT_WIDTH'(w_bytes_max);
             end
 
             STAT_W_DATA_LAG_CNT: begin
-              stat_iter_id_next  = STAT_W_DATA_LAG_CNT;
               stat_iter_val_next = w_data_lag_cnt;
             end
 
             STAT_W_IDLE_CNT: begin
-              stat_iter_id_next  = STAT_W_IDLE_CNT;
               stat_iter_val_next = w_idle_cycles_cnt;
             end
 
             STAT_W_EARLY_BEAT_CNT: begin
-              stat_iter_id_next  = STAT_W_EARLY_BEAT_CNT;
               stat_iter_val_next = w_early_beat_cnt;
             end
 
             STAT_W_AWR_EARLY_CNT: begin
-              stat_iter_id_next  = STAT_W_AWR_EARLY_CNT;
               stat_iter_val_next = w_awr_early_cnt;
             end
 
             STAT_W_B_LAG_CNT: begin
-              stat_iter_id_next  = STAT_W_B_LAG_CNT;
               stat_iter_val_next = w_b_lag_count_cnt;
             end
 
             STAT_W_B_STALL_CNT: begin
-              stat_iter_id_next  = STAT_W_B_STALL_CNT;
               stat_iter_val_next = w_b_stall_count_cnt;
             end
 
             STAT_W_B_END_CNT: begin
-              stat_iter_id_next  = STAT_W_B_END_CNT;
               stat_iter_val_next = w_b_end_count_cnt;
             end
 
             STAT_W_SLOW_DATA_CNT: begin
-              stat_iter_id_next  = STAT_W_SLOW_DATA_CNT;
               stat_iter_val_next = w_slow_data_cnt;
             end
 
             STAT_W_STALL_CNT: begin
-              stat_iter_id_next  = STAT_W_STALL_CNT;
               stat_iter_val_next = w_stall_cnt;
             end
 
             STAT_W_ADDR_STALL_CNT: begin
-              stat_iter_id_next  = STAT_W_ADDR_STALL_CNT;
               stat_iter_val_next = w_addr_stall_cnt;
             end
 
             STAT_W_ADDR_LAG_CNT: begin
-              stat_iter_id_next  = STAT_W_ADDR_LAG_CNT;
               stat_iter_val_next = w_addr_lag_cnt;
             end
 
             STAT_W_EARLY_STALL_CNT: begin
-              stat_iter_id_next   = STAT_W_EARLY_STALL_CNT;
               stat_iter_val_next  = w_early_stall_cnt;
               stat_iter_last_next = 1'b1;
               state_next          = STATE_IDLE;
