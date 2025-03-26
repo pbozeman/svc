@@ -19,16 +19,12 @@
 // of focusing on througput.
 
 // verilator lint_off: UNUSEDSIGNAL
-// verilator lint_off: UNUSEDPARAM
 module svc_axi_stats_wr #(
-    parameter AXI_ADDR_WIDTH  = 20,
-    parameter AXI_DATA_WIDTH  = 16,
-    parameter AXI_ID_WIDTH    = 4,
-    parameter AXI_STRB_WIDTH  = AXI_DATA_WIDTH / 8,
-    parameter STAT_WIDTH      = 32,
-    parameter STAT_NAME_LEN   = 16,
-    parameter STAT_NAME_WIDTH = STAT_NAME_LEN * 8
-    // parameter STAT_ADDR_WIDTH = 3
+    parameter AXI_ADDR_WIDTH = 20,
+    parameter AXI_DATA_WIDTH = 16,
+    parameter AXI_ID_WIDTH   = 4,
+    parameter AXI_STRB_WIDTH = AXI_DATA_WIDTH / 8,
+    parameter STAT_WIDTH     = 32
 ) (
     input logic clk,
     input logic rst_n,
@@ -66,7 +62,6 @@ module svc_axi_stats_wr #(
 );
   localparam SW = STAT_WIDTH;
   localparam ASW = AXI_STRB_WIDTH;
-  localparam NW = STAT_NAME_WIDTH;
 
   typedef enum {
     STATE_IDLE,
