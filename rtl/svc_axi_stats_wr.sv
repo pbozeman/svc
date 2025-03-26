@@ -108,11 +108,11 @@ module svc_axi_stats_wr #(
   logic   [ SW-1:0] stat_iter_val_next;
   logic             stat_iter_last_next;
 
-  logic   [ SW-1:0] aw_outstanding_cnt;
-  logic   [ SW-1:0] aw_outstanding_max;
+  logic   [    7:0] aw_outstanding_cnt;
+  logic   [    7:0] aw_outstanding_max;
 
-  logic   [ SW-1:0] w_outstanding_cnt;
-  logic   [ SW-1:0] w_outstanding_max;
+  logic   [    7:0] w_outstanding_cnt;
+  logic   [    7:0] w_outstanding_max;
 
   logic             w_in_progress;
 
@@ -191,7 +191,7 @@ module svc_axi_stats_wr #(
             end
 
             STAT_AW_DEPTH_MAX: begin
-              stat_iter_val_next = aw_outstanding_max;
+              stat_iter_val_next = STAT_WIDTH'(aw_outstanding_max);
             end
 
             STAT_AW_LEN_MIN: begin
@@ -219,7 +219,7 @@ module svc_axi_stats_wr #(
             end
 
             STAT_W_DEPTH_MAX: begin
-              stat_iter_val_next = w_outstanding_max;
+              stat_iter_val_next = STAT_WIDTH'(w_outstanding_max);
             end
 
             STAT_W_BEAT_CNT: begin
@@ -420,7 +420,7 @@ module svc_axi_stats_wr #(
 
   // aw outstanding (aw txn accept to b txn accept)
   svc_stats_cnt #(
-      .STAT_WIDTH(STAT_WIDTH),
+      .STAT_WIDTH(8),
       .STAGES    (0)
   ) svc_stats_cnt_aw_outstanding (
       .clk  (clk),
@@ -432,7 +432,7 @@ module svc_axi_stats_wr #(
   );
 
   svc_stats_max #(
-      .WIDTH(STAT_WIDTH)
+      .WIDTH(8)
   ) svc_stats_max_aw_outstanding (
       .clk  (clk),
       .rst_n(rst_n),
@@ -444,7 +444,7 @@ module svc_axi_stats_wr #(
 
   // w outstanding (last w txn accept to b txn accept)
   svc_stats_cnt #(
-      .STAT_WIDTH(STAT_WIDTH),
+      .STAT_WIDTH(8),
       .STAGES    (0)
   ) svc_stats_cnt_w_outstanding (
       .clk  (clk),
@@ -456,7 +456,7 @@ module svc_axi_stats_wr #(
   );
 
   svc_stats_max #(
-      .WIDTH(STAT_WIDTH)
+      .WIDTH(8)
   ) svc_stats_max_w_outstanding (
       .clk  (clk),
       .rst_n(rst_n),
