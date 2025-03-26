@@ -30,15 +30,15 @@ while read local_ref local_sha remote_ref remote_sha; do
     # Only after we know what commit to check out:
     before_hook 1 "$local_sha"
 
-    echo "Running make format before pushing..."
-    make format || {
-      echo >&2 "ERROR: 'make format' failed. Please run 'make format' locally and commit the changes before pushing."
+    echo "Running 'make lint'..."
+    make lint || {
+      echo "Linting failed. Please fix the issues before committing"
       exit 1
     }
 
-    echo "Running make full before pushing..."
-    make full || {
-      echo >&2 "ERROR: 'make full' failed. Please fix the issues before pushing."
+    echo "Running 'make quick'..."
+    make quick || {
+      echo "Tests failed. Please fix the issues before committing"
       exit 1
     }
 
