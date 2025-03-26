@@ -28,6 +28,7 @@
           nextpnr
           pythonEnv
           sby
+          socat
           verilator
           verilog
           yices
