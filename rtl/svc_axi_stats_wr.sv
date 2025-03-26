@@ -411,10 +411,17 @@ module svc_axi_stats_wr #(
   // Look to the casez below, but, there there is a good writeup
   // about these categories and how these 2 vals are used on the
   // zipcpu blog link above.
+  //
+  // NOTE: AW and W outstanding stats must currently be immediate.
+  // If extra stat stages are used by the accumulator, the values
+  // will be out of sync with the axi signals in the casez below.
+  // If more pipelining is ever needed for these, the axi signals
+  // will need to be delayed to match.
 
   // aw outstanding (aw txn accept to b txn accept)
   svc_stats_cnt #(
-      .STAT_WIDTH(STAT_WIDTH)
+      .STAT_WIDTH(STAT_WIDTH),
+      .STAGES    (0)
   ) svc_stats_cnt_aw_outstanding (
       .clk  (clk),
       .rst_n(rst_n),
@@ -437,7 +444,8 @@ module svc_axi_stats_wr #(
 
   // w outstanding (last w txn accept to b txn accept)
   svc_stats_cnt #(
-      .STAT_WIDTH(STAT_WIDTH)
+      .STAT_WIDTH(STAT_WIDTH),
+      .STAGES    (0)
   ) svc_stats_cnt_w_outstanding (
       .clk  (clk),
       .rst_n(rst_n),
