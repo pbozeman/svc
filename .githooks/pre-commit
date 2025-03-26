@@ -1,53 +1,32 @@
 #!/bin/sh
-
 set -e
 
-STASH_NAME="pre-commit-$(date +%s)"
-git stash save --quiet --keep-index --include-untracked $STASH_NAME
+SCRIPT_DIR=$(dirname "$0")
+. "$SCRIPT_DIR/hook-lib.sh"
 
-cleanup() {
-  local exit_code=$?
-
-  STASHES=$(git stash list)
-  if [[ $STASHES == *"$STASH_NAME" ]]; then
-    git stash pop --quiet
-  fi
-
-  # If this was called due to an error or interrupt, propagate the exit code
-  if [ $exit_code -ne 0 ]; then
-    exit $exit_code
-  fi
-}
-
-# Set up trap to ensure cleanup on exit or interrupt
-trap cleanup EXIT INT TERM
+before_hook 0
 
 echo "Running 'make format'..."
 make format >/dev/null 2>&1
 
-# Check if any staged files were modified by the formatter
-FORMAT_CHANGED=$(git diff --name-only | grep -E '\.(sv|v)$' || true)
-
+FORMAT_CHANGED=$(git diff --name-only || true)
 if [ -n "$FORMAT_CHANGED" ]; then
   echo "The following files were modified by 'make format':"
   echo "$FORMAT_CHANGED"
   exit 1
 fi
 
-# Run lint on all files
 echo "Running 'make lint'..."
-if ! make lint; then
+make lint || {
   echo "Linting failed. Please fix the issues before committing"
   exit 1
-fi
+}
 
-# Run quick tests
 echo "Running 'make quick'..."
-if ! make quick; then
+make quick || {
   echo "Tests failed. Please fix the issues before committing"
   exit 1
-fi
+}
 
-cleanup
-trap - EXIT INT TERM
+after_hook
 exit 0
