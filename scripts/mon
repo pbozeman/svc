@@ -11,10 +11,12 @@ BAUD=${BAUD_ARG:-115200}
 # this is easy:
 DEVS="${DEV_ARG:-/dev/ttyUSB1 /dev/cu.usbserial-21101}"
 
+# the b$BAUD option does not exist on darwin's version.
+# use ispeed and ospeed instead
 for DEV in $DEVS; do
   if [ -e "$DEV" ]; then
     echo "Found device: $DEV"
-    socat -u "$DEV",b$BAUD -
+    socat -u "file:$DEV",ispeed=$BAUD,ospeed=$BAUD -
     break
   fi
 done
