@@ -148,7 +148,6 @@ module svc_axi_stats_wr #(
   `define STAT_MIN_MAX(name, width, val_expr, en_expr)                       \
     logic [width-1:0] name``_min;                                            \
     logic [width-1:0] name``_max;                                            \
-    logic [STAT_WIDTH-1:0] name``_sum;                                       \
     svc_stats_val #(                                                         \
         .WIDTH(width),                                                       \
         .STAT_WIDTH(STAT_WIDTH)                                              \
