@@ -16,7 +16,7 @@ DEVS="${DEV_ARG:-/dev/ttyUSB1 /dev/cu.usbserial-21101}"
 for DEV in $DEVS; do
   if [ -e "$DEV" ]; then
     echo "Found device: $DEV"
-    socat -u "file:$DEV",ispeed=$BAUD,ospeed=$BAUD -
+    socat -u "file:$DEV",raw,echo=0,ispeed=$BAUD,ospeed=$BAUD -
     break
   fi
 done
