@@ -11,12 +11,16 @@ BAUD=${BAUD_ARG:-115200}
 # this is easy:
 DEVS="${DEV_ARG:-/dev/ttyUSB1 /dev/cu.usbserial-21101}"
 
-# the b$BAUD option does not exist on darwin's version.
-# use ispeed and ospeed instead
 for DEV in $DEVS; do
   if [ -e "$DEV" ]; then
     echo "Found device: $DEV"
-    socat -u "file:$DEV",raw,echo=0,ispeed=$BAUD,ospeed=$BAUD -
+
+    # Set baud with stty since this works on both darwin and linux
+    # (which take different socat flags for the same effect.)
+    # Also disable HUPCL (Hang Up on CLose). When enabled, there
+    # is duplicate output.
+    stty -F $DEV $BAUD raw -hupcl
+    socat -u "file:$DEV" -
     break
   fi
 done
