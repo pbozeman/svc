@@ -42,9 +42,6 @@ signal_names = [
     "w_early_stall_cnt",
 ]
 
-# TODO: pass clock speed back with stats
-clock_mhz = 100
-
 EXPECTED_STATS = set(signal_names)
 hex_map = {f"{i:02X}": name for i, name in enumerate(signal_names)}
 current_block = None
@@ -83,9 +80,9 @@ def print_stats(block_name, stats):
             total_write_bytes, write_throughput_denominator
         )
 
-        bandwidth_MBps = bandwidth_bytes_per_cycle * clock_mhz
+        bandwidth_MBps = bandwidth_bytes_per_cycle * stats.get("mhz", 0)
 
-        print(f"\n# Stats for block: {block_name}", file=sys.stderr)
+        print(f"\n# Stats for: {block_name}", file=sys.stderr)
         print(f" {'LATENCY':<12}= {write_latency:8.2f} cycles/burst", file=sys.stderr)
         print(
             f" {'THROUGHPUT':<12}= {write_throughput:8.2f} beats/cycle",
@@ -102,8 +99,13 @@ try:
 
         if line.startswith("name:"):
             current_block = line.split(":", 1)[1].strip()
-            print(f"# Block name: {current_block}")
+            print(f"# Name:  {current_block}")
             blocks[current_block] = {}
+
+        if line.startswith("freq:"):
+            mhz = line.split(":", 1)[1].strip()
+            print(f"# Speed: {mhz} MHz")
+            blocks[current_block]["mhz"] = float(mhz)
 
         elif ":" in line and line[:2].isalnum() and current_block:
             key, val = line.split(":", 1)
