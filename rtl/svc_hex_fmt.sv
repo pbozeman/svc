@@ -33,7 +33,7 @@ module svc_hex_fmt #(
   endfunction
 
   always @(*) begin
-    for (int i = 0; i < WIDTH; i++) begin
+    for (int i = 0; i < N; i++) begin
       logic [7:0] char;
       char                   = val[(N-1-i)*8+:8];
       ascii[(N-1-i)*16+:8]   = nibble_to_ascii(char[3:0]);

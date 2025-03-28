@@ -120,6 +120,7 @@ endmodule
 `define SVC_PRINT(val)                                                       \
    svc_prn_msg <= SVC_STR_WIDTH'(val);                                       \
    svc_prn_bin <= 1'b0;                                                      \
+   svc_prn_bin_len <= 0;                                                     \
    svc_prn_en <= 1'b1
 
 `endif
