@@ -91,7 +91,8 @@ module svc_axi_stats_wr #(
     STAT_W_STALL_CNT       = 21,
     STAT_W_ADDR_STALL_CNT  = 22,
     STAT_W_ADDR_LAG_CNT    = 23,
-    STAT_W_EARLY_STALL_CNT = 24
+    STAT_W_EARLY_STALL_CNT = 24,
+    STAT_W_ERR_CNT         = 25
   } stat_id_t;
 
   state_t          state;
@@ -192,6 +193,7 @@ module svc_axi_stats_wr #(
   `STAT_CNT(aw_burst_cnt, m_axi_awvalid && m_axi_awready);
   `STAT_CNT(w_burst_cnt, m_axi_wvalid && m_axi_wready && m_axi_wlast);
   `STAT_CNT(w_beat_cnt, m_axi_wvalid && m_axi_wready);
+  `STAT_CNT(w_err_cnt, m_axi_bvalid && m_axi_bready && m_axi_bresp != 2'b00);
 
   `STAT_MIN_MAX(awlen, 8, m_axi_awlen, m_axi_awvalid && m_axi_awready);
   `STAT_VAL(aw_bytes, SW, (SW'(m_axi_awlen) + 1) << m_axi_awsize,
@@ -262,8 +264,10 @@ module svc_axi_stats_wr #(
             STAT_W_ADDR_STALL_CNT: stat_iter_val_next = w_addr_stall_cnt;
             STAT_W_ADDR_LAG_CNT:   stat_iter_val_next = w_addr_lag_cnt;
 
-            STAT_W_EARLY_STALL_CNT: begin
-              stat_iter_val_next  = w_early_stall_cnt;
+            STAT_W_EARLY_STALL_CNT: stat_iter_val_next = w_early_stall_cnt;
+
+            STAT_W_ERR_CNT: begin
+              stat_iter_val_next  = w_err_cnt;
               stat_iter_last_next = 1'b1;
               state_next          = STATE_IDLE;
             end
