@@ -40,6 +40,7 @@ signal_names = [
     "w_addr_stall_cnt",
     "w_addr_lag_cnt",
     "w_early_stall_cnt",
+    "w_err_cnt",
 ]
 
 EXPECTED_STATS = set(signal_names)
