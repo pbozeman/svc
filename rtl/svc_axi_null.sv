@@ -2,6 +2,8 @@
 `define SVC_AXI_NULL_SV
 
 `include "svc.sv"
+`include "svc_axi_null_rd.sv"
+`include "svc_axi_null_wr.sv"
 `include "svc_unused.sv"
 
 //
@@ -48,29 +50,21 @@ module svc_axi_null #(
     input  logic                      m_axi_rlast,
     output logic                      m_axi_rready
 );
-  assign m_axi_awvalid = 1'b0;
-  assign m_axi_awid    = 0;
-  assign m_axi_awaddr  = 0;
-  assign m_axi_awlen   = 0;
-  assign m_axi_awsize  = 0;
-  assign m_axi_awburst = 0;
-  assign m_axi_wvalid  = 1'b0;
-  assign m_axi_wdata   = 0;
-  assign m_axi_wstrb   = 0;
-  assign m_axi_wlast   = 0;
-  assign m_axi_bready  = 1'b1;
+  svc_axi_null_rd #(
+      .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
+      .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
+      .AXI_ID_WIDTH  (AXI_ID_WIDTH)
+  ) svc_axi_null_rd_i (
+      .*
+  );
 
-  assign m_axi_arvalid = 1'b0;
-  assign m_axi_arid    = 0;
-  assign m_axi_araddr  = 0;
-  assign m_axi_arlen   = 0;
-  assign m_axi_arsize  = 0;
-  assign m_axi_arburst = 0;
-  assign m_axi_rready  = 1'b1;
-
-  `SVC_UNUSED({clk, rst_n, m_axi_awready, m_axi_wready, m_axi_bvalid,
-               m_axi_bid, m_axi_bresp, m_axi_arready, m_axi_rvalid, m_axi_rid,
-               m_axi_rdata, m_axi_rresp, m_axi_rlast});
+  svc_axi_null_wr #(
+      .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
+      .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
+      .AXI_ID_WIDTH  (AXI_ID_WIDTH)
+  ) svc_axi_null_wr_i (
+      .*
+  );
 
 endmodule
 `endif
