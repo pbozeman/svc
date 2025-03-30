@@ -11,12 +11,11 @@
 // in ports
 //
 // TODO: I'm not stoked about the blob of a state machine. It ended up this
-// way fro putting both numbers and strings into the same iterator. It's
-// compounded by the fact that the strs are put in "backwards", so the
-// iteration for the 2 modes goes in different directions. And, despite this
-// being a large amount of space (in fpga terms), it's not getting synthesized
-// with block ram. All of that could be addressed, but I'm not sure if this
-// api will be the final form. Revisit all of this once the api settles down.
+// way from putting both numbers and strings into the same iterator.
+// Despite this being a large amount of space (in fpga terms), it's not
+// getting synthesized with block ram. All of that could be addressed, but
+// I'm not sure if this api will be the final form. Revisit all of this once
+// the api settles down.
 
 module svc_str_iter #(
     parameter MAX_STR_LEN = 128,
