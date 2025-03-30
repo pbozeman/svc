@@ -20,7 +20,23 @@ for DEV in $DEVS; do
     # Also disable HUPCL (Hang Up on CLose). When enabled, there
     # is duplicate output.
     stty -F $DEV $BAUD raw -hupcl
-    socat -u "file:$DEV" -
+
+    # If interactive, send stdin to uart. If output is a pipe, use
+    # unidirectional mode.
+    #
+    # This might be overkill, but I don't want to test the interaction of
+    # the STDIO settings on the terminal output when running with pipelined
+    # reporting right now.
+    #
+    # TODO: see above. test this and see if the special case can be removed.
+    #
+    # I want ctrl-c to work to make it easy to quit without having to use
+    # escape characters, so don't use raw on the stdio side.
+    if [ -t 1 ]; then
+      socat STDIO,icanon=0,echo=0,isig=1 "file:$DEV"
+    else
+      socat -u "file:$DEV"
+    fi
     break
   fi
 done
