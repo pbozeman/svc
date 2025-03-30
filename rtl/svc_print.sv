@@ -99,28 +99,54 @@ endmodule
 
 `define SVC_PRINT_BUSY svc_prn_msg_busy
 
+// the lines sent to PRINT end in \r\n since that's the norm for serial comms.
+// but when printed during a tb, the \r results in an extra new line.
+// just strip it all off and use display when printing strings
+`ifdef SVC_TB_PRINT
+function automatic string svc_strip_crlf(input string s);
+  int last = s.len() - 1;
+
+  if (last >= 0 && s[last] == "\n") last--;
+  if (last >= 0 && s[last] == "\r") last--;
+
+  svc_strip_crlf = s.substr(0, last);
+endfunction
+`endif
+
 `define SVC_PRINT_U8(val)                                                    \
    svc_prn_msg <= SVC_STR_WIDTH'(val);                                       \
    svc_prn_bin <= 1'b1;                                                      \
    svc_prn_bin_len <= 1;                                                     \
-   svc_prn_en <= 1'b1
+   svc_prn_en <= 1'b1;                                                       \
+   `ifdef SVC_TB_PRINT                                                       \
+     $write("%0h", val);                                                     \
+   `endif
 
 `define SVC_PRINT_U16(val)                                                   \
    svc_prn_msg <= SVC_STR_WIDTH'(val);                                       \
    svc_prn_bin <= 1'b1;                                                      \
    svc_prn_bin_len <= 2;                                                     \
-   svc_prn_en <= 1'b1
+   svc_prn_en <= 1'b1;                                                       \
+   `ifdef SVC_TB_PRINT                                                       \
+     $write("%0h", val);                                                     \
+   `endif
 
 `define SVC_PRINT_U32(val)                                                   \
    svc_prn_msg <= SVC_STR_WIDTH'(val);                                       \
    svc_prn_bin <= 1'b1;                                                      \
    svc_prn_bin_len <= 4;                                                     \
-   svc_prn_en <= 1'b1
+   svc_prn_en <= 1'b1;                                                       \
+   `ifdef SVC_TB_PRINT                                                       \
+     $write("%0h", val);                                                     \
+   `endif
 
 `define SVC_PRINT(val)                                                       \
    svc_prn_msg <= SVC_STR_WIDTH'(val);                                       \
    svc_prn_bin <= 1'b0;                                                      \
    svc_prn_bin_len <= 0;                                                     \
-   svc_prn_en <= 1'b1
+   svc_prn_en <= 1'b1;                                                       \
+   `ifdef SVC_TB_PRINT                                                       \
+      $display("%s", svc_strip_crlf(val))                                    \
+   `endif
 
 `endif
