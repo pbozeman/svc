@@ -18,12 +18,16 @@ module svc_uart_tx #(
 );
   // Fixed at 8-n-1 to simplify the code since that's all I expect to use
   localparam DATA_WIDTH = 8;
-  localparam CLOCKS_PER_BIT = CLOCK_FREQ / BAUD_RATE;
-  localparam CNT_W = $clog2(CLOCKS_PER_BIT);
+
+  // handle super fast, not realistic, 1 clock per bit for test benches,
+  // in which case we need to bump to 2 cpb so we don't try to $clog2(1)
+  localparam CPB_ACTUAL = CLOCK_FREQ / BAUD_RATE;
+  localparam CPB = CPB_ACTUAL == 1 ? 2 : CPB_ACTUAL;
+  localparam CNT_W = $clog2(CPB);
   localparam IDX_W = $clog2(DATA_WIDTH);
 
   // sized/typed comparison values
-  localparam [CNT_W-1:0] CNT_MAX = CNT_W'(CLOCKS_PER_BIT - 1);
+  localparam [CNT_W-1:0] CNT_MAX = CNT_W'(CPB - 1);
   localparam [IDX_W-1:0] BIT_MAX = IDX_W'(7);
 
   typedef enum {
