@@ -16,6 +16,12 @@ if [ -n "$FORMAT_CHANGED" ]; then
   exit 1
 fi
 
+# Check for DONT_COMMIT in any staged changes
+if git diff --cached | grep -q 'DONT_COMMIT'; then
+  echo "Commit aborted: Found 'DONT_COMMIT' in staged changes."
+  exit 1
+fi
+
 echo "Running 'make lint'..."
 make lint || {
   echo "Linting failed. Please fix the issues before committing"
