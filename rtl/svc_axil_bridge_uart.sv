@@ -58,12 +58,13 @@ module svc_axil_bridge_uart (
     input logic clk,
     input logic rst_n,
 
-    input logic       urx_valid,
-    input logic [7:0] urx_data,
+    input  logic       urx_valid,
+    input  logic [7:0] urx_data,
+    output logic       urx_ready,
 
-    output logic       utx_en,
+    output logic       utx_valid,
     output logic [7:0] utx_data,
-    input  logic       utx_busy,
+    input  logic       utx_ready,
 
     //
     // AXI-Lite subordinate interface
@@ -144,8 +145,10 @@ module svc_axil_bridge_uart (
   logic          m_axil_wvalid_next;
   logic   [31:0] m_axil_wdata_next;
 
-  logic          utx_en_next;
+  logic          utx_valid_next;
   logic   [ 7:0] utx_data_next;
+
+  logic          urx_ready_next;
 
   assign m_axil_wstrb = '1;
 
@@ -169,12 +172,16 @@ module svc_axil_bridge_uart (
     m_axil_rready       = 1'b0;
     m_axil_bready       = 1'b0;
 
-    utx_en_next         = 1'b0;
+    utx_valid_next      = utx_valid && !utx_ready;
     utx_data_next       = utx_data;
+
+    urx_ready_next      = urx_ready;
 
     case (state)
       STATE_IDLE: begin
-        if (urx_valid) begin
+        urx_ready_next = 1'b1;
+
+        if (urx_valid && urx_ready) begin
           if (urx_data == CMD_MAGIC[7:0]) begin
             state_next = STATE_CMD_MAGIC;
           end
@@ -182,7 +189,7 @@ module svc_axil_bridge_uart (
       end
 
       STATE_CMD_MAGIC: begin
-        if (urx_valid) begin
+        if (urx_valid && urx_ready) begin
           if (urx_data == CMD_MAGIC[15:8]) begin
             state_next = STATE_CMD_OP;
           end else begin
@@ -192,7 +199,7 @@ module svc_axil_bridge_uart (
       end
 
       STATE_CMD_OP: begin
-        if (urx_valid) begin
+        if (urx_valid && urx_ready) begin
           case (urx_data)
             OP_READ: begin
               cmd_rw_next = 1'b0;
@@ -212,61 +219,66 @@ module svc_axil_bridge_uart (
       end
 
       STATE_CMD_ADDR_0: begin
-        if (urx_valid) begin
+        if (urx_valid && urx_ready) begin
           cmd_addr_next[7:0] = urx_data;
           state_next         = STATE_CMD_ADDR_1;
         end
       end
 
       STATE_CMD_ADDR_1: begin
-        if (urx_valid) begin
+        if (urx_valid && urx_ready) begin
           cmd_addr_next[15:8] = urx_data;
           state_next          = STATE_CMD_ADDR_2;
         end
       end
 
       STATE_CMD_ADDR_2: begin
-        if (urx_valid) begin
+        if (urx_valid && urx_ready) begin
           cmd_addr_next[23:16] = urx_data;
           state_next           = STATE_CMD_ADDR_3;
         end
       end
 
       STATE_CMD_ADDR_3: begin
-        if (urx_valid) begin
+        if (urx_valid && urx_ready) begin
           cmd_addr_next[31:24] = urx_data;
           if (cmd_rw) begin
             state_next = STATE_CMD_DATA_0;
           end else begin
-            state_next = STATE_AXI_READ;
+            // Don't accept new UART data while processing AXI request
+            urx_ready_next = 1'b0;
+            state_next     = STATE_AXI_READ;
           end
         end
       end
 
       STATE_CMD_DATA_0: begin
-        if (urx_valid) begin
+        if (urx_valid && urx_ready) begin
           cmd_data_next[7:0] = urx_data;
           state_next         = STATE_CMD_DATA_1;
         end
       end
 
       STATE_CMD_DATA_1: begin
-        if (urx_valid) begin
+        if (urx_valid && urx_ready) begin
           cmd_data_next[15:8] = urx_data;
           state_next          = STATE_CMD_DATA_2;
         end
       end
 
       STATE_CMD_DATA_2: begin
-        if (urx_valid) begin
+        if (urx_valid && urx_ready) begin
           cmd_data_next[23:16] = urx_data;
           state_next           = STATE_CMD_DATA_3;
         end
       end
 
       STATE_CMD_DATA_3: begin
-        if (urx_valid) begin
+        if (urx_valid && urx_ready) begin
           cmd_data_next[31:24] = urx_data;
+
+          // Don't accept new UART data while processing AXI request
+          urx_ready_next       = 1'b0;
           state_next           = STATE_AXI_WRITE;
         end
       end
@@ -311,17 +323,17 @@ module svc_axil_bridge_uart (
       end
 
       STATE_CMD_RESP_SEND: begin
-        if (!utx_busy) begin
-          utx_en_next   = 1'b1;
-          utx_data_next = RESP_MAGIC;
-          state_next    = STATE_CMD_RESP_RESP;
+        if (!utx_valid || utx_ready) begin
+          utx_valid_next = 1'b1;
+          utx_data_next  = RESP_MAGIC;
+          state_next     = STATE_CMD_RESP_RESP;
         end
       end
 
       STATE_CMD_RESP_RESP: begin
-        if (!utx_busy) begin
-          utx_en_next   = 1'b1;
-          utx_data_next = 8'(cmd_resp);
+        if (!utx_valid || utx_ready) begin
+          utx_valid_next = 1'b1;
+          utx_data_next  = 8'(cmd_resp);
           if (!cmd_rw) begin
             state_next = STATE_CMD_RESP_DATA_0;
           end else begin
@@ -331,34 +343,34 @@ module svc_axil_bridge_uart (
       end
 
       STATE_CMD_RESP_DATA_0: begin
-        if (!utx_busy) begin
-          utx_en_next   = 1'b1;
-          utx_data_next = cmd_resp_data[7:0];
-          state_next    = STATE_CMD_RESP_DATA_1;
+        if (!utx_valid || utx_ready) begin
+          utx_valid_next = 1'b1;
+          utx_data_next  = cmd_resp_data[7:0];
+          state_next     = STATE_CMD_RESP_DATA_1;
         end
       end
 
       STATE_CMD_RESP_DATA_1: begin
-        if (!utx_busy) begin
-          utx_en_next   = 1'b1;
-          utx_data_next = cmd_resp_data[15:8];
-          state_next    = STATE_CMD_RESP_DATA_2;
+        if (!utx_valid || utx_ready) begin
+          utx_valid_next = 1'b1;
+          utx_data_next  = cmd_resp_data[15:8];
+          state_next     = STATE_CMD_RESP_DATA_2;
         end
       end
 
       STATE_CMD_RESP_DATA_2: begin
-        if (!utx_busy) begin
-          utx_en_next   = 1'b1;
-          utx_data_next = cmd_resp_data[23:16];
-          state_next    = STATE_CMD_RESP_DATA_3;
+        if (!utx_valid || utx_ready) begin
+          utx_valid_next = 1'b1;
+          utx_data_next  = cmd_resp_data[23:16];
+          state_next     = STATE_CMD_RESP_DATA_3;
         end
       end
 
       STATE_CMD_RESP_DATA_3: begin
-        if (!utx_busy) begin
-          utx_en_next   = 1'b1;
-          utx_data_next = cmd_resp_data[31:24];
-          state_next    = STATE_IDLE;
+        if (!utx_valid || utx_ready) begin
+          utx_valid_next = 1'b1;
+          utx_data_next  = cmd_resp_data[31:24];
+          state_next     = STATE_IDLE;
         end
       end
 
@@ -375,8 +387,10 @@ module svc_axil_bridge_uart (
       m_axil_awvalid <= 1'b0;
       m_axil_wvalid  <= 1'b0;
 
-      utx_en         <= 1'b0;
+      utx_valid      <= 1'b0;
       utx_data       <= 8'h00;
+
+      urx_ready      <= 1'b1;
     end else begin
       state          <= state_next;
 
@@ -384,8 +398,10 @@ module svc_axil_bridge_uart (
       m_axil_awvalid <= m_axil_awvalid_next;
       m_axil_wvalid  <= m_axil_wvalid_next;
 
-      utx_en         <= utx_en_next;
+      utx_valid      <= utx_valid_next;
       utx_data       <= utx_data_next;
+
+      urx_ready      <= urx_ready_next;
     end
   end
 

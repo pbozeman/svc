@@ -11,16 +11,15 @@ module svc_uart_tx #(
     input logic clk,
     input logic rst_n,
 
-    input  logic       utx_en,
+    input  logic       utx_valid,
     input  logic [7:0] utx_data,
-    output logic       utx_busy,
+    output logic       utx_ready,
 
     output logic utx_pin
 );
   // Fixed at 8-n-1 to simplify the code since that's all I expect to use
   localparam DATA_WIDTH = 8;
   localparam IDX_W = $clog2(DATA_WIDTH);
-
   localparam [IDX_W-1:0] BIT_MAX = IDX_W'(7);
 
   typedef enum {
@@ -36,7 +35,6 @@ module svc_uart_tx #(
   logic   [IDX_W-1:0] idx_next;
   logic   [      7:0] data;
   logic   [      7:0] data_next;
-
   logic               b_rst_n;
   logic               tick;
 
@@ -53,16 +51,16 @@ module svc_uart_tx #(
     state_next = state;
     idx_next   = idx;
     data_next  = data;
-    utx_busy   = 1'b1;
+    utx_ready  = 1'b0;
     b_rst_n    = 1'b1;
 
     case (state)
       STATE_IDLE: begin
-        utx_busy = 1'b0;
-        utx_pin  = 1'b1;
-        b_rst_n  = 1'b0;
+        utx_ready = 1'b1;
+        utx_pin   = 1'b1;
+        b_rst_n   = 1'b0;
 
-        if (utx_en) begin
+        if (utx_valid && utx_ready) begin
           data_next  = utx_data;
           state_next = STATE_START;
         end

@@ -10,9 +10,10 @@ module svc_axil_bridge_uart_tb;
   // UART interface signals
   logic        urx_valid;
   logic [ 7:0] urx_data;
-  logic        utx_en;
+  logic        urx_ready;
+  logic        utx_valid;
   logic [ 7:0] utx_data;
-  logic        utx_busy;
+  logic        utx_ready;
 
   // AXI-Lite interface signals
   logic [31:0] m_axil_awaddr;
@@ -51,10 +52,11 @@ module svc_axil_bridge_uart_tb;
 
       .urx_valid(urx_valid),
       .urx_data (urx_data),
+      .urx_ready(urx_ready),
 
-      .utx_en  (utx_en),
-      .utx_data(utx_data),
-      .utx_busy(utx_busy),
+      .utx_valid(utx_valid),
+      .utx_data (utx_data),
+      .utx_ready(utx_ready),
 
       .m_axil_awaddr (m_axil_awaddr),
       .m_axil_awvalid(m_axil_awvalid),
@@ -81,7 +83,7 @@ module svc_axil_bridge_uart_tb;
     if (~rst_n) begin
       urx_valid      <= 1'b0;
       urx_data       <= 8'h00;
-      utx_busy       <= 1'b0;
+      utx_ready      <= 1'b1;
 
       m_axil_awready <= 1'b0;
       m_axil_wready  <= 1'b0;
@@ -99,7 +101,7 @@ module svc_axil_bridge_uart_tb;
 
   // Response capture logic
   always_ff @(posedge clk) begin
-    if (utx_en) begin
+    if (utx_valid && utx_ready) begin
       if (utx_data == RESP_MAGIC) begin
         resp_data_idx  <= 0;
         capturing_resp <= 1'b1;
@@ -114,6 +116,7 @@ module svc_axil_bridge_uart_tb;
   task automatic send_byte(input logic [7:0] byte_data);
     urx_valid = 1'b1;
     urx_data  = byte_data;
+    `CHECK_WAIT_FOR(clk, urx_ready, 10);
     `TICK(clk);
     urx_valid = 1'b0;
     `TICK(clk);
@@ -158,11 +161,11 @@ module svc_axil_bridge_uart_tb;
     resp_data_idx  = 0;
 
     // Wait for the first byte of response (RESP_MAGIC) to be transmitted
-    `CHECK_WAIT_FOR(clk, utx_en && utx_data == RESP_MAGIC, 50);
+    `CHECK_WAIT_FOR(clk, utx_valid && utx_data == RESP_MAGIC, 50);
 
     // Wait for all response bytes to be transmitted
     // and for the transmitter to go idle
-    `CHECK_WAIT_FOR(clk, !utx_en && !utx_busy, 100);
+    `CHECK_WAIT_FOR(clk, !utx_valid, 100);
   endtask
 
   // Test reset behavior
@@ -207,7 +210,6 @@ module svc_axil_bridge_uart_tb;
 
     // Wait for and verify response
     wait_for_tx_complete();
-
 
     // Check response components
     `CHECK_EQ(resp_data_bytes[0], 8'(test_resp));
@@ -337,24 +339,24 @@ module svc_axil_bridge_uart_tb;
     m_axil_rvalid = 1'b0;
 
     // Create TX backpressure
-    utx_busy      = 1'b1;
+    utx_ready     = 1'b0;
     repeat (5) `TICK(clk);
 
-    // Check that TX hasn't started yet due to busy signal
-    `CHECK_FALSE(utx_en);
+    // Check that TX hasn't completed handshake yet due to ready being low
+    `CHECK_TRUE(utx_valid);
 
     // Release backpressure
-    utx_busy = 1'b0;
-    `CHECK_WAIT_FOR(clk, utx_en, 10);
+    utx_ready = 1'b1;
+    `TICK(clk);
 
     // Apply backpressure between bytes
     repeat (3) begin
       `TICK(clk);
-      utx_busy = 1'b1;
+      utx_ready = 1'b0;
       repeat (3) `TICK(clk);
-      utx_busy = 1'b0;
+      utx_ready = 1'b1;
       if (resp_data_idx < 5) begin
-        `CHECK_WAIT_FOR(clk, utx_en, 10);
+        `TICK(clk);
       end
     end
 
@@ -397,4 +399,5 @@ module svc_axil_bridge_uart_tb;
   `TEST_CASE(test_tx_backpressure);
   `TEST_CASE(test_invalid_magic);
   `TEST_SUITE_END();
+
 endmodule
