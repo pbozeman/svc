@@ -144,6 +144,9 @@ module svc_axil_bridge_uart (
   logic          m_axil_wvalid_next;
   logic   [31:0] m_axil_wdata_next;
 
+  logic          utx_en_next;
+  logic   [ 7:0] utx_data_next;
+
   assign m_axil_wstrb = '1;
 
   always @(*) begin
@@ -166,7 +169,8 @@ module svc_axil_bridge_uart (
     m_axil_rready       = 1'b0;
     m_axil_bready       = 1'b0;
 
-    utx_en              = 1'b0;
+    utx_en_next         = 1'b0;
+    utx_data_next       = utx_data;
 
     case (state)
       STATE_IDLE: begin
@@ -308,16 +312,16 @@ module svc_axil_bridge_uart (
 
       STATE_CMD_RESP_SEND: begin
         if (!utx_busy) begin
-          utx_en     = 1'b1;
-          utx_data   = RESP_MAGIC;
-          state_next = STATE_CMD_RESP_RESP;
+          utx_en_next   = 1'b1;
+          utx_data_next = RESP_MAGIC;
+          state_next    = STATE_CMD_RESP_RESP;
         end
       end
 
       STATE_CMD_RESP_RESP: begin
         if (!utx_busy) begin
-          utx_en   = 1'b1;
-          utx_data = 8'(cmd_resp);
+          utx_en_next   = 1'b1;
+          utx_data_next = 8'(cmd_resp);
           if (!cmd_rw) begin
             state_next = STATE_CMD_RESP_DATA_0;
           end else begin
@@ -328,33 +332,33 @@ module svc_axil_bridge_uart (
 
       STATE_CMD_RESP_DATA_0: begin
         if (!utx_busy) begin
-          utx_en     = 1'b1;
-          utx_data   = cmd_resp_data[7:0];
-          state_next = STATE_CMD_RESP_DATA_1;
+          utx_en_next   = 1'b1;
+          utx_data_next = cmd_resp_data[7:0];
+          state_next    = STATE_CMD_RESP_DATA_1;
         end
       end
 
       STATE_CMD_RESP_DATA_1: begin
         if (!utx_busy) begin
-          utx_en     = 1'b1;
-          utx_data   = cmd_resp_data[15:8];
-          state_next = STATE_CMD_RESP_DATA_2;
+          utx_en_next   = 1'b1;
+          utx_data_next = cmd_resp_data[15:8];
+          state_next    = STATE_CMD_RESP_DATA_2;
         end
       end
 
       STATE_CMD_RESP_DATA_2: begin
         if (!utx_busy) begin
-          utx_en     = 1'b1;
-          utx_data   = cmd_resp_data[23:16];
-          state_next = STATE_CMD_RESP_DATA_3;
+          utx_en_next   = 1'b1;
+          utx_data_next = cmd_resp_data[23:16];
+          state_next    = STATE_CMD_RESP_DATA_3;
         end
       end
 
       STATE_CMD_RESP_DATA_3: begin
         if (!utx_busy) begin
-          utx_en     = 1'b1;
-          utx_data   = cmd_resp_data[31:24];
-          state_next = STATE_IDLE;
+          utx_en_next   = 1'b1;
+          utx_data_next = cmd_resp_data[31:24];
+          state_next    = STATE_IDLE;
         end
       end
 
@@ -370,12 +374,18 @@ module svc_axil_bridge_uart (
       m_axil_arvalid <= 1'b0;
       m_axil_awvalid <= 1'b0;
       m_axil_wvalid  <= 1'b0;
+
+      utx_en         <= 1'b0;
+      utx_data       <= 8'h00;
     end else begin
       state          <= state_next;
 
       m_axil_arvalid <= m_axil_arvalid_next;
       m_axil_awvalid <= m_axil_awvalid_next;
       m_axil_wvalid  <= m_axil_wvalid_next;
+
+      utx_en         <= utx_en_next;
+      utx_data       <= utx_data_next;
     end
   end
 
