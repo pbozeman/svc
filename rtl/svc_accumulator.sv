@@ -6,6 +6,10 @@
 // This accumulator slices the carry chain into segments with registers
 // in between them, useful when the carry chain propagation starts causing
 // timing issues. STAGES 0 is a pass through mode with a direct add.
+//
+// TODO: set the STAGES default programatically based on WIDTH and
+// the target FPGA. While the ice40 needs it for 32 bit adds in non-trivial
+// designs, xilinx chips do not.
 module svc_accumulator #(
     parameter int WIDTH  = 32,
     parameter int STAGES = 4
