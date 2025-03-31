@@ -19,7 +19,7 @@ for DEV in $DEVS; do
     # (which take different socat flags for the same effect.)
     # Also disable HUPCL (Hang Up on CLose). When enabled, there
     # is duplicate output.
-    stty -F $DEV $BAUD raw -hupcl
+    stty -F $DEV $BAUD raw -hupcl -isig -icanon -iexten -echo
 
     # If interactive, send stdin to uart. If output is a pipe, use
     # unidirectional mode.
