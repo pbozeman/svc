@@ -9,27 +9,27 @@ module svc_uart_tx_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
-  logic       utx_en;
+  logic       utx_valid;
   logic [7:0] utx_data;
-  logic       utx_busy;
+  logic       utx_ready;
   logic       utx_pin;
 
   svc_uart_tx #(
       .CLOCK_FREQ(CLOCK_FREQ),
       .BAUD_RATE (BAUD_RATE)
   ) uut (
-      .clk     (clk),
-      .rst_n   (rst_n),
-      .utx_en  (utx_en),
-      .utx_data(utx_data),
-      .utx_busy(utx_busy),
-      .utx_pin (utx_pin)
+      .clk      (clk),
+      .rst_n    (rst_n),
+      .utx_valid(utx_valid),
+      .utx_data (utx_data),
+      .utx_ready(utx_ready),
+      .utx_pin  (utx_pin)
   );
 
   always_ff @(posedge clk) begin
     if (~rst_n) begin
-      utx_en   <= 1'b0;
-      utx_data <= 8'h00;
+      utx_valid <= 1'b0;
+      utx_data  <= 8'h00;
     end
   end
 
@@ -40,14 +40,20 @@ module svc_uart_tx_tb;
 
   task automatic send_and_verify_char(input logic [7:0] data);
     // Start the transmission
-    utx_en   = 1'b1;
-    utx_data = data;
+    utx_valid = 1'b1;
+    utx_data  = data;
 
+    // Wait for ready signal
+    while (!utx_ready) begin
+      `TICK(clk);
+    end
+
+    // Complete handshake
     `TICK(clk);
-    utx_en = 1'b0;
+    utx_valid = 1'b0;
 
-    // Check busy signal
-    `CHECK_TRUE(utx_busy);
+    // Check UART is busy (ready is low)
+    `CHECK_FALSE(utx_ready);
 
     // Check start bit
     `CHECK_EQ(utx_pin, 1'b0);
@@ -61,19 +67,16 @@ module svc_uart_tx_tb;
 
     // Check stop bit
     `CHECK_EQ(utx_pin, 1'b1);
-    ;
     wait_bit();
 
-    // Check transmission complete
-    `CHECK_FALSE(utx_busy);
+    // Check transmission complete (ready is high)
+    `CHECK_TRUE(utx_ready);
     `CHECK_EQ(utx_pin, 1'b1);
-    ;
   endtask
 
   task automatic test_reset();
-    `CHECK_FALSE(utx_busy);
+    `CHECK_TRUE(utx_ready);
     `CHECK_EQ(utx_pin, 1'b1);
-    ;
   endtask
 
   task automatic test_basic_transmission();
@@ -88,28 +91,30 @@ module svc_uart_tx_tb;
   endtask
 
   task automatic test_backpressure();
-    utx_en   = 1'b1;
-    utx_data = 8'h33;
+    // Start transmission
+    utx_valid = 1'b1;
+    utx_data  = 8'h33;
     `TICK(clk);
 
-    // Try to start another transmission while busy
-    utx_en   = 1'b1;
-    utx_data = 8'hCC;
-    `TICK(clk);
-    utx_en = 1'b0;
+    // Try to continue asserting valid while busy
+    while (!utx_ready) begin
+      // Keep trying to send a different byte
+      utx_data = 8'hCC;
+      `TICK(clk);
+    end
 
-    // Verify the UART is still sending the first byte
-    `CHECK_TRUE(utx_busy);
+    // Complete transmission
+    `TICK(clk);
+    utx_valid = 1'b0;
 
     // Wait for transmission to complete
-    while (utx_busy) begin
+    while (!utx_ready) begin
       `TICK(clk);
     end
 
     // Verify idle state after completion
-    `CHECK_FALSE(utx_busy);
+    `CHECK_TRUE(utx_ready);
     `CHECK_EQ(utx_pin, 1'b1);
-    ;
 
     // Send another byte to ensure the UART still works after backpressure
     send_and_verify_char(8'h78);
@@ -143,5 +148,4 @@ module svc_uart_tx_tb;
   `TEST_CASE(test_backpressure);
   `TEST_CASE(test_bit_patterns);
   `TEST_SUITE_END();
-
 endmodule

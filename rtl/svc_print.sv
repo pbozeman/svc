@@ -18,19 +18,15 @@ module svc_print (
     input  logic [              3:0] prn_bin_len,
     output logic                     prn_busy,
 
-    output logic       utx_en,
+    output logic       utx_valid,
     output logic [7:0] utx_data,
-    input  logic       utx_busy
+    input  logic       utx_ready
 );
   logic                     m_valid;
   logic [SVC_STR_WIDTH-1:0] m_msg;
   logic                     m_bin;
   logic [              3:0] m_bin_len;
   logic                     m_ready;
-
-  logic                     s_valid;
-  logic [              7:0] s_data;
-  logic                     s_ready;
 
   svc_str_iter #(
       .MAX_STR_LEN(SVC_STR_MAX_LEN)
@@ -42,15 +38,12 @@ module svc_print (
       .s_bin    (m_bin),
       .s_bin_len(m_bin_len),
       .s_ready  (m_ready),
-      .m_valid  (s_valid),
-      .m_char   (s_data),
-      .m_ready  (s_ready)
+      .m_valid  (utx_valid),
+      .m_char   (utx_data),
+      .m_ready  (utx_ready)
   );
 
   assign prn_busy = m_valid || prn_en;
-  assign s_ready  = !utx_busy;
-  assign utx_en   = s_valid && !utx_busy;
-  assign utx_data = s_data;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
@@ -72,7 +65,7 @@ module svc_print (
 endmodule
 
 // utx_en, data, and busy are passed in so the uart can be used with a mux
-`define SVC_PRINT_INIT(utx_en, utx_data, utx_busy, clk = clk, rst_n = rst_n) \
+`define SVC_PRINT_INIT(utx_valid, utx_data, utx_ready, clk = clk, rst_n = rst_n) \
   logic svc_prn_en;                                                          \
   logic [SVC_STR_WIDTH-1:0] svc_prn_msg;                                     \
   logic svc_prn_bin;                                                         \
@@ -87,9 +80,9 @@ endmodule
       .prn_bin    (svc_prn_bin),                                             \
       .prn_bin_len(svc_prn_bin_len),                                         \
       .prn_busy   (svc_prn_msg_busy),                                        \
-      .utx_en     (utx_en),                                                  \
+      .utx_valid  (utx_valid),                                               \
       .utx_data   (utx_data),                                                \
-      .utx_busy   (utx_busy)                                                 \
+      .utx_ready  (utx_ready)                                                \
   );                                                                         \
                                                                              \
   `SVC_UNUSED({svc_prn_msg_busy});

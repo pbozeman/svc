@@ -4,6 +4,18 @@
 `include "svc.sv"
 `include "svc_uart_baud_gen.sv"
 
+// uart receive module with a ready/valid interface.
+//
+// Note: there is minimal buffering in this module. Once valid goes high, the
+// caller needs to raise ready before the next byte is received. If not, the
+// old data is dropped. This is because we don't have any back pressure
+// mechanism at this layer.
+//
+// The first version of this interface didn't take a ready signal due to the
+// lack of backpressure described above. However, when used in a full design,
+// there are times when it is convenient to have the small amount of buffering
+// provided by the time between completed bytes in the state machine. If more
+// is needed, hook it up to a fifo.
 module svc_uart_rx #(
     parameter CLOCK_FREQ = 100_000_000,
     parameter BAUD_RATE  = 115_200
@@ -13,6 +25,7 @@ module svc_uart_rx #(
 
     output logic       urx_valid,
     output logic [7:0] urx_data,
+    input  logic       urx_ready,
 
     input logic urx_pin
 );
@@ -41,6 +54,7 @@ module svc_uart_rx #(
   logic               tick;
 
   logic               urx_valid_next;
+  logic   [      7:0] urx_data_next;
 
   svc_uart_baud_gen #(
       .CLOCK_FREQ(CLOCK_FREQ),
@@ -56,7 +70,8 @@ module svc_uart_rx #(
     state_next     = state;
     idx_next       = idx;
     data_next      = data;
-    urx_valid_next = urx_valid;
+    urx_valid_next = urx_valid && !urx_ready;
+    urx_data_next  = urx_data;
     b_rst_n        = 1'b1;
 
     case (state)
@@ -94,18 +109,12 @@ module svc_uart_rx #(
 
       STATE_STOP: begin
         if (tick) begin
-          if (urx_pin) begin
-            state_next     = STATE_VALID;
-            urx_valid_next = 1'b1;
-          end else begin
-            state_next = STATE_IDLE;
-          end
+          // if we looped back around here while urx_valid, we drop the old
+          // data in favor of the new
+          urx_valid_next = urx_pin;
+          urx_data_next  = data;
+          state_next     = STATE_IDLE;
         end
-      end
-
-      STATE_VALID: begin
-        urx_valid_next = 1'b0;
-        state_next     = STATE_IDLE;
       end
 
       default: begin
@@ -128,7 +137,9 @@ module svc_uart_rx #(
     end
   end
 
-  assign urx_data = data;
+  always_ff @(posedge clk) begin
+    urx_data <= urx_data_next;
+  end
 
 endmodule
 `endif
