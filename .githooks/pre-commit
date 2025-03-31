@@ -9,7 +9,7 @@ before_hook 0
 echo "Running 'make format'..."
 make format >/dev/null 2>&1
 
-FORMAT_CHANGED=$(git diff --name-only --diff-filter=ACMRT || true)
+FORMAT_CHANGED=$(git diff --name-only --ignore-submodules || true)
 if [ -n "$FORMAT_CHANGED" ]; then
   echo "The following files were modified by 'make format':"
   echo "$FORMAT_CHANGED"
