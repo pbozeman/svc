@@ -2,6 +2,8 @@
 `define SVC_AXI_STATS_WR_SV
 
 `include "svc.sv"
+`include "svc_axil_invalid_wr.sv"
+`include "svc_skidbuf.sv"
 `include "svc_stats_cnt.sv"
 `include "svc_stats_max.sv"
 `include "svc_stats_val.sv"
@@ -14,15 +16,17 @@
 //   https://zipcpu.com/blog/2021/08/14/axiperf.html
 //
 // His taxonomy is a good one, and aligns with the svc design goals
-// of focusing on througput.
+// of focusing on througput. The implementation is fairly different.
 
 // verilator lint_off: UNUSEDSIGNAL
 module svc_axi_stats_wr #(
-    parameter AXI_ADDR_WIDTH = 20,
-    parameter AXI_DATA_WIDTH = 16,
-    parameter AXI_ID_WIDTH   = 4,
-    parameter AXI_STRB_WIDTH = AXI_DATA_WIDTH / 8,
-    parameter STAT_WIDTH     = 32
+    parameter AXIL_ADDR_WIDTH = 8,
+    parameter AXIL_DATA_WIDTH = 32,
+    parameter AXI_ADDR_WIDTH  = 20,
+    parameter AXI_DATA_WIDTH  = 16,
+    parameter AXI_ID_WIDTH    = 4,
+    parameter AXI_STRB_WIDTH  = AXI_DATA_WIDTH / 8,
+    parameter STAT_WIDTH      = 32
 ) (
     input logic clk,
     input logic rst_n,
@@ -30,17 +34,27 @@ module svc_axi_stats_wr #(
     input  logic stat_clear,
     output logic stat_err,
 
-    // If we get a soft core running, this should change to be memory mapped
-    // via an axi register interface, but for now, this is easy. It also
-    // let's us add new stats without having to change code anyplace else,
-    // other than the final (off fpga) consumer.
-    input  logic                  stat_iter_start,
-    output logic                  stat_iter_valid,
-    output logic [           7:0] stat_iter_id,
-    output logic [STAT_WIDTH-1:0] stat_iter_val,
-    output logic                  stat_iter_last,
-    input  logic                  stat_iter_ready,
+    // register interface for stat reporting
+    input  logic [ 7:0] s_axil_awaddr,
+    input  logic        s_axil_awvalid,
+    output logic        s_axil_awready,
+    input  logic [31:0] s_axil_wdata,
+    input  logic [ 3:0] s_axil_wstrb,
+    input  logic        s_axil_wvalid,
+    output logic        s_axil_wready,
+    output logic        s_axil_bvalid,
+    output logic [ 1:0] s_axil_bresp,
+    input  logic        s_axil_bready,
 
+    input  logic        s_axil_arvalid,
+    input  logic [ 7:0] s_axil_araddr,
+    output logic        s_axil_arready,
+    output logic        s_axil_rvalid,
+    output logic [31:0] s_axil_rdata,
+    output logic [ 1:0] s_axil_rresp,
+    input  logic        s_axil_rready,
+
+    // axi interface to monitor and collect stats on
     input logic                      m_axi_awvalid,
     input logic [AXI_ADDR_WIDTH-1:0] m_axi_awaddr,
     input logic [  AXI_ID_WIDTH-1:0] m_axi_awid,
@@ -58,6 +72,9 @@ module svc_axi_stats_wr #(
     input logic [               1:0] m_axi_bresp,
     input logic                      m_axi_bready
 );
+  localparam AW = AXIL_ADDR_WIDTH;
+  localparam DW = AXIL_DATA_WIDTH;
+
   localparam SW = STAT_WIDTH;
   localparam ASW = AXI_STRB_WIDTH;
 
@@ -66,7 +83,7 @@ module svc_axi_stats_wr #(
     STATE_ITER
   } state_t;
 
-  typedef enum logic [7:0] {
+  typedef enum logic [AW-1:0] {
     STAT_AW_BURST_CNT      = 0,
     STAT_AW_DEPTH_MAX      = 1,
     STAT_AW_LEN_MIN        = 2,
@@ -214,90 +231,121 @@ module svc_axi_stats_wr #(
   `STAT_CNT_EN(w_addr_lag_cnt);
   `STAT_CNT_EN(w_early_stall_cnt);
 
+  //--------------------------------------------------------------------------
+  //
+  // control interface
+  //
+  //--------------------------------------------------------------------------
+
+  // all writes are invalid
+  svc_axil_invalid_wr #(
+      .AXIL_ADDR_WIDTH(AXIL_ADDR_WIDTH),
+      .AXIL_DATA_WIDTH(AXIL_DATA_WIDTH)
+  ) svc_axi_invalid_wr_i (
+      .clk           (clk),
+      .rst_n         (rst_n),
+      .s_axil_awaddr (s_axil_awaddr),
+      .s_axil_awvalid(s_axil_awvalid),
+      .s_axil_awready(s_axil_awready),
+      .s_axil_wdata  (s_axil_wdata),
+      .s_axil_wstrb  (s_axil_wstrb),
+      .s_axil_wvalid (s_axil_wvalid),
+      .s_axil_wready (s_axil_wready),
+      .s_axil_bvalid (s_axil_bvalid),
+      .s_axil_bresp  (s_axil_bresp),
+      .s_axil_bready (s_axil_bready)
+  );
+
+  // read controls
+  logic        sb_arvalid;
+  logic [ 7:0] sb_araddr;
+  logic        sb_arready;
+
+  logic        s_axil_rvalid_next;
+  logic [31:0] s_axil_rdata_next;
+  logic [ 1:0] s_axil_rresp_next;
+
+  svc_skidbuf #(
+      .DATA_WIDTH(8)
+  ) svc_skidbuf_ar (
+      .clk  (clk),
+      .rst_n(rst_n),
+
+      .i_valid(s_axil_arvalid),
+      .i_data (s_axil_araddr),
+      .o_ready(s_axil_arready),
+
+      .o_valid(sb_arvalid),
+      .o_data (sb_araddr),
+      .i_ready(sb_arready)
+  );
+
   always_comb begin
-    state_next           = state;
-    iter_idx_next        = iter_idx;
+    sb_arready         = 1'b0;
+    s_axil_rvalid_next = s_axil_rvalid && !s_axil_rready;
+    s_axil_rdata_next  = s_axil_rdata;
+    s_axil_rresp_next  = s_axil_rresp;
 
-    stat_iter_valid_next = stat_iter_valid && !stat_iter_ready;
-    stat_iter_id_next    = stat_iter_id;
-    stat_iter_val_next   = stat_iter_val;
-    stat_iter_last_next  = stat_iter_last;
+    // do both an incoming check and outgoing check here,
+    // since we are going to set rvalid
+    if (sb_arvalid && (!s_axil_rvalid || !s_axil_rready)) begin
+      sb_arready         = 1'b1;
+      s_axil_rvalid_next = 1'b1;
+      s_axil_rresp_next  = 2'b00;
 
-    case (state)
-      STATE_IDLE: begin
-        if (stat_iter_start) begin
-          state_next          = STATE_ITER;
-          iter_idx_next       = 0;
-          stat_iter_last_next = 1'b0;
+      case (sb_araddr)
+        STAT_AW_BURST_CNT:      s_axil_rdata_next = aw_burst_cnt;
+        STAT_AW_DEPTH_MAX:      s_axil_rdata_next = DW'(aw_outstanding_max);
+        STAT_AW_LEN_MIN:        s_axil_rdata_next = DW'(awlen_min);
+        STAT_AW_LEN_MAX:        s_axil_rdata_next = DW'(awlen_max);
+        STAT_AW_BYTES_SUM:      s_axil_rdata_next = aw_bytes_sum;
+        STAT_AW_BYTES_MIN:      s_axil_rdata_next = DW'(aw_bytes_min);
+        STAT_AW_BYTES_MAX:      s_axil_rdata_next = DW'(aw_bytes_max);
+        STAT_W_BURST_CNT:       s_axil_rdata_next = w_burst_cnt;
+        STAT_W_DEPTH_MAX:       s_axil_rdata_next = DW'(w_outstanding_max);
+        STAT_W_BEAT_CNT:        s_axil_rdata_next = w_beat_cnt;
+        STAT_W_BYTES_SUM:       s_axil_rdata_next = w_bytes_sum;
+        STAT_W_BYTES_MIN:       s_axil_rdata_next = DW'(w_bytes_min);
+        STAT_W_BYTES_MAX:       s_axil_rdata_next = DW'(w_bytes_max);
+        STAT_W_DATA_LAG_CNT:    s_axil_rdata_next = w_data_lag_cnt;
+        STAT_W_IDLE_CNT:        s_axil_rdata_next = w_idle_cycles_cnt;
+        STAT_W_EARLY_BEAT_CNT:  s_axil_rdata_next = w_early_beat_cnt;
+        STAT_W_AWR_EARLY_CNT:   s_axil_rdata_next = w_awr_early_cnt;
+        STAT_W_B_LAG_CNT:       s_axil_rdata_next = w_b_lag_cnt;
+        STAT_W_B_STALL_CNT:     s_axil_rdata_next = w_b_stall_cnt;
+        STAT_W_B_END_CNT:       s_axil_rdata_next = w_b_end_cnt;
+        STAT_W_SLOW_DATA_CNT:   s_axil_rdata_next = w_slow_data_cnt;
+        STAT_W_STALL_CNT:       s_axil_rdata_next = w_stall_cnt;
+        STAT_W_ADDR_STALL_CNT:  s_axil_rdata_next = w_addr_stall_cnt;
+        STAT_W_ADDR_LAG_CNT:    s_axil_rdata_next = w_addr_lag_cnt;
+        STAT_W_EARLY_STALL_CNT: s_axil_rdata_next = w_early_stall_cnt;
+        STAT_W_ERR_CNT:         s_axil_rdata_next = w_err_cnt;
+        default: begin
+          s_axil_rdata_next = 0;
+          s_axil_rresp_next = 2'b11;
         end
-      end
-
-      STATE_ITER: begin
-        if (!stat_iter_valid || stat_iter_ready) begin
-          stat_iter_valid_next = 1'b1;
-          stat_iter_id_next    = iter_idx;
-          iter_idx_next        = iter_idx_next + 1;
-
-          case (iter_idx)
-            STAT_AW_BURST_CNT:     stat_iter_val_next = aw_burst_cnt;
-            STAT_AW_DEPTH_MAX:     stat_iter_val_next = SW'(aw_outstanding_max);
-            STAT_AW_LEN_MIN:       stat_iter_val_next = SW'(awlen_min);
-            STAT_AW_LEN_MAX:       stat_iter_val_next = SW'(awlen_max);
-            STAT_AW_BYTES_SUM:     stat_iter_val_next = aw_bytes_sum;
-            STAT_AW_BYTES_MIN:     stat_iter_val_next = SW'(aw_bytes_min);
-            STAT_AW_BYTES_MAX:     stat_iter_val_next = SW'(aw_bytes_max);
-            STAT_W_BURST_CNT:      stat_iter_val_next = w_burst_cnt;
-            STAT_W_DEPTH_MAX:      stat_iter_val_next = SW'(w_outstanding_max);
-            STAT_W_BEAT_CNT:       stat_iter_val_next = w_beat_cnt;
-            STAT_W_BYTES_SUM:      stat_iter_val_next = w_bytes_sum;
-            STAT_W_BYTES_MIN:      stat_iter_val_next = SW'(w_bytes_min);
-            STAT_W_BYTES_MAX:      stat_iter_val_next = SW'(w_bytes_max);
-            STAT_W_DATA_LAG_CNT:   stat_iter_val_next = w_data_lag_cnt;
-            STAT_W_IDLE_CNT:       stat_iter_val_next = w_idle_cycles_cnt;
-            STAT_W_EARLY_BEAT_CNT: stat_iter_val_next = w_early_beat_cnt;
-            STAT_W_AWR_EARLY_CNT:  stat_iter_val_next = w_awr_early_cnt;
-            STAT_W_B_LAG_CNT:      stat_iter_val_next = w_b_lag_cnt;
-            STAT_W_B_STALL_CNT:    stat_iter_val_next = w_b_stall_cnt;
-            STAT_W_B_END_CNT:      stat_iter_val_next = w_b_end_cnt;
-            STAT_W_SLOW_DATA_CNT:  stat_iter_val_next = w_slow_data_cnt;
-            STAT_W_STALL_CNT:      stat_iter_val_next = w_stall_cnt;
-            STAT_W_ADDR_STALL_CNT: stat_iter_val_next = w_addr_stall_cnt;
-            STAT_W_ADDR_LAG_CNT:   stat_iter_val_next = w_addr_lag_cnt;
-
-            STAT_W_EARLY_STALL_CNT: stat_iter_val_next = w_early_stall_cnt;
-
-            STAT_W_ERR_CNT: begin
-              stat_iter_val_next  = w_err_cnt;
-              stat_iter_last_next = 1'b1;
-              state_next          = STATE_IDLE;
-            end
-
-            default: begin
-              stat_iter_id_next  = '0;
-              stat_iter_val_next = '0;
-            end
-          endcase
-        end
-      end
-    endcase
-  end
-
-  always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      state           <= STATE_IDLE;
-      stat_iter_valid <= 1'b0;
-    end else begin
-      state           <= state_next;
-      stat_iter_valid <= stat_iter_valid_next;
+      endcase
     end
   end
 
   always_ff @(posedge clk) begin
-    iter_idx       <= iter_idx_next;
-    stat_iter_id   <= stat_iter_id_next;
-    stat_iter_val  <= stat_iter_val_next;
-    stat_iter_last <= stat_iter_last_next;
+    if (!rst_n) begin
+      s_axil_rvalid <= 1'b0;
+    end else begin
+      s_axil_rvalid <= s_axil_rvalid_next;
+    end
   end
+
+  always_ff @(posedge clk) begin
+    s_axil_rdata <= s_axil_rdata_next;
+    s_axil_rresp <= s_axil_rresp_next;
+  end
+
+  //--------------------------------------------------------------------------
+  //
+  // Stats collection
+  //
+  //--------------------------------------------------------------------------
 
   // The AW and W outstanding are special, internal stats.
   // They are used to bucket clocks into categories. Look to the casez below,
