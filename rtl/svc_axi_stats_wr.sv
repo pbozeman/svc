@@ -22,6 +22,7 @@
 module svc_axi_stats_wr #(
     parameter AXIL_ADDR_WIDTH = 8,
     parameter AXIL_DATA_WIDTH = 32,
+    parameter AXIL_STRB_WIDTH = AXIL_DATA_WIDTH / 8,
     parameter AXI_ADDR_WIDTH  = 20,
     parameter AXI_DATA_WIDTH  = 16,
     parameter AXI_ID_WIDTH    = 4,
@@ -35,24 +36,24 @@ module svc_axi_stats_wr #(
     output logic stat_err,
 
     // register interface for stat reporting
-    input  logic [ 7:0] s_axil_awaddr,
-    input  logic        s_axil_awvalid,
-    output logic        s_axil_awready,
-    input  logic [31:0] s_axil_wdata,
-    input  logic [ 3:0] s_axil_wstrb,
-    input  logic        s_axil_wvalid,
-    output logic        s_axil_wready,
-    output logic        s_axil_bvalid,
-    output logic [ 1:0] s_axil_bresp,
-    input  logic        s_axil_bready,
+    input  logic [AXIL_ADDR_WIDTH-1:0] s_axil_awaddr,
+    input  logic                       s_axil_awvalid,
+    output logic                       s_axil_awready,
+    input  logic [AXIL_DATA_WIDTH-1:0] s_axil_wdata,
+    input  logic [AXIL_STRB_WIDTH-1:0] s_axil_wstrb,
+    input  logic                       s_axil_wvalid,
+    output logic                       s_axil_wready,
+    output logic                       s_axil_bvalid,
+    output logic [                1:0] s_axil_bresp,
+    input  logic                       s_axil_bready,
 
-    input  logic        s_axil_arvalid,
-    input  logic [ 7:0] s_axil_araddr,
-    output logic        s_axil_arready,
-    output logic        s_axil_rvalid,
-    output logic [31:0] s_axil_rdata,
-    output logic [ 1:0] s_axil_rresp,
-    input  logic        s_axil_rready,
+    input  logic                       s_axil_arvalid,
+    input  logic [AXIL_ADDR_WIDTH-1:0] s_axil_araddr,
+    output logic                       s_axil_arready,
+    output logic                       s_axil_rvalid,
+    output logic [AXIL_DATA_WIDTH-1:0] s_axil_rdata,
+    output logic [                1:0] s_axil_rresp,
+    input  logic                       s_axil_rready,
 
     // axi interface to monitor and collect stats on
     input logic                      m_axi_awvalid,
@@ -75,6 +76,11 @@ module svc_axi_stats_wr #(
   localparam AW = AXIL_ADDR_WIDTH;
   localparam DW = AXIL_DATA_WIDTH;
 
+  // we need to convert the byte addr to a word addr, since we are going to do
+  // a word/register lookup
+  parameter ADDRLSB = $clog2(AXIL_DATA_WIDTH) - 3;
+  parameter RAW = AW - ADDRLSB;
+
   localparam SW = STAT_WIDTH;
   localparam ASW = AXI_STRB_WIDTH;
 
@@ -83,7 +89,9 @@ module svc_axi_stats_wr #(
     STATE_ITER
   } state_t;
 
-  typedef enum logic [AW-1:0] {
+  // in terms of addresses, these will all be at val * AXIL_DATA_WIDTH,
+  // so given a 32bit word, 0, 4, 8, etc.
+  typedef enum logic [RAW-1:0] {
     STAT_AW_BURST_CNT      = 0,
     STAT_AW_DEPTH_MAX      = 1,
     STAT_AW_LEN_MIN        = 2,
@@ -257,22 +265,22 @@ module svc_axi_stats_wr #(
   );
 
   // read controls
-  logic        sb_arvalid;
-  logic [ 7:0] sb_araddr;
-  logic        sb_arready;
+  logic           sb_arvalid;
+  logic [RAW-1:0] sb_araddr;
+  logic           sb_arready;
 
-  logic        s_axil_rvalid_next;
-  logic [31:0] s_axil_rdata_next;
-  logic [ 1:0] s_axil_rresp_next;
+  logic           s_axil_rvalid_next;
+  logic [ DW-1:0] s_axil_rdata_next;
+  logic [    1:0] s_axil_rresp_next;
 
   svc_skidbuf #(
-      .DATA_WIDTH(8)
+      .DATA_WIDTH(RAW)
   ) svc_skidbuf_ar (
       .clk  (clk),
       .rst_n(rst_n),
 
       .i_valid(s_axil_arvalid),
-      .i_data (s_axil_araddr),
+      .i_data (s_axil_araddr[AW-1:ADDRLSB]),
       .o_ready(s_axil_arready),
 
       .o_valid(sb_arvalid),
