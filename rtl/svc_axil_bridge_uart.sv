@@ -40,7 +40,7 @@
 //
 //  Response:
 //      Magic: 1 byte (0xAB)
-//      Resp: 2 byte (rresp or bresp)
+//      Resp: 1 byte (rresp or bresp)
 //      Payload: 0 to 4 byes
 //
 //      Read resp payload:
