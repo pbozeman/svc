@@ -16,6 +16,7 @@
         # Python package with required dependencies
         pythonEnv = pkgs.python3.withPackages (ps: with ps; [
           mdformat-gfm
+          pyserial
         ]);
 
         # Base build inputs common to all systems
