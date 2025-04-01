@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+
+import sys
+from axi_bridge_uart import AxiBridgeUart
+
+AXI_RESP = {
+    0x0: "OKAY",
+    0x1: "EXOKAY",
+    0x2: "SLVERR",
+    0x3: "DECERR",
+}
+
+
+def usage():
+    print("Usage:")
+    print("  axi_rw <serial_port> <addr>           # Read from addr")
+    print("  axi_rw <serial_port> <addr> <value>   # Write value to addr")
+    sys.exit(1)
+
+
+if len(sys.argv) not in (3, 4):
+    usage()
+
+port = sys.argv[1]
+addr = int(sys.argv[2], 0)
+data = int(sys.argv[3], 0) if len(sys.argv) == 4 else None
+
+axi = AxiBridgeUart(port)
+
+if data is None:
+    resp, data = axi.read_word(addr)
+else:
+    resp = axi.write_word(addr, data)
+
+axi.close()
+
+if resp != 0:
+    err = AXI_RESP.get(resp, "UNKNOWN")
+    print(f"0x{addr:08X}: {err} (0x{resp:02X})")
+else:
+    print(f"{addr:08X}: 0x{data:08X}")
