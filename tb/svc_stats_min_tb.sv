@@ -11,8 +11,8 @@ module svc_stats_min_tb;
   logic [7:0] min;
 
   svc_stats_min #(
-      .WIDTH (8),
-      .STAGES(0)
+      .WIDTH         (8),
+      .BITS_PER_STAGE(8)
   ) uut_direct (
       .clk  (clk),
       .rst_n(rst_n),
@@ -25,8 +25,8 @@ module svc_stats_min_tb;
   logic [7:0] min_pipe;
 
   svc_stats_min #(
-      .WIDTH (8),
-      .STAGES(2)
+      .WIDTH         (8),
+      .BITS_PER_STAGE(4)
   ) uut_pipe (
       .clk  (clk),
       .rst_n(rst_n),

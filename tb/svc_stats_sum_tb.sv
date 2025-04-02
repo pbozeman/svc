@@ -7,7 +7,7 @@ module svc_stats_sum_tb;
 
   localparam WIDTH = 8;
   localparam STAT_WIDTH = 32;
-  localparam STAGES = 0;
+  localparam BITS_PER_STAGE = 32;
 
   logic                  clr;
   logic                  en;
@@ -15,9 +15,9 @@ module svc_stats_sum_tb;
   logic [STAT_WIDTH-1:0] sum;
 
   svc_stats_sum #(
-      .WIDTH     (WIDTH),
-      .STAT_WIDTH(STAT_WIDTH),
-      .STAGES    (STAGES)
+      .WIDTH         (WIDTH),
+      .STAT_WIDTH    (STAT_WIDTH),
+      .BITS_PER_STAGE(BITS_PER_STAGE)
   ) uut (
       .clk  (clk),
       .rst_n(rst_n),

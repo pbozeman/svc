@@ -2,17 +2,14 @@
 `define SVC_ACCUMULATOR_SV
 
 `include "svc.sv"
+`include "svc_stats.sv"
 
 // This accumulator slices the carry chain into segments with registers
 // in between them, useful when the carry chain propagation starts causing
-// timing issues. STAGES 0 is a pass through mode with a direct add.
-//
-// TODO: set the STAGES default programatically based on WIDTH and
-// the target FPGA. While the ice40 needs it for 32 bit adds in non-trivial
-// designs, xilinx chips do not.
+// timing issues.
 module svc_accumulator #(
-    parameter int WIDTH  = 32,
-    parameter int STAGES = 4
+    parameter WIDTH          = 32,
+    parameter BITS_PER_STAGE = `SVC_PIPE_BPS
 ) (
     input logic clk,
     input logic rst_n,
@@ -22,7 +19,9 @@ module svc_accumulator #(
     input  logic [WIDTH-1:0] val,
     output logic [WIDTH-1:0] acc
 );
-  if (STAGES == 0) begin : gen_stage_z
+  localparam STAGES = WIDTH / BITS_PER_STAGE;
+
+  if (STAGES == 1 || STAGES == 0) begin : gen_stage_z
     always_ff @(posedge clk) begin
       if (!rst_n || clr) begin
         acc <= 0;

@@ -371,8 +371,8 @@ module svc_axi_stats_wr #(
 
   // aw outstanding (aw txn accept to b txn accept)
   svc_stats_cnt #(
-      .STAT_WIDTH(8),
-      .STAGES    (0)
+      .STAT_WIDTH    (8),
+      .BITS_PER_STAGE(8)
   ) svc_stats_cnt_aw_outstanding (
       .clk  (clk),
       .rst_n(rst_n),
@@ -395,8 +395,8 @@ module svc_axi_stats_wr #(
 
   // w outstanding (last w txn accept to b txn accept)
   svc_stats_cnt #(
-      .STAT_WIDTH(8),
-      .STAGES    (0)
+      .STAT_WIDTH    (8),
+      .BITS_PER_STAGE(8)
   ) svc_stats_cnt_w_outstanding (
       .clk  (clk),
       .rst_n(rst_n),

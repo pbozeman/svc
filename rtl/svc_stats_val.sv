@@ -2,14 +2,15 @@
 `define SVC_STATS_VAL_SV
 
 `include "svc.sv"
+`include "svc_stats.sv"
 `include "svc_stats_max.sv"
 `include "svc_stats_min.sv"
 `include "svc_stats_sum.sv"
 
 module svc_stats_val #(
-    parameter int WIDTH      = 32,
-    parameter int STAT_WIDTH = 32,
-    parameter int STAGES     = 4
+    parameter WIDTH          = 32,
+    parameter STAT_WIDTH     = 32,
+    parameter BITS_PER_STAGE = `SVC_PIPE_BPS
 ) (
     input  logic                  clk,
     input  logic                  rst_n,
@@ -21,8 +22,8 @@ module svc_stats_val #(
     output logic [STAT_WIDTH-1:0] sum
 );
   svc_stats_min #(
-      .WIDTH (WIDTH),
-      .STAGES(STAGES)
+      .WIDTH         (WIDTH),
+      .BITS_PER_STAGE(BITS_PER_STAGE)
   ) svc_stats_min_i (
       .clk  (clk),
       .rst_n(rst_n),
@@ -33,8 +34,8 @@ module svc_stats_val #(
   );
 
   svc_stats_max #(
-      .WIDTH (WIDTH),
-      .STAGES(STAGES)
+      .WIDTH         (WIDTH),
+      .BITS_PER_STAGE(BITS_PER_STAGE)
   ) svc_stats_max_i (
       .clk  (clk),
       .rst_n(rst_n),
@@ -45,9 +46,9 @@ module svc_stats_val #(
   );
 
   svc_stats_sum #(
-      .WIDTH     (WIDTH),
-      .STAT_WIDTH(STAT_WIDTH),
-      .STAGES    (STAGES)
+      .WIDTH         (WIDTH),
+      .STAT_WIDTH    (STAT_WIDTH),
+      .BITS_PER_STAGE(BITS_PER_STAGE)
   ) svc_stats_sum_i (
       .clk  (clk),
       .rst_n(rst_n),
