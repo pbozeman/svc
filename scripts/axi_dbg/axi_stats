@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+
+import sys
+from axi_bridge_uart import AxiBridgeUart
+
+# TODO: get the cpu freq from register
+CPU_FREQ_HZ = 100_000_000
+
+# TODO: add dict of name to base addr and do them all
+BASE_ADDR = 0x0
+
+# The word size is not necessarily 32bits, but it usually will be
+BYTES_PER_WORD = 4
+
+# Register definitions
+REGS = {
+    "STAT_AW_BURST_CNT": 0,
+    "STAT_AW_DEPTH_MAX": 1,
+    "STAT_AW_LEN_MIN": 2,
+    "STAT_AW_LEN_MAX": 3,
+    "STAT_AW_BYTES_SUM": 4,
+    "STAT_AW_BYTES_MIN": 5,
+    "STAT_AW_BYTES_MAX": 6,
+    "STAT_W_BURST_CNT": 7,
+    "STAT_W_DEPTH_MAX": 8,
+    "STAT_W_BEAT_CNT": 9,
+    "STAT_W_BYTES_SUM": 10,
+    "STAT_W_BYTES_MIN": 11,
+    "STAT_W_BYTES_MAX": 12,
+    "STAT_W_DATA_LAG_CNT": 13,
+    "STAT_W_IDLE_CNT": 14,
+    "STAT_W_EARLY_BEAT_CNT": 15,
+    "STAT_W_AWR_EARLY_CNT": 16,
+    "STAT_W_B_LAG_CNT": 17,
+    "STAT_W_B_STALL_CNT": 18,
+    "STAT_W_B_END_CNT": 19,
+    "STAT_W_SLOW_DATA_CNT": 20,
+    "STAT_W_STALL_CNT": 21,
+    "STAT_W_ADDR_STALL_CNT": 22,
+    "STAT_W_ADDR_LAG_CNT": 23,
+    "STAT_W_EARLY_STALL_CNT": 24,
+    "STAT_W_ERR_CNT": 25,
+}
+
+# AXI response codes
+AXI_RESP = {0x0: "OKAY", 0x1: "EXOKAY", 0x2: "SLVERR", 0x3: "DECERR"}
+
+
+def safe_div(numerator, denominator):
+    """Safely divide two numbers, return 0 if denominator is 0"""
+    return numerator / denominator if denominator else 0
+
+
+def read_registers(axi, base_addr=0):
+    """Read all statistics registers and return as a dictionary"""
+    result = {}
+    for name, offset in REGS.items():
+        addr = base_addr + (offset * BYTES_PER_WORD)
+        resp, value = axi.read_word(addr)
+        if resp != 0:
+            err = AXI_RESP.get(resp, "UNKNOWN")
+            print(f"Error reading {name} at 0x{addr:08X}: {err} (0x{resp:02X})")
+            sys.exit(1)
+        # Convert register name to lowercase format without STAT_ prefix
+        key = name[5:].lower()
+        result[key] = value
+    return result
+
+
+def print_raw_stats(stats):
+    """Print all raw statistics registers"""
+    print("\n# Raw Register Values")
+    for idx, (name, offset) in enumerate(REGS.items()):
+        # Convert register name to lowercase format without STAT_ prefix
+        key = name[5:].lower()
+        val = stats.get(key, 0)
+        print(f" {offset:02d}\t{key:<18}\t0x{val:<8x}\t{val:<10}")
+
+
+def print_calculated_stats(block_name, stats, clock_speed_mhz):
+    """Print statistics in the requested format"""
+    try:
+        # Calculate write latency
+        write_latency_numerator = (
+            stats.get("w_early_beat_cnt", 0)
+            + stats.get("w_data_lag_cnt", 0)
+            + stats.get("w_early_stall_cnt", 0)
+            + stats.get("w_b_stall_cnt", 0)
+            + stats.get("w_addr_stall_cnt", 0)
+            + stats.get("w_addr_lag_cnt", 0)
+            + stats.get("w_b_lag_cnt", 0)
+        )
+        write_bursts = stats.get("w_burst_cnt", 1)
+        write_latency = safe_div(write_latency_numerator, write_bursts)
+
+        # Calculate throughput
+        write_beats = stats.get("w_beat_cnt", 0)
+        write_throughput_denominator = (
+            write_beats
+            + stats.get("w_stall_cnt", 0)
+            + stats.get("w_awr_early_cnt", 0)
+            + stats.get("w_slow_data_cnt", 0)
+        )
+        write_throughput = safe_div(write_beats, write_throughput_denominator)
+
+        # Calculate bandwidth
+        total_write_bytes = stats.get("aw_bytes_sum", 0)
+        bandwidth_bytes_per_cycle = safe_div(
+            total_write_bytes, write_throughput_denominator
+        )
+
+        bandwidth_MBps = bandwidth_bytes_per_cycle * clock_speed_mhz
+
+        print(f"\n# Stats for: {block_name}")
+        print(f" {'LATENCY':<12}= {write_latency:8.2f} cycles/burst")
+        print(f" {'THROUGHPUT':<12}= {write_throughput:8.2f} beats/cycle")
+        print(f" {'BANDWIDTH':<12}= {bandwidth_MBps:8.2f} MB/s")
+    except Exception as e:
+        print(f" Failed to compute stats for {block_name}: {e}")
+
+
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: axi_stats <serial_port>")
+        return 1
+
+    serial_port = sys.argv[1]
+    block_name = "AXI"
+    clock_speed_mhz = CPU_FREQ_HZ / 1_000_000
+
+    try:
+        axi = AxiBridgeUart(serial_port)
+        stats = read_registers(axi, BASE_ADDR)
+        axi.close()
+
+        # Print name and frequency
+        print(f"# Name:  {block_name}")
+        print(f"# Speed: {clock_speed_mhz} MHz")
+
+        print_raw_stats(stats)
+        print_calculated_stats(block_name, stats, clock_speed_mhz)
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return 1
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
