@@ -55,6 +55,13 @@ module svc_axil_router_rd #(
   localparam M_DW = M_AXIL_DATA_WIDTH;
   localparam SEL_W = $clog2(NUM_S);
 
+  // We only need to check for addr/bus erros when there are unused
+  // portions of the addr space. Otherwise, verilator complains with:
+  //   Warning-CMPCONST: ...Comparison is constant due to limited range:
+  //         .... if (sb_s_araddr_sel > SEL_W'(NUM_S - 1)) begin
+  //
+  localparam bit NEED_ADDR_RANGE_CHECK = (1 << SEL_W) > NUM_S;
+
   logic                               active;
   logic                               active_next;
 
@@ -146,7 +153,7 @@ module svc_axil_router_rd #(
         active_next = 1'b1;
         sel_next    = sb_s_araddr_sel;
 
-        if (sb_s_araddr_sel > SEL_W'(NUM_S - 1)) begin
+        if (NEED_ADDR_RANGE_CHECK && sb_s_araddr_sel > SEL_W'(NUM_S - 1)) begin
           bus_err_next = 1'b1;
         end else begin
           m_axil_arvalid_next[sel_next] = 1'b1;
