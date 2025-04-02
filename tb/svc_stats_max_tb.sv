@@ -12,8 +12,8 @@ module svc_stats_max_tb;
 
   // Module with no pipeline stages
   svc_stats_max #(
-      .WIDTH (8),
-      .STAGES(0)
+      .WIDTH         (8),
+      .BITS_PER_STAGE(8)
   ) uut_direct (
       .clk  (clk),
       .rst_n(rst_n),
@@ -28,8 +28,8 @@ module svc_stats_max_tb;
 
   // Module with pipeline stages
   svc_stats_max #(
-      .WIDTH (8),
-      .STAGES(2)
+      .WIDTH         (8),
+      .BITS_PER_STAGE(4)
   ) uut_pipe (
       .clk  (clk),
       .rst_n(rst_n),

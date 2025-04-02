@@ -7,7 +7,7 @@ module svc_stats_val_tb;
 
   localparam int WIDTH = 16;
   localparam int STAT_WIDTH = 32;
-  localparam int STAGES = 0;
+  localparam int BITS_PER_STAGE = 32;
 
   logic                  clr;
   logic                  en;
@@ -17,9 +17,9 @@ module svc_stats_val_tb;
   logic [STAT_WIDTH-1:0] sum;
 
   svc_stats_val #(
-      .WIDTH     (WIDTH),
-      .STAT_WIDTH(STAT_WIDTH),
-      .STAGES    (STAGES)
+      .WIDTH         (WIDTH),
+      .STAT_WIDTH    (STAT_WIDTH),
+      .BITS_PER_STAGE(BITS_PER_STAGE)
   ) uut (
       .clk  (clk),
       .rst_n(rst_n),

@@ -6,7 +6,8 @@ module svc_accumulator_tb;
   `TEST_RST_N(clk, rst_n);
 
   localparam WIDTH = 8;
-  localparam STAGES = 2;
+  localparam BITS_PER_STAGE = 4;
+  localparam STAGES = WIDTH / BITS_PER_STAGE;
 
   logic             clr;
   logic             en;
@@ -14,8 +15,8 @@ module svc_accumulator_tb;
   logic [WIDTH-1:0] acc;
 
   svc_accumulator #(
-      .WIDTH (WIDTH),
-      .STAGES(STAGES)
+      .WIDTH         (WIDTH),
+      .BITS_PER_STAGE(BITS_PER_STAGE)
   ) uut (
       .clk  (clk),
       .rst_n(rst_n),

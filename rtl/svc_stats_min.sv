@@ -2,14 +2,14 @@
 `define SVC_STATS_MIN_SV
 
 `include "svc.sv"
+`include "svc_stats.sv"
 
 // This module tracks the minimum value ever seen on `val` when `en` is high.
-// It supports optional pipelining. STAGES == 0 uses a direct compare/update.
-// STAGES > 0 inserts pipeline registers between the input and final comparison.
+// It supports optional pipelining.
 
 module svc_stats_min #(
-    parameter int WIDTH  = 32,
-    parameter int STAGES = 4
+    parameter WIDTH          = 32,
+    parameter BITS_PER_STAGE = `SVC_PIPE_BPS
 ) (
     input logic clk,
     input logic rst_n,
@@ -19,7 +19,9 @@ module svc_stats_min #(
     input  logic [WIDTH-1:0] val,
     output logic [WIDTH-1:0] min
 );
-  if (STAGES == 0) begin : gen_stage_z
+  localparam STAGES = WIDTH / BITS_PER_STAGE;
+
+  if (STAGES == 1 || STAGES == 0) begin : gen_stage_z
     always_ff @(posedge clk) begin
       if (!rst_n || clr) begin
         // initialize to max value

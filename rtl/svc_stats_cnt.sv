@@ -3,12 +3,13 @@
 
 `include "svc.sv"
 `include "svc_accumulator.sv"
+`include "svc_stats.sv"
 
 // counter stat
 
 module svc_stats_cnt #(
-    parameter STAT_WIDTH = 32,
-    parameter STAGES     = 4
+    parameter STAT_WIDTH     = 32,
+    parameter BITS_PER_STAGE = `SVC_PIPE_BPS
 ) (
     input logic clk,
     input logic rst_n,
@@ -23,8 +24,8 @@ module svc_stats_cnt #(
   logic [STAT_WIDTH-1:0] acc_val;
 
   svc_accumulator #(
-      .WIDTH (STAT_WIDTH),
-      .STAGES(STAGES)
+      .WIDTH         (STAT_WIDTH),
+      .BITS_PER_STAGE(BITS_PER_STAGE)
   ) svc_acc_i (
       .clk  (clk),
       .rst_n(rst_n),

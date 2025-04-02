@@ -3,14 +3,15 @@
 
 `include "svc.sv"
 `include "svc_accumulator.sv"
+`include "svc_stats.sv"
 
 // This is a direct pass through to the accumulator, but can be used
 // along side other stat modules with consistent naming.
 
 module svc_stats_sum #(
-    parameter WIDTH      = 8,
-    parameter STAT_WIDTH = 32,
-    parameter STAGES     = 4
+    parameter WIDTH          = 32,
+    parameter STAT_WIDTH     = 32,
+    parameter BITS_PER_STAGE = `SVC_PIPE_BPS
 ) (
     input logic clk,
     input logic rst_n,
@@ -22,8 +23,8 @@ module svc_stats_sum #(
     output logic [STAT_WIDTH-1:0] sum
 );
   svc_accumulator #(
-      .WIDTH (STAT_WIDTH),
-      .STAGES(STAGES)
+      .WIDTH         (STAT_WIDTH),
+      .BITS_PER_STAGE(BITS_PER_STAGE)
   ) svc_acc_i (
       .clk  (clk),
       .rst_n(rst_n),
