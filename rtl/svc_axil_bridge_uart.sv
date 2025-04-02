@@ -54,7 +54,11 @@
 // to add other bridges, e.g. jtag, i2c, etc. But do the simple thing first
 // for now (and maybe forever if no other protocols get added.)
 
-module svc_axil_bridge_uart (
+module svc_axil_bridge_uart #(
+    parameter AXIL_ADDR_WIDTH = 32,
+    parameter AXIL_DATA_WIDTH = 32,
+    parameter AXIL_STRB_WIDTH = AXIL_DATA_WIDTH / 8
+) (
     input logic clk,
     input logic rst_n,
 
@@ -69,31 +73,38 @@ module svc_axil_bridge_uart (
     //
     // AXI-Lite subordinate interface
     //
-    output logic [31:0] m_axil_awaddr,
-    output logic        m_axil_awvalid,
-    input  logic        m_axil_awready,
-    output logic [31:0] m_axil_wdata,
-    output logic [ 3:0] m_axil_wstrb,
-    output logic        m_axil_wvalid,
-    input  logic        m_axil_wready,
-    input  logic [ 1:0] m_axil_bresp,
-    input  logic        m_axil_bvalid,
-    output logic        m_axil_bready,
+    output logic [AXIL_ADDR_WIDTH-1:0] m_axil_awaddr,
+    output logic                       m_axil_awvalid,
+    input  logic                       m_axil_awready,
+    output logic [AXIL_DATA_WIDTH-1:0] m_axil_wdata,
+    output logic [AXIL_STRB_WIDTH-1:0] m_axil_wstrb,
+    output logic                       m_axil_wvalid,
+    input  logic                       m_axil_wready,
+    input  logic [                1:0] m_axil_bresp,
+    input  logic                       m_axil_bvalid,
+    output logic                       m_axil_bready,
 
-    output logic        m_axil_arvalid,
-    output logic [31:0] m_axil_araddr,
-    input  logic        m_axil_arready,
-    input  logic [31:0] m_axil_rdata,
-    input  logic [ 1:0] m_axil_rresp,
-    input  logic        m_axil_rvalid,
-    output logic        m_axil_rready
+    output logic                       m_axil_arvalid,
+    output logic [AXIL_ADDR_WIDTH-1:0] m_axil_araddr,
+    input  logic                       m_axil_arready,
+    input  logic [AXIL_DATA_WIDTH-1:0] m_axil_rdata,
+    input  logic [                1:0] m_axil_rresp,
+    input  logic                       m_axil_rvalid,
+    output logic                       m_axil_rready
 );
+  localparam AW = AXIL_ADDR_WIDTH;
+  localparam DW = AXIL_DATA_WIDTH;
+
   localparam logic [15:0] CMD_MAGIC = 16'hF0B0;
   localparam logic [7:0] OP_READ = 8'h00;
   localparam logic [7:0] OP_WRITE = 8'h01;
 
   localparam logic [7:0] RESP_MAGIC = 8'hAB;
 
+  // TODO: the addr and data width are parameterized, but the states are not.
+  // They should be using a more generic version of a byte iterator anyway.
+  // As noted in the top comment, this is a straight line 0 to demo
+  // implementation to get command and control off the ground.
   typedef enum {
     STATE_IDLE,
     STATE_CMD_MAGIC,
@@ -118,37 +129,37 @@ module svc_axil_bridge_uart (
     STATE_CMD_RESP_DATA_3
   } state_t;
 
-  state_t        state;
-  state_t        state_next;
+  state_t          state;
+  state_t          state_next;
 
-  logic          cmd_rw;
-  logic          cmd_rw_next;
+  logic            cmd_rw;
+  logic            cmd_rw_next;
 
-  logic   [31:0] cmd_addr;
-  logic   [31:0] cmd_addr_next;
+  logic   [AW-1:0] cmd_addr;
+  logic   [AW-1:0] cmd_addr_next;
 
-  logic   [31:0] cmd_data;
-  logic   [31:0] cmd_data_next;
+  logic   [DW-1:0] cmd_data;
+  logic   [DW-1:0] cmd_data_next;
 
-  logic   [ 1:0] cmd_resp;
-  logic   [ 1:0] cmd_resp_next;
+  logic   [   1:0] cmd_resp;
+  logic   [   1:0] cmd_resp_next;
 
-  logic   [31:0] cmd_resp_data;
-  logic   [31:0] cmd_resp_data_next;
+  logic   [DW-1:0] cmd_resp_data;
+  logic   [DW-1:0] cmd_resp_data_next;
 
-  logic          m_axil_arvalid_next;
-  logic   [31:0] m_axil_araddr_next;
+  logic            m_axil_arvalid_next;
+  logic   [AW-1:0] m_axil_araddr_next;
 
-  logic          m_axil_awvalid_next;
-  logic   [31:0] m_axil_awaddr_next;
+  logic            m_axil_awvalid_next;
+  logic   [AW-1:0] m_axil_awaddr_next;
 
-  logic          m_axil_wvalid_next;
-  logic   [31:0] m_axil_wdata_next;
+  logic            m_axil_wvalid_next;
+  logic   [DW-1:0] m_axil_wdata_next;
 
-  logic          utx_valid_next;
-  logic   [ 7:0] utx_data_next;
+  logic            utx_valid_next;
+  logic   [   7:0] utx_data_next;
 
-  logic          urx_ready_next;
+  logic            urx_ready_next;
 
   assign m_axil_wstrb = '1;
 
