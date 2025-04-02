@@ -20,66 +20,70 @@
 // than this 1:N.
 //
 module svc_axil_router_rd #(
-    parameter AXIL_ADDR_WIDTH = 32,
-    parameter AXIL_DATA_WIDTH = 16,
-    parameter NUM_S           = 2
+    parameter S_AXIL_ADDR_WIDTH = 32,
+    parameter S_AXIL_DATA_WIDTH = 16,
+    parameter M_AXIL_ADDR_WIDTH = 32,
+    parameter M_AXIL_DATA_WIDTH = 16,
+    parameter NUM_S             = 2
 ) (
     input logic clk,
     input logic rst_n,
 
     // subordinate interface for our manager
-    input  logic                       s_axil_arvalid,
-    input  logic [AXIL_ADDR_WIDTH-1:0] s_axil_araddr,
-    output logic                       s_axil_arready,
+    input  logic                         s_axil_arvalid,
+    input  logic [S_AXIL_ADDR_WIDTH-1:0] s_axil_araddr,
+    output logic                         s_axil_arready,
 
-    output logic                       s_axil_rvalid,
-    output logic [AXIL_DATA_WIDTH-1:0] s_axil_rdata,
-    output logic [                1:0] s_axil_rresp,
-    input  logic                       s_axil_rready,
+    output logic                         s_axil_rvalid,
+    output logic [S_AXIL_DATA_WIDTH-1:0] s_axil_rdata,
+    output logic [                  1:0] s_axil_rresp,
+    input  logic                         s_axil_rready,
 
     // manager interfaces to our subordinates
-    output logic [NUM_S-1:0]                      m_axil_arvalid,
-    output logic [NUM_S-1:0][AXIL_ADDR_WIDTH-1:0] m_axil_araddr,
-    input  logic [NUM_S-1:0]                      m_axil_arready,
+    output logic [NUM_S-1:0]                        m_axil_arvalid,
+    output logic [NUM_S-1:0][M_AXIL_ADDR_WIDTH-1:0] m_axil_araddr,
+    input  logic [NUM_S-1:0]                        m_axil_arready,
 
-    input  logic [NUM_S-1:0]                      m_axil_rvalid,
-    input  logic [NUM_S-1:0][AXIL_DATA_WIDTH-1:0] m_axil_rdata,
-    input  logic [NUM_S-1:0][                1:0] m_axil_rresp,
-    output logic [NUM_S-1:0]                      m_axil_rready
+    input  logic [NUM_S-1:0]                        m_axil_rvalid,
+    input  logic [NUM_S-1:0][M_AXIL_DATA_WIDTH-1:0] m_axil_rdata,
+    input  logic [NUM_S-1:0][                  1:0] m_axil_rresp,
+    output logic [NUM_S-1:0]                        m_axil_rready
 );
-  localparam AW = AXIL_ADDR_WIDTH;
-  localparam DW = AXIL_DATA_WIDTH;
+  localparam S_AW = S_AXIL_ADDR_WIDTH;
+  localparam S_DW = S_AXIL_DATA_WIDTH;
+  localparam M_AW = M_AXIL_ADDR_WIDTH;
+  localparam M_DW = M_AXIL_DATA_WIDTH;
   localparam SEL_W = $clog2(NUM_S);
 
-  logic                         active;
-  logic                         active_next;
+  logic                               active;
+  logic                               active_next;
 
-  logic                         bus_err;
-  logic                         bus_err_next;
+  logic                               bus_err;
+  logic                               bus_err_next;
 
-  logic [    NUM_S-1:0]         m_axil_arvalid_next;
-  logic [    NUM_S-1:0][AW-1:0] m_axil_araddr_next;
+  logic [        NUM_S-1:0]           m_axil_arvalid_next;
+  logic [        NUM_S-1:0][M_AW-1:0] m_axil_araddr_next;
 
-  logic                         sb_s_arvalid;
-  logic [AW-1:AW-SEL_W]         sb_s_araddr_sel;
-  logic [ AW-SEL_W-1:0]         sb_s_araddr_sub;
-  logic                         sb_s_arready;
+  logic                               sb_s_arvalid;
+  logic [S_AW-1:S_AW-SEL_W]           sb_s_araddr_sel;
+  logic [   S_AW-SEL_W-1:0]           sb_s_araddr_sub;
+  logic                               sb_s_arready;
 
-  logic                         sb_s_rvalid;
-  logic [       DW-1:0]         sb_s_rdata;
-  logic [          1:0]         sb_s_rresp;
-  logic                         sb_s_rready;
+  logic                               sb_s_rvalid;
+  logic [         S_DW-1:0]           sb_s_rdata;
+  logic [              1:0]           sb_s_rresp;
+  logic                               sb_s_rready;
 
-  logic [    NUM_S-1:0]         sb_m_rvalid;
-  logic [    NUM_S-1:0][DW-1:0] sb_m_rdata;
-  logic [    NUM_S-1:0][   1:0] sb_m_rresp;
-  logic [    NUM_S-1:0]         sb_m_rready;
+  logic [        NUM_S-1:0]           sb_m_rvalid;
+  logic [        NUM_S-1:0][M_DW-1:0] sb_m_rdata;
+  logic [        NUM_S-1:0][     1:0] sb_m_rresp;
+  logic [        NUM_S-1:0]           sb_m_rready;
 
-  logic [    SEL_W-1:0]         sel;
-  logic [    SEL_W-1:0]         sel_next;
+  logic [        SEL_W-1:0]           sel;
+  logic [        SEL_W-1:0]           sel_next;
 
   svc_skidbuf #(
-      .DATA_WIDTH(AW)
+      .DATA_WIDTH(S_AW)
   ) svc_skidbuf_s_ar_i (
       .clk  (clk),
       .rst_n(rst_n),
@@ -94,7 +98,7 @@ module svc_axil_router_rd #(
   );
 
   svc_skidbuf #(
-      .DATA_WIDTH(DW + 2),
+      .DATA_WIDTH(S_DW + 2),
       .OPT_OUTREG(1)
   ) svc_skidbuf_s_r_i (
       .clk    (clk),
@@ -109,7 +113,7 @@ module svc_axil_router_rd #(
 
   for (genvar i = 0; i < NUM_S; i++) begin : gen_r_sb
     svc_skidbuf #(
-        .DATA_WIDTH(DW + 2)
+        .DATA_WIDTH(M_DW + 2)
     ) svc_skidbuf_m_r_i (
         .clk  (clk),
         .rst_n(rst_n),
@@ -146,7 +150,7 @@ module svc_axil_router_rd #(
           bus_err_next = 1'b1;
         end else begin
           m_axil_arvalid_next[sel_next] = 1'b1;
-          m_axil_araddr_next[sel_next]  = {SEL_W'(0), sb_s_araddr_sub};
+          m_axil_araddr_next[sel_next]  = M_AW'({SEL_W'(0), sb_s_araddr_sub});
         end
       end
     end else begin
@@ -179,11 +183,11 @@ module svc_axil_router_rd #(
     if (active) begin
       if (bus_err) begin
         sb_s_rvalid = 1'b1;
-        sb_s_rdata  = DW'(32'hADD1EBAD);
+        sb_s_rdata  = S_DW'(32'hADD1EBAD);
         sb_s_rresp  = 2'b11;
       end else begin
         sb_s_rvalid = sb_m_rvalid[sel];
-        sb_s_rdata  = sb_m_rdata[sel];
+        sb_s_rdata  = S_DW'(sb_m_rdata[sel]);
         sb_s_rresp  = sb_m_rresp[sel];
       end
     end
