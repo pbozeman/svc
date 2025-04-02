@@ -45,8 +45,9 @@ module svc_stats_val #(
   );
 
   svc_stats_sum #(
-      .WIDTH (WIDTH),
-      .STAGES(STAGES)
+      .WIDTH     (WIDTH),
+      .STAT_WIDTH(STAT_WIDTH),
+      .STAGES    (STAGES)
   ) svc_stats_sum_i (
       .clk  (clk),
       .rst_n(rst_n),

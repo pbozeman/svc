@@ -20,14 +20,14 @@
 
 // verilator lint_off: UNUSEDSIGNAL
 module svc_axi_stats_wr #(
+    parameter STAT_WIDTH      = 32,
     parameter AXIL_ADDR_WIDTH = 8,
-    parameter AXIL_DATA_WIDTH = 32,
+    parameter AXIL_DATA_WIDTH = STAT_WIDTH,
     parameter AXIL_STRB_WIDTH = AXIL_DATA_WIDTH / 8,
     parameter AXI_ADDR_WIDTH  = 20,
     parameter AXI_DATA_WIDTH  = 16,
     parameter AXI_ID_WIDTH    = 4,
-    parameter AXI_STRB_WIDTH  = AXI_DATA_WIDTH / 8,
-    parameter STAT_WIDTH      = 32
+    parameter AXI_STRB_WIDTH  = AXI_DATA_WIDTH / 8
 ) (
     input logic clk,
     input logic rst_n,
@@ -302,32 +302,32 @@ module svc_axi_stats_wr #(
       s_axil_rresp_next  = 2'b00;
 
       case (sb_araddr)
-        STAT_AW_BURST_CNT:      s_axil_rdata_next = aw_burst_cnt;
+        STAT_AW_BURST_CNT:      s_axil_rdata_next = DW'(aw_burst_cnt);
         STAT_AW_DEPTH_MAX:      s_axil_rdata_next = DW'(aw_outstanding_max);
         STAT_AW_LEN_MIN:        s_axil_rdata_next = DW'(awlen_min);
         STAT_AW_LEN_MAX:        s_axil_rdata_next = DW'(awlen_max);
-        STAT_AW_BYTES_SUM:      s_axil_rdata_next = aw_bytes_sum;
+        STAT_AW_BYTES_SUM:      s_axil_rdata_next = DW'(aw_bytes_sum);
         STAT_AW_BYTES_MIN:      s_axil_rdata_next = DW'(aw_bytes_min);
         STAT_AW_BYTES_MAX:      s_axil_rdata_next = DW'(aw_bytes_max);
-        STAT_W_BURST_CNT:       s_axil_rdata_next = w_burst_cnt;
+        STAT_W_BURST_CNT:       s_axil_rdata_next = DW'(w_burst_cnt);
         STAT_W_DEPTH_MAX:       s_axil_rdata_next = DW'(w_outstanding_max);
-        STAT_W_BEAT_CNT:        s_axil_rdata_next = w_beat_cnt;
-        STAT_W_BYTES_SUM:       s_axil_rdata_next = w_bytes_sum;
+        STAT_W_BEAT_CNT:        s_axil_rdata_next = DW'(w_beat_cnt);
+        STAT_W_BYTES_SUM:       s_axil_rdata_next = DW'(w_bytes_sum);
         STAT_W_BYTES_MIN:       s_axil_rdata_next = DW'(w_bytes_min);
         STAT_W_BYTES_MAX:       s_axil_rdata_next = DW'(w_bytes_max);
-        STAT_W_DATA_LAG_CNT:    s_axil_rdata_next = w_data_lag_cnt;
-        STAT_W_IDLE_CNT:        s_axil_rdata_next = w_idle_cycles_cnt;
-        STAT_W_EARLY_BEAT_CNT:  s_axil_rdata_next = w_early_beat_cnt;
-        STAT_W_AWR_EARLY_CNT:   s_axil_rdata_next = w_awr_early_cnt;
-        STAT_W_B_LAG_CNT:       s_axil_rdata_next = w_b_lag_cnt;
-        STAT_W_B_STALL_CNT:     s_axil_rdata_next = w_b_stall_cnt;
-        STAT_W_B_END_CNT:       s_axil_rdata_next = w_b_end_cnt;
-        STAT_W_SLOW_DATA_CNT:   s_axil_rdata_next = w_slow_data_cnt;
-        STAT_W_STALL_CNT:       s_axil_rdata_next = w_stall_cnt;
-        STAT_W_ADDR_STALL_CNT:  s_axil_rdata_next = w_addr_stall_cnt;
-        STAT_W_ADDR_LAG_CNT:    s_axil_rdata_next = w_addr_lag_cnt;
-        STAT_W_EARLY_STALL_CNT: s_axil_rdata_next = w_early_stall_cnt;
-        STAT_W_ERR_CNT:         s_axil_rdata_next = w_err_cnt;
+        STAT_W_DATA_LAG_CNT:    s_axil_rdata_next = DW'(w_data_lag_cnt);
+        STAT_W_IDLE_CNT:        s_axil_rdata_next = DW'(w_idle_cycles_cnt);
+        STAT_W_EARLY_BEAT_CNT:  s_axil_rdata_next = DW'(w_early_beat_cnt);
+        STAT_W_AWR_EARLY_CNT:   s_axil_rdata_next = DW'(w_awr_early_cnt);
+        STAT_W_B_LAG_CNT:       s_axil_rdata_next = DW'(w_b_lag_cnt);
+        STAT_W_B_STALL_CNT:     s_axil_rdata_next = DW'(w_b_stall_cnt);
+        STAT_W_B_END_CNT:       s_axil_rdata_next = DW'(w_b_end_cnt);
+        STAT_W_SLOW_DATA_CNT:   s_axil_rdata_next = DW'(w_slow_data_cnt);
+        STAT_W_STALL_CNT:       s_axil_rdata_next = DW'(w_stall_cnt);
+        STAT_W_ADDR_STALL_CNT:  s_axil_rdata_next = DW'(w_addr_stall_cnt);
+        STAT_W_ADDR_LAG_CNT:    s_axil_rdata_next = DW'(w_addr_lag_cnt);
+        STAT_W_EARLY_STALL_CNT: s_axil_rdata_next = DW'(w_early_stall_cnt);
+        STAT_W_ERR_CNT:         s_axil_rdata_next = DW'(w_err_cnt);
         default: begin
           s_axil_rdata_next = 0;
           s_axil_rresp_next = 2'b11;
