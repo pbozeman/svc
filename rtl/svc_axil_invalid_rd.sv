@@ -1,7 +1,9 @@
 `ifndef SVC_AXIL_INVALID_RD_SV
 `define SVC_AXIL_INVALID_RD_SV
+
 `include "svc.sv"
 `include "svc_unused.sv"
+
 //
 // AXIL subordinate that returns errors on read
 //
@@ -47,5 +49,6 @@ module svc_axil_invalid_rd #(
   end
 
   `SVC_UNUSED(s_axil_araddr);
+
 endmodule
 `endif
