@@ -1,0 +1,22 @@
+[tasks]
+bmc
+cover
+
+[options]
+bmc: mode bmc
+cover: mode cover
+depth 14
+
+[engines]
+smtbmc boolector
+
+[script]
+read_verilog -formal -DFORMAL_SVC_AXIL_ROUTER -sv svc_axil_router.sv
+read -formal -sv faxil_master.v
+read -formal -sv faxil_slave.v
+prep -top svc_axil_router
+
+[files]
+rtl/
+tb/formal/faxil_master.v
+tb/formal/faxil_slave.v

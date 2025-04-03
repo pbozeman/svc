@@ -258,7 +258,9 @@ module svc_axil_router_wr #(
     sel           <= sel_next;
   end
 
-  `SVC_UNUSED({sb_s_wdata[S_DW-1:M_DW], sb_s_wstrb[S_SW-1:M_SW]});
+  if (S_DW != M_DW) begin : gen_unused
+    `SVC_UNUSED({sb_s_wdata[S_DW-1:M_DW], sb_s_wstrb[S_SW-1:M_SW]});
+  end
 
 `ifdef FORMAL
   // This doesn't have a formal of it's own, but gets tested up with the full

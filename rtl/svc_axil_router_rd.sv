@@ -222,7 +222,7 @@ module svc_axil_router_rd #(
   // router.
   always @(posedge clk) begin
     if (rst_n) begin
-      if (|sb_m_arvalid) begin
+      if (|m_axil_arvalid) begin
         assert (active);
       end
 
