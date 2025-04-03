@@ -131,8 +131,6 @@ def main():
     try:
         axi = AxiBridgeUart(serial_port)
         stats = read_registers(axi, BASE_ADDR)
-        axi.close()
-
         # Print name and frequency
         print(f"# Name:  {block_name}")
         print(f"# Speed: {clock_speed_mhz} MHz")
@@ -144,6 +142,7 @@ def main():
         print(f"Error: {e}")
         return 1
 
+    axi.close()
     return 0
 
 
