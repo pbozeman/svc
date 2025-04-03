@@ -65,7 +65,6 @@ module svc_axil_router_rd_tb;
       .m_axil_rready(s_axil_rready)
   );
 
-  // Initialize signals in reset
   always_ff @(posedge clk) begin
     if (~rst_n) begin
       m_axil_arvalid <= 1'b0;
