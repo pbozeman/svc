@@ -32,10 +32,10 @@ if data is None:
 else:
     resp = axi.write_word(addr, data)
 
-axi.close()
-
 if resp != 0:
     err = AXI_RESP.get(resp, "UNKNOWN")
     print(f"0x{addr:08X}: {err} (0x{resp:02X})")
 else:
     print(f"{addr:08X}: 0x{data:08X}")
+
+axi.close()
