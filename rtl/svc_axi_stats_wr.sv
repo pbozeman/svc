@@ -249,7 +249,7 @@ module svc_axi_stats_wr #(
   svc_axil_invalid_wr #(
       .AXIL_ADDR_WIDTH(AXIL_ADDR_WIDTH),
       .AXIL_DATA_WIDTH(AXIL_DATA_WIDTH)
-  ) svc_axi_invalid_wr_i (
+  ) svc_axil_invalid_wr_i (
       .clk           (clk),
       .rst_n         (rst_n),
       .s_axil_awaddr (s_axil_awaddr),
