@@ -9,7 +9,10 @@ CPU_FREQ_HZ = 100_000_000
 # TODO: add dict of name to base addr and do them all
 # For now, the top stats from perf are in addr space with
 # selection 1. 0 is the main control interface
-BASE_ADDR = (1 << 30) | 0x0
+#
+# TODO: use NUM_M to calc the base. The selector is currently 3 bits
+# $clog2(2 * NUM_M + 2) where NUM_M is currently 2.
+BASE_ADDR = (1 << 29) | 0x0
 
 # The word size is not necessarily 32bits, but it usually will be
 BYTES_PER_WORD = 4
