@@ -78,8 +78,8 @@ module svc_axi_stats_wr #(
 
   // we need to convert the byte addr to a word addr, since we are going to do
   // a word/register lookup
-  parameter ADDRLSB = $clog2(AXIL_DATA_WIDTH) - 3;
-  parameter RAW = AW - ADDRLSB;
+  localparam ADDRLSB = $clog2(AXIL_DATA_WIDTH) - 3;
+  localparam RAW = AW - ADDRLSB;
 
   localparam SW = STAT_WIDTH;
   localparam ASW = AXI_STRB_WIDTH;
