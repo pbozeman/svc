@@ -9,25 +9,22 @@ CPU_FREQ_HZ = 100_000_000
 
 # Each set of registers is at a base address that depends on the number of managers in use.
 # The registers are memory mapped to a 32bit address space with the upper bits selecting
-# the register set to address. There are a total of (NUM_M * 2 + 2) sets of registers.
-# There is a top control register for the entire benchmarking infrastructure (CTRL_TOP) and
-# and a REG_STATS at the top level memory interface. Each manager, 1 per NUM_M, has it's
-# own CTRL set and a REG_STATS. These are mapped to the following indexes:
-#  0: ctrl_top
-#  1: stats_top
-#  2: manager 0 ctrl
-#  3: manager 0 stats
-#  4: manager 1 ctrl
-#  5: manager 1 stats
+# the register set to address.
 #
-#  ...
+# Based on the AXIL connection configuration of the router that takes the form:
+#   .m_axil_awvalid({
+#     stats_perf_awvalid, ctrl_awvalid, stats_top_awvalid, ctrl_top_awvalid
+#   }),
 #
-#  n+2: manager n ctrl
-#  n+3: manager n stats
+# The addressing scheme is:
+#  0: ctrl_top (top level control)
+#  1: stats_top (top level stats)
+#  2 to 2+NUM_M-1: ctrl_0 to ctrl_(NUM_M-1) (manager control registers)
+#  2+NUM_M to 2+2*NUM_M-1: stats_perf_0 to stats_perf_(NUM_M-1) (manager stats)
 #
 # And each of those indexes is mapped to memory address:
 #
-#   base_addr = (idx << (32 - $clog2(NUM_M * 2 + 2))
+#   base_addr = (idx << (32 - $clog2(2 + 2*NUM_M)))
 
 # The word size is not necessarily 32bits, but it usually will be
 BYTES_PER_WORD = 4
@@ -45,8 +42,8 @@ REG_CTRL = {
     "REG_BASE_ADDR": 0,
     "REG_BURST_BEATS": 1,
     "REG_BURST_STRIDE": 2,
-    "REG_BURST_NUM": 3,
-    "REG_BURST_AWSIZE": 4,
+    "REG_BURST_AWSIZE": 3,
+    "REG_BURST_NUM": 4,
 }
 
 # Stats register definitions.
@@ -99,6 +96,17 @@ def get_num_managers(axi):
     return num_m
 
 
+def get_clock_freq(axi):
+    """Read the clock frequency from the top control register"""
+    addr = 0 + (REG_TOP_CTRL["REG_CLK_FREQ"] * BYTES_PER_WORD)
+    resp, freq = axi.read_word(addr)
+    if resp != 0:
+        err = AXI_RESP.get(resp, "UNKNOWN")
+        print(f"Error reading CLK_FREQ at 0x{addr:08X}: {err} (0x{resp:02X})")
+        return CPU_FREQ_HZ  # Fallback to default
+    return freq if freq > 0 else CPU_FREQ_HZ
+
+
 def calculate_base_addr(idx, num_m):
     """Calculate the base address for a given register set index based on NUM_M"""
     # Calculate $clog2(NUM_M * 2 + 2) - the number of bits needed to represent all sets
@@ -107,70 +115,96 @@ def calculate_base_addr(idx, num_m):
     return idx << shift_amount
 
 
-def read_registers(axi, base_addr=0):
-    """Read all statistics registers and return as a dictionary"""
+def read_registers(axi, base_addr, reg_set):
+    """Read registers from the given register set and return as a dictionary"""
     result = {}
-    for name, offset in REG_STATS.items():
+    for key, offset in reg_set.items():
         addr = base_addr + (offset * BYTES_PER_WORD)
         resp, value = axi.read_word(addr)
         if resp != 0:
             err = AXI_RESP.get(resp, "UNKNOWN")
-            print(f"Error reading {name} at 0x{addr:08X}: {err} (0x{resp:02X})")
+            print(f"Error reading {key} at 0x{addr:08X}: {err} (0x{resp:02X})")
             sys.exit(1)
-        # Convert register name to lowercase format without STAT_ prefix
-        key = name[5:].lower()
         result[key] = value
     return result
 
 
-def print_raw_stats(stats):
+def print_raw_stats(stats, label=""):
     """Print all raw statistics registers"""
-    print("\n# Raw Register Values")
-    for idx, (name, offset) in enumerate(REG_STATS.items()):
-        # Convert register name to lowercase format without STAT_ prefix
-        key = name[5:].lower()
+    print(f"\n# Raw Register Values{' for ' + label if label else ''}")
+    for idx, (key, offset) in enumerate(REG_STATS.items()):
         val = stats.get(key, 0)
-        print(f" {offset:02d}\t{key:<18}\t0x{val:<8x}\t{val:<10}")
+        # Convert register name to lowercase format without prefix
+        name = key.split("_", 1)[1].lower()
+        print(f" {offset:02d}\t{name:<18}\t0x{val:<8x}\t{val:<10}")
 
 
-def print_calculated_stats(block_name, stats, clock_speed_mhz):
-    """Print statistics in the requested format"""
+def print_raw_ctrl(ctrl, label=""):
+    """Print all control registers"""
+    print(f"\n# Control Register Values{' for ' + label if label else ''}")
+    reg_set = REG_TOP_CTRL if "REG_NUM_M" in ctrl else REG_CTRL
+    for idx, (key, offset) in enumerate(reg_set.items()):
+        val = ctrl.get(key, 0)
+        # Convert register name to lowercase format without prefix
+        name = key.split("_", 1)[1].lower()
+        print(f" {offset:02d}\t{name:<18}\t0x{val:<8x}\t{val:<10}")
+
+
+def calculate_perf_metrics(stats):
+    """Calculate common performance metrics from stats registers"""
+    # Extract basic counters
+    write_bursts = stats.get("STAT_W_BURST_CNT", 1)  # Avoid division by zero
+    write_beats = stats.get("STAT_W_BEAT_CNT", 0)
+    total_write_bytes = stats.get("STAT_AW_BYTES_SUM", 0)
+
+    # Calculate write latency
+    write_latency_numerator = (
+        stats.get("STAT_W_EARLY_BEAT_CNT", 0)
+        + stats.get("STAT_W_DATA_LAG_CNT", 0)
+        + stats.get("STAT_W_EARLY_STALL_CNT", 0)
+        + stats.get("STAT_W_B_STALL_CNT", 0)
+        + stats.get("STAT_W_ADDR_STALL_CNT", 0)
+        + stats.get("STAT_W_ADDR_LAG_CNT", 0)
+        + stats.get("STAT_W_B_LAG_CNT", 0)
+    )
+    write_latency = safe_div(write_latency_numerator, write_bursts)
+
+    # Calculate throughput
+    write_throughput_denominator = (
+        write_beats
+        + stats.get("STAT_W_STALL_CNT", 0)
+        + stats.get("STAT_W_AWR_EARLY_CNT", 0)
+        + stats.get("STAT_W_SLOW_DATA_CNT", 0)
+    )
+    write_throughput = safe_div(write_beats, write_throughput_denominator)
+
+    # Calculate bandwidth in bytes per cycle
+    bandwidth_bytes_per_cycle = safe_div(
+        total_write_bytes, write_throughput_denominator
+    )
+
+    return {
+        "write_bursts": write_bursts,
+        "write_beats": write_beats,
+        "total_bytes": total_write_bytes,
+        "write_latency": write_latency,
+        "write_throughput": write_throughput,
+        "bandwidth_bytes_per_cycle": bandwidth_bytes_per_cycle,
+    }
+
+
+def print_performance_summary(block_name, stats, clock_speed_mhz):
+    """Print performance summary statistics"""
     try:
-        # Calculate write latency
-        write_latency_numerator = (
-            stats.get("w_early_beat_cnt", 0)
-            + stats.get("w_data_lag_cnt", 0)
-            + stats.get("w_early_stall_cnt", 0)
-            + stats.get("w_b_stall_cnt", 0)
-            + stats.get("w_addr_stall_cnt", 0)
-            + stats.get("w_addr_lag_cnt", 0)
-            + stats.get("w_b_lag_cnt", 0)
-        )
-        write_bursts = stats.get("w_burst_cnt", 1)
-        write_latency = safe_div(write_latency_numerator, write_bursts)
+        metrics = calculate_perf_metrics(stats)
+        write_latency = metrics["write_latency"]
+        write_throughput = metrics["write_throughput"]
+        bandwidth_MBps = metrics["bandwidth_bytes_per_cycle"] * clock_speed_mhz
 
-        # Calculate throughput
-        write_beats = stats.get("w_beat_cnt", 0)
-        write_throughput_denominator = (
-            write_beats
-            + stats.get("w_stall_cnt", 0)
-            + stats.get("w_awr_early_cnt", 0)
-            + stats.get("w_slow_data_cnt", 0)
-        )
-        write_throughput = safe_div(write_beats, write_throughput_denominator)
-
-        # Calculate bandwidth
-        total_write_bytes = stats.get("aw_bytes_sum", 0)
-        bandwidth_bytes_per_cycle = safe_div(
-            total_write_bytes, write_throughput_denominator
-        )
-
-        bandwidth_MBps = bandwidth_bytes_per_cycle * clock_speed_mhz
-
-        print(f"\n# Stats for: {block_name}")
-        print(f" {'LATENCY':<12}= {write_latency:8.2f} cycles/burst")
-        print(f" {'THROUGHPUT':<12}= {write_throughput:8.2f} beats/cycle")
-        print(f" {'BANDWIDTH':<12}= {bandwidth_MBps:8.2f} MB/s")
+        print(f"\n# Performance Summary:")
+        print(f" {'LATENCY':<20}: {write_latency:.2f} cycles/burst")
+        print(f" {'THROUGHPUT':<20}: {write_throughput:.2f} beats/cycle")
+        print(f" {'BANDWIDTH':<20}: {bandwidth_MBps:.2f} MB/s")
     except Exception as e:
         print(f" Failed to compute stats for {block_name}: {e}")
 
@@ -181,30 +215,68 @@ def main():
         return 1
 
     serial_port = sys.argv[1]
-    block_name = "AXI"
-    clock_speed_mhz = CPU_FREQ_HZ / 1_000_000
 
     try:
         axi = AxiBridgeUart(serial_port)
 
-        # Get the number of managers (NUM_M) from the register
+        # Get the number of managers (NUM_M)
         num_m = get_num_managers(axi)
         print(f"# Detected NUM_M: {num_m}")
 
-        # Calculate the base address for the stats registers using NUM_M
-        stats_idx = 1  # stats_top is at index 1
-        base_addr = calculate_base_addr(stats_idx, num_m)
-        print(f"# Using base address: 0x{base_addr:08X}")
+        # Get clock frequency
+        cpu_freq_hz = get_clock_freq(axi)
+        clock_speed_mhz = cpu_freq_hz / 1_000_000
+        print(f"# Clock frequency: {clock_speed_mhz:.2f} MHz")
 
-        # Read the stats using the calculated base address
-        stats = read_registers(axi, base_addr)
+        # Display top control and stats register info
+        top_ctrl_idx = 0
+        top_ctrl_addr = calculate_base_addr(top_ctrl_idx, num_m)
 
-        # Print name and frequency
-        print(f"# Name:  {block_name}")
-        print(f"# Speed: {clock_speed_mhz} MHz")
+        top_stats_idx = 1
+        top_stats_addr = calculate_base_addr(top_stats_idx, num_m)
 
-        print_raw_stats(stats)
-        print_calculated_stats(block_name, stats, clock_speed_mhz)
+        print(f"\n{'='*80}")
+        print(f"# AGGREGATE")
+        print(f"{'='*80}")
+
+        print(f"# Control base address: 0x{top_ctrl_addr:08X}")
+        print(f"# Stats base address:   0x{top_stats_addr:08X}")
+
+        # Read and print top control registers
+        top_ctrl = read_registers(axi, top_ctrl_addr, REG_TOP_CTRL)
+        print_raw_ctrl(top_ctrl, "Top-level")
+
+        # Read and print top stats registers
+        top_stats = read_registers(axi, top_stats_addr, REG_STATS)
+        print_raw_stats(top_stats, "Top-level")
+
+        # Print performance summary at the end
+        print_performance_summary("AXI (Top-level)", top_stats, clock_speed_mhz)
+
+        for m in range(num_m):
+            # Manager control regs are at indices 2 to (2+NUM_M-1)
+            m_ctrl_idx = 2 + m
+            m_ctrl_addr = calculate_base_addr(m_ctrl_idx, num_m)
+
+            # Manager stats are at indices (2+NUM_M) to (2+2*NUM_M-1)
+            m_stats_idx = 2 + num_m + m
+            m_stats_addr = calculate_base_addr(m_stats_idx, num_m)
+
+            # Read control and stats registers
+            m_ctrl = read_registers(axi, m_ctrl_addr, REG_CTRL)
+            m_stats = read_registers(axi, m_stats_addr, REG_STATS)
+
+            # Header
+            print(f"\n{'='*80}")
+            print(f"# MANAGER {m}")
+            print(f"{'='*80}")
+
+            # Print detailed registers
+            print(f"# Control base address: 0x{m_ctrl_addr:08X}")
+            print(f"# Stats base address:   0x{m_stats_addr:08X}")
+            print_raw_ctrl(m_ctrl, f"Manager {m}")
+            print_raw_stats(m_stats, f"Manager {m}")
+            print_performance_summary(f"AXI Manager {m}", m_stats, clock_speed_mhz)
 
     except Exception as e:
         print(f"Error: {e}")
