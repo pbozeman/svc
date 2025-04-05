@@ -6,7 +6,7 @@
 // For now, this is the way the default for an ice40 vs. a
 // xilinx chip is getting set (albeit crudely)
 `ifdef SYNTH_YOSYS
-`define SVC_PIPE_BPS 8
+`define SVC_PIPE_BPS 4
 `else
 `define SVC_PIPE_BPS 16
 `endif
