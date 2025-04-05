@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
-import sys
 import math
+import sys
+import time
+
 from axi_bridge_uart import AxiBridgeUart
 
 # TODO: get the cpu freq from register
@@ -9,7 +11,6 @@ CPU_FREQ_HZ = 100_000_000
 
 # TODO: get this dynamically
 AXI_DATA_WIDTH = 16
-
 
 MANAGER_SETTINGS = {
     0: {
@@ -137,15 +138,39 @@ def calculate_base_addr(idx, num_m):
     return idx << shift_amount
 
 
+def read_register(axi, base_addr, reg_name, reg_set):
+    """Read from a specific register
+
+    Args:
+        axi: AxiBridgeUart instance
+        base_addr: Base address for the register set
+        reg_name: Name of the register to read
+        reg_set: Dictionary mapping register names to offsets
+
+    Returns:
+        The value of the register, or None if an error occurs
+    """
+    if reg_name not in reg_set:
+        print(f"Error: Unknown register {reg_name}")
+        return None
+
+    offset = reg_set[reg_name]
+    addr = base_addr + (offset * BYTES_PER_WORD)
+    resp, value = axi.read_word(addr)
+
+    if resp != 0:
+        err = AXI_RESP.get(resp, "UNKNOWN")
+        print(f"Error reading {reg_name} at 0x{addr:08X}: {err} (0x{resp:02X})")
+        return None
+    return value
+
+
 def read_registers(axi, base_addr, reg_set):
     """Read registers from the given register set and return as a dictionary"""
     result = {}
-    for key, offset in reg_set.items():
-        addr = base_addr + (offset * BYTES_PER_WORD)
-        resp, value = axi.read_word(addr)
-        if resp != 0:
-            err = AXI_RESP.get(resp, "UNKNOWN")
-            print(f"Error reading {key} at 0x{addr:08X}: {err} (0x{resp:02X})")
+    for key in reg_set:
+        value = read_register(axi, base_addr, key, reg_set)
+        if value is None:
             sys.exit(1)
         result[key] = value
     return result
@@ -168,6 +193,57 @@ def write_register(axi, base_addr, reg_name, reg_set, value):
         )
         return False
     return True
+
+
+def wait_for_idle(axi, num_m, timeout_seconds=10):
+    """Wait for the system to become idle or until timeout
+
+    Args:
+        axi: AxiBridgeUart instance
+        num_m: Number of managers
+        timeout_seconds: Maximum time to wait in seconds
+
+
+    Raises:
+        TimeoutError: If the system does not become idle within the timeout period
+
+    Returns:
+        True if system became idle, False if timeout occurred
+    """
+    start_time = time.time()
+    top_ctrl_addr = calculate_base_addr(0, num_m)
+
+    while time.time() - start_time < timeout_seconds:
+        idle = read_register(axi, top_ctrl_addr, "REG_IDLE", REG_TOP_CTRL)
+        if idle is None:
+            raise RuntimeError("Failed to read IDLE register")
+
+        if idle != 0:
+            return True
+
+        # Sleep briefly to avoid hammering the bus
+        time.sleep(0.1)
+
+    raise TimeoutError(
+        f"Timeout after {timeout_seconds} seconds waiting for system to become idle"
+    )
+
+
+def start_perf(axi, num_m):
+    """Start the AXI perf test by writing to the START register
+
+    Args:
+        axi: AxiBridgeUart instance
+        num_m: Number of managers
+
+    Returns:
+        True if successfully started, False otherwise
+    """
+    # Top control regs are at memory base 0
+    top_ctrl_addr = calculate_base_addr(0, num_m)
+
+    print("\n# Starting Perf system...")
+    return write_register(axi, top_ctrl_addr, "REG_START", REG_TOP_CTRL, 1)
 
 
 def print_raw_settings(settings, manager_id):
@@ -283,7 +359,7 @@ def configure_all_managers(axi, num_m, settings_dict):
     """
     for manager_id, settings in settings_dict.items():
         if manager_id < 0 or manager_id >= num_m:
-            print(f"Error: Invalid manager ID {manager_id}. Valid range: 0-{num_m-1}")
+            print(f"\nError: Invalid manager ID {manager_id}. Valid range: 0-{num_m-1}")
             continue
 
         write_manager_settings(axi, manager_id, num_m, settings)
@@ -310,6 +386,9 @@ def main():
 
         print("\n# Configuring managers")
         configure_all_managers(axi, num_m, MANAGER_SETTINGS)
+
+        start_perf(axi, num_m)
+        wait_for_idle(axi, num_m)
 
         # Display top control and stats register info
         top_ctrl_idx = 0
