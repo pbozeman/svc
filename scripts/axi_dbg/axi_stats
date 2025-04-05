@@ -20,13 +20,13 @@ MANAGER_SETTINGS = {
         "REG_BURST_AWSIZE": int(math.log2(AXI_DATA_WIDTH // 8)),
         "REG_BURST_NUM": 16,
     },
-    1: {
-        "REG_BASE_ADDR": 0,
-        "REG_BURST_BEATS": 16,
-        "REG_BURST_STRIDE": 16 * (AXI_DATA_WIDTH // 8),
-        "REG_BURST_AWSIZE": int(math.log2(AXI_DATA_WIDTH // 8)),
-        "REG_BURST_NUM": 16,
-    },
+    # 1: {
+    #     "REG_BASE_ADDR": 0,
+    #     "REG_BURST_BEATS": 16,
+    #     "REG_BURST_STRIDE": 16 * (AXI_DATA_WIDTH // 8),
+    #     "REG_BURST_AWSIZE": int(math.log2(AXI_DATA_WIDTH // 8)),
+    #     "REG_BURST_NUM": 16,
+    # },
     # Add more manager settings as needed
 }
 
@@ -219,6 +219,7 @@ def wait_for_idle(axi, num_m, timeout_seconds=10):
             raise RuntimeError("Failed to read IDLE register")
 
         if idle != 0:
+            print("# Done")
             return True
 
         # Sleep briefly to avoid hammering the bus
@@ -227,6 +228,22 @@ def wait_for_idle(axi, num_m, timeout_seconds=10):
     raise TimeoutError(
         f"Timeout after {timeout_seconds} seconds waiting for system to become idle"
     )
+
+
+def clear_perf(axi, num_m):
+    """Clear the AXI perf test metrics by writing to the CLEAR register
+
+    Args:
+        axi: AxiBridgeUart instance
+        num_m: Number of managers
+
+    Returns:
+        True if successfully cleared, False otherwise
+    """
+    top_ctrl_addr = calculate_base_addr(0, num_m)
+
+    print("# Clearing Perf system metrics...")
+    return write_register(axi, top_ctrl_addr, "REG_CLEAR", REG_TOP_CTRL, 1)
 
 
 def start_perf(axi, num_m):
@@ -239,10 +256,9 @@ def start_perf(axi, num_m):
     Returns:
         True if successfully started, False otherwise
     """
-    # Top control regs are at memory base 0
     top_ctrl_addr = calculate_base_addr(0, num_m)
 
-    print("\n# Starting Perf system...")
+    print("# Starting Perf system...")
     return write_register(axi, top_ctrl_addr, "REG_START", REG_TOP_CTRL, 1)
 
 
@@ -387,6 +403,8 @@ def main():
         print("\n# Configuring managers")
         configure_all_managers(axi, num_m, MANAGER_SETTINGS)
 
+        print("\n# Running test")
+        clear_perf(axi, num_m)
         start_perf(axi, num_m)
         wait_for_idle(axi, num_m)
 
