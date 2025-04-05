@@ -7,6 +7,28 @@ from axi_bridge_uart import AxiBridgeUart
 # TODO: get the cpu freq from register
 CPU_FREQ_HZ = 100_000_000
 
+# TODO: get this dynamically
+AXI_DATA_WIDTH = 16
+
+
+MANAGER_SETTINGS = {
+    0: {
+        "REG_BASE_ADDR": 128,
+        "REG_BURST_BEATS": 16,
+        "REG_BURST_STRIDE": 16 * (AXI_DATA_WIDTH // 8),
+        "REG_BURST_AWSIZE": int(math.log2(AXI_DATA_WIDTH // 8)),
+        "REG_BURST_NUM": 16,
+    },
+    1: {
+        "REG_BASE_ADDR": 0,
+        "REG_BURST_BEATS": 16,
+        "REG_BURST_STRIDE": 16 * (AXI_DATA_WIDTH // 8),
+        "REG_BURST_AWSIZE": int(math.log2(AXI_DATA_WIDTH // 8)),
+        "REG_BURST_NUM": 16,
+    },
+    # Add more manager settings as needed
+}
+
 # Each set of registers is at a base address that depends on the number of managers in use.
 # The registers are memory mapped to a 32bit address space with the upper bits selecting
 # the register set to address.
@@ -129,6 +151,48 @@ def read_registers(axi, base_addr, reg_set):
     return result
 
 
+def write_register(axi, base_addr, reg_name, reg_set, value):
+    """Write to a specific register"""
+    if reg_name not in reg_set:
+        print(f"Error: Unknown register {reg_name}")
+        return False
+
+    offset = reg_set[reg_name]
+    addr = base_addr + (offset * BYTES_PER_WORD)
+    resp = axi.write_word(addr, value)
+
+    if resp != 0:
+        err = AXI_RESP.get(resp, "UNKNOWN")
+        print(
+            f"Error writing {value} to {reg_name} at 0x{addr:08X}: {err} (0x{resp:02X})"
+        )
+        return False
+    return True
+
+
+def print_raw_settings(settings, manager_id):
+    """Print settings registers in the same format as other registers"""
+    print(f"\n# Settings Register Values for Manager {manager_id}")
+    for idx, (key, value) in enumerate(settings.items()):
+        # Convert register name to lowercase format without prefix
+        name = key.split("_", 1)[1].lower() if "_" in key else key.lower()
+        print(f" {idx:02d}\t{name:<18}\t0x{value:<8x}\t{value:<10}")
+
+
+def write_manager_settings(axi, manager_id, num_m, settings):
+    """Write settings to a manager's control registers"""
+    # Manager control regs are at indices 2 to (2+NUM_M-1)
+    m_ctrl_idx = 2 + manager_id
+    m_ctrl_addr = calculate_base_addr(m_ctrl_idx, num_m)
+    print_raw_settings(settings, manager_id)
+
+    for reg_name, value in settings.items():
+        if reg_name in REG_CTRL:
+            write_register(axi, m_ctrl_addr, reg_name, REG_CTRL, value)
+        else:
+            print(f" Warning: Skipping unknown register '{reg_name}'")
+
+
 def print_raw_stats(stats, label=""):
     """Print all raw statistics registers"""
     print(f"\n# Raw Register Values{' for ' + label if label else ''}")
@@ -209,6 +273,22 @@ def print_performance_summary(block_name, stats, clock_speed_mhz):
         print(f" Failed to compute stats for {block_name}: {e}")
 
 
+def configure_all_managers(axi, num_m, settings_dict):
+    """Configure all managers with their respective settings
+
+    Args:
+        axi: AxiBridgeUart instance
+        num_m: Number of managers
+        settings_dict: Dictionary mapping manager IDs to register settings
+    """
+    for manager_id, settings in settings_dict.items():
+        if manager_id < 0 or manager_id >= num_m:
+            print(f"Error: Invalid manager ID {manager_id}. Valid range: 0-{num_m-1}")
+            continue
+
+        write_manager_settings(axi, manager_id, num_m, settings)
+
+
 def main():
     if len(sys.argv) != 2:
         print("Usage: axi_stats <serial_port>")
@@ -227,6 +307,9 @@ def main():
         cpu_freq_hz = get_clock_freq(axi)
         clock_speed_mhz = cpu_freq_hz / 1_000_000
         print(f"# Clock frequency: {clock_speed_mhz:.2f} MHz")
+
+        print("\n# Configuring managers")
+        configure_all_managers(axi, num_m, MANAGER_SETTINGS)
 
         # Display top control and stats register info
         top_ctrl_idx = 0
