@@ -10,23 +10,23 @@ from axi_bridge_uart import AxiBridgeUart
 CPU_FREQ_HZ = 100_000_000
 
 # TODO: get this dynamically
-AXI_DATA_WIDTH = 16
+AXI_DATA_WIDTH = 128
 
 MANAGER_SETTINGS = {
     0: {
-        "REG_BASE_ADDR": 128,
-        "REG_BURST_BEATS": 16,
-        "REG_BURST_STRIDE": 16 * (AXI_DATA_WIDTH // 8),
+        "REG_BASE_ADDR": 0,
+        "REG_BURST_BEATS": 64,
+        "REG_BURST_STRIDE": 64 * (AXI_DATA_WIDTH // 8),
         "REG_BURST_AWSIZE": int(math.log2(AXI_DATA_WIDTH // 8)),
-        "REG_BURST_NUM": 16,
+        "REG_BURST_NUM": 128,
     },
-    # 1: {
-    #     "REG_BASE_ADDR": 0,
-    #     "REG_BURST_BEATS": 16,
-    #     "REG_BURST_STRIDE": 16 * (AXI_DATA_WIDTH // 8),
-    #     "REG_BURST_AWSIZE": int(math.log2(AXI_DATA_WIDTH // 8)),
-    #     "REG_BURST_NUM": 16,
-    # },
+    1: {
+        "REG_BASE_ADDR": 1024,
+        "REG_BURST_BEATS": 64,
+        "REG_BURST_STRIDE": 64 * (AXI_DATA_WIDTH // 8),
+        "REG_BURST_AWSIZE": int(math.log2(AXI_DATA_WIDTH // 8)),
+        "REG_BURST_NUM": 128,
+    },
     # Add more manager settings as needed
 }
 
@@ -259,7 +259,7 @@ def start_perf(axi, num_m):
     top_ctrl_addr = calculate_base_addr(0, num_m)
 
     print("# Starting Perf system...")
-    return write_register(axi, top_ctrl_addr, "REG_START", REG_TOP_CTRL, 1)
+    return write_register(axi, top_ctrl_addr, "REG_START", REG_TOP_CTRL, 0xF)
 
 
 def print_raw_settings(settings, manager_id):
