@@ -6,9 +6,6 @@ import time
 
 from axi_bridge_uart import AxiBridgeUart
 
-# TODO: get the cpu freq from register
-CPU_FREQ_HZ = 100_000_000
-
 # TODO: get this dynamically
 AXI_DATA_WIDTH = 128
 
@@ -114,8 +111,9 @@ def get_num_managers(axi):
     resp, num_m = axi.read_word(addr)
     if resp != 0:
         err = AXI_RESP.get(resp, "UNKNOWN")
-        print(f"Error reading NUM_M at 0x{addr:08X}: {err} (0x{resp:02X})")
-        sys.exit(1)
+        raise RuntimeError(f"Error reading NUM_M at 0x{addr:08X}: {err} (0x{resp:02X})")
+    if num_m <= 0:
+        raise ValueError(f"Invalid number of managers: {num_m}")
     return num_m
 
 
@@ -125,9 +123,12 @@ def get_clock_freq(axi):
     resp, freq = axi.read_word(addr)
     if resp != 0:
         err = AXI_RESP.get(resp, "UNKNOWN")
-        print(f"Error reading CLK_FREQ at 0x{addr:08X}: {err} (0x{resp:02X})")
-        return CPU_FREQ_HZ  # Fallback to default
-    return freq if freq > 0 else CPU_FREQ_HZ
+        raise RuntimeError(
+            f"Error reading CLK_FREQ at 0x{addr:08X}: {err} (0x{resp:02X})"
+        )
+    if freq <= 0:
+        raise ValueError(f"Invalid clock frequency: {freq} Hz")
+    return freq
 
 
 def calculate_base_addr(idx, num_m):
