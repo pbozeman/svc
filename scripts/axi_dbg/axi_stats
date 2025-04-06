@@ -133,6 +133,7 @@ def gen_manager_settings(
     burst_num=128,
     burst_stride=None,
     burst_awsize=None,
+    start=True,
 ):
     """Generate settings for a manager based on parameters"""
     if base_addr is None:
@@ -150,6 +151,7 @@ def gen_manager_settings(
         "REG_BURST_STRIDE": burst_stride,
         "REG_BURST_AWSIZE": burst_awsize,
         "REG_BURST_NUM": burst_num,
+        "start": start,
     }
 
 
@@ -269,20 +271,26 @@ def clear_perf(axi, num_m):
     return write_register(axi, top_ctrl_addr, "REG_CLEAR", REG_TOP_CTRL, 1)
 
 
-def start_perf(axi, num_m):
-    """Start the AXI perf test by writing to the START register
+def start_perf(axi, num_m, settings_dict):
+    """Start the AXI perf test using per-manager start flags
 
     Args:
         axi: AxiBridgeUart instance
         num_m: Number of managers
+        settings_dict: Dictionary of manager_id -> settings (must include "start" flag)
 
     Returns:
         True if successfully started, False otherwise
     """
     top_ctrl_addr = calculate_base_addr(0, num_m)
+    start_mask = 0
 
-    print("# Starting Perf system...")
-    return write_register(axi, top_ctrl_addr, "REG_START", REG_TOP_CTRL, 0xF)
+    for manager_id, settings in settings_dict.items():
+        if settings.get("start", False):
+            start_mask |= 1 << manager_id
+
+    print(f"# Starting Perf system with mask 0x{start_mask:X}")
+    return write_register(axi, top_ctrl_addr, "REG_START", REG_TOP_CTRL, start_mask)
 
 
 def print_raw_settings(settings, manager_id):
@@ -437,7 +445,7 @@ def main():
 
         print("\n# Running test")
         clear_perf(axi, num_m)
-        start_perf(axi, num_m)
+        start_perf(axi, num_m, mgr_settings)
         wait_for_idle(axi, num_m)
 
         # Display top control and stats register info
