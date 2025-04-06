@@ -6,27 +6,6 @@ import time
 
 from axi_bridge_uart import AxiBridgeUart
 
-# TODO: get this dynamically
-AXI_DATA_WIDTH = 128
-
-MANAGER_SETTINGS = {
-    0: {
-        "REG_BASE_ADDR": 0,
-        "REG_BURST_BEATS": 64,
-        "REG_BURST_STRIDE": 64 * (AXI_DATA_WIDTH // 8),
-        "REG_BURST_AWSIZE": int(math.log2(AXI_DATA_WIDTH // 8)),
-        "REG_BURST_NUM": 128,
-    },
-    1: {
-        "REG_BASE_ADDR": 1024,
-        "REG_BURST_BEATS": 64,
-        "REG_BURST_STRIDE": 64 * (AXI_DATA_WIDTH // 8),
-        "REG_BURST_AWSIZE": int(math.log2(AXI_DATA_WIDTH // 8)),
-        "REG_BURST_NUM": 128,
-    },
-    # Add more manager settings as needed
-}
-
 # Each set of registers is at a base address that depends on the number of managers in use.
 # The registers are memory mapped to a 32bit address space with the upper bits selecting
 # the register set to address.
@@ -56,6 +35,7 @@ REG_TOP_CTRL = {
     "REG_NUM_M": 2,
     "REG_CLK_FREQ": 3,
     "REG_CLEAR": 4,
+    "REG_DATA_WIDTH": 5,
 }
 
 REG_CTRL = {
@@ -129,6 +109,48 @@ def get_clock_freq(axi):
     if freq <= 0:
         raise ValueError(f"Invalid clock frequency: {freq} Hz")
     return freq
+
+
+def get_axi_data_width(axi):
+    """Read the AXI data width from the top control register"""
+    addr = 0 + (REG_TOP_CTRL["REG_DATA_WIDTH"] * BYTES_PER_WORD)
+    resp, data_width = axi.read_word(addr)
+    if resp != 0:
+        err = AXI_RESP.get(resp, "UNKNOWN")
+        raise RuntimeError(
+            f"Error reading DATA_WIDTH at 0x{addr:08X}: {err} (0x{resp:02X})"
+        )
+    if data_width <= 0:
+        raise ValueError(f"Invalid AXI data width: {data_width} bits")
+    return data_width
+
+
+def gen_manager_settings(
+    manager_id,
+    data_width,
+    base_addr=None,
+    burst_beats=64,
+    burst_num=128,
+    burst_stride=None,
+    burst_awsize=None,
+):
+    """Generate settings for a manager based on parameters"""
+    if base_addr is None:
+        base_addr = manager_id * 1024
+
+    if burst_stride is None:
+        burst_stride = burst_beats * (data_width // 8)
+
+    if burst_awsize is None:
+        burst_awsize = int(math.log2(data_width // 8))
+
+    return {
+        "REG_BASE_ADDR": base_addr,
+        "REG_BURST_BEATS": burst_beats,
+        "REG_BURST_STRIDE": burst_stride,
+        "REG_BURST_AWSIZE": burst_awsize,
+        "REG_BURST_NUM": burst_num,
+    }
 
 
 def calculate_base_addr(idx, num_m):
@@ -401,8 +423,17 @@ def main():
         clock_speed_mhz = cpu_freq_hz / 1_000_000
         print(f"# Clock frequency: {clock_speed_mhz:.2f} MHz")
 
+        axi_data_width = get_axi_data_width(axi)
+        print(f"# AXI data width: {axi_data_width} bits")
+
+        # TODO: load these
+        # Generate settings for each manager
+        mgr_settings = {}
+        for m in range(num_m):
+            mgr_settings[m] = gen_manager_settings(m, axi_data_width)
+
         print("\n# Configuring managers")
-        configure_all_managers(axi, num_m, MANAGER_SETTINGS)
+        configure_all_managers(axi, num_m, mgr_settings)
 
         print("\n# Running test")
         clear_perf(axi, num_m)
