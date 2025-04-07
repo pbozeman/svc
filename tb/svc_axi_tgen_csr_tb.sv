@@ -1,11 +1,9 @@
 `include "svc_unit.sv"
-
 `include "svc_axi_tgen_csr.sv"
 
 // This is not an exhaustive test as the csr is just a wrapper around
 // svc_axil_regfile. Let's just make sure the mappings are there and
 // it synthesizes.
-
 // verilator lint_off: UNUSEDSIGNAL
 module svc_axi_tgen_csr_tb;
   localparam AXI_ADDR_WIDTH = 20;
@@ -35,12 +33,19 @@ module svc_axi_tgen_csr_tb;
   logic [                1:0] s_axil_rresp;
   logic                       s_axil_rready;
 
-  logic [ AXI_ADDR_WIDTH-1:0] base_addr;
-  logic [   AXI_ID_WIDTH-1:0] burst_id;
-  logic [                7:0] burst_beats;
-  logic [ AXI_ADDR_WIDTH-1:0] burst_stride;
-  logic [                2:0] burst_axsize;
-  logic [               15:0] burst_num;
+  logic [ AXI_ADDR_WIDTH-1:0] w_base_addr;
+  logic [   AXI_ID_WIDTH-1:0] w_burst_id;
+  logic [                7:0] w_burst_beats;
+  logic [ AXI_ADDR_WIDTH-1:0] w_burst_stride;
+  logic [                2:0] w_burst_awsize;
+  logic [               15:0] w_burst_num;
+
+  logic [ AXI_ADDR_WIDTH-1:0] r_base_addr;
+  logic [   AXI_ID_WIDTH-1:0] r_burst_id;
+  logic [                7:0] r_burst_beats;
+  logic [ AXI_ADDR_WIDTH-1:0] r_burst_stride;
+  logic [                2:0] r_burst_arsize;
+  logic [               15:0] r_burst_num;
 
   svc_axi_tgen_csr #(
       .AXI_ADDR_WIDTH (AXI_ADDR_WIDTH),
@@ -49,14 +54,23 @@ module svc_axi_tgen_csr_tb;
       .AXIL_DATA_WIDTH(AXIL_DATA_WIDTH),
       .AXIL_STRB_WIDTH(AXIL_STRB_WIDTH)
   ) uut (
-      .clk           (clk),
-      .rst_n         (rst_n),
-      .base_addr     (base_addr),
-      .burst_id      (burst_id),
-      .burst_beats   (burst_beats),
-      .burst_stride  (burst_stride),
-      .burst_axsize  (burst_axsize),
-      .burst_num     (burst_num),
+      .clk  (clk),
+      .rst_n(rst_n),
+
+      .w_base_addr   (w_base_addr),
+      .w_burst_id    (w_burst_id),
+      .w_burst_beats (w_burst_beats),
+      .w_burst_stride(w_burst_stride),
+      .w_burst_awsize(w_burst_awsize),
+      .w_burst_num   (w_burst_num),
+
+      .r_base_addr   (r_base_addr),
+      .r_burst_id    (r_burst_id),
+      .r_burst_beats (r_burst_beats),
+      .r_burst_stride(r_burst_stride),
+      .r_burst_arsize(r_burst_arsize),
+      .r_burst_num   (r_burst_num),
+
       .s_axil_awaddr (s_axil_awaddr),
       .s_axil_awvalid(s_axil_awvalid),
       .s_axil_awready(s_axil_awready),
@@ -91,12 +105,19 @@ module svc_axi_tgen_csr_tb;
   end
 
   task automatic test_reset();
-    `CHECK_EQ(base_addr, 20'h0);
-    `CHECK_EQ(burst_id, 4'h0);
-    `CHECK_EQ(burst_beats, 8'h40);
-    `CHECK_EQ(burst_stride, 20'h200);
-    `CHECK_EQ(burst_axsize, 3'h2);
-    `CHECK_EQ(burst_num, 16'h10);
+    `CHECK_EQ(w_base_addr, 20'h0);
+    `CHECK_EQ(w_burst_id, 4'h0);
+    `CHECK_EQ(w_burst_beats, 8'h40);
+    `CHECK_EQ(w_burst_stride, 20'h200);
+    `CHECK_EQ(w_burst_awsize, 3'h2);
+    `CHECK_EQ(w_burst_num, 16'h10);
+
+    `CHECK_EQ(r_base_addr, 20'h0);
+    `CHECK_EQ(r_burst_id, 4'h0);
+    `CHECK_EQ(r_burst_beats, 8'h40);
+    `CHECK_EQ(r_burst_stride, 20'h200);
+    `CHECK_EQ(r_burst_arsize, 3'h2);
+    `CHECK_EQ(r_burst_num, 16'h10);
   endtask
 
   `TEST_SUITE_BEGIN(svc_axi_tgen_csr_tb);

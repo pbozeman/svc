@@ -39,11 +39,12 @@ REG_TOP_CTRL = {
 }
 
 REG_CTRL = {
-    "REG_BASE_ADDR": 0,
-    "REG_BURST_BEATS": 1,
-    "REG_BURST_STRIDE": 2,
-    "REG_BURST_AWSIZE": 3,
-    "REG_BURST_NUM": 4,
+    "REG_W_BASE_ADDR": 0,
+    "REG_W_BURST_ID": 1,
+    "REG_W_BURST_BEATS": 2,
+    "REG_W_BURST_STRIDE": 3,
+    "REG_W_BURST_AWSIZE": 4,
+    "REG_W_BURST_NUM": 5,
 }
 
 # Stats register definitions.
@@ -148,6 +149,7 @@ def gen_manager_settings(
     manager_id,
     data_width,
     base_addr=None,
+    burst_id=0,
     burst_beats=64,
     burst_num=128,
     burst_stride=None,
@@ -165,11 +167,12 @@ def gen_manager_settings(
         burst_awsize = int(math.log2(data_width // 8))
 
     return {
-        "REG_BASE_ADDR": base_addr,
-        "REG_BURST_BEATS": burst_beats,
-        "REG_BURST_STRIDE": burst_stride,
-        "REG_BURST_AWSIZE": burst_awsize,
-        "REG_BURST_NUM": burst_num,
+        "REG_W_BASE_ADDR": base_addr,
+        "REG_W_BURST_ID": burst_id,
+        "REG_W_BURST_BEATS": burst_beats,
+        "REG_W_BURST_STRIDE": burst_stride,
+        "REG_W_BURST_AWSIZE": burst_awsize,
+        "REG_W_BURST_NUM": burst_num,
         "start": start,
     }
 
