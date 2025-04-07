@@ -73,38 +73,71 @@ module svc_axi_stats #(
     input logic                      m_axi_bvalid,
     input logic [  AXI_ID_WIDTH-1:0] m_axi_bid,
     input logic [               1:0] m_axi_bresp,
-    input logic                      m_axi_bready
+    input logic                      m_axi_bready,
+
+    input logic                      m_axi_arvalid,
+    input logic [  AXI_ID_WIDTH-1:0] m_axi_arid,
+    input logic [AXI_ADDR_WIDTH-1:0] m_axi_araddr,
+    input logic [               7:0] m_axi_arlen,
+    input logic [               2:0] m_axi_arsize,
+    input logic [               1:0] m_axi_arburst,
+    input logic                      m_axi_arready,
+    input logic                      m_axi_rvalid,
+    input logic [  AXI_ID_WIDTH-1:0] m_axi_rid,
+    input logic [AXI_DATA_WIDTH-1:0] m_axi_rdata,
+    input logic [               1:0] m_axi_rresp,
+    input logic                      m_axi_rlast,
+    input logic                      m_axi_rready
 );
-  localparam NUM_R = 26;
+  localparam NUM_R = 45;
 
   // Register IDs
   typedef enum {
-    REG_AW_BURST_CNT      = 0,
-    REG_AW_DEPTH_MAX      = 1,
-    REG_AW_LEN_MIN        = 2,
-    REG_AW_LEN_MAX        = 3,
-    REG_AW_BYTES_SUM      = 4,
-    REG_AW_BYTES_MIN      = 5,
-    REG_AW_BYTES_MAX      = 6,
-    REG_W_BURST_CNT       = 7,
-    REG_W_DEPTH_MAX       = 8,
-    REG_W_BEAT_CNT        = 9,
-    REG_W_BYTES_SUM       = 10,
-    REG_W_BYTES_MIN       = 11,
-    REG_W_BYTES_MAX       = 12,
-    REG_W_DATA_LAG_CNT    = 13,
-    REG_W_IDLE_CNT        = 14,
-    REG_W_EARLY_BEAT_CNT  = 15,
-    REG_W_AWR_EARLY_CNT   = 16,
-    REG_W_B_LAG_CNT       = 17,
-    REG_W_B_STALL_CNT     = 18,
-    REG_W_B_END_CNT       = 19,
-    REG_W_SLOW_DATA_CNT   = 20,
-    REG_W_STALL_CNT       = 21,
-    REG_W_ADDR_STALL_CNT  = 22,
-    REG_W_ADDR_LAG_CNT    = 23,
-    REG_W_EARLY_STALL_CNT = 24,
-    REG_W_ERR_CNT         = 25
+    REG_AW_BURST_CNT       = 0,
+    REG_AW_DEPTH_MAX       = 1,
+    REG_AW_LEN_MIN         = 2,
+    REG_AW_LEN_MAX         = 3,
+    REG_AW_BYTES_SUM       = 4,
+    REG_AW_BYTES_MIN       = 5,
+    REG_AW_BYTES_MAX       = 6,
+    REG_W_BURST_CNT        = 7,
+    REG_W_DEPTH_MAX        = 8,
+    REG_W_BEAT_CNT         = 9,
+    REG_W_BYTES_SUM        = 10,
+    REG_W_BYTES_MIN        = 11,
+    REG_W_BYTES_MAX        = 12,
+    REG_W_DATA_LAG_CNT     = 13,
+    REG_W_IDLE_CNT         = 14,
+    REG_W_EARLY_BEAT_CNT   = 15,
+    REG_W_AWR_EARLY_CNT    = 16,
+    REG_W_B_LAG_CNT        = 17,
+    REG_W_B_STALL_CNT      = 18,
+    REG_W_B_END_CNT        = 19,
+    REG_W_SLOW_DATA_CNT    = 20,
+    REG_W_STALL_CNT        = 21,
+    REG_W_ADDR_STALL_CNT   = 22,
+    REG_W_ADDR_LAG_CNT     = 23,
+    REG_W_EARLY_STALL_CNT  = 24,
+    REG_W_ERR_CNT          = 25,
+    REG_AR_BURST_CNT       = 26,
+    REG_AR_DEPTH_MAX       = 27,
+    REG_AR_LEN_MIN         = 28,
+    REG_AR_LEN_MAX         = 29,
+    REG_AR_BYTES_SUM       = 30,
+    REG_AR_BYTES_MIN       = 31,
+    REG_AR_BYTES_MAX       = 32,
+    REG_R_BURST_CNT        = 33,
+    REG_R_DEPTH_MAX        = 34,
+    REG_R_BEAT_CNT         = 35,
+    REG_RD_OUTSTANDING_MAX = 36,
+    REG_RD_MAX_RESP        = 37,
+    REG_RD_R_STALLS        = 38,
+    REG_RD_SLOW_LINK       = 39,
+    REG_RD_LAG             = 40,
+    REG_RD_IDLE_CYCLES     = 41,
+    REG_RD_AR_STALLS       = 42,
+    REG_RD_AR_CYCLES       = 43,
+    REG_R_ERR_CNT          = 44
   } reg_id_t;
 
   localparam SW = STAT_WIDTH;
@@ -238,8 +271,7 @@ module svc_axi_stats #(
 
   // see the zipcpu blog to better understand these bins
   always_ff @(posedge clk)
-    if (!rst_n || stat_clear) begin
-    end else begin
+    if (rst_n || !stat_clear) begin
       w_idle_cycles_cnt_en <= 1'b0;
       w_slow_data_cnt_en   <= 1'b0;
       w_stall_cnt_en       <= 1'b0;
@@ -300,6 +332,156 @@ module svc_axi_stats #(
 
   //--------------------------------------------------------------------------
   //
+  // Read stats declarations
+  //
+  //--------------------------------------------------------------------------
+
+  `SVC_STAT_CNT(SW, ar_burst_cnt, m_axi_arvalid && m_axi_arready);
+  `SVC_STAT_CNT(SW, r_burst_cnt, m_axi_rvalid && m_axi_rready && m_axi_rlast);
+  `SVC_STAT_CNT(SW, r_beat_cnt, m_axi_rvalid && m_axi_rready);
+  `SVC_STAT_CNT(SW, r_err_cnt,
+                m_axi_rvalid && m_axi_rready && m_axi_rresp != 2'b00);
+
+  `SVC_STAT_MIN_MAX(8, arlen, m_axi_arlen, m_axi_arvalid && m_axi_arready);
+  `SVC_STAT_VAL(SW, SW, ar_bytes, (SW'(m_axi_arlen) + 1) << m_axi_arsize,
+                m_axi_arvalid && m_axi_arready);
+
+  `SVC_STAT_MAX(AXI_ID_WIDTH, rd_responding, rd_responding);
+  `SVC_STAT_CNT(STAT_WIDTH, rd_r_stalls, m_axi_rvalid && !m_axi_rready);
+
+  `SVC_STAT_CNT_EN(SW, rd_slow_link);
+  `SVC_STAT_CNT_EN(SW, rd_lag);
+  `SVC_STAT_CNT_EN(SW, rd_idle_cycles);
+  `SVC_STAT_CNT_EN(SW, rd_ar_stalls);
+  `SVC_STAT_CNT_EN(SW, rd_ar_cycles);
+
+
+  //--------------------------------------------------------------------------
+  //
+  // Read stats collection
+  //
+  //--------------------------------------------------------------------------
+
+  logic [7:0] rd_outstanding_cnt;
+  logic [7:0] rd_outstanding_max;
+
+  // rd outstanding (ar txn accept to r last txn accept)
+  svc_stats_cnt #(
+      .STAT_WIDTH    (8),
+      .BITS_PER_STAGE(8)
+  ) svc_stats_cnt_rd_outstanding (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .inc  (m_axi_arvalid && m_axi_arready),
+      .dec  (m_axi_rvalid && m_axi_rready && m_axi_rlast),
+      .cnt  (rd_outstanding_cnt)
+  );
+
+  svc_stats_max #(
+      .WIDTH(8)
+  ) svc_stats_max_rd_outstanding (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clr  (stat_clear),
+      .en   (1'b1),
+      .val  (rd_outstanding_cnt),
+      .max  (rd_outstanding_max)
+  );
+
+  localparam MAX_AXI_ID = 1 << AXI_ID_WIDTH;
+
+  logic [             7:0] rd_outstanding_id    [0:MAX_AXI_ID-1];
+  logic [  MAX_AXI_ID-1:0] rd_nz_outstanding_id;
+  logic [  MAX_AXI_ID-1:0] rd_bursts_in_flight;
+
+  logic [AXI_ID_WIDTH-1:0] rd_responding;
+  logic [AXI_ID_WIDTH-1:0] rd_responding_next;
+
+  for (genvar i = 0; i < (1 << AXI_ID_WIDTH); i++) begin : gen_rd_id_stats
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        rd_outstanding_id[i]    <= 0;
+        rd_nz_outstanding_id[i] <= 0;
+      end else begin
+        case ({
+          m_axi_arvalid && m_axi_arready && (m_axi_arid == i),
+          m_axi_rvalid && m_axi_rready && m_axi_rlast && (m_axi_rid == i)
+        })
+          2'b10: begin
+            rd_outstanding_id[i]    <= rd_outstanding_id[i] + 1;
+            rd_nz_outstanding_id[i] <= 1'b1;
+          end
+
+          2'b01: begin
+            rd_outstanding_id[i]    <= rd_outstanding_id[i] - 1;
+            rd_nz_outstanding_id[i] <= (rd_outstanding_id[i] > 1);
+          end
+
+          default: begin
+          end
+        endcase
+      end
+    end
+
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        rd_bursts_in_flight[i] <= 0;
+      end else begin
+        if (m_axi_rvalid && m_axi_rid == i) begin
+          rd_bursts_in_flight[i] <= !(m_axi_rready && m_axi_rlast);
+        end
+      end
+    end
+  end
+
+  // not using always_comb because of an invalid warning from iverilog:
+  // "warning: A for statement must use the index (i) in the condition
+  // expression to be synthesized in an always_comb process." - which it is,
+  // but this warning isn't issued with always @(*)
+  always @(*) begin
+    rd_responding_next = 0;
+    for (int i = 0; i < MAX_AXI_ID; i++) begin
+      if (rd_bursts_in_flight[i]) begin
+        rd_responding_next = rd_responding_next + 1;
+      end
+    end
+  end
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      rd_responding <= 0;
+    end else begin
+      rd_responding <= rd_responding_next;
+    end
+  end
+
+  always_ff @(posedge clk) begin
+    if (rst_n || !stat_clear) begin
+      rd_slow_link_en   <= 1'b0;
+      rd_lag_en         <= 1'b0;
+      rd_idle_cycles_en <= 1'b0;
+      rd_ar_stalls_en   <= 1'b0;
+      rd_ar_cycles_en   <= 1'b0;
+
+      if (!m_axi_arvalid) begin
+        if (rd_bursts_in_flight != 0) begin
+          rd_slow_link_en <= 1'b1;
+        end else if (rd_nz_outstanding_id != 0) begin
+          rd_lag_en <= 1'b1;
+        end else if (!m_axi_arvalid) begin
+          rd_idle_cycles_en <= 1'b1;
+        end else if (m_axi_arvalid && !m_axi_arready) begin
+          rd_ar_stalls_en <= 1'b1;
+        end else begin
+          rd_ar_cycles_en <= 1'b1;
+        end
+      end
+    end
+  end
+
+  //--------------------------------------------------------------------------
+  //
   // Register file for stats interface (both read and write)
   //
   //--------------------------------------------------------------------------
@@ -340,42 +522,61 @@ module svc_axi_stats #(
       .s_axil_rready (s_axil_rready)
   );
 
+  // FIXME: rd_outstanding_max should come from a non ar version,
+  // like is done with writes
   always_comb begin
-    r_val[REG_AW_BURST_CNT]      = SW'(aw_burst_cnt);
-    r_val[REG_AW_DEPTH_MAX]      = SW'(aw_outstanding_max);
-    r_val[REG_AW_LEN_MIN]        = SW'(awlen_min);
-    r_val[REG_AW_LEN_MAX]        = SW'(awlen_max);
-    r_val[REG_AW_BYTES_SUM]      = SW'(aw_bytes_sum);
-    r_val[REG_AW_BYTES_MIN]      = SW'(aw_bytes_min);
-    r_val[REG_AW_BYTES_MAX]      = SW'(aw_bytes_max);
-    r_val[REG_W_BURST_CNT]       = SW'(w_burst_cnt);
-    r_val[REG_W_DEPTH_MAX]       = SW'(w_outstanding_max);
-    r_val[REG_W_BEAT_CNT]        = SW'(w_beat_cnt);
-    r_val[REG_W_BYTES_SUM]       = SW'(w_bytes_sum);
-    r_val[REG_W_BYTES_MIN]       = SW'(w_bytes_min);
-    r_val[REG_W_BYTES_MAX]       = SW'(w_bytes_max);
-    r_val[REG_W_DATA_LAG_CNT]    = SW'(w_data_lag_cnt);
-    r_val[REG_W_IDLE_CNT]        = SW'(w_idle_cycles_cnt);
-    r_val[REG_W_EARLY_BEAT_CNT]  = SW'(w_early_beat_cnt);
-    r_val[REG_W_AWR_EARLY_CNT]   = SW'(w_awr_early_cnt);
-    r_val[REG_W_B_LAG_CNT]       = SW'(w_b_lag_cnt);
-    r_val[REG_W_B_STALL_CNT]     = SW'(w_b_stall_cnt);
-    r_val[REG_W_B_END_CNT]       = SW'(w_b_end_cnt);
-    r_val[REG_W_SLOW_DATA_CNT]   = SW'(w_slow_data_cnt);
-    r_val[REG_W_STALL_CNT]       = SW'(w_stall_cnt);
-    r_val[REG_W_ADDR_STALL_CNT]  = SW'(w_addr_stall_cnt);
-    r_val[REG_W_ADDR_LAG_CNT]    = SW'(w_addr_lag_cnt);
-    r_val[REG_W_EARLY_STALL_CNT] = SW'(w_early_stall_cnt);
-    r_val[REG_W_ERR_CNT]         = SW'(w_err_cnt);
+    r_val[REG_AW_BURST_CNT]       = SW'(aw_burst_cnt);
+    r_val[REG_AW_DEPTH_MAX]       = SW'(aw_outstanding_max);
+    r_val[REG_AW_LEN_MIN]         = SW'(awlen_min);
+    r_val[REG_AW_LEN_MAX]         = SW'(awlen_max);
+    r_val[REG_AW_BYTES_SUM]       = SW'(aw_bytes_sum);
+    r_val[REG_AW_BYTES_MIN]       = SW'(aw_bytes_min);
+    r_val[REG_AW_BYTES_MAX]       = SW'(aw_bytes_max);
+    r_val[REG_W_BURST_CNT]        = SW'(w_burst_cnt);
+    r_val[REG_W_DEPTH_MAX]        = SW'(w_outstanding_max);
+    r_val[REG_W_BEAT_CNT]         = SW'(w_beat_cnt);
+    r_val[REG_W_BYTES_SUM]        = SW'(w_bytes_sum);
+    r_val[REG_W_BYTES_MIN]        = SW'(w_bytes_min);
+    r_val[REG_W_BYTES_MAX]        = SW'(w_bytes_max);
+    r_val[REG_W_DATA_LAG_CNT]     = SW'(w_data_lag_cnt);
+    r_val[REG_W_IDLE_CNT]         = SW'(w_idle_cycles_cnt);
+    r_val[REG_W_EARLY_BEAT_CNT]   = SW'(w_early_beat_cnt);
+    r_val[REG_W_AWR_EARLY_CNT]    = SW'(w_awr_early_cnt);
+    r_val[REG_W_B_LAG_CNT]        = SW'(w_b_lag_cnt);
+    r_val[REG_W_B_STALL_CNT]      = SW'(w_b_stall_cnt);
+    r_val[REG_W_B_END_CNT]        = SW'(w_b_end_cnt);
+    r_val[REG_W_SLOW_DATA_CNT]    = SW'(w_slow_data_cnt);
+    r_val[REG_W_STALL_CNT]        = SW'(w_stall_cnt);
+    r_val[REG_W_ADDR_STALL_CNT]   = SW'(w_addr_stall_cnt);
+    r_val[REG_W_ADDR_LAG_CNT]     = SW'(w_addr_lag_cnt);
+    r_val[REG_W_EARLY_STALL_CNT]  = SW'(w_early_stall_cnt);
+    r_val[REG_W_ERR_CNT]          = SW'(w_err_cnt);
+    r_val[REG_AR_BURST_CNT]       = SW'(ar_burst_cnt);
+    r_val[REG_AR_DEPTH_MAX]       = SW'(rd_outstanding_max);
+    r_val[REG_AR_LEN_MIN]         = SW'(arlen_min);
+    r_val[REG_AR_LEN_MAX]         = SW'(arlen_max);
+    r_val[REG_AR_BYTES_SUM]       = SW'(ar_bytes_sum);
+    r_val[REG_AR_BYTES_MIN]       = SW'(ar_bytes_min);
+    r_val[REG_AR_BYTES_MAX]       = SW'(ar_bytes_max);
+    r_val[REG_R_BURST_CNT]        = SW'(r_burst_cnt);
+    r_val[REG_R_DEPTH_MAX]        = SW'(rd_responding_max);
+    r_val[REG_R_BEAT_CNT]         = SW'(r_beat_cnt);
+    r_val[REG_RD_OUTSTANDING_MAX] = SW'(rd_outstanding_max);
+    r_val[REG_RD_MAX_RESP]        = SW'(rd_responding_max);
+    r_val[REG_RD_R_STALLS]        = SW'(rd_r_stalls);
+    r_val[REG_RD_SLOW_LINK]       = SW'(rd_slow_link);
+    r_val[REG_RD_LAG]             = SW'(rd_lag);
+    r_val[REG_RD_IDLE_CYCLES]     = SW'(rd_idle_cycles);
+    r_val[REG_RD_AR_STALLS]       = SW'(rd_ar_stalls);
+    r_val[REG_RD_AR_CYCLES]       = SW'(rd_ar_cycles);
+    r_val[REG_R_ERR_CNT]          = SW'(r_err_cnt);
   end
 
   // TODO: set this and make use of it
   assign stat_err = 1'b0;
 
-  // verilog_format: off
-  `SVC_UNUSED({m_axi_awaddr, m_axi_awid, m_axi_awburst,
-               m_axi_wdata, m_axi_bid});
-  // verilog_format: on
+  `SVC_UNUSED({m_axi_awaddr, m_axi_awid, m_axi_awburst, m_axi_wdata, m_axi_bid,
+               m_axi_araddr, m_axi_arburst, m_axi_rdata});
 
 endmodule
 `endif
