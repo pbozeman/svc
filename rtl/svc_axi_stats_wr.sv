@@ -6,15 +6,15 @@
 `include "svc_stats_cnt.sv"
 `include "svc_stats_max.sv"
 `include "svc_stats_val.sv"
+`include "svc_unused.sv"
 
 // This uses the same bucketing described in:
 //
 //   https://zipcpu.com/blog/2021/08/14/axiperf.html
 //
 // His taxonomy is a good one, and aligns with the svc design goals
-// of focusing on througput. The implementation is fairly different.
+// of focusing on throughput. The implementation is fairly different.
 
-// verilator lint_off: UNUSEDSIGNAL
 module svc_axi_stats_wr #(
     parameter STAT_WIDTH      = 32,
     parameter AXIL_ADDR_WIDTH = 8,
@@ -370,6 +370,11 @@ module svc_axi_stats_wr #(
 
   // TODO: set this and make use of it
   assign stat_err = 1'b0;
+
+  // verilog_format: off
+  `SVC_UNUSED({m_axi_awaddr, m_axi_awid, m_axi_awburst,
+               m_axi_wdata, m_axi_bid});
+  // verilog_format: on
 
 endmodule
 `endif
