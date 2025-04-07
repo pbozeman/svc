@@ -1,5 +1,5 @@
-`ifndef SVC_AXI_STATS_WR_SV
-`define SVC_AXI_STATS_WR_SV
+`ifndef SVC_AXI_STATS_SV
+`define SVC_AXI_STATS_SV
 
 `include "svc.sv"
 `include "svc_axil_regfile.sv"
@@ -14,8 +14,14 @@
 //
 // His taxonomy is a good one, and aligns with the svc design goals
 // of focusing on throughput. The implementation is fairly different.
+//
+// I'd prefer to separate the rd/wr into separate modules, but that complicates
+// the csr implementation. There would need to be a router up above, 2 sets of
+// signals for the main router, or the stats would all need to get passed out
+// and then put behind a csr. That final option might be the cleanest, but
+// this is fine for now.
 
-module svc_axi_stats_wr #(
+module svc_axi_stats #(
     parameter STAT_WIDTH      = 32,
     parameter AXIL_ADDR_WIDTH = 8,
     parameter AXIL_DATA_WIDTH = STAT_WIDTH,
@@ -104,19 +110,11 @@ module svc_axi_stats_wr #(
   localparam SW = STAT_WIDTH;
   localparam ASW = AXI_STRB_WIDTH;
 
-  typedef enum {
-    STATE_IDLE,
-    STATE_ITER
-  } state_t;
-
-  // Statistics calculations and values
-  logic [    7:0] aw_outstanding_cnt;
-  logic [    7:0] aw_outstanding_max;
-
-  logic [    7:0] w_outstanding_cnt;
-  logic [    7:0] w_outstanding_max;
-
-  logic           w_in_progress;
+  //--------------------------------------------------------------------------
+  //
+  // Write stats declarations
+  //
+  //--------------------------------------------------------------------------
 
   // convert write strobe to bytes written
   logic [ASW-1:0] w_bytes;
@@ -127,11 +125,6 @@ module svc_axi_stats_wr #(
     end
   end
 
-  //--------------------------------------------------------------------------
-  //
-  // Stats declarations
-  //
-  //--------------------------------------------------------------------------
   `SVC_STAT_CNT(SW, aw_burst_cnt, m_axi_awvalid && m_axi_awready);
   `SVC_STAT_CNT(SW, w_burst_cnt, m_axi_wvalid && m_axi_wready && m_axi_wlast);
   `SVC_STAT_CNT(SW, w_beat_cnt, m_axi_wvalid && m_axi_wready);
@@ -159,9 +152,17 @@ module svc_axi_stats_wr #(
 
   //--------------------------------------------------------------------------
   //
-  // Stats collection
+  // Write stats collection
   //
   //--------------------------------------------------------------------------
+
+  logic [7:0] aw_outstanding_cnt;
+  logic [7:0] aw_outstanding_max;
+
+  logic [7:0] w_outstanding_cnt;
+  logic [7:0] w_outstanding_max;
+
+  logic       w_in_progress;
 
   // The AW and W outstanding are special, internal stats.
   // They are used to bucket clocks into categories. Look to the casez below,
@@ -299,7 +300,7 @@ module svc_axi_stats_wr #(
 
   //--------------------------------------------------------------------------
   //
-  // Register file for stats interface
+  // Register file for stats interface (both read and write)
   //
   //--------------------------------------------------------------------------
 
