@@ -15,12 +15,19 @@ module svc_axi_tgen_csr #(
     input logic clk,
     input logic rst_n,
 
-    output logic [AXI_ADDR_WIDTH-1:0] base_addr,
-    output logic [  AXI_ID_WIDTH-1:0] burst_id,
-    output logic [               7:0] burst_beats,
-    output logic [AXI_ADDR_WIDTH-1:0] burst_stride,
-    output logic [               2:0] burst_axsize,
-    output logic [              15:0] burst_num,
+    output logic [AXI_ADDR_WIDTH-1:0] w_base_addr,
+    output logic [  AXI_ID_WIDTH-1:0] w_burst_id,
+    output logic [               7:0] w_burst_beats,
+    output logic [AXI_ADDR_WIDTH-1:0] w_burst_stride,
+    output logic [               2:0] w_burst_awsize,
+    output logic [              15:0] w_burst_num,
+
+    output logic [AXI_ADDR_WIDTH-1:0] r_base_addr,
+    output logic [  AXI_ID_WIDTH-1:0] r_burst_id,
+    output logic [               7:0] r_burst_beats,
+    output logic [AXI_ADDR_WIDTH-1:0] r_burst_stride,
+    output logic [               2:0] r_burst_arsize,
+    output logic [              15:0] r_burst_num,
 
     input  logic [AXIL_ADDR_WIDTH-1:0] s_axil_awaddr,
     input  logic                       s_axil_awvalid,
@@ -45,15 +52,21 @@ module svc_axi_tgen_csr #(
   localparam A_IW = AXI_ID_WIDTH;
   localparam DW = AXIL_DATA_WIDTH;
 
-  localparam N = 6;
+  localparam N = 12;
 
   typedef enum {
-    REG_BASE_ADDR    = 0,
-    REG_BURST_ID     = 1,
-    REG_BURST_BEATS  = 2,
-    REG_BURST_STRIDE = 3,
-    REG_BURST_AXSIZE = 4,
-    REG_BURST_NUM    = 5
+    REG_W_BASE_ADDR    = 0,
+    REG_W_BURST_ID     = 1,
+    REG_W_BURST_BEATS  = 2,
+    REG_W_BURST_STRIDE = 3,
+    REG_W_BURST_AWSIZE = 4,
+    REG_W_BURST_NUM    = 5,
+    REG_R_BASE_ADDR    = 6,
+    REG_R_BURST_ID     = 7,
+    REG_R_BURST_BEATS  = 8,
+    REG_R_BURST_STRIDE = 9,
+    REG_R_BURST_ARSIZE = 10,
+    REG_R_BURST_NUM    = 11
   } reg_id_t;
 
   localparam [N-1:0] REG_WRITE_MASK = '1;
@@ -63,23 +76,37 @@ module svc_axi_tgen_csr #(
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      r_val[REG_BASE_ADDR]    <= DW'(0);
-      r_val[REG_BURST_ID]     <= DW'(0);
-      r_val[REG_BURST_BEATS]  <= DW'(64);
-      r_val[REG_BURST_STRIDE] <= DW'(128 * (DW / 8));
-      r_val[REG_BURST_AXSIZE] <= DW'(`SVC_MAX_AXSIZE(DW));
-      r_val[REG_BURST_NUM]    <= DW'(16);
+      r_val[REG_W_BASE_ADDR]    <= DW'(0);
+      r_val[REG_W_BURST_ID]     <= DW'(0);
+      r_val[REG_W_BURST_BEATS]  <= DW'(64);
+      r_val[REG_W_BURST_STRIDE] <= DW'(128 * (DW / 8));
+      r_val[REG_W_BURST_AWSIZE] <= DW'(`SVC_MAX_AXSIZE(DW));
+      r_val[REG_W_BURST_NUM]    <= DW'(16);
+
+      r_val[REG_R_BASE_ADDR]    <= DW'(0);
+      r_val[REG_R_BURST_ID]     <= DW'(0);
+      r_val[REG_R_BURST_BEATS]  <= DW'(64);
+      r_val[REG_R_BURST_STRIDE] <= DW'(128 * (DW / 8));
+      r_val[REG_R_BURST_ARSIZE] <= DW'(`SVC_MAX_AXSIZE(DW));
+      r_val[REG_R_BURST_NUM]    <= DW'(16);
     end else begin
       r_val <= r_val_next;
     end
   end
 
-  assign base_addr    = A_AW'(r_val[REG_BASE_ADDR]);
-  assign burst_id     = A_IW'(r_val[REG_BURST_ID]);
-  assign burst_beats  = 8'(r_val[REG_BURST_BEATS]);
-  assign burst_stride = A_AW'(r_val[REG_BURST_STRIDE]);
-  assign burst_axsize = 3'(r_val[REG_BURST_AXSIZE]);
-  assign burst_num    = 16'(r_val[REG_BURST_NUM]);
+  assign w_base_addr    = A_AW'(r_val[REG_W_BASE_ADDR]);
+  assign w_burst_id     = A_IW'(r_val[REG_W_BURST_ID]);
+  assign w_burst_beats  = 8'(r_val[REG_W_BURST_BEATS]);
+  assign w_burst_stride = A_AW'(r_val[REG_W_BURST_STRIDE]);
+  assign w_burst_awsize = 3'(r_val[REG_W_BURST_AWSIZE]);
+  assign w_burst_num    = 16'(r_val[REG_W_BURST_NUM]);
+
+  assign r_base_addr    = A_AW'(r_val[REG_R_BASE_ADDR]);
+  assign r_burst_id     = A_IW'(r_val[REG_R_BURST_ID]);
+  assign r_burst_beats  = 8'(r_val[REG_R_BURST_BEATS]);
+  assign r_burst_stride = A_AW'(r_val[REG_R_BURST_STRIDE]);
+  assign r_burst_arsize = 3'(r_val[REG_R_BURST_ARSIZE]);
+  assign r_burst_num    = 16'(r_val[REG_R_BURST_NUM]);
 
   svc_axil_regfile #(
       .N              (N),
