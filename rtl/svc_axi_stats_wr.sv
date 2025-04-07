@@ -2,14 +2,10 @@
 `define SVC_AXI_STATS_WR_SV
 
 `include "svc.sv"
-`include "svc_axil_invalid_wr.sv"
-`include "svc_skidbuf.sv"
+`include "svc_axil_regfile.sv"
 `include "svc_stats_cnt.sv"
 `include "svc_stats_max.sv"
 `include "svc_stats_val.sv"
-
-// TODO: error detection in the stat modules.
-// Use it at the bottom for stat_err.
 
 // This uses the same bucketing described in:
 //
@@ -73,13 +69,37 @@ module svc_axi_stats_wr #(
     input logic [               1:0] m_axi_bresp,
     input logic                      m_axi_bready
 );
-  localparam AW = AXIL_ADDR_WIDTH;
-  localparam DW = AXIL_DATA_WIDTH;
+  localparam NUM_R = 26;
 
-  // we need to convert the byte addr to a word addr, since we are going to do
-  // a word/register lookup
-  localparam ADDRLSB = $clog2(AXIL_DATA_WIDTH) - 3;
-  localparam RAW = AW - ADDRLSB;
+  // Register IDs
+  typedef enum {
+    REG_AW_BURST_CNT      = 0,
+    REG_AW_DEPTH_MAX      = 1,
+    REG_AW_LEN_MIN        = 2,
+    REG_AW_LEN_MAX        = 3,
+    REG_AW_BYTES_SUM      = 4,
+    REG_AW_BYTES_MIN      = 5,
+    REG_AW_BYTES_MAX      = 6,
+    REG_W_BURST_CNT       = 7,
+    REG_W_DEPTH_MAX       = 8,
+    REG_W_BEAT_CNT        = 9,
+    REG_W_BYTES_SUM       = 10,
+    REG_W_BYTES_MIN       = 11,
+    REG_W_BYTES_MAX       = 12,
+    REG_W_DATA_LAG_CNT    = 13,
+    REG_W_IDLE_CNT        = 14,
+    REG_W_EARLY_BEAT_CNT  = 15,
+    REG_W_AWR_EARLY_CNT   = 16,
+    REG_W_B_LAG_CNT       = 17,
+    REG_W_B_STALL_CNT     = 18,
+    REG_W_B_END_CNT       = 19,
+    REG_W_SLOW_DATA_CNT   = 20,
+    REG_W_STALL_CNT       = 21,
+    REG_W_ADDR_STALL_CNT  = 22,
+    REG_W_ADDR_LAG_CNT    = 23,
+    REG_W_EARLY_STALL_CNT = 24,
+    REG_W_ERR_CNT         = 25
+  } reg_id_t;
 
   localparam SW = STAT_WIDTH;
   localparam ASW = AXI_STRB_WIDTH;
@@ -89,56 +109,14 @@ module svc_axi_stats_wr #(
     STATE_ITER
   } state_t;
 
-  // in terms of addresses, these will all be at val * AXIL_DATA_WIDTH,
-  // so given a 32bit word, 0, 4, 8, etc.
-  typedef enum logic [RAW-1:0] {
-    STAT_AW_BURST_CNT      = 0,
-    STAT_AW_DEPTH_MAX      = 1,
-    STAT_AW_LEN_MIN        = 2,
-    STAT_AW_LEN_MAX        = 3,
-    STAT_AW_BYTES_SUM      = 4,
-    STAT_AW_BYTES_MIN      = 5,
-    STAT_AW_BYTES_MAX      = 6,
-    STAT_W_BURST_CNT       = 7,
-    STAT_W_DEPTH_MAX       = 8,
-    STAT_W_BEAT_CNT        = 9,
-    STAT_W_BYTES_SUM       = 10,
-    STAT_W_BYTES_MIN       = 11,
-    STAT_W_BYTES_MAX       = 12,
-    STAT_W_DATA_LAG_CNT    = 13,
-    STAT_W_IDLE_CNT        = 14,
-    STAT_W_EARLY_BEAT_CNT  = 15,
-    STAT_W_AWR_EARLY_CNT   = 16,
-    STAT_W_B_LAG_CNT       = 17,
-    STAT_W_B_STALL_CNT     = 18,
-    STAT_W_B_END_CNT       = 19,
-    STAT_W_SLOW_DATA_CNT   = 20,
-    STAT_W_STALL_CNT       = 21,
-    STAT_W_ADDR_STALL_CNT  = 22,
-    STAT_W_ADDR_LAG_CNT    = 23,
-    STAT_W_EARLY_STALL_CNT = 24,
-    STAT_W_ERR_CNT         = 25
-  } stat_id_t;
+  // Statistics calculations and values
+  logic [7:0] aw_outstanding_cnt;
+  logic [7:0] aw_outstanding_max;
 
-  state_t          state;
-  state_t          state_next;
+  logic [7:0] w_outstanding_cnt;
+  logic [7:0] w_outstanding_max;
 
-  // not part of the state machine to make it easy to add new ones
-  logic   [   7:0] iter_idx;
-  logic   [   7:0] iter_idx_next;
-
-  logic            stat_iter_valid_next;
-  logic   [   7:0] stat_iter_id_next;
-  logic   [SW-1:0] stat_iter_val_next;
-  logic            stat_iter_last_next;
-
-  logic   [   7:0] aw_outstanding_cnt;
-  logic   [   7:0] aw_outstanding_max;
-
-  logic   [   7:0] w_outstanding_cnt;
-  logic   [   7:0] w_outstanding_max;
-
-  logic            w_in_progress;
+  logic       w_in_progress;
 
   // TODO: these macros might get moved to the common stats modules as they
   // settle down. Having versions that take a width, and premade _8, _16, _32
@@ -238,116 +216,6 @@ module svc_axi_stats_wr #(
   `STAT_CNT_EN(w_addr_stall_cnt);
   `STAT_CNT_EN(w_addr_lag_cnt);
   `STAT_CNT_EN(w_early_stall_cnt);
-
-  //--------------------------------------------------------------------------
-  //
-  // control interface
-  //
-  //--------------------------------------------------------------------------
-
-  // all writes are invalid
-  svc_axil_invalid_wr #(
-      .AXIL_ADDR_WIDTH(AXIL_ADDR_WIDTH),
-      .AXIL_DATA_WIDTH(AXIL_DATA_WIDTH)
-  ) svc_axil_invalid_wr_i (
-      .clk           (clk),
-      .rst_n         (rst_n),
-      .s_axil_awaddr (s_axil_awaddr),
-      .s_axil_awvalid(s_axil_awvalid),
-      .s_axil_awready(s_axil_awready),
-      .s_axil_wdata  (s_axil_wdata),
-      .s_axil_wstrb  (s_axil_wstrb),
-      .s_axil_wvalid (s_axil_wvalid),
-      .s_axil_wready (s_axil_wready),
-      .s_axil_bvalid (s_axil_bvalid),
-      .s_axil_bresp  (s_axil_bresp),
-      .s_axil_bready (s_axil_bready)
-  );
-
-  // read controls
-  logic           sb_arvalid;
-  logic [RAW-1:0] sb_araddr;
-  logic           sb_arready;
-
-  logic           s_axil_rvalid_next;
-  logic [ DW-1:0] s_axil_rdata_next;
-  logic [    1:0] s_axil_rresp_next;
-
-  svc_skidbuf #(
-      .DATA_WIDTH(RAW)
-  ) svc_skidbuf_ar (
-      .clk  (clk),
-      .rst_n(rst_n),
-
-      .i_valid(s_axil_arvalid),
-      .i_data (s_axil_araddr[AW-1:ADDRLSB]),
-      .o_ready(s_axil_arready),
-
-      .o_valid(sb_arvalid),
-      .o_data (sb_araddr),
-      .i_ready(sb_arready)
-  );
-
-  always_comb begin
-    sb_arready         = 1'b0;
-    s_axil_rvalid_next = s_axil_rvalid && !s_axil_rready;
-    s_axil_rdata_next  = s_axil_rdata;
-    s_axil_rresp_next  = s_axil_rresp;
-
-    // do both an incoming check and outgoing check here,
-    // since we are going to set rvalid
-    if (sb_arvalid && (!s_axil_rvalid || !s_axil_rready)) begin
-      sb_arready         = 1'b1;
-      s_axil_rvalid_next = 1'b1;
-      s_axil_rresp_next  = 2'b00;
-
-      case (sb_araddr)
-        STAT_AW_BURST_CNT:      s_axil_rdata_next = DW'(aw_burst_cnt);
-        STAT_AW_DEPTH_MAX:      s_axil_rdata_next = DW'(aw_outstanding_max);
-        STAT_AW_LEN_MIN:        s_axil_rdata_next = DW'(awlen_min);
-        STAT_AW_LEN_MAX:        s_axil_rdata_next = DW'(awlen_max);
-        STAT_AW_BYTES_SUM:      s_axil_rdata_next = DW'(aw_bytes_sum);
-        STAT_AW_BYTES_MIN:      s_axil_rdata_next = DW'(aw_bytes_min);
-        STAT_AW_BYTES_MAX:      s_axil_rdata_next = DW'(aw_bytes_max);
-        STAT_W_BURST_CNT:       s_axil_rdata_next = DW'(w_burst_cnt);
-        STAT_W_DEPTH_MAX:       s_axil_rdata_next = DW'(w_outstanding_max);
-        STAT_W_BEAT_CNT:        s_axil_rdata_next = DW'(w_beat_cnt);
-        STAT_W_BYTES_SUM:       s_axil_rdata_next = DW'(w_bytes_sum);
-        STAT_W_BYTES_MIN:       s_axil_rdata_next = DW'(w_bytes_min);
-        STAT_W_BYTES_MAX:       s_axil_rdata_next = DW'(w_bytes_max);
-        STAT_W_DATA_LAG_CNT:    s_axil_rdata_next = DW'(w_data_lag_cnt);
-        STAT_W_IDLE_CNT:        s_axil_rdata_next = DW'(w_idle_cycles_cnt);
-        STAT_W_EARLY_BEAT_CNT:  s_axil_rdata_next = DW'(w_early_beat_cnt);
-        STAT_W_AWR_EARLY_CNT:   s_axil_rdata_next = DW'(w_awr_early_cnt);
-        STAT_W_B_LAG_CNT:       s_axil_rdata_next = DW'(w_b_lag_cnt);
-        STAT_W_B_STALL_CNT:     s_axil_rdata_next = DW'(w_b_stall_cnt);
-        STAT_W_B_END_CNT:       s_axil_rdata_next = DW'(w_b_end_cnt);
-        STAT_W_SLOW_DATA_CNT:   s_axil_rdata_next = DW'(w_slow_data_cnt);
-        STAT_W_STALL_CNT:       s_axil_rdata_next = DW'(w_stall_cnt);
-        STAT_W_ADDR_STALL_CNT:  s_axil_rdata_next = DW'(w_addr_stall_cnt);
-        STAT_W_ADDR_LAG_CNT:    s_axil_rdata_next = DW'(w_addr_lag_cnt);
-        STAT_W_EARLY_STALL_CNT: s_axil_rdata_next = DW'(w_early_stall_cnt);
-        STAT_W_ERR_CNT:         s_axil_rdata_next = DW'(w_err_cnt);
-        default: begin
-          s_axil_rdata_next = 0;
-          s_axil_rresp_next = 2'b11;
-        end
-      endcase
-    end
-  end
-
-  always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      s_axil_rvalid <= 1'b0;
-    end else begin
-      s_axil_rvalid <= s_axil_rvalid_next;
-    end
-  end
-
-  always_ff @(posedge clk) begin
-    s_axil_rdata <= s_axil_rdata_next;
-    s_axil_rresp <= s_axil_rresp_next;
-  end
 
   //--------------------------------------------------------------------------
   //
@@ -489,6 +357,78 @@ module svc_axi_stats_wr #(
       endcase
     end
 
+  //--------------------------------------------------------------------------
+  //
+  // Register file for stats interface
+  //
+  //--------------------------------------------------------------------------
+
+  // all stats are read only, so no r_val_next
+  logic [NUM_R-1:0][SW-1:0] r_val;
+
+  svc_axil_regfile #(
+      .N              (NUM_R),
+      .DATA_WIDTH     (STAT_WIDTH),
+      .AXIL_ADDR_WIDTH(AXIL_ADDR_WIDTH),
+      .AXIL_DATA_WIDTH(AXIL_DATA_WIDTH),
+      .REG_WRITE_MASK (0)
+  ) svc_axil_regfile_i (
+      .clk  (clk),
+      .rst_n(rst_n),
+
+      .r_val     (r_val),
+      .r_val_next(),
+
+      .s_axil_awaddr (s_axil_awaddr),
+      .s_axil_awvalid(s_axil_awvalid),
+      .s_axil_awready(s_axil_awready),
+      .s_axil_wdata  (s_axil_wdata),
+      .s_axil_wstrb  (s_axil_wstrb),
+      .s_axil_wvalid (s_axil_wvalid),
+      .s_axil_wready (s_axil_wready),
+      .s_axil_bvalid (s_axil_bvalid),
+      .s_axil_bresp  (s_axil_bresp),
+      .s_axil_bready (s_axil_bready),
+
+      .s_axil_arvalid(s_axil_arvalid),
+      .s_axil_araddr (s_axil_araddr),
+      .s_axil_arready(s_axil_arready),
+      .s_axil_rvalid (s_axil_rvalid),
+      .s_axil_rdata  (s_axil_rdata),
+      .s_axil_rresp  (s_axil_rresp),
+      .s_axil_rready (s_axil_rready)
+  );
+
+  always_comb begin
+    r_val[REG_AW_BURST_CNT]      = SW'(aw_burst_cnt);
+    r_val[REG_AW_DEPTH_MAX]      = SW'(aw_outstanding_max);
+    r_val[REG_AW_LEN_MIN]        = SW'(awlen_min);
+    r_val[REG_AW_LEN_MAX]        = SW'(awlen_max);
+    r_val[REG_AW_BYTES_SUM]      = SW'(aw_bytes_sum);
+    r_val[REG_AW_BYTES_MIN]      = SW'(aw_bytes_min);
+    r_val[REG_AW_BYTES_MAX]      = SW'(aw_bytes_max);
+    r_val[REG_W_BURST_CNT]       = SW'(w_burst_cnt);
+    r_val[REG_W_DEPTH_MAX]       = SW'(w_outstanding_max);
+    r_val[REG_W_BEAT_CNT]        = SW'(w_beat_cnt);
+    r_val[REG_W_BYTES_SUM]       = SW'(w_bytes_sum);
+    r_val[REG_W_BYTES_MIN]       = SW'(w_bytes_min);
+    r_val[REG_W_BYTES_MAX]       = SW'(w_bytes_max);
+    r_val[REG_W_DATA_LAG_CNT]    = SW'(w_data_lag_cnt);
+    r_val[REG_W_IDLE_CNT]        = SW'(w_idle_cycles_cnt);
+    r_val[REG_W_EARLY_BEAT_CNT]  = SW'(w_early_beat_cnt);
+    r_val[REG_W_AWR_EARLY_CNT]   = SW'(w_awr_early_cnt);
+    r_val[REG_W_B_LAG_CNT]       = SW'(w_b_lag_cnt);
+    r_val[REG_W_B_STALL_CNT]     = SW'(w_b_stall_cnt);
+    r_val[REG_W_B_END_CNT]       = SW'(w_b_end_cnt);
+    r_val[REG_W_SLOW_DATA_CNT]   = SW'(w_slow_data_cnt);
+    r_val[REG_W_STALL_CNT]       = SW'(w_stall_cnt);
+    r_val[REG_W_ADDR_STALL_CNT]  = SW'(w_addr_stall_cnt);
+    r_val[REG_W_ADDR_LAG_CNT]    = SW'(w_addr_lag_cnt);
+    r_val[REG_W_EARLY_STALL_CNT] = SW'(w_early_stall_cnt);
+    r_val[REG_W_ERR_CNT]         = SW'(w_err_cnt);
+  end
+
+  // TODO: set this and make use of it
   assign stat_err = 1'b0;
 
   `undef STAT_CNT
