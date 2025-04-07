@@ -68,6 +68,9 @@ module svc_axil_regfile #(
   logic [ R_W-1:0] sb_wreg;
   logic            sb_awready;
 
+  // TODO: sb_wdata and sb_wstrb could be reduced in size when the reg size is
+  // smaller than the axil bus. If/when this is changed, remove the casts
+  // when assigning the reg.
   logic            sb_wvalid;
   logic [A_DW-1:0] sb_wdata;
   logic [A_SW-1:0] sb_wstrb;
@@ -136,6 +139,8 @@ module svc_axil_regfile #(
           // SLVERR - partial writes not supported
           s_axil_bresp_next = 2'b10;
         end else begin
+          // TODO: remove this cast when the sb changes size. See TODO up at
+          // the declaration of sb_wdata.
           r_val_next[sb_wreg] = R_DW'(sb_wdata);
           s_axil_bresp_next   = 2'b00;
         end
@@ -221,7 +226,8 @@ module svc_axil_regfile #(
     end
   end
 
-  `SVC_UNUSED({s_axil_araddr[R_ADDRLSB-1:0], s_axil_awaddr[R_ADDRLSB-1:0]});
+  `SVC_UNUSED({s_axil_araddr[R_ADDRLSB-1:0], s_axil_awaddr[R_ADDRLSB-1:0],
+               sb_wdata[A_DW-R_DW]});
 
   // TODO: formal
 
