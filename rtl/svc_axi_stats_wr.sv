@@ -110,79 +110,13 @@ module svc_axi_stats_wr #(
   } state_t;
 
   // Statistics calculations and values
-  logic [7:0] aw_outstanding_cnt;
-  logic [7:0] aw_outstanding_max;
+  logic [    7:0] aw_outstanding_cnt;
+  logic [    7:0] aw_outstanding_max;
 
-  logic [7:0] w_outstanding_cnt;
-  logic [7:0] w_outstanding_max;
+  logic [    7:0] w_outstanding_cnt;
+  logic [    7:0] w_outstanding_max;
 
-  logic       w_in_progress;
-
-  // TODO: these macros might get moved to the common stats modules as they
-  // settle down. Having versions that take a width, and premade _8, _16, _32
-  // etc would be nice.
-
-  `define STAT_CNT(name, inc_expr, dec_expr = 1'b0)                          \
-    logic [STAT_WIDTH-1:0] name;                                             \
-    svc_stats_cnt #(                                                         \
-        .STAT_WIDTH(STAT_WIDTH)                                              \
-    ) svc_stats_cnt_``name`` (                                               \
-        .clk(clk),                                                           \
-        .rst_n(rst_n),                                                       \
-        .clr(stat_clear),                                                    \
-        .inc(inc_expr),                                                      \
-        .dec(dec_expr),                                                      \
-        .cnt(name)                                                           \
-    )
-
-  `define STAT_CNT_EN(name)                                                  \
-    logic [STAT_WIDTH-1:0] name;                                             \
-    logic name``_en;                                                         \
-    svc_stats_cnt #(                                                         \
-        .STAT_WIDTH(STAT_WIDTH)                                              \
-    ) svc_stats_cnt_``name`` (                                               \
-        .clk(clk),                                                           \
-        .rst_n(rst_n),                                                       \
-        .clr(stat_clear),                                                    \
-        .inc(name``_en),                                                     \
-        .dec(1'b0),                                                          \
-        .cnt(name)                                                           \
-    )
-
-  `define STAT_MIN_MAX(name, width, val_expr, en_expr)                       \
-    logic [width-1:0] name``_min;                                            \
-    logic [width-1:0] name``_max;                                            \
-    svc_stats_val #(                                                         \
-        .WIDTH(width),                                                       \
-        .STAT_WIDTH(STAT_WIDTH)                                              \
-    ) svc_stats_val_``name`` (                                               \
-        .clk(clk),                                                           \
-        .rst_n(rst_n),                                                       \
-        .clr(stat_clear),                                                    \
-        .en(en_expr),                                                        \
-        .val(val_expr),                                                      \
-        .min(name``_min),                                                    \
-        .max(name``_max),                                                    \
-        .sum()                                                               \
-    )
-
-  `define STAT_VAL(name, width, val_expr, en_expr)                           \
-    logic [width-1:0] name``_min;                                            \
-    logic [width-1:0] name``_max;                                            \
-    logic [STAT_WIDTH-1:0] name``_sum;                                       \
-    svc_stats_val #(                                                         \
-        .WIDTH(width),                                                       \
-        .STAT_WIDTH(STAT_WIDTH)                                              \
-    ) svc_stats_val_``name`` (                                               \
-        .clk(clk),                                                           \
-        .rst_n(rst_n),                                                       \
-        .clr(stat_clear),                                                    \
-        .en(en_expr),                                                        \
-        .val(val_expr),                                                      \
-        .min(name``_min),                                                    \
-        .max(name``_max),                                                    \
-        .sum(name``_sum)                                                     \
-    )
+  logic           w_in_progress;
 
   // convert write strobe to bytes written
   logic [ASW-1:0] w_bytes;
@@ -193,29 +127,35 @@ module svc_axi_stats_wr #(
     end
   end
 
-  `STAT_CNT(aw_burst_cnt, m_axi_awvalid && m_axi_awready);
-  `STAT_CNT(w_burst_cnt, m_axi_wvalid && m_axi_wready && m_axi_wlast);
-  `STAT_CNT(w_beat_cnt, m_axi_wvalid && m_axi_wready);
-  `STAT_CNT(w_err_cnt, m_axi_bvalid && m_axi_bready && m_axi_bresp != 2'b00);
+  //--------------------------------------------------------------------------
+  //
+  // Stats declarations
+  //
+  //--------------------------------------------------------------------------
+  `SVC_STAT_CNT(SW, aw_burst_cnt, m_axi_awvalid && m_axi_awready);
+  `SVC_STAT_CNT(SW, w_burst_cnt, m_axi_wvalid && m_axi_wready && m_axi_wlast);
+  `SVC_STAT_CNT(SW, w_beat_cnt, m_axi_wvalid && m_axi_wready);
+  `SVC_STAT_CNT(SW, w_err_cnt,
+                m_axi_bvalid && m_axi_bready && m_axi_bresp != 2'b00);
 
-  `STAT_MIN_MAX(awlen, 8, m_axi_awlen, m_axi_awvalid && m_axi_awready);
-  `STAT_VAL(aw_bytes, SW, (SW'(m_axi_awlen) + 1) << m_axi_awsize,
-            m_axi_awvalid && m_axi_awready);
-  `STAT_VAL(w_bytes, ASW, w_bytes, m_axi_wvalid && m_axi_wready);
+  `SVC_STAT_MIN_MAX(8, awlen, m_axi_awlen, m_axi_awvalid && m_axi_awready);
+  `SVC_STAT_VAL(SW, SW, aw_bytes, (SW'(m_axi_awlen) + 1) << m_axi_awsize,
+                m_axi_awvalid && m_axi_awready);
+  `SVC_STAT_VAL(SW, ASW, w_bytes, w_bytes, m_axi_wvalid && m_axi_wready);
 
   // the cycle counters. see the zipcpu blog post
-  `STAT_CNT_EN(w_data_lag_cnt);
-  `STAT_CNT_EN(w_idle_cycles_cnt);
-  `STAT_CNT_EN(w_early_beat_cnt);
-  `STAT_CNT_EN(w_awr_early_cnt);
-  `STAT_CNT_EN(w_b_lag_cnt);
-  `STAT_CNT_EN(w_b_stall_cnt);
-  `STAT_CNT_EN(w_slow_data_cnt);
-  `STAT_CNT_EN(w_b_end_cnt);
-  `STAT_CNT_EN(w_stall_cnt);
-  `STAT_CNT_EN(w_addr_stall_cnt);
-  `STAT_CNT_EN(w_addr_lag_cnt);
-  `STAT_CNT_EN(w_early_stall_cnt);
+  `SVC_STAT_CNT_EN(SW, w_data_lag_cnt);
+  `SVC_STAT_CNT_EN(SW, w_idle_cycles_cnt);
+  `SVC_STAT_CNT_EN(SW, w_early_beat_cnt);
+  `SVC_STAT_CNT_EN(SW, w_awr_early_cnt);
+  `SVC_STAT_CNT_EN(SW, w_b_lag_cnt);
+  `SVC_STAT_CNT_EN(SW, w_b_stall_cnt);
+  `SVC_STAT_CNT_EN(SW, w_slow_data_cnt);
+  `SVC_STAT_CNT_EN(SW, w_b_end_cnt);
+  `SVC_STAT_CNT_EN(SW, w_stall_cnt);
+  `SVC_STAT_CNT_EN(SW, w_addr_stall_cnt);
+  `SVC_STAT_CNT_EN(SW, w_addr_lag_cnt);
+  `SVC_STAT_CNT_EN(SW, w_early_stall_cnt);
 
   //--------------------------------------------------------------------------
   //
@@ -430,11 +370,6 @@ module svc_axi_stats_wr #(
 
   // TODO: set this and make use of it
   assign stat_err = 1'b0;
-
-  `undef STAT_CNT
-  `undef STAT_CNT_EN
-  `undef STAT_MIN_MAX
-  `undef STAT_VAL
 
 endmodule
 `endif
