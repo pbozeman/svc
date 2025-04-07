@@ -38,9 +38,8 @@
       .cnt(name)                                                           \
   )
 
-`define SVC_STAT_MIN_MAX(val_width, name, val_expr, en_expr)               \
+`define SVC_STAT_MIN(val_width, name, val_expr, en_expr = 1'b1)            \
   logic [val_width-1:0] name``_min;                                        \
-  logic [val_width-1:0] name``_max;                                        \
   svc_stats_min #(                                                         \
       .WIDTH(val_width)                                                    \
   ) svc_stats_min_``name`` (                                               \
@@ -50,7 +49,10 @@
       .en(en_expr),                                                        \
       .val(val_expr),                                                      \
       .min(name``_min)                                                     \
-  );                                                                       \
+  )
+
+`define SVC_STAT_MAX(val_width, name, val_expr, en_expr = 1'b1)            \
+  logic [val_width-1:0] name``_max;                                        \
   svc_stats_max #(                                                         \
       .WIDTH(val_width)                                                    \
   ) svc_stats_max_``name`` (                                               \
@@ -61,6 +63,10 @@
       .val(val_expr),                                                      \
       .max(name``_max)                                                     \
   )
+
+`define SVC_STAT_MIN_MAX(val_width, name, val_expr, en_expr = 1'b1)        \
+  `SVC_STAT_MIN(val_width, name, val_expr, en_expr);                       \
+  `SVC_STAT_MAX(val_width, name, val_expr, en_expr)
 
 `define SVC_STAT_VAL(stat_width, val_width, name, val_expr, en_expr)       \
   logic [val_width-1:0] name``_min;                                        \
