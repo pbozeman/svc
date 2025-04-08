@@ -420,8 +420,8 @@ def print_raw_ctrl(ctrl, label=""):
         print(f" {offset:02d}\t{name:<18}\t0x{val:<8x}\t{val:<10}")
 
 
-def calculate_perf_metrics(stats):
-    """Calculate common performance metrics from stats registers"""
+def calculate_write_perf_metrics(stats):
+    """Calculate write performance metrics from stats registers"""
     # Extract basic counters
     write_bursts = stats.get("STAT_W_BURST_CNT", 1)  # Avoid division by zero
     write_beats = stats.get("STAT_W_BEAT_CNT", 0)
@@ -463,18 +463,64 @@ def calculate_perf_metrics(stats):
     }
 
 
+def calculate_read_perf_metrics(stats):
+    """Calculate read-side performance metrics from stats registers"""
+    read_bursts = stats.get("STAT_R_BURST_CNT", 1)  # avoid div by zero
+    read_beats = stats.get("STAT_R_BEAT_CNT", 0)
+    total_read_bytes = stats.get("STAT_AR_BYTES_SUM", 0)
+
+    # Read latency numerator = lag + AR stalls
+    read_latency_numerator = stats.get("STAT_RD_LAG", 0) + stats.get(
+        "STAT_RD_AR_STALLS", 0
+    )
+    read_latency = safe_div(read_latency_numerator, read_bursts)
+
+    # Throughput = beats / (beats + stalls + slow link)
+    read_throughput_denominator = (
+        read_beats
+        + stats.get("STAT_RD_R_STALLS", 0)
+        + stats.get("STAT_RD_SLOW_LINK", 0)
+    )
+    read_throughput = safe_div(read_beats, read_throughput_denominator)
+
+    bandwidth_bytes_per_cycle = safe_div(total_read_bytes, read_throughput_denominator)
+
+    return {
+        "read_bursts": read_bursts,
+        "read_beats": read_beats,
+        "total_bytes": total_read_bytes,
+        "read_latency": read_latency,
+        "read_throughput": read_throughput,
+        "bandwidth_bytes_per_cycle": bandwidth_bytes_per_cycle,
+    }
+
+
 def print_performance_summary(block_name, stats, clock_speed_mhz):
     """Print performance summary statistics"""
     try:
-        metrics = calculate_perf_metrics(stats)
-        write_latency = metrics["write_latency"]
-        write_throughput = metrics["write_throughput"]
-        bandwidth_MBps = metrics["bandwidth_bytes_per_cycle"] * clock_speed_mhz
+        write_metrics = calculate_write_perf_metrics(stats)
+        read_metrics = calculate_read_perf_metrics(stats)
 
-        print(f"\n# Performance Summary:")
-        print(f" {'LATENCY':<20}: {write_latency:.2f} cycles/burst")
-        print(f" {'THROUGHPUT':<20}: {write_throughput:.2f} beats/cycle")
-        print(f" {'BANDWIDTH':<20}: {bandwidth_MBps:.2f} MB/s")
+        write_latency = write_metrics["write_latency"]
+        write_throughput = write_metrics["write_throughput"]
+        write_bandwidth_MBps = (
+            write_metrics["bandwidth_bytes_per_cycle"] * clock_speed_mhz
+        )
+
+        read_latency = read_metrics["read_latency"]
+        read_throughput = read_metrics["read_throughput"]
+        read_bandwidth_MBps = (
+            read_metrics["bandwidth_bytes_per_cycle"] * clock_speed_mhz
+        )
+
+        print(f"\n# Performance Summary for {block_name}:")
+        print(f" {'WRITE LATENCY':<20}: {write_latency:.2f} cycles/burst")
+        print(f" {'WRITE THROUGHPUT':<20}: {write_throughput:.2f} beats/cycle")
+        print(f" {'WRITE BANDWIDTH':<20}: {write_bandwidth_MBps:.2f} MB/s")
+        print("")
+        print(f" {'READ  LATENCY':<20}: {read_latency:.2f} cycles/burst")
+        print(f" {'READ  THROUGHPUT':<20}: {read_throughput:.2f} beats/cycle")
+        print(f" {'READ  BANDWIDTH':<20}: {read_bandwidth_MBps:.2f} MB/s")
     except Exception as e:
         print(f" Failed to compute stats for {block_name}: {e}")
 
