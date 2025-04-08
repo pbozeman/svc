@@ -10,6 +10,10 @@ from jinja2 import Environment, FileSystemLoader
 
 from axi_bridge_uart import AxiBridgeUart
 
+# TODO: this file should get broken up into parts, with some unit tests for each.
+# It grew organically from an initial debugging tool into a full blown templated
+# performance testing tool.
+
 # Each set of registers is at a base address that depends on the number of managers in use.
 # The registers are memory mapped to a 32bit address space with the upper bits selecting
 # the register set to address.
@@ -579,7 +583,151 @@ def load_config_from_file(filename, data_width):
     return test_cases
 
 
-def run(axi, config_path=None):
+def format_reg_name(key):
+    """
+    Convert register name to the same format as used in console output
+    Example: 'REG_START' becomes 'start', 'STAT_W_BURST_CNT' becomes 'w_burst_cnt'
+
+    Uses same approach as in print_raw_stats() and print_raw_ctrl()
+    """
+    # Handle non-string keys
+    if not isinstance(key, str):
+        return key
+
+    # Split on first underscore and take remainder, then lowercase
+    # Exactly matches how it's done in the print functions
+    name = key.split("_", 1)[1].lower() if "_" in key else key.lower()
+    return name
+
+
+def format_dict_keys(data):
+    """
+    Recursively format all dictionary keys to match console output style
+    """
+    if not isinstance(data, dict):
+        return data
+
+    result = {}
+    for key, value in data.items():
+        new_key = format_reg_name(key)
+
+        # Recursively format nested dictionaries
+        if isinstance(value, dict):
+            result[new_key] = format_dict_keys(value)
+        elif isinstance(value, list):
+            result[new_key] = [
+                format_dict_keys(item) if isinstance(item, dict) else item
+                for item in value
+            ]
+        else:
+            result[new_key] = value
+
+    return result
+
+
+def collect_test_results(top_ctrl, top_stats, manager_data, clock_speed_mhz, meta=None):
+    """
+    Collect all test results into a structured dictionary for JSON export
+
+    Args:
+        top_ctrl: Top-level control register values
+        top_stats: Top-level statistics register values
+        manager_data: List of dictionaries containing per-manager data
+        clock_speed_mhz: Clock speed in MHz
+        meta: Optional metadata about the test
+
+    Returns:
+        Dictionary with all test results
+    """
+    # Calculate top-level performance metrics
+    top_write_metrics = calculate_write_perf_metrics(top_stats)
+    top_read_metrics = calculate_read_perf_metrics(top_stats)
+
+    # Format only register names - not the structure keys
+    formatted_top_ctrl = {format_reg_name(k): v for k, v in top_ctrl.items()}
+    formatted_top_stats = {format_reg_name(k): v for k, v in top_stats.items()}
+
+    # Build the results structure
+    results = {
+        "metadata": {
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "clock_speed_mhz": clock_speed_mhz,
+            "num_managers": top_ctrl.get("REG_NUM_M", 0),
+            "data_width_bits": top_ctrl.get("REG_DATA_WIDTH", 0),
+        },
+        "top_level": {
+            "control": formatted_top_ctrl,
+            "stats": formatted_top_stats,
+            "metrics": {
+                "write": {
+                    "latency": top_write_metrics["write_latency"],
+                    "throughput": top_write_metrics["write_throughput"],
+                    "bandwidth_mbps": top_write_metrics["bandwidth_bytes_per_cycle"]
+                    * clock_speed_mhz,
+                    "total_bytes": top_write_metrics["total_bytes"],
+                    "total_bursts": top_write_metrics["write_bursts"],
+                    "total_beats": top_write_metrics["write_beats"],
+                },
+                "read": {
+                    "latency": top_read_metrics["read_latency"],
+                    "throughput": top_read_metrics["read_throughput"],
+                    "bandwidth_mbps": top_read_metrics["bandwidth_bytes_per_cycle"]
+                    * clock_speed_mhz,
+                    "total_bytes": top_read_metrics["total_bytes"],
+                    "total_bursts": top_read_metrics["read_bursts"],
+                    "total_beats": top_read_metrics["read_beats"],
+                },
+            },
+        },
+        "managers": manager_data,
+    }
+
+    # Add test metadata if provided
+    if meta:
+        results["test_metadata"] = meta
+
+    return results
+
+    # Add test metadata if provided
+    if meta:
+        results["test_metadata"] = meta
+
+    return results
+
+
+def export_json(data, filename):
+    """
+    Export data to a JSON file
+
+    Args:
+        data: Data to export
+        filename: Output filename
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        with open(filename, "w") as f:
+            json.dump(data, f, indent=2)
+        print(f"# Results exported to {filename}")
+        return True
+    except Exception as e:
+        print(f"# Error exporting results to {filename}: {e}")
+        return False
+
+
+def run(axi, config_path=None, json_output_path=None):
+    """
+    Run the AXI performance tests and optionally export results to JSON
+
+    Args:
+        axi: AxiBridgeUart instance
+        config_path: Optional path to test configuration JSON file
+        json_output_path: Optional path to export results as JSON
+
+    Returns:
+        List of test results
+    """
     num_m = get_num_managers(axi)
     print(f"# Detected NUM_M: {num_m}")
 
@@ -602,6 +750,18 @@ def run(axi, config_path=None):
                 },
             }
         ]
+
+    # Store system info for JSON output
+    system_info = {
+        "num_managers": num_m,
+        "clock_frequency_hz": clock_freq,
+        "clock_speed_mhz": clock_speed_mhz,
+        "data_width_bits": data_width,
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+    # Store all test results
+    all_results = []
 
     for idx, case in enumerate(test_cases):
         meta = case.get("meta", {})
@@ -653,6 +813,9 @@ def run(axi, config_path=None):
 
         print_performance_summary("AXI (Top-level)", top_stats, clock_speed_mhz)
 
+        # Collect manager stats
+        manager_data = []
+
         # Per-manager stats
         for m in range(num_m):
             m_ctrl_idx = 2 + m
@@ -673,18 +836,66 @@ def run(axi, config_path=None):
             print_raw_stats(m_stats, f"Manager {m}")
             print_performance_summary(f"AXI Manager {m}", m_stats, clock_speed_mhz)
 
+            # Calculate per-manager metrics for JSON export
+            write_metrics = calculate_write_perf_metrics(m_stats)
+            read_metrics = calculate_read_perf_metrics(m_stats)
+
+            # Store manager data for JSON with formatted register keys
+            manager_data.append(
+                {
+                    "id": m,
+                    "control": {format_reg_name(k): v for k, v in m_ctrl.items()},
+                    "stats": {format_reg_name(k): v for k, v in m_stats.items()},
+                    "metrics": {
+                        "write": {
+                            "latency": write_metrics["write_latency"],
+                            "throughput": write_metrics["write_throughput"],
+                            "bandwidth_mbps": write_metrics["bandwidth_bytes_per_cycle"]
+                            * clock_speed_mhz,
+                            "total_bytes": write_metrics["total_bytes"],
+                            "total_bursts": write_metrics["write_bursts"],
+                            "total_beats": write_metrics["write_beats"],
+                        },
+                        "read": {
+                            "latency": read_metrics["read_latency"],
+                            "throughput": read_metrics["read_throughput"],
+                            "bandwidth_mbps": read_metrics["bandwidth_bytes_per_cycle"]
+                            * clock_speed_mhz,
+                            "total_bytes": read_metrics["total_bytes"],
+                            "total_bursts": read_metrics["read_bursts"],
+                            "total_beats": read_metrics["read_beats"],
+                        },
+                    },
+                }
+            )
+
+        # Collect all results into a structured JSON
+        test_result = collect_test_results(
+            top_ctrl, top_stats, manager_data, clock_speed_mhz, meta
+        )
+        all_results.append(test_result)
+
+    # Export results to JSON if output path is provided
+    if json_output_path:
+        result_data = {"system_info": system_info, "tests": all_results}
+        export_json(result_data, json_output_path)
+
+    return all_results
+
 
 def main():
-    if len(sys.argv) < 2 or len(sys.argv) > 3:
-        print("Usage: axi_stats <serial_port> [config.json]")
+    if len(sys.argv) < 2:
+        print("Usage: axi_stats <serial_port> [config.json] [output.json]")
         return 1
 
     serial_port = sys.argv[1]
-    config_file = sys.argv[2] if len(sys.argv) == 3 else None
+    config_file = sys.argv[2] if len(sys.argv) > 2 else None
+    json_output = sys.argv[3] if len(sys.argv) > 3 else None
 
     try:
         axi = AxiBridgeUart(serial_port)
-        run(axi, config_file)
+        run(axi, config_file, json_output)
+        print(f"\n# Results successfully exported to {json_output}")
     except Exception as e:
         print(f"Error: {e}")
         return 1
