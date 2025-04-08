@@ -54,12 +54,12 @@ module svc_axil_regfile #(
     input  logic                       s_axil_rready
 );
   // Convert byte address to word address (reg idx)
-  parameter R_ADDRLSB = $clog2(AXIL_DATA_WIDTH) - 3;
-  parameter R_W = $clog2(N);
+  localparam R_ADDRLSB = $clog2(AXIL_DATA_WIDTH) - 3;
+  localparam R_W = $clog2(N);
 
-  parameter R_DW = DATA_WIDTH;
-  parameter A_DW = AXIL_DATA_WIDTH;
-  parameter A_SW = AXIL_STRB_WIDTH;
+  localparam R_DW = DATA_WIDTH;
+  localparam A_DW = AXIL_DATA_WIDTH;
+  localparam A_SW = AXIL_STRB_WIDTH;
 
   //--------------------------------------------------------------------------
   // Write path
