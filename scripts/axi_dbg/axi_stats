@@ -151,8 +151,6 @@ def get_axi_data_width(axi):
     return data_width
 
 
-# TODO: change the start_read/write defaults to False once out of the
-# initial dev iteration
 def gen_manager_settings(
     manager_id,
     data_width,
@@ -541,97 +539,145 @@ def configure_all_managers(axi, num_m, settings_dict):
         write_manager_settings(axi, manager_id, num_m, settings)
 
 
-def main():
-    if len(sys.argv) != 2:
-        print("Usage: axi_stats <serial_port>")
-        return 1
+def load_config_from_file(filename):
+    with open(filename, "r") as f:
+        raw = json.load(f)
 
-    serial_port = sys.argv[1]
+    if isinstance(raw, dict):
+        # Single test case fallback
+        raw = [raw]
 
-    try:
-        axi = AxiBridgeUart(serial_port)
+    test_cases = []
+    for entry in raw:
+        meta = entry.get("meta", {})
+        raw_managers = entry.get("managers", {})
 
-        # Get the number of managers (NUM_M)
-        num_m = get_num_managers(axi)
-        print(f"# Detected NUM_M: {num_m}")
+        settings = {}
+        for m_str, conf in raw_managers.items():
+            settings[int(m_str)] = conf
 
-        # Get clock frequency
-        cpu_freq_hz = get_clock_freq(axi)
-        clock_speed_mhz = cpu_freq_hz / 1_000_000
-        print(f"# Clock frequency: {clock_speed_mhz:.2f} MHz")
+        test_cases.append(
+            {
+                "meta": meta,
+                "managers": settings,
+            }
+        )
 
-        axi_data_width = get_axi_data_width(axi)
-        print(f"# AXI data width: {axi_data_width} bits")
+    return test_cases
 
-        # TODO: load these
-        # Generate settings for each manager
-        mgr_settings = {}
-        for m in range(num_m):
-            mgr_settings[m] = gen_manager_settings(m, axi_data_width)
 
-        print("\n# Configuring managers")
-        configure_all_managers(axi, num_m, mgr_settings)
+def run(axi, config_path=None):
+    num_m = get_num_managers(axi)
+    print(f"# Detected NUM_M: {num_m}")
 
-        print("\n# Running test")
-        clear_perf(axi, num_m)
-        start_perf(axi, num_m, mgr_settings)
-        wait_for_idle(axi, num_m)
+    clock_freq = get_clock_freq(axi)
+    clock_speed_mhz = clock_freq / 1_000_000
+    print(f"# Clock frequency: {clock_speed_mhz:.2f} MHz")
 
-        # Display top control and stats register info
-        top_ctrl_idx = 0
-        top_ctrl_addr = calculate_base_addr(top_ctrl_idx, num_m)
+    data_width = get_axi_data_width(axi)
+    print(f"# AXI data width: {data_width} bits")
 
-        top_stats_idx = 1
-        top_stats_addr = calculate_base_addr(top_stats_idx, num_m)
+    if config_path:
+        test_cases = load_config_from_file(config_path)
+    else:
+        print("# No config provided — running single default config")
+        test_cases = [
+            {
+                "meta": {"label": "default"},
+                "managers": {
+                    m: gen_manager_settings(m, data_width) for m in range(num_m)
+                },
+            }
+        ]
+
+    for idx, case in enumerate(test_cases):
+        meta = case.get("meta", {})
+        user_settings = case.get("managers", {})
 
         print(f"\n{'='*80}")
-        print(f"# AGGREGATE")
+        print(f"# TEST {idx+1}: {meta.get('label', 'unnamed')}")
         print(f"{'='*80}")
+        for k, v in meta.items():
+            print(f"# {k}: {v}")
 
+        # Fill in all managers: use config or fallback to "disabled" default
+        settings_dict = {}
+        for m in range(num_m):
+            if m in user_settings:
+                settings_dict[m] = user_settings[m]
+            else:
+                settings_dict[m] = gen_manager_settings(
+                    m, data_width, start_write=False, start_read=False
+                )
+
+        print("\n# Configuring managers")
+        configure_all_managers(axi, num_m, settings_dict)
+
+        print("\n# Clearing and starting test")
+        clear_perf(axi, num_m)
+        start_perf(axi, num_m, settings_dict)
+        wait_for_idle(axi, num_m)
+
+        print("\n# Collecting results")
+
+        # Top-level register dumps
+        top_ctrl_idx = 0
+        top_stats_idx = 1
+        top_ctrl_addr = calculate_base_addr(top_ctrl_idx, num_m)
+        top_stats_addr = calculate_base_addr(top_stats_idx, num_m)
+
+        print(f"\n{'-'*80}")
+        print(f"# AGGREGATE STATS")
+        print(f"{'-'*80}")
         print(f"# Control base address: 0x{top_ctrl_addr:08X}")
         print(f"# Stats base address:   0x{top_stats_addr:08X}")
 
-        # Read and print top control registers
         top_ctrl = read_registers(axi, top_ctrl_addr, REG_TOP_CTRL)
         print_raw_ctrl(top_ctrl, "Top-level")
 
-        # Read and print top stats registers
         top_stats = read_registers(axi, top_stats_addr, REG_STATS)
         print_raw_stats(top_stats, "Top-level")
 
-        # Print performance summary at the end
         print_performance_summary("AXI (Top-level)", top_stats, clock_speed_mhz)
 
+        # Per-manager stats
         for m in range(num_m):
-            # Manager control regs are at indices 2 to (2+NUM_M-1)
             m_ctrl_idx = 2 + m
-            m_ctrl_addr = calculate_base_addr(m_ctrl_idx, num_m)
-
-            # Manager stats are at indices (2+NUM_M) to (2+2*NUM_M-1)
             m_stats_idx = 2 + num_m + m
+
+            m_ctrl_addr = calculate_base_addr(m_ctrl_idx, num_m)
             m_stats_addr = calculate_base_addr(m_stats_idx, num_m)
 
-            # Read control and stats registers
             m_ctrl = read_registers(axi, m_ctrl_addr, REG_CTRL)
             m_stats = read_registers(axi, m_stats_addr, REG_STATS)
 
-            # Header
-            print(f"\n{'='*80}")
+            print(f"\n{'-'*80}")
             print(f"# MANAGER {m}")
-            print(f"{'='*80}")
-
-            # Print detailed registers
+            print(f"{'-'*80}")
             print(f"# Control base address: 0x{m_ctrl_addr:08X}")
             print(f"# Stats base address:   0x{m_stats_addr:08X}")
             print_raw_ctrl(m_ctrl, f"Manager {m}")
             print_raw_stats(m_stats, f"Manager {m}")
             print_performance_summary(f"AXI Manager {m}", m_stats, clock_speed_mhz)
 
+
+def main():
+    if len(sys.argv) < 2 or len(sys.argv) > 3:
+        print("Usage: axi_stats <serial_port> [config.json]")
+        return 1
+
+    serial_port = sys.argv[1]
+    config_file = sys.argv[2] if len(sys.argv) == 3 else None
+
+    try:
+        axi = AxiBridgeUart(serial_port)
+        run(axi, config_file)
     except Exception as e:
         print(f"Error: {e}")
         return 1
+    finally:
+        axi.close()
 
-    axi.close()
     return 0
 
 
