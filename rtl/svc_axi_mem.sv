@@ -60,11 +60,11 @@ module svc_axi_mem #(
   localparam IW = AXI_ID_WIDTH;
   localparam STRBW = AXI_STRB_WIDTH;
 
-  parameter LSB = $clog2(DW) - 3;
+  localparam LSB = $clog2(DW) - 3;
 
-  parameter MEM_ADDR_WIDTH = AW - LSB;
-  parameter WORD_WIDTH = STRBW;
-  parameter WORD_SIZE = DW / WORD_WIDTH;
+  localparam MEM_ADDR_WIDTH = AW - LSB;
+  localparam WORD_WIDTH = STRBW;
+  localparam WORD_SIZE = DW / WORD_WIDTH;
 
   logic [AXI_DATA_WIDTH-1:0] mem         [(1 << MEM_ADDR_WIDTH)-1:0];
 
@@ -189,9 +189,11 @@ module svc_axi_mem #(
     s_axi_bvalid_next = s_axi_bvalid && !s_axi_bready;
 
     mem_wr_en         = 1'b0;
+    mem_wr_addr       = 0;
 
     sb_s_awready      = 1'b0;
     sb_s_wready       = 1'b0;
+
 
     case (write_state)
       WRITE_STATE_IDLE: begin
@@ -392,7 +394,6 @@ module svc_axi_mem #(
     r_burst     <= r_burst_next;
 
     s_axi_rid   <= s_axi_rid_next;
-    s_axi_rresp <= 2'b00;
     s_axi_rlast <= s_axi_rlast_next;
   end
 
@@ -401,6 +402,8 @@ module svc_axi_mem #(
       s_axi_rdata <= mem[mem_rd_addr];
     end
   end
+
+  assign s_axi_rresp = 2'b00;
 
   `SVC_UNUSED(s_axi_awlen);
 
