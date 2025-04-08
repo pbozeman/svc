@@ -45,6 +45,12 @@ REG_CTRL = {
     "REG_W_BURST_STRIDE": 3,
     "REG_W_BURST_AWSIZE": 4,
     "REG_W_BURST_NUM": 5,
+    "REG_R_BASE_ADDR": 6,
+    "REG_R_BURST_ID": 7,
+    "REG_R_BURST_BEATS": 8,
+    "REG_R_BURST_STRIDE": 9,
+    "REG_R_BURST_ARSIZE": 10,
+    "REG_R_BURST_NUM": 11,
 }
 
 # Stats register definitions.
@@ -145,35 +151,83 @@ def get_axi_data_width(axi):
     return data_width
 
 
+# TODO: change the start_read/write defaults to False once out of the
+# initial dev iteration
 def gen_manager_settings(
     manager_id,
     data_width,
-    base_addr=None,
-    burst_id=0,
-    burst_beats=64,
-    burst_num=128,
-    burst_stride=None,
-    burst_awsize=None,
-    start=True,
+    #
+    # Write-side config
+    #
+    w_base_addr=None,
+    w_burst_id=None,
+    w_burst_beats=64,
+    w_burst_num=128,
+    w_burst_stride=None,
+    w_burst_awsize=None,
+    start_write=True,
+    #
+    # Read-side config
+    #
+    r_base_addr=None,
+    r_burst_id=None,
+    r_burst_beats=64,
+    r_burst_num=128,
+    r_burst_stride=None,
+    r_burst_arsize=None,
+    start_read=True,
 ):
-    """Generate settings for a manager based on parameters"""
-    if base_addr is None:
-        base_addr = manager_id * 1024
+    """Generate independent read/write settings for a manager."""
 
-    if burst_stride is None:
-        burst_stride = burst_beats * (data_width // 8)
+    if w_base_addr is None:
+        w_base_addr = manager_id * 512
 
-    if burst_awsize is None:
-        burst_awsize = int(math.log2(data_width // 8))
+    # separate them if not specified
+    if r_base_addr is None:
+        r_base_addr = w_base_addr + 128
+
+    if w_burst_id is None:
+        w_burst_id = manager_id
+
+    if w_burst_stride is None:
+        w_burst_stride = w_burst_beats * (data_width // 8)
+
+    if r_burst_stride is None:
+        r_burst_stride = r_burst_beats * (data_width // 8)
+
+    if w_burst_awsize is None:
+        w_burst_awsize = int(math.log2(data_width // 8))
+
+    if r_burst_arsize is None:
+        r_burst_arsize = int(math.log2(data_width // 8))
+
+    if r_burst_id is None:
+        r_burst_id = manager_id
 
     return {
-        "REG_W_BASE_ADDR": base_addr,
-        "REG_W_BURST_ID": burst_id,
-        "REG_W_BURST_BEATS": burst_beats,
-        "REG_W_BURST_STRIDE": burst_stride,
-        "REG_W_BURST_AWSIZE": burst_awsize,
-        "REG_W_BURST_NUM": burst_num,
-        "start": start,
+        #
+        # Write-side registers
+        #
+        "REG_W_BASE_ADDR": w_base_addr,
+        "REG_W_BURST_ID": w_burst_id,
+        "REG_W_BURST_BEATS": w_burst_beats,
+        "REG_W_BURST_STRIDE": w_burst_stride,
+        "REG_W_BURST_AWSIZE": w_burst_awsize,
+        "REG_W_BURST_NUM": w_burst_num,
+        #
+        # Read-side registers
+        #
+        "REG_R_BASE_ADDR": r_base_addr,
+        "REG_R_BURST_ID": r_burst_id,
+        "REG_R_BURST_BEATS": r_burst_beats,
+        "REG_R_BURST_STRIDE": r_burst_stride,
+        "REG_R_BURST_ARSIZE": r_burst_arsize,
+        "REG_R_BURST_NUM": r_burst_num,
+        #
+        # Flags
+        #
+        "start_write": start_write,
+        "start_read": start_read,
     }
 
 
@@ -293,25 +347,30 @@ def clear_perf(axi, num_m):
     return write_register(axi, top_ctrl_addr, "REG_CLEAR", REG_TOP_CTRL, 1)
 
 
+# start bits are sent all at once so that the start can be atomic on the
+# fpga side
 def start_perf(axi, num_m, settings_dict):
-    """Start the AXI perf test using per-manager start flags
+    """Start the AXI perf test using per-manager start flags.
 
-    Args:
-        axi: AxiBridgeUart instance
-        num_m: Number of managers
-        settings_dict: Dictionary of manager_id -> settings (must include "start" flag)
-
-    Returns:
-        True if successfully started, False otherwise
+    Bit layout of REG_START:
+    - Bits [0:num_m-1]: start write for each manager
+    - Bits [num_m:2*num_m-1]: start read for each manager
     """
     top_ctrl_addr = calculate_base_addr(0, num_m)
     start_mask = 0
 
     for manager_id, settings in settings_dict.items():
-        if settings.get("start", False):
+        if manager_id < 0 or manager_id >= num_m:
+            print(f"Warning: manager_id {manager_id} out of range (0 to {num_m - 1})")
+            continue
+
+        if settings.get("start_write", False):
             start_mask |= 1 << manager_id
 
-    print(f"# Starting Perf system with mask 0x{start_mask:X}")
+        if settings.get("start_read", False):
+            start_mask |= 1 << (num_m + manager_id)
+
+    print(f"# Starting Perf system with mask 0x{start_mask:08X}")
     return write_register(axi, top_ctrl_addr, "REG_START", REG_TOP_CTRL, start_mask)
 
 
@@ -332,6 +391,8 @@ def write_manager_settings(axi, manager_id, num_m, settings):
     print_raw_settings(settings, manager_id)
 
     for reg_name, value in settings.items():
+        if not reg_name.startswith("REG_"):
+            continue  # Skip non-register fields like "start_write"
         if reg_name in REG_CTRL:
             write_register(axi, m_ctrl_addr, reg_name, REG_CTRL, value)
         else:
