@@ -335,6 +335,17 @@ module svc_axi_stats #(
   // Read stats declarations
   //
   //--------------------------------------------------------------------------
+  localparam MAX_AXI_ID = 1 << AXI_ID_WIDTH;
+
+  logic [             7:0] rd_outstanding_id    [0:MAX_AXI_ID-1];
+  logic [  MAX_AXI_ID-1:0] rd_nz_outstanding_id;
+  logic [  MAX_AXI_ID-1:0] rd_bursts_in_flight;
+
+  logic [AXI_ID_WIDTH-1:0] rd_responding;
+  logic [AXI_ID_WIDTH-1:0] rd_responding_next;
+
+  logic [             7:0] rd_outstanding_cnt;
+  logic [             7:0] rd_outstanding_max;
 
   `SVC_STAT_CNT(SW, ar_burst_cnt, m_axi_arvalid && m_axi_arready);
   `SVC_STAT_CNT(SW, r_burst_cnt, m_axi_rvalid && m_axi_rready && m_axi_rlast);
@@ -362,9 +373,6 @@ module svc_axi_stats #(
   //
   //--------------------------------------------------------------------------
 
-  logic [7:0] rd_outstanding_cnt;
-  logic [7:0] rd_outstanding_max;
-
   // rd outstanding (ar txn accept to r last txn accept)
   svc_stats_cnt #(
       .STAT_WIDTH    (8),
@@ -388,15 +396,6 @@ module svc_axi_stats #(
       .val  (rd_outstanding_cnt),
       .max  (rd_outstanding_max)
   );
-
-  localparam MAX_AXI_ID = 1 << AXI_ID_WIDTH;
-
-  logic [             7:0] rd_outstanding_id    [0:MAX_AXI_ID-1];
-  logic [  MAX_AXI_ID-1:0] rd_nz_outstanding_id;
-  logic [  MAX_AXI_ID-1:0] rd_bursts_in_flight;
-
-  logic [AXI_ID_WIDTH-1:0] rd_responding;
-  logic [AXI_ID_WIDTH-1:0] rd_responding_next;
 
   for (genvar i = 0; i < (1 << AXI_ID_WIDTH); i++) begin : gen_rd_id_stats
     always_ff @(posedge clk) begin
