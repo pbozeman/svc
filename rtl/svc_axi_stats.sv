@@ -464,7 +464,7 @@ module svc_axi_stats #(
       rd_ar_stalls_en   <= 1'b0;
       rd_ar_cycles_en   <= 1'b0;
 
-      if (!m_axi_arvalid) begin
+      if (!m_axi_rvalid) begin
         if (rd_bursts_in_flight != 0) begin
           rd_slow_link_en <= 1'b1;
         end else if (rd_nz_outstanding_id != 0) begin
