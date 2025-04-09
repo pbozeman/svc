@@ -28,11 +28,17 @@ def load_json_results(filename):
 
 
 def find_unique_register_settings(results):
-    """Find all unique register settings across all tests"""
+    """Find all unique register settings across all tests and manager IDs"""
     unique_settings = {}
+    unique_managers = set()
 
     for test in results.get("tests", []):
         for manager in test.get("managers", []):
+            # Collect manager IDs
+            manager_id = manager.get("id", "unknown")
+            unique_managers.add(manager_id)
+
+            # Collect control register settings
             control = manager.get("control", {})
             for key, value in control.items():
                 if key not in unique_settings:
@@ -40,7 +46,12 @@ def find_unique_register_settings(results):
                 unique_settings[key].add(value)
 
     # Convert sets to sorted lists
-    return {k: sorted(list(v)) for k, v in unique_settings.items()}
+    settings_result = {k: sorted(list(v)) for k, v in unique_settings.items()}
+
+    # Add manager IDs as a special "register" setting
+    settings_result["manager"] = sorted(list(unique_managers))
+
+    return settings_result
 
 
 def filter_tests_by_register(results, register_name, register_value):
@@ -92,24 +103,53 @@ def filter_tests_by_selections(results, selections):
         selection_pairs.append((name, value))
 
     # Start with all tests
-    filtered_tests = results.get("tests", [])
+    filtered_tests = []
 
-    # Apply each selection criterion
-    for name, value in selection_pairs:
-        # For each criterion, we need to filter the current set of tests
-        matching_tests = []
+    # Process each test
+    for test in results.get("tests", []):
+        # Create a new test with filtered managers
+        filtered_managers = []
 
-        for test in filtered_tests:
-            # Check each manager in the test for a match
-            for manager in test.get("managers", []):
-                control = manager.get("control", {})
-                if control.get(name) == value:
-                    matching_tests.append(test)
-                    break
+        # Check each manager in the test for matches
+        for manager in test.get("managers", []):
+            # Check if manager matches all selection criteria
+            matches_all_criteria = True
 
-        # Update our filtered set for the next criterion
-        filtered_tests = matching_tests
+            for name, value in selection_pairs:
+                if name == "manager":
+                    manager_id = manager.get("id", "unknown")
+                    # Compare as numbers if both are numbers
+                    if isinstance(manager_id, (int, float)) and isinstance(
+                        value, (int, float)
+                    ):
+                        if manager_id != value:
+                            matches_all_criteria = False
+                            break
+                    # Otherwise compare as strings
+                    elif str(manager_id) != str(value):
+                        matches_all_criteria = False
+                        break
+                else:
+                    # Regular case for control registers
+                    control = manager.get("control", {})
+                    if control.get(name) != value:
+                        matches_all_criteria = False
+                        break
 
+            # If this manager matches all criteria, add it to the filtered set
+            if matches_all_criteria:
+                filtered_managers.append(manager)
+
+        # If we found any matching managers, include this test in the result
+        if filtered_managers:
+            # Create a filtered copy of the test with only matching managers
+            filtered_test = {k: v for k, v in test.items() if k != "managers"}
+            filtered_test["managers"] = filtered_managers
+            filtered_tests.append(filtered_test)
+
+    print(
+        f"# Filtered to {len(filtered_tests)} tests with managers matching selection criteria"
+    )
     return filtered_tests
 
 
@@ -132,16 +172,17 @@ def extract_metric_by_register(
 
     # Process each test
     for test_idx, test in enumerate(tests_to_process):
-        seen_values = set()  # Track register values we've seen in this test
-
         # Extract manager metrics
         for manager in test.get("managers", []):
-            control = manager.get("control", {})
-            reg_value = control.get(register_name)
+            # Special case for manager
+            if register_name == "manager":
+                reg_value = manager.get("id", "unknown")
+            else:
+                # Regular case for control registers
+                control = manager.get("control", {})
+                reg_value = control.get(register_name)
 
-            if reg_value is not None and reg_value not in seen_values:
-                seen_values.add(reg_value)
-
+            if reg_value is not None:
                 # Navigate through the metric path
                 metric_value = manager
                 for key in metric_path:
@@ -168,7 +209,96 @@ def extract_metric_by_register(
 
             # Try to extract register value from metadata
             reg_value = None
-            if (
+            if register_name == "manager":
+                # Can't group top-level by manager
+                continue
+            elif (
+                "register_settings" in meta
+                and register_name in meta["register_settings"]
+            ):
+                reg_value = meta["register_settings"][register_name]
+
+            if reg_value is not None:
+                metric_value = top_level
+                for key in metric_path:
+                    if key in metric_value:
+                        metric_value = metric_value[key]
+                    else:
+                        metric_value = None
+                        break
+
+                if metric_value is not None:
+                    data[reg_value].append(
+                        {
+                            "value": metric_value,
+                            "test_idx": test_idx,
+                            "test_meta": test_metadata.get(test_idx, {}),
+                        }
+                    )
+
+    return data
+
+
+def extract_metric_by_register(
+    results, register_name, metric_path, include_top_level=False, filtered_tests=None
+):
+    """Extract a specific metric for each unique value of the specified register"""
+    data = defaultdict(list)
+
+    # Create a map of test_idx -> test metadata for reference
+    test_metadata = {
+        idx: test.get("test_metadata", {})
+        for idx, test in enumerate(results.get("tests", []))
+    }
+
+    # Use filtered tests if provided, otherwise use all tests
+    tests_to_process = (
+        filtered_tests if filtered_tests is not None else results.get("tests", [])
+    )
+
+    # Process each test
+    for test_idx, test in enumerate(tests_to_process):
+        # Extract manager metrics
+        for manager in test.get("managers", []):
+            # Special case for manager
+            if register_name == "manager":
+                reg_value = manager.get("id", "unknown")
+            else:
+                # Regular case for control registers
+                control = manager.get("control", {})
+                reg_value = control.get(register_name)
+
+            if reg_value is not None:
+                # Navigate through the metric path
+                metric_value = manager
+                for key in metric_path:
+                    if key in metric_value:
+                        metric_value = metric_value[key]
+                    else:
+                        metric_value = None
+                        break
+
+                if metric_value is not None:
+                    data[reg_value].append(
+                        {
+                            "value": metric_value,
+                            "test_idx": test_idx,
+                            "test_meta": test_metadata.get(test_idx, {}),
+                            "manager": manager,
+                        }
+                    )
+
+        # Include top-level metrics if requested
+        if include_top_level:
+            top_level = test.get("top_level", {})
+            meta = test.get("test_metadata", {})
+
+            # Try to extract register value from metadata
+            reg_value = None
+            if register_name == "manager":
+                # Can't group top-level by manager
+                continue
+            elif (
                 "register_settings" in meta
                 and register_name in meta["register_settings"]
             ):
@@ -261,12 +391,18 @@ def create_groups(all_x, all_y, test_names, group_by, single_legend, metric_path
         test_manager = test_names[i].get("manager", {})
         control = test_manager.get("control", {})
 
+        # Get manager ID
+        manager_id = test_manager.get("id", "unknown")
+
         # Create group key based on specified group-by registers
         if group_by and not single_legend:
             group_parts = []
             for reg in group_by:
+                # Special case for manager
+                if reg == "manager":
+                    group_parts.append(f"manager={manager_id}")
                 # Try to get value from control registers first
-                if reg in control:
+                elif reg in control:
                     value = control[reg]
                     group_parts.append(f"{reg}={value}")
                 # Fall back to test metadata if available
@@ -289,9 +425,11 @@ def create_groups(all_x, all_y, test_names, group_by, single_legend, metric_path
             if single_legend:
                 group_key = metric_path[-1] if metric_path else "All data points"
             else:
-                group_key = test_meta.get(
+                # Include manager ID in the default group key
+                test_label = test_meta.get(
                     "label", f"Test {test_names[i].get('test_idx', 'unknown')}"
                 )
+                group_key = f"{test_label} (manager={manager_id})"
 
         # Add to the appropriate group
         if group_key not in groups:
@@ -584,7 +722,8 @@ def main():
         "--list", action="store_true", help="List available metrics and registers"
     )
     parser.add_argument(
-        "--register", help="Register name to use for filtering (e.g., w_burst_beats)"
+        "--register",
+        help="Register name to use for filtering (e.g., w_burst_beats or manager)",
     )
     parser.add_argument(
         "--metric", help="Metric to plot (e.g., metrics.write.bandwidth_mbps)"
@@ -603,7 +742,7 @@ def main():
     parser.add_argument(
         "--group-by",
         nargs="+",
-        help="Register names to group by in the legend (e.g., 'num_bursts burst_beats')",
+        help="Register names to group by in the legend (e.g., 'num_bursts burst_beats manager')",
     )
     parser.add_argument(
         "--no-points", action="store_true", help="Hide individual data points"
@@ -629,7 +768,7 @@ def main():
     parser.add_argument(
         "--select",
         action="append",
-        help="Select tests with matching register settings (format: name=value), can be specified multiple times",
+        help="Select tests with matching register settings or manager IDs (format: name=value), can be specified multiple times",
     )
 
     args = parser.parse_args()
@@ -639,11 +778,11 @@ def main():
 
     # List available options if requested
     if args.list:
-        # Find unique register settings
+        # Find unique register settings and manager IDs
         unique_settings = find_unique_register_settings(results)
 
-        print("\nAvailable Register Settings:")
-        print("===========================")
+        print("\nAvailable Register Settings and Manager IDs:")
+        print("=========================================")
         for reg, values in sorted(unique_settings.items()):
             print(
                 f"  {reg}: {len(values)} unique values - {values[:5]}{'...' if len(values) > 5 else ''}"
