@@ -14,7 +14,6 @@ module svc_stats_sum #(
     parameter BITS_PER_STAGE = `SVC_PIPE_BPS
 ) (
     input logic clk,
-    input logic rst_n,
 
     input logic             clr,
     input logic             en,
@@ -26,12 +25,11 @@ module svc_stats_sum #(
       .WIDTH         (STAT_WIDTH),
       .BITS_PER_STAGE(BITS_PER_STAGE)
   ) svc_acc_i (
-      .clk  (clk),
-      .rst_n(rst_n),
-      .clr  (clr),
-      .en   (en),
-      .val  (STAT_WIDTH'(val)),
-      .acc  (sum)
+      .clk(clk),
+      .clr(clr),
+      .en (en),
+      .val(STAT_WIDTH'(val)),
+      .acc(sum)
   );
 endmodule
 `endif

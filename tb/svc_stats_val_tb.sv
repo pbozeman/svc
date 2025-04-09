@@ -21,33 +21,27 @@ module svc_stats_val_tb;
       .STAT_WIDTH    (STAT_WIDTH),
       .BITS_PER_STAGE(BITS_PER_STAGE)
   ) uut (
-      .clk  (clk),
-      .rst_n(rst_n),
-      .clr  (clr),
-      .en   (en),
-      .val  (val),
-      .min  (min),
-      .max  (max),
-      .sum  (sum)
+      .clk(clk),
+      .clr(clr),
+      .en (en),
+      .val(val),
+      .min(min),
+      .max(max),
+      .sum(sum)
   );
 
   always_ff @(posedge clk) begin
     if (~rst_n) begin
-      clr <= 1'b0;
+      clr <= 1'b1;
       en  <= 1'b0;
       val <= '0;
     end
   end
 
-  task automatic test_reset();
-    `CHECK_EQ(min, {WIDTH{1'b1}});
-    `CHECK_EQ(max, '0);
-    `CHECK_EQ(sum, '0);
-  endtask
-
   task automatic test_basic_operation();
     val = 16'h1234;
     en  = 1'b1;
+    clr = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(min, 16'h1234);
@@ -83,7 +77,6 @@ module svc_stats_val_tb;
   endtask
 
   `TEST_SUITE_BEGIN(svc_stats_val_tb);
-  `TEST_CASE(test_reset);
   `TEST_CASE(test_basic_operation);
   `TEST_SUITE_END();
 endmodule

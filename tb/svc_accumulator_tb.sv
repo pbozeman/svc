@@ -18,25 +18,20 @@ module svc_accumulator_tb;
       .WIDTH         (WIDTH),
       .BITS_PER_STAGE(BITS_PER_STAGE)
   ) uut (
-      .clk  (clk),
-      .rst_n(rst_n),
-      .clr  (clr),
-      .en   (en),
-      .val  (val),
-      .acc  (acc)
+      .clk(clk),
+      .clr(clr),
+      .en (en),
+      .val(val),
+      .acc(acc)
   );
 
   always_ff @(posedge clk) begin
     if (~rst_n) begin
-      clr <= 1'b0;
+      clr <= 1'b1;
       en  <= 1'b0;
       val <= '0;
     end
   end
-
-  task automatic test_reset();
-    `CHECK_EQ(acc, '0);
-  endtask
 
   task automatic test_basic_accumulation();
     logic [WIDTH-1:0] expected;
@@ -177,7 +172,6 @@ module svc_accumulator_tb;
 
   // Test suite definition
   `TEST_SUITE_BEGIN(svc_accumulator_tb);
-  `TEST_CASE(test_reset);
   `TEST_CASE(test_basic_accumulation);
   `TEST_CASE(test_consecutive_inputs);
   `TEST_CASE(test_overflow);

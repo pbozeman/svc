@@ -8,7 +8,7 @@
 `ifdef SYNTH_YOSYS
 `define SVC_PIPE_BPS 4
 `else
-`define SVC_PIPE_BPS 16
+`define SVC_PIPE_BPS 8
 `endif
 
 `define SVC_STAT_CNT(stat_width, name, inc_expr, dec_expr = 1'b0)          \
@@ -17,7 +17,6 @@
       .STAT_WIDTH(stat_width)                                              \
   ) svc_stats_cnt_``name`` (                                               \
       .clk(clk),                                                           \
-      .rst_n(rst_n),                                                       \
       .clr(stat_clear),                                                    \
       .inc(inc_expr),                                                      \
       .dec(dec_expr),                                                      \
@@ -31,7 +30,6 @@
       .STAT_WIDTH(stat_width)                                              \
   ) svc_stats_cnt_``name`` (                                               \
       .clk(clk),                                                           \
-      .rst_n(rst_n),                                                       \
       .clr(stat_clear),                                                    \
       .inc(name``_en),                                                     \
       .dec(1'b0),                                                          \
@@ -44,7 +42,6 @@
       .WIDTH(val_width)                                                    \
   ) svc_stats_min_``name`` (                                               \
       .clk(clk),                                                           \
-      .rst_n(rst_n),                                                       \
       .clr(stat_clear),                                                    \
       .en(en_expr),                                                        \
       .val(val_expr),                                                      \
@@ -57,7 +54,6 @@
       .WIDTH(val_width)                                                    \
   ) svc_stats_max_``name`` (                                               \
       .clk(clk),                                                           \
-      .rst_n(rst_n),                                                       \
       .clr(stat_clear),                                                    \
       .en(en_expr),                                                        \
       .val(val_expr),                                                      \
@@ -77,7 +73,6 @@
       .STAT_WIDTH(stat_width)                                              \
   ) svc_stats_val_``name`` (                                               \
       .clk(clk),                                                           \
-      .rst_n(rst_n),                                                       \
       .clr(stat_clear),                                                    \
       .en(en_expr),                                                        \
       .val(val_expr),                                                      \

@@ -15,12 +15,11 @@ module svc_stats_max_tb;
       .WIDTH         (8),
       .BITS_PER_STAGE(8)
   ) uut_direct (
-      .clk  (clk),
-      .rst_n(rst_n),
-      .clr  (clr),
-      .en   (en),
-      .val  (val),
-      .max  (max)
+      .clk(clk),
+      .clr(clr),
+      .en (en),
+      .val(val),
+      .max(max)
   );
 
   // Pipeline-specific signals
@@ -31,32 +30,30 @@ module svc_stats_max_tb;
       .WIDTH         (8),
       .BITS_PER_STAGE(4)
   ) uut_pipe (
-      .clk  (clk),
-      .rst_n(rst_n),
-      .clr  (clr),
-      .en   (en),
-      .val  (val),
-      .max  (max_pipe)
+      .clk(clk),
+      .clr(clr),
+      .en (en),
+      .val(val),
+      .max(max_pipe)
   );
 
-  // Initialize signals in reset
   always_ff @(posedge clk) begin
     if (~rst_n) begin
-      clr <= 1'b0;
+      clr <= 1'b1;
       en  <= 1'b0;
       val <= 8'h00;
     end
   end
 
-  // Test reset behavior
   task automatic test_reset();
+    // rst was removed from the module, but in the tb we raise clr
     `CHECK_EQ(max, 8'h00);
     `CHECK_EQ(max_pipe, 8'h00);
   endtask
 
   // Test direct comparison (STAGES=0)
   task automatic test_direct_update();
-    // Test single value update
+    clr = 1'b0;
     en  = 1'b1;
     val = 8'h42;
     `TICK(clk);
@@ -65,17 +62,17 @@ module svc_stats_max_tb;
 
     // Test larger value
     en  = 1'b1;
-    val = 8'h64;  // 100 decimal
+    val = 8'h64;
     `TICK(clk);
     en = 1'b0;
     `CHECK_EQ(max, 8'h64);
 
     // Test smaller value (should not update max)
     en  = 1'b1;
-    val = 8'h32;  // 50 decimal
+    val = 8'h32;
     `TICK(clk);
     en = 1'b0;
-    `CHECK_EQ(max, 8'h64);  // Max should remain unchanged
+    `CHECK_EQ(max, 8'h64);
 
     // Test maximum possible value
     en  = 1'b1;
@@ -87,7 +84,7 @@ module svc_stats_max_tb;
 
   // Test pipelined implementation (STAGES>0)
   task automatic test_pipeline_update();
-    // Initial value
+    clr = 1'b0;
     en  = 1'b1;
     val = 8'h10;
     `TICK(clk);
@@ -114,12 +111,12 @@ module svc_stats_max_tb;
     en = 1'b0;
 
     repeat (3) `TICK(clk);
-    `CHECK_EQ(max_pipe, 8'hA5);  // Should remain at previous max
+    `CHECK_EQ(max_pipe, 8'hA5);
   endtask
 
   // Test clear functionality
   task automatic test_clear();
-    // Set up some value first
+    clr = 1'b0;
     en  = 1'b1;
     val = 8'h7F;
     `TICK(clk);
@@ -144,7 +141,7 @@ module svc_stats_max_tb;
 
   // Test rapid updates with enable toggling
   task automatic test_enable_behavior();
-    // Set initial values
+    clr = 1'b0;
     en  = 1'b1;
     val = 8'h30;
     `TICK(clk);
@@ -183,6 +180,7 @@ module svc_stats_max_tb;
     test_values[9] = 8'h45;
 
     // Send values one by one
+    clr            = 1'b0;
     for (int i = 0; i < 10; i++) begin
       en  = 1'b1;
       val = test_values[i];

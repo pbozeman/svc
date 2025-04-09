@@ -216,23 +216,21 @@ module svc_axi_stats #(
       .STAT_WIDTH    (8),
       .BITS_PER_STAGE(8)
   ) svc_stats_cnt_aw_outstanding (
-      .clk  (clk),
-      .rst_n(rst_n),
-      .clr  (stat_clear),
-      .inc  (m_axi_awvalid && m_axi_awready),
-      .dec  (m_axi_bvalid && m_axi_bready),
-      .cnt  (aw_outstanding_cnt)
+      .clk(clk),
+      .clr(stat_clear),
+      .inc(m_axi_awvalid && m_axi_awready),
+      .dec(m_axi_bvalid && m_axi_bready),
+      .cnt(aw_outstanding_cnt)
   );
 
   svc_stats_max #(
       .WIDTH(8)
   ) svc_stats_max_aw_outstanding (
-      .clk  (clk),
-      .rst_n(rst_n),
-      .clr  (stat_clear),
-      .en   (1'b1),
-      .val  (aw_outstanding_cnt),
-      .max  (aw_outstanding_max)
+      .clk(clk),
+      .clr(stat_clear),
+      .en (1'b1),
+      .val(aw_outstanding_cnt),
+      .max(aw_outstanding_max)
   );
 
   // w outstanding (last w txn accept to b txn accept)
@@ -240,23 +238,21 @@ module svc_axi_stats #(
       .STAT_WIDTH    (8),
       .BITS_PER_STAGE(8)
   ) svc_stats_cnt_w_outstanding (
-      .clk  (clk),
-      .rst_n(rst_n),
-      .clr  (stat_clear),
-      .inc  (m_axi_wvalid && m_axi_wready && m_axi_wlast),
-      .dec  (m_axi_bvalid && m_axi_bready),
-      .cnt  (w_outstanding_cnt)
+      .clk(clk),
+      .clr(stat_clear),
+      .inc(m_axi_wvalid && m_axi_wready && m_axi_wlast),
+      .dec(m_axi_bvalid && m_axi_bready),
+      .cnt(w_outstanding_cnt)
   );
 
   svc_stats_max #(
       .WIDTH(8)
   ) svc_stats_max_w_outstanding (
-      .clk  (clk),
-      .rst_n(rst_n),
-      .clr  (stat_clear),
-      .en   (1'b1),
-      .val  (w_outstanding_cnt),
-      .max  (w_outstanding_max)
+      .clk(clk),
+      .clr(stat_clear),
+      .en (1'b1),
+      .val(w_outstanding_cnt),
+      .max(w_outstanding_max)
   );
 
   always_ff @(posedge clk) begin
@@ -271,7 +267,7 @@ module svc_axi_stats #(
 
   // see the zipcpu blog to better understand these bins
   always_ff @(posedge clk)
-    if (rst_n || !stat_clear) begin
+    if (!stat_clear) begin
       w_idle_cycles_cnt_en <= 1'b0;
       w_slow_data_cnt_en   <= 1'b0;
       w_stall_cnt_en       <= 1'b0;
@@ -378,28 +374,26 @@ module svc_axi_stats #(
       .STAT_WIDTH    (8),
       .BITS_PER_STAGE(8)
   ) svc_stats_cnt_rd_outstanding (
-      .clk  (clk),
-      .rst_n(rst_n),
-      .clr  (stat_clear),
-      .inc  (m_axi_arvalid && m_axi_arready),
-      .dec  (m_axi_rvalid && m_axi_rready && m_axi_rlast),
-      .cnt  (rd_outstanding_cnt)
+      .clk(clk),
+      .clr(stat_clear),
+      .inc(m_axi_arvalid && m_axi_arready),
+      .dec(m_axi_rvalid && m_axi_rready && m_axi_rlast),
+      .cnt(rd_outstanding_cnt)
   );
 
   svc_stats_max #(
       .WIDTH(8)
   ) svc_stats_max_rd_outstanding (
-      .clk  (clk),
-      .rst_n(rst_n),
-      .clr  (stat_clear),
-      .en   (1'b1),
-      .val  (rd_outstanding_cnt),
-      .max  (rd_outstanding_max)
+      .clk(clk),
+      .clr(stat_clear),
+      .en (1'b1),
+      .val(rd_outstanding_cnt),
+      .max(rd_outstanding_max)
   );
 
   for (genvar i = 0; i < (1 << AXI_ID_WIDTH); i++) begin : gen_rd_id_stats
     always_ff @(posedge clk) begin
-      if (!rst_n) begin
+      if (stat_clear) begin
         rd_outstanding_id[i]    <= 0;
         rd_nz_outstanding_id[i] <= 0;
       end else begin
@@ -424,7 +418,7 @@ module svc_axi_stats #(
     end
 
     always_ff @(posedge clk) begin
-      if (!rst_n) begin
+      if (stat_clear) begin
         rd_bursts_in_flight[i] <= 0;
       end else begin
         if (m_axi_rvalid && m_axi_rid == i) begin
@@ -448,7 +442,7 @@ module svc_axi_stats #(
   end
 
   always_ff @(posedge clk) begin
-    if (!rst_n) begin
+    if (stat_clear) begin
       rd_responding <= 0;
     end else begin
       rd_responding <= rd_responding_next;
@@ -456,25 +450,23 @@ module svc_axi_stats #(
   end
 
   always_ff @(posedge clk) begin
-    if (rst_n || !stat_clear) begin
-      rd_slow_link_en   <= 1'b0;
-      rd_lag_en         <= 1'b0;
-      rd_idle_cycles_en <= 1'b0;
-      rd_ar_stalls_en   <= 1'b0;
-      rd_ar_cycles_en   <= 1'b0;
+    rd_slow_link_en   <= 1'b0;
+    rd_lag_en         <= 1'b0;
+    rd_idle_cycles_en <= 1'b0;
+    rd_ar_stalls_en   <= 1'b0;
+    rd_ar_cycles_en   <= 1'b0;
 
-      if (!m_axi_rvalid) begin
-        if (rd_bursts_in_flight != 0) begin
-          rd_slow_link_en <= 1'b1;
-        end else if (rd_nz_outstanding_id != 0) begin
-          rd_lag_en <= 1'b1;
-        end else if (!m_axi_arvalid) begin
-          rd_idle_cycles_en <= 1'b1;
-        end else if (m_axi_arvalid && !m_axi_arready) begin
-          rd_ar_stalls_en <= 1'b1;
-        end else begin
-          rd_ar_cycles_en <= 1'b1;
-        end
+    if (!m_axi_rvalid) begin
+      if (rd_bursts_in_flight != 0) begin
+        rd_slow_link_en <= 1'b1;
+      end else if (rd_nz_outstanding_id != 0) begin
+        rd_lag_en <= 1'b1;
+      end else if (!m_axi_arvalid) begin
+        rd_idle_cycles_en <= 1'b1;
+      end else if (m_axi_arvalid && !m_axi_arready) begin
+        rd_ar_stalls_en <= 1'b1;
+      end else begin
+        rd_ar_cycles_en <= 1'b1;
       end
     end
   end
