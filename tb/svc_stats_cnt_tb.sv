@@ -17,27 +17,23 @@ module svc_stats_cnt_tb;
       .STAT_WIDTH    (STAT_WIDTH),
       .BITS_PER_STAGE(BITS_PER_STAGE)
   ) uut (
-      .clk  (clk),
-      .rst_n(rst_n),
-      .clr  (clr),
-      .inc  (inc),
-      .dec  (dec),
-      .cnt  (cnt)
+      .clk(clk),
+      .clr(clr),
+      .inc(inc),
+      .dec(dec),
+      .cnt(cnt)
   );
 
   always_ff @(posedge clk) begin
     if (~rst_n) begin
-      clr <= 1'b0;
+      clr <= 1'b1;
       inc <= 1'b0;
       dec <= 1'b0;
     end
   end
 
-  task automatic test_reset();
-    `CHECK_EQ(cnt, 0);
-  endtask
-
   task automatic test_basic_increment();
+    clr = 1'b0;
     `CHECK_EQ(cnt, 0);
 
     inc = 1'b1;
@@ -55,6 +51,7 @@ module svc_stats_cnt_tb;
   endtask
 
   task automatic test_basic_decrement();
+    clr = 1'b0;
     inc = 1'b1;
     repeat (10) `TICK(clk);
     `CHECK_EQ(cnt, 10);
@@ -71,6 +68,7 @@ module svc_stats_cnt_tb;
   endtask
 
   task automatic test_clr();
+    clr = 1'b0;
     inc = 1'b1;
     dec = 1'b0;
     repeat (5) `TICK(clk);
@@ -92,9 +90,6 @@ module svc_stats_cnt_tb;
   endtask
 
   task automatic test_simultaneous_inc_dec();
-    clr = 1'b1;
-    `TICK(clk);
-
     clr = 1'b0;
     inc = 1'b1;
     repeat (5) `TICK(clk);
@@ -112,7 +107,6 @@ module svc_stats_cnt_tb;
   endtask
 
   `TEST_SUITE_BEGIN(svc_stats_cnt_tb);
-  `TEST_CASE(test_reset);
   `TEST_CASE(test_basic_increment);
   `TEST_CASE(test_basic_decrement);
   `TEST_CASE(test_clr);

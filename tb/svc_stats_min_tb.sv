@@ -14,12 +14,11 @@ module svc_stats_min_tb;
       .WIDTH         (8),
       .BITS_PER_STAGE(8)
   ) uut_direct (
-      .clk  (clk),
-      .rst_n(rst_n),
-      .clr  (clr),
-      .en   (en),
-      .val  (val),
-      .min  (min)
+      .clk(clk),
+      .clr(clr),
+      .en (en),
+      .val(val),
+      .min(min)
   );
 
   logic [7:0] min_pipe;
@@ -28,28 +27,23 @@ module svc_stats_min_tb;
       .WIDTH         (8),
       .BITS_PER_STAGE(4)
   ) uut_pipe (
-      .clk  (clk),
-      .rst_n(rst_n),
-      .clr  (clr),
-      .en   (en),
-      .val  (val),
-      .min  (min_pipe)
+      .clk(clk),
+      .clr(clr),
+      .en (en),
+      .val(val),
+      .min(min_pipe)
   );
 
   always_ff @(posedge clk) begin
     if (~rst_n) begin
-      clr <= 1'b0;
+      clr <= 1'b1;
       en  <= 1'b0;
       val <= 8'h00;
     end
   end
 
-  task automatic test_reset();
-    `CHECK_EQ(min, 8'hFF);
-    `CHECK_EQ(min_pipe, 8'hFF);
-  endtask
-
   task automatic test_direct_update();
+    clr = 1'b0;
     en  = 1'b1;
     val = 8'h42;
     `TICK(clk);
@@ -76,6 +70,7 @@ module svc_stats_min_tb;
   endtask
 
   task automatic test_pipeline_update();
+    clr = 1'b0;
     en  = 1'b1;
     val = 8'h80;
     `TICK(clk);
@@ -102,6 +97,7 @@ module svc_stats_min_tb;
   endtask
 
   task automatic test_clear();
+    clr = 1'b0;
     en  = 1'b1;
     val = 8'h10;
     `TICK(clk);
@@ -121,6 +117,7 @@ module svc_stats_min_tb;
   endtask
 
   task automatic test_enable_behavior();
+    clr = 1'b0;
     en  = 1'b1;
     val = 8'h70;
     `TICK(clk);
@@ -171,7 +168,6 @@ module svc_stats_min_tb;
   endtask
 
   `TEST_SUITE_BEGIN(svc_stats_min_tb);
-  `TEST_CASE(test_reset);
   `TEST_CASE(test_direct_update);
   `TEST_CASE(test_pipeline_update);
   `TEST_CASE(test_clear);

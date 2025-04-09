@@ -12,7 +12,6 @@ module svc_accumulator #(
     parameter BITS_PER_STAGE = `SVC_PIPE_BPS
 ) (
     input logic clk,
-    input logic rst_n,
 
     input  logic             clr,
     input  logic             en,
@@ -23,7 +22,7 @@ module svc_accumulator #(
 
   if (STAGES == 1 || STAGES == 0) begin : gen_stage_z
     always_ff @(posedge clk) begin
-      if (!rst_n || clr) begin
+      if (clr) begin
         acc <= 0;
       end else begin
         if (en) begin
@@ -37,7 +36,7 @@ module svc_accumulator #(
 
     // Stage 0 = input stage
     always_ff @(posedge clk) begin
-      if (!rst_n || clr) begin
+      if (clr) begin
         data_p[0]  <= '0;
         valid_p[0] <= 1'b0;
       end else if (en) begin
@@ -51,7 +50,7 @@ module svc_accumulator #(
     // Internal pipeline stages
     for (genvar i = 1; i <= STAGES; ++i) begin : gen_pipeline
       always_ff @(posedge clk) begin
-        if (!rst_n || clr) begin
+        if (clr) begin
           data_p[i]  <= '0;
           valid_p[i] <= 1'b0;
         end else begin
@@ -62,7 +61,7 @@ module svc_accumulator #(
     end
 
     always_ff @(posedge clk) begin
-      if (!rst_n || clr) begin
+      if (clr) begin
         acc <= '0;
       end else begin
         if (valid_p[STAGES]) begin
@@ -73,5 +72,4 @@ module svc_accumulator #(
   end
 
 endmodule
-
 `endif

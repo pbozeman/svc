@@ -19,27 +19,23 @@ module svc_stats_sum_tb;
       .STAT_WIDTH    (STAT_WIDTH),
       .BITS_PER_STAGE(BITS_PER_STAGE)
   ) uut (
-      .clk  (clk),
-      .rst_n(rst_n),
-      .clr  (clr),
-      .en   (en),
-      .val  (val),
-      .sum  (sum)
+      .clk(clk),
+      .clr(clr),
+      .en (en),
+      .val(val),
+      .sum(sum)
   );
 
   always_ff @(posedge clk) begin
     if (~rst_n) begin
-      clr <= 1'b0;
+      clr <= 1'b1;
       en  <= 1'b0;
       val <= '0;
     end
   end
 
-  task automatic test_reset();
-    `CHECK_EQ(sum, 0);
-  endtask
-
   task automatic test_basic_sum();
+    clr = 1'b0;
     en  = 1'b1;
     val = 8'd5;
     `TICK(clk);
@@ -56,6 +52,7 @@ module svc_stats_sum_tb;
   endtask
 
   task automatic test_clear();
+    clr = 1'b0;
     en  = 1'b1;
     val = 8'd25;
     `TICK(clk);
@@ -71,10 +68,7 @@ module svc_stats_sum_tb;
   endtask
 
   task automatic test_accumulate_large_values();
-    clr = 1'b1;
-    `TICK(clk);
     clr = 1'b0;
-
     en  = 1'b1;
     val = 8'hFF;
 
@@ -86,7 +80,6 @@ module svc_stats_sum_tb;
   endtask
 
   `TEST_SUITE_BEGIN(svc_stats_sum_tb);
-  `TEST_CASE(test_reset);
   `TEST_CASE(test_basic_sum);
   `TEST_CASE(test_clear);
   `TEST_CASE(test_accumulate_large_values);

@@ -12,7 +12,6 @@ module svc_stats_min #(
     parameter BITS_PER_STAGE = `SVC_PIPE_BPS
 ) (
     input logic clk,
-    input logic rst_n,
 
     input  logic             clr,
     input  logic             en,
@@ -23,7 +22,7 @@ module svc_stats_min #(
 
   if (STAGES == 1 || STAGES == 0) begin : gen_stage_z
     always_ff @(posedge clk) begin
-      if (!rst_n || clr) begin
+      if (clr) begin
         // initialize to max value
         min <= '1;
       end else if (en && val < min) begin
@@ -36,7 +35,7 @@ module svc_stats_min #(
 
     // Stage 0: latch input when enabled
     always_ff @(posedge clk) begin
-      if (!rst_n || clr) begin
+      if (clr) begin
         data_p[0]  <= '1;
         valid_p[0] <= 1'b0;
       end else if (en) begin
@@ -50,7 +49,7 @@ module svc_stats_min #(
     // Pipeline stages
     for (genvar i = 1; i <= STAGES; ++i) begin : gen_pipeline
       always_ff @(posedge clk) begin
-        if (!rst_n || clr) begin
+        if (clr) begin
           data_p[i]  <= '1;
           valid_p[i] <= 1'b0;
         end else begin
@@ -62,7 +61,7 @@ module svc_stats_min #(
 
     // Final compare at the end of the pipeline
     always_ff @(posedge clk) begin
-      if (!rst_n || clr) begin
+      if (clr) begin
         min <= '1;
       end else if (valid_p[STAGES] && data_p[STAGES] < min) begin
         min <= data_p[STAGES];

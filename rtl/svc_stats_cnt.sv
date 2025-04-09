@@ -12,7 +12,6 @@ module svc_stats_cnt #(
     parameter BITS_PER_STAGE = `SVC_PIPE_BPS
 ) (
     input logic clk,
-    input logic rst_n,
 
     input logic clr,
     input logic inc,
@@ -27,12 +26,11 @@ module svc_stats_cnt #(
       .WIDTH         (STAT_WIDTH),
       .BITS_PER_STAGE(BITS_PER_STAGE)
   ) svc_acc_i (
-      .clk  (clk),
-      .rst_n(rst_n),
-      .clr  (clr),
-      .en   (acc_en),
-      .val  (acc_val),
-      .acc  (cnt)
+      .clk(clk),
+      .clr(clr),
+      .en (acc_en),
+      .val(acc_val),
+      .acc(cnt)
   );
 
   always_comb begin
