@@ -549,12 +549,12 @@ def configure_all_managers(axi, num_m, settings_dict):
         import os
 
 
-def load_config_from_file(filename, data_width):
+def load_config_from_file(filename, data_width, num_m):
     if filename.endswith(".j2"):
         print(f"# Rendering Jinja2 template: {filename}")
         env = Environment(loader=FileSystemLoader(os.path.dirname(filename) or "."))
         template = env.get_template(os.path.basename(filename))
-        rendered = template.render(data_width=data_width)
+        rendered = template.render(data_width=data_width, num_m=num_m)
     else:
         with open(filename, "r") as f:
             rendered = f.read()
@@ -739,7 +739,7 @@ def run(axi, config_path=None, json_output_path=None):
     print(f"# AXI data width: {data_width} bits")
 
     if config_path:
-        test_cases = load_config_from_file(config_path, data_width)
+        test_cases = load_config_from_file(config_path, data_width, num_m)
     else:
         print("# No config provided — running single default config")
         test_cases = [

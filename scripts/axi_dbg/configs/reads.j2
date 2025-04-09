@@ -1,28 +1,32 @@
 [
-  {% set comma = joiner(",") %}
+  {% set outer_comma = joiner(",") %}
   {% set bytes_lookup = {8: 1, 16: 2, 32: 4, 64: 8, 128: 16, 256: 32, 512: 64, 1024: 128} %}
   {% set max_arsize_lookup = {1: 0, 2: 1, 4: 2, 8: 3, 16: 4, 32: 5, 64: 6, 128: 7} %}
   {% set max_arsize = max_arsize_lookup[bytes_lookup[data_width | default(32)]] %}
   {% for num in [1, 2, 4, 8, 16, 32] %}
     {% for beat in [1, 2, 4, 8, 16, 32, 64, 128] %}
       {% for arsize in range(0, max_arsize + 1) %}
-        {{ comma() }}
+        {{ outer_comma() }}
         {
           "meta": {
             "label": "read-num{{ num }}-beats{{ beat }}-arsize{{ arsize }}",
             "description": "Read test with num_bursts={{ num }}, burst_beats={{ beat }}, arsize={{ arsize }}"
           },
           "managers": {
-            "0": {
-              "REG_R_BASE_ADDR": 0,
-              "REG_R_BURST_ID": 0,
-              "REG_R_BURST_BEATS": {{ beat }},
-              "REG_R_BURST_STRIDE": {{ beat * (2**arsize) }},
-              "REG_R_BURST_ARSIZE": {{ arsize }},
-              "REG_R_BURST_NUM": {{ num }},
-              "start_read": true,
-              "start_write": false
-            }
+            {% set inner_comma = joiner(",") %}
+            {% for m in range(0, num_m) %}
+              {{ inner_comma() }}
+              "{{ m }}": {
+                "REG_R_BASE_ADDR": {{ m * 1024 }},
+                "REG_R_BURST_ID": {{ m }},
+                "REG_R_BURST_BEATS": {{ beat }},
+                "REG_R_BURST_STRIDE": {{ beat * (2**arsize) }},
+                "REG_R_BURST_ARSIZE": {{ arsize }},
+                "REG_R_BURST_NUM": {{ num }},
+                "start_read": true,
+                "start_write": false
+              }
+            {% endfor %}
           }
         }
       {% endfor %}
