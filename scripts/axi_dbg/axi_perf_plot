@@ -1,0 +1,701 @@
+#!/usr/bin/env python3
+
+import json
+import argparse
+import matplotlib.pyplot as plt
+import numpy as np
+import sys
+from matplotlib.ticker import MaxNLocator
+from collections import defaultdict
+
+# I barely read any of this code. It was a vibe codded session with claude,
+# with a tiny bit of code review to break up massively large functions and
+# steer it away from the most grievous mistakes. It was pretty much just asking
+# for a particular command line UX.
+#
+# TODO: the ux it did come up with is a bit wonky in its word choices.
+# Review and fix.
+
+
+def load_json_results(filename):
+    """Load JSON results file"""
+    try:
+        with open(filename, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error loading JSON file: {e}")
+        sys.exit(1)
+
+
+def find_unique_register_settings(results):
+    """Find all unique register settings across all tests"""
+    unique_settings = {}
+
+    for test in results.get("tests", []):
+        for manager in test.get("managers", []):
+            control = manager.get("control", {})
+            for key, value in control.items():
+                if key not in unique_settings:
+                    unique_settings[key] = set()
+                unique_settings[key].add(value)
+
+    # Convert sets to sorted lists
+    return {k: sorted(list(v)) for k, v in unique_settings.items()}
+
+
+def filter_tests_by_register(results, register_name, register_value):
+    """Filter tests where at least one manager has the specified register value"""
+    filtered_tests = []
+
+    for test in results.get("tests", []):
+        for manager in test.get("managers", []):
+            control = manager.get("control", {})
+            if control.get(register_name) == register_value:
+                filtered_tests.append(test)
+                break
+
+    return filtered_tests
+
+
+def filter_tests_by_selections(results, selections):
+    """Filter tests based on multiple name=value selection criteria
+
+    Args:
+        results: The results data dictionary
+        selections: List of name=value pairs for filtering
+
+    Returns:
+        List of tests matching all selection criteria
+    """
+    if not selections:
+        return results.get("tests", [])
+
+    # Parse the selections into name-value pairs
+    selection_pairs = []
+    for selection in selections:
+        if "=" not in selection:
+            print(
+                f"Warning: Invalid selection format '{selection}', expected 'name=value'"
+            )
+            continue
+        name, value_str = selection.split("=", 1)
+
+        # Try to convert value to integer or float if possible
+        try:
+            value = int(value_str)
+        except ValueError:
+            try:
+                value = float(value_str)
+            except ValueError:
+                value = value_str
+
+        selection_pairs.append((name, value))
+
+    # Start with all tests
+    filtered_tests = results.get("tests", [])
+
+    # Apply each selection criterion
+    for name, value in selection_pairs:
+        # For each criterion, we need to filter the current set of tests
+        matching_tests = []
+
+        for test in filtered_tests:
+            # Check each manager in the test for a match
+            for manager in test.get("managers", []):
+                control = manager.get("control", {})
+                if control.get(name) == value:
+                    matching_tests.append(test)
+                    break
+
+        # Update our filtered set for the next criterion
+        filtered_tests = matching_tests
+
+    return filtered_tests
+
+
+def extract_metric_by_register(
+    results, register_name, metric_path, include_top_level=False, filtered_tests=None
+):
+    """Extract a specific metric for each unique value of the specified register"""
+    data = defaultdict(list)
+
+    # Create a map of test_idx -> test metadata for reference
+    test_metadata = {
+        idx: test.get("test_metadata", {})
+        for idx, test in enumerate(results.get("tests", []))
+    }
+
+    # Use filtered tests if provided, otherwise use all tests
+    tests_to_process = (
+        filtered_tests if filtered_tests is not None else results.get("tests", [])
+    )
+
+    # Process each test
+    for test_idx, test in enumerate(tests_to_process):
+        seen_values = set()  # Track register values we've seen in this test
+
+        # Extract manager metrics
+        for manager in test.get("managers", []):
+            control = manager.get("control", {})
+            reg_value = control.get(register_name)
+
+            if reg_value is not None and reg_value not in seen_values:
+                seen_values.add(reg_value)
+
+                # Navigate through the metric path
+                metric_value = manager
+                for key in metric_path:
+                    if key in metric_value:
+                        metric_value = metric_value[key]
+                    else:
+                        metric_value = None
+                        break
+
+                if metric_value is not None:
+                    data[reg_value].append(
+                        {
+                            "value": metric_value,
+                            "test_idx": test_idx,
+                            "test_meta": test_metadata.get(test_idx, {}),
+                            "manager": manager,
+                        }
+                    )
+
+        # Include top-level metrics if requested
+        if include_top_level:
+            top_level = test.get("top_level", {})
+            meta = test.get("test_metadata", {})
+
+            # Try to extract register value from metadata
+            reg_value = None
+            if (
+                "register_settings" in meta
+                and register_name in meta["register_settings"]
+            ):
+                reg_value = meta["register_settings"][register_name]
+
+            if reg_value is not None:
+                metric_value = top_level
+                for key in metric_path:
+                    if key in metric_value:
+                        metric_value = metric_value[key]
+                    else:
+                        metric_value = None
+                        break
+
+                if metric_value is not None:
+                    data[reg_value].append(
+                        {
+                            "value": metric_value,
+                            "test_idx": test_idx,
+                            "test_meta": test_metadata.get(test_idx, {}),
+                        }
+                    )
+
+    return data
+
+
+def fit_curve(x_data, y_data, fit_type, x_smooth):
+    """Perform curve fitting based on the specified type
+
+    Returns:
+        tuple: (y_values, mask) where mask indicates valid points to plot
+              mask is True for all points except for log fit with negative x
+    """
+    try:
+        # Create a mask that defaults to all True (plot all points)
+        mask = np.ones_like(x_smooth, dtype=bool)
+
+        if fit_type == "linear":
+            coeffs = np.polyfit(x_data, y_data, 1)
+            poly = np.poly1d(coeffs)
+            y_values = poly(x_smooth)
+
+        elif fit_type == "poly" or fit_type is None:
+            best_degree = min(3, len(x_data) - 1)  # Don't overfit
+            if best_degree < 1:
+                return None, None
+
+            coeffs = np.polyfit(x_data, y_data, best_degree)
+            poly = np.poly1d(coeffs)
+            y_values = poly(x_smooth)
+
+        elif fit_type == "exp":
+            # Check for non-positive y values
+            if min(y_data) <= 0:
+                return None, None
+
+            log_y = np.log(y_data)
+            params = np.polyfit(x_data, log_y, 1)
+            a, b = np.exp(params[1]), params[0]
+            y_values = a * np.exp(b * x_smooth)
+
+        elif fit_type == "log":
+            # Check for non-positive x values
+            if min(x_data) <= 0:
+                return None, None
+
+            log_x = np.log(x_data)
+            params = np.polyfit(log_x, y_data, 1)
+            a, b = params[1], params[0]
+
+            # Only compute for positive x values
+            mask = x_smooth > 0
+            if not any(mask):
+                return None, None
+
+            y_values = np.zeros_like(x_smooth)
+            y_values[mask] = a + b * np.log(x_smooth[mask])
+
+        return y_values, mask
+    except Exception:
+        return None, None
+
+
+def create_groups(all_x, all_y, test_names, group_by, single_legend, metric_path):
+    """Group data points based on specified criteria"""
+    groups = {}
+
+    for i, (x, y) in enumerate(zip(all_x, all_y)):
+        test_meta = test_names[i].get("test_meta", {})
+        test_manager = test_names[i].get("manager", {})
+        control = test_manager.get("control", {})
+
+        # Create group key based on specified group-by registers
+        if group_by and not single_legend:
+            group_parts = []
+            for reg in group_by:
+                # Try to get value from control registers first
+                if reg in control:
+                    value = control[reg]
+                    group_parts.append(f"{reg}={value}")
+                # Fall back to test metadata if available
+                elif (
+                    "register_settings" in test_meta
+                    and reg in test_meta["register_settings"]
+                ):
+                    value = test_meta["register_settings"][reg]
+                    group_parts.append(f"{reg}={value}")
+
+            if group_parts:
+                group_key = ", ".join(group_parts)
+            else:
+                # If no group-by values were found, use the test label
+                group_key = test_meta.get(
+                    "label", f"Test {test_names[i].get('test_idx', 'unknown')}"
+                )
+        else:
+            # If single_legend is True or no group-by was specified
+            if single_legend:
+                group_key = metric_path[-1] if metric_path else "All data points"
+            else:
+                group_key = test_meta.get(
+                    "label", f"Test {test_names[i].get('test_idx', 'unknown')}"
+                )
+
+        # Add to the appropriate group
+        if group_key not in groups:
+            groups[group_key] = {"x": [], "y": []}
+        groups[group_key]["x"].append(x)
+        groups[group_key]["y"].append(y)
+
+    return groups
+
+
+def plot_fit_line(
+    x_smooth, y_smooth, mask, color, linewidth=1, alpha=0.4, zorder=1, linestyle="-"
+):
+    """Helper function to plot fit lines with proper masking"""
+    plt.plot(
+        x_smooth[mask],
+        y_smooth[mask],
+        color=color,
+        linestyle=linestyle,
+        linewidth=linewidth,
+        alpha=alpha,
+        zorder=zorder,
+    )
+
+
+def plot_global_fit(all_x, all_y, fit_type, no_legend):
+    """Plot a single fit line for all data points"""
+    if fit_type == "none":
+        return
+
+    # Calculate means for each unique x value
+    unique_x_all = sorted(set(all_x))
+    all_fit_x = []
+    all_fit_y = []
+
+    for x_val in unique_x_all:
+        indices = [i for i, x in enumerate(all_x) if x == x_val]
+        y_vals = [all_y[i] for i in indices]
+        all_fit_x.append(x_val)
+        all_fit_y.append(np.mean(y_vals))
+
+    if len(all_fit_x) < 3:
+        return
+
+    # Generate smooth x data for curve
+    x_smooth = np.linspace(min(all_fit_x), max(all_fit_x), 100)
+
+    y_smooth, mask = fit_curve(all_fit_x, all_fit_y, fit_type, x_smooth)
+    if y_smooth is not None and mask is not None:
+        plot_fit_line(
+            x_smooth, y_smooth, mask, color="blue" if no_legend else "r", linewidth=2
+        )
+
+
+def plot_group_fits(groups, fit_type):
+    """Plot fit lines for each group of data points"""
+    if fit_type == "none":
+        return
+
+    # Create a color cycle as backup
+    colors = plt.cm.tab10.colors
+
+    for i, (group_name, points) in enumerate(groups.items()):
+        # Get unique x values and calculate means for each x
+        unique_x = sorted(set(points["x"]))
+        if len(unique_x) < 3:
+            continue
+
+        group_means_x = []
+        group_means_y = []
+        for x_val in unique_x:
+            indices = [i for i, x in enumerate(points["x"]) if x == x_val]
+            y_vals = [points["y"][i] for i in indices]
+            group_means_x.append(x_val)
+            group_means_y.append(np.mean(y_vals))
+
+        # Create x values for smooth line
+        x_smooth = np.linspace(min(group_means_x), max(group_means_x), 100)
+
+        # Try to find the matching scatter plot for this group
+        point_color = None
+        collections = plt.gca().collections
+        for collection in collections:
+            if hasattr(collection, "_label") and collection._label == group_name:
+                point_color = collection.get_facecolor()[0]
+                break
+
+        # If we couldn't find a match, use a color from the cycle
+        if point_color is None:
+            point_color = colors[i % len(colors)]
+
+        y_smooth, mask = fit_curve(group_means_x, group_means_y, fit_type, x_smooth)
+        if y_smooth is not None and mask is not None:
+            plot_fit_line(x_smooth, y_smooth, mask, color=point_color, linewidth=1.5)
+
+
+def plot_scatter_points(groups, no_legend, single_legend):
+    """Plot scatter points for each group"""
+    for group_name, points in groups.items():
+        # For both no_legend and single_legend options, use consistent coloring
+        if no_legend or single_legend:
+            scatter = plt.scatter(
+                points["x"],
+                points["y"],
+                alpha=0.7,
+                label=None if no_legend else group_name,
+                zorder=2,
+                color="blue",
+            )
+        else:
+            scatter = plt.scatter(
+                points["x"], points["y"], alpha=0.7, label=group_name, zorder=2
+            )
+
+    return scatter
+
+
+def plot_metric_by_register(
+    results,
+    register_name,
+    metric_path,
+    title=None,
+    ylabel=None,
+    fit_type="poly",
+    show_points=True,
+    group_by=None,
+    single_fit=False,
+    single_legend=False,
+    no_legend=False,
+    legend_outside=True,
+):
+    """Plot a metric against register values as a scatter plot with curve fitting"""
+    data = extract_metric_by_register(results, register_name, metric_path)
+
+    if not data:
+        print(
+            f"No data found for register '{register_name}' and metric path {metric_path}"
+        )
+        return
+
+    # Create the plot
+    plt.figure(figsize=(10, 6))
+
+    # Collect data points
+    all_x = []
+    all_y = []
+    test_names = []
+    x_values = sorted(data.keys())
+
+    # Extract all data points
+    for x in x_values:
+        items = data[x]
+        for item in items:
+            # Store both test metadata and manager data for later grouping
+            test_info = {
+                "test_meta": item.get("test_meta", {}),
+                "test_idx": item.get("test_idx", "unknown"),
+                "value": item["value"],
+            }
+
+            if "manager" in item:
+                test_info["manager"] = item["manager"]
+
+            test_names.append(test_info)
+            all_x.append(x)
+            all_y.append(item["value"])
+
+    # Use single fit if requested or if no_legend is enabled
+    use_single_fit = single_fit or no_legend
+
+    # Do global fit first if applicable
+    if use_single_fit:
+        plot_global_fit(all_x, all_y, fit_type, no_legend)
+
+    # Plot scatter points
+    if show_points:
+        groups = create_groups(
+            all_x, all_y, test_names, group_by, single_legend, metric_path
+        )
+        plot_scatter_points(groups, no_legend, single_legend)
+
+        # Plot individual group fits if not using a global fit
+        if not use_single_fit:
+            plot_group_fits(groups, fit_type)
+
+    # Set plot labels and title
+    plt.xlabel(f"{register_name}")
+    plt.ylabel(ylabel if ylabel else "/".join(metric_path))
+
+    if title:
+        plt.title(title)
+    else:
+        metric_name = metric_path[-1] if metric_path else "Unknown Metric"
+        plt.title(f"{metric_name} vs {register_name}")
+
+    plt.grid(True, linestyle="--", alpha=0.5)
+
+    # Handle legend display options
+    if not no_legend:
+        if legend_outside:
+            max_entries = 20
+            handles, labels = plt.gca().get_legend_handles_labels()
+            truncated_handles = handles[:max_entries]
+            truncated_labels = labels[:max_entries]
+
+            # Add an ellipsis marker
+            from matplotlib.lines import Line2D
+
+            if len(labels) > max_entries:
+                ellipsis_handle = Line2D([], [], color="none")  # invisible dummy
+                ellipsis_label = f"... ({len(labels) - max_entries} more omitted)"
+                truncated_handles.append(ellipsis_handle)
+                truncated_labels.append(ellipsis_label)
+
+            # bbox_to_anchor: (x, y) where x and y are coordinates relative to figure
+            # loc: position anchor point of the legend
+            max_entries = 20
+            plt.legend(
+                truncated_handles,
+                truncated_labels,
+                bbox_to_anchor=(1.02, 0.5),
+                loc="center left",
+                borderaxespad=0,
+            )
+            # Add extra space on the right for the legend
+            plt.tight_layout(rect=[0, 0, 0.85, 1])
+        else:
+            plt.legend()
+
+    # Force integer ticks on x-axis if all values are integers
+    if all(isinstance(x, int) for x in x_values):
+        plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
+
+    if not legend_outside:
+        plt.tight_layout()
+
+    # Save the plot
+    output_file = f"{register_name}_{metric_path[-1]}.png"
+    plt.savefig(
+        output_file, dpi=300, bbox_inches="tight"
+    )  # Use bbox_inches='tight' to ensure legend is included in saved image
+    print(f"Plot saved to {output_file}")
+
+
+def list_available_metrics(results):
+    """List all available metrics and their paths"""
+    if "tests" not in results or not results["tests"]:
+        print("No test results found in the JSON file")
+        return
+
+    # Check if we have manager data
+    test = results["tests"][0]
+    if "managers" not in test or not test["managers"]:
+        print("No manager data found in the test results")
+        return
+
+    manager = test["managers"][0]
+    metrics = manager.get("metrics", {})
+
+    print("\nAvailable Computed Metrics:")
+    print("==========================")
+
+    # Print all paths in the metrics structure
+    def print_paths(obj, current_path=[]):
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                new_path = current_path + [key]
+                if isinstance(value, dict):
+                    print_paths(value, new_path)
+                else:
+                    print(f"  {'.'.join(new_path)}")
+        else:
+            print(f"  {'.'.join(current_path)}")
+
+    print_paths(metrics)
+
+    # Print available raw stats
+    print("\nAvailable Raw Stats:")
+    print("===================")
+
+    stats = manager.get("stats", {})
+    for key in sorted(stats.keys()):
+        print(f"  {key}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Plot AXI performance metrics")
+    parser.add_argument("json_file", help="JSON results file from axi_stats.py")
+    parser.add_argument(
+        "--list", action="store_true", help="List available metrics and registers"
+    )
+    parser.add_argument(
+        "--register", help="Register name to use for filtering (e.g., w_burst_beats)"
+    )
+    parser.add_argument(
+        "--metric", help="Metric to plot (e.g., metrics.write.bandwidth_mbps)"
+    )
+    parser.add_argument(
+        "--raw-stat", help="Raw stat to plot instead of a computed metric"
+    )
+    parser.add_argument(
+        "--fit",
+        choices=["linear", "poly", "exp", "log", "none"],
+        default="poly",
+        help="Type of curve fit to use (default: poly)",
+    )
+    parser.add_argument("--title", help="Custom title for the plot")
+    parser.add_argument("--ylabel", help="Custom label for y-axis")
+    parser.add_argument(
+        "--group-by",
+        nargs="+",
+        help="Register names to group by in the legend (e.g., 'num_bursts burst_beats')",
+    )
+    parser.add_argument(
+        "--no-points", action="store_true", help="Hide individual data points"
+    )
+    parser.add_argument(
+        "--single-fit",
+        action="store_true",
+        help="Use a single best-fit line for all data points instead of per-group fits",
+    )
+    parser.add_argument(
+        "--single-legend",
+        action="store_true",
+        help="Group all data points under a single legend entry using the metric name",
+    )
+    parser.add_argument(
+        "--no-legend", action="store_true", help="Hide the legend entirely"
+    )
+    parser.add_argument(
+        "--legend-inside",
+        action="store_true",
+        help="Place legend inside the plot area (default is outside)",
+    )
+    parser.add_argument(
+        "--select",
+        action="append",
+        help="Select tests with matching register settings (format: name=value), can be specified multiple times",
+    )
+
+    args = parser.parse_args()
+
+    # Load results
+    results = load_json_results(args.json_file)
+
+    # List available options if requested
+    if args.list:
+        # Find unique register settings
+        unique_settings = find_unique_register_settings(results)
+
+        print("\nAvailable Register Settings:")
+        print("===========================")
+        for reg, values in sorted(unique_settings.items()):
+            print(
+                f"  {reg}: {len(values)} unique values - {values[:5]}{'...' if len(values) > 5 else ''}"
+            )
+
+        # List available metrics
+        list_available_metrics(results)
+        return
+
+    # Plot requested metric
+    if args.register:
+        if args.metric or args.raw_stat:
+            # If no_legend is True, ensure we set single_fit to True for consistent behavior
+            single_fit_val = args.single_fit
+            if args.no_legend:
+                single_fit_val = True
+
+            # Determine the metric path
+            if args.metric:
+                metric_path = args.metric.split(".")
+            else:  # args.raw_stat
+                metric_path = ["stats", args.raw_stat]
+
+            filtered_results = results
+            if args.select:
+                filtered_tests = filter_tests_by_selections(results, args.select)
+                print(
+                    f"# Filtered to {len(filtered_tests)} tests matching selection criteria"
+                )
+                filtered_results = {**results, "tests": filtered_tests}
+
+            plot_metric_by_register(
+                filtered_results,
+                args.register,
+                metric_path,
+                title=args.title,
+                ylabel=args.ylabel,
+                fit_type=args.fit,
+                show_points=not args.no_points,
+                group_by=args.group_by,
+                single_fit=single_fit_val,
+                single_legend=args.single_legend,
+                no_legend=args.no_legend,
+                legend_outside=not args.legend_inside,
+            )
+        else:
+            print("Error: Either --metric or --raw-stat must be specified")
+            return
+    else:
+        print("Error: --register must be specified")
+        return
+
+
+if __name__ == "__main__":
+    main()
