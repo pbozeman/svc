@@ -14,4 +14,4 @@ else
     YOSYS_CMD=$CMD
 fi
 
-yosys -DSYNTH_YOSYS -p "read_verilog -sv -I${PRJ_RTL_LIB} -I${SVC_RTL_LIB} $1; synth_ice40; $YOSYS_CMD"
+yosys -DICE40 -DSYNTH_YOSYS -p "read_verilog -sv -I${PRJ_RTL_LIB} -I${SVC_RTL_LIB} $1; synth_ice40; $YOSYS_CMD"
