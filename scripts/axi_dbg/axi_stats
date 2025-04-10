@@ -10,6 +10,12 @@ from jinja2 import Environment, FileSystemLoader
 
 from axi_bridge_uart import AxiBridgeUart
 
+# TODO: get ADDR_WIDTH and BYTES_PER_WORD dynamically.
+ADDR_WIDTH = 32
+
+# The word size is not necessarily 32bits, but it usually will be
+BYTES_PER_WORD = 4
+
 # TODO: this file should get broken up into parts, with some unit tests for each.
 # It grew organically from an initial debugging tool into a full blown templated
 # performance testing tool.
@@ -31,10 +37,8 @@ from axi_bridge_uart import AxiBridgeUart
 #
 # And each of those indexes is mapped to memory address:
 #
-#   base_addr = (idx << (32 - $clog2(2 + 2*NUM_M)))
+#   base_addr = (idx << (ADDR_WIDTH - $clog2(2 + 2*NUM_M)))
 
-# The word size is not necessarily 32bits, but it usually will be
-BYTES_PER_WORD = 4
 
 # the top control regs are at memory base 0
 REG_TOP_CTRL = {
@@ -241,7 +245,7 @@ def calculate_base_addr(idx, num_m):
     """Calculate the base address for a given register set index based on NUM_M"""
     # Calculate $clog2(NUM_M * 2 + 2) - the number of bits needed to represent all sets
     sel_bits = math.ceil(math.log2(num_m * 2 + 2))
-    shift_amount = 32 - sel_bits
+    shift_amount = ADDR_WIDTH - sel_bits
     return idx << shift_amount
 
 
