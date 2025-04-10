@@ -1,6 +1,8 @@
 `ifndef SVC_AXIL_BRIDGE_UART_SV
 `define SVC_AXIL_BRIDGE_UART_SV
 
+`include "svc.sv"
+
 // This is a very basic axil/uart bridge. It's designed for very basic
 // debugging and/or command and control of benchmark modules running on
 // the fpga. It isn't intended to be high performance, or to move lots of
@@ -135,17 +137,17 @@ module svc_axil_bridge_uart #(
   logic            cmd_rw;
   logic            cmd_rw_next;
 
-  logic   [AW-1:0] cmd_addr;
-  logic   [AW-1:0] cmd_addr_next;
+  logic   [  31:0] cmd_addr;
+  logic   [  31:0] cmd_addr_next;
 
-  logic   [DW-1:0] cmd_data;
-  logic   [DW-1:0] cmd_data_next;
+  logic   [  31:0] cmd_data;
+  logic   [  31:0] cmd_data_next;
 
   logic   [   1:0] cmd_resp;
   logic   [   1:0] cmd_resp_next;
 
-  logic   [DW-1:0] cmd_resp_data;
-  logic   [DW-1:0] cmd_resp_data_next;
+  logic   [  31:0] cmd_resp_data;
+  logic   [  31:0] cmd_resp_data_next;
 
   logic            m_axil_arvalid_next;
   logic   [AW-1:0] m_axil_araddr_next;
@@ -297,7 +299,7 @@ module svc_axil_bridge_uart #(
       STATE_AXI_READ: begin
         if (!m_axil_arvalid) begin
           m_axil_arvalid_next = 1'b1;
-          m_axil_araddr_next  = cmd_addr;
+          m_axil_araddr_next  = AW'(cmd_addr);
           state_next          = STATE_AXI_READ_RESP;
         end
       end
@@ -306,7 +308,7 @@ module svc_axil_bridge_uart #(
         m_axil_rready = 1'b1;
         if (m_axil_rvalid) begin
           cmd_resp_next      = m_axil_rresp;
-          cmd_resp_data_next = m_axil_rdata;
+          cmd_resp_data_next = 32'(m_axil_rdata);
           state_next         = STATE_CMD_RESP_SEND;
         end
       end
@@ -318,9 +320,9 @@ module svc_axil_bridge_uart #(
         // unless subordinate is very badly designed)
         if (!m_axil_awvalid && !m_axil_wvalid) begin
           m_axil_awvalid_next = 1'b1;
-          m_axil_awaddr_next  = cmd_addr;
+          m_axil_awaddr_next  = AW'(cmd_addr);
           m_axil_wvalid_next  = 1'b1;
-          m_axil_wdata_next   = cmd_data;
+          m_axil_wdata_next   = DW'(cmd_data);
           state_next          = STATE_AXI_WRITE_RESP;
         end
       end
