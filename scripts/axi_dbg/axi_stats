@@ -16,6 +16,14 @@ ADDR_WIDTH = 32
 # The word size is not necessarily 32bits, but it usually will be
 BYTES_PER_WORD = 4
 
+# if bytes per word is < 4, then we may not be able to fit the clock freq
+# into the response, and the simple axi brdige protocol isn't advanced
+# enough to break larger values up into the transport word size.
+#
+# TODO: set this via the command line, but for now, this provides a way
+# to set it when working with the ice40.
+CLK_FREQ_OVERRIDE = None
+
 # TODO: this file should get broken up into parts, with some unit tests for each.
 # It grew organically from an initial debugging tool into a full blown templated
 # performance testing tool.
@@ -137,6 +145,9 @@ def get_num_managers(axi):
 
 def get_clock_freq(axi):
     """Read the clock frequency from the top control register"""
+    if CLK_FREQ_OVERRIDE:
+        return CLK_FREQ_OVERRIDE
+
     addr = 0 + (REG_TOP_CTRL["REG_CLK_FREQ"] * BYTES_PER_WORD)
     resp, freq = axi.read_word(addr)
     if resp != 0:
