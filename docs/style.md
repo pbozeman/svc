@@ -186,7 +186,7 @@ guidelines:
    existing code
 1. **Annotations**: Add "✨🤖✨ vibe coded with claude" comment at the top of
    Claude-generated files
-1. **Commit messages**: Add \[🤖\] emoji to commit message tags when commits are
+1. **Commit messages**: Add [🤖] emoji to commit message tags when commits are
    Claude-generated
 1. **NEVER add Co-Authored-By blocks in commit messages** - this policy is
    strictly enforced
