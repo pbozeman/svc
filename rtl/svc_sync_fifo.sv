@@ -112,8 +112,11 @@ module svc_sync_fifo #(
   // mem
   //
   always @(posedge clk) begin
-    if (w_inc & !w_full) begin
-      mem[w_addr] <= w_data;
+    // the rst_n check here helps with timing on the ice40
+    if (rst_n) begin
+      if (w_inc & !w_full) begin
+        mem[w_addr] <= w_data;
+      end
     end
   end
 
