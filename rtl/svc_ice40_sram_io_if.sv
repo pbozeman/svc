@@ -6,31 +6,10 @@
 `include "svc_sync_fifo.sv"
 `include "svc_unused.sv"
 
-// SRAM_RDATA_WIDTH can be set to something less than SRAM_DATA_WIDTH for use
-// with sram hardware that has words that aren't powers of 2. While that seems
-// odd, and it is, one of the first use cases for this was for use with an IO
-// boards that had 4 12bit wide SRAM buses. While the actual chips had 16 bit
-// data buses, only 12 were wired up due to a shortage of IO pins to/from the
-// fpga. Since AXI requires the data bus width to be a power of 2, this
-// is the implementation compromise to let the upper AXI layers think the bus
-// is 16 bits. Obviously, the caller at the top of the stack needs to be
-// aware this is happening.
-//
-// In the case described, the caller was using 8 bits for color and 4 for
-// metadata per pixel in a framebuffer. Color and metadata had to be updated
-// atomically, and there were multiple clients of the buffer. This let to
-// memory latency and bandwidth requirements that required the use of 4 chips.
-// It might have been possible to get this to work with 3-16bit wide chips
-// and non-word aligned pixels, but a stripe of 3 brings other axi complexity
-// during routing as it too is a non-power of 2. In summary, RDATA_WIDTH is
-// an engineering trade off that's balancing tradeoffs across multiple
-// layers of the rtl stack as well as the physical hardware design and IO
-// pin constraints.
 module svc_ice40_sram_io_if #(
-    parameter SRAM_ADDR_WIDTH  = 4,
-    parameter SRAM_DATA_WIDTH  = 16,
-    parameter SRAM_STRB_WIDTH  = (SRAM_DATA_WIDTH / 8),
-    parameter SRAM_RDATA_WIDTH = SRAM_DATA_WIDTH
+    parameter SRAM_ADDR_WIDTH = 4,
+    parameter SRAM_DATA_WIDTH = 16,
+    parameter SRAM_STRB_WIDTH = (SRAM_DATA_WIDTH / 8)
 ) (
     input logic clk,
     input logic rst_n,
@@ -52,20 +31,20 @@ module svc_ice40_sram_io_if #(
     //
     // io to/from the async sram chip
     //
-    output logic [ SRAM_ADDR_WIDTH-1:0] sram_io_addr,
+    output logic [SRAM_ADDR_WIDTH-1:0] sram_io_addr,
 `ifndef FORMAL
-    inout  wire  [SRAM_RDATA_WIDTH-1:0] sram_io_data,
+    inout  wire  [SRAM_DATA_WIDTH-1:0] sram_io_data,
 `else
-    input  wire  [SRAM_RDATA_WIDTH-1:0] sram_io_data,
+    input  wire  [SRAM_DATA_WIDTH-1:0] sram_io_data,
 `endif
-    output logic                        sram_io_we_n,
-    output logic                        sram_io_oe_n,
-    output logic                        sram_io_ce_n
+    output logic                       sram_io_we_n,
+    output logic                       sram_io_oe_n,
+    output logic                       sram_io_ce_n
 );
   // We can have 2 read and 2 write in flight and can't stop them once they go
   // into sram io. Make sure we can buffer them.
   localparam FIFO_ADDR_WIDTH = 3;
-  localparam FIFO_DATA_WIDTH = SRAM_RDATA_WIDTH;
+  localparam FIFO_DATA_WIDTH = SRAM_DATA_WIDTH;
 
   typedef enum {
     STATE_IDLE,
@@ -73,25 +52,25 @@ module svc_ice40_sram_io_if #(
     STATE_WRITE
   } state_t;
 
-  state_t                        state;
-  state_t                        state_next;
+  state_t                       state;
+  state_t                       state_next;
 
-  logic   [ SRAM_ADDR_WIDTH-1:0] pad_addr;
-  logic                          pad_wr_en;
-  logic   [SRAM_RDATA_WIDTH-1:0] pad_wr_data;
-  logic   [SRAM_RDATA_WIDTH-1:0] pad_rd_data;
-  logic                          pad_rd_valid;
-  logic                          pad_we_n;
-  logic                          pad_oe_n;
+  logic   [SRAM_ADDR_WIDTH-1:0] pad_addr;
+  logic                         pad_wr_en;
+  logic   [SRAM_DATA_WIDTH-1:0] pad_wr_data;
+  logic   [SRAM_DATA_WIDTH-1:0] pad_rd_data;
+  logic                         pad_rd_valid;
+  logic                         pad_we_n;
+  logic                         pad_oe_n;
 
   // response fifo signals
-  logic                          fifo_w_half_full;
-  logic                          fifo_r_empty;
-  logic   [ FIFO_DATA_WIDTH-1:0] fifo_r_data;
+  logic                         fifo_w_half_full;
+  logic                         fifo_r_empty;
+  logic   [FIFO_DATA_WIDTH-1:0] fifo_r_data;
 
   svc_ice40_sram_io #(
       .SRAM_ADDR_WIDTH(SRAM_ADDR_WIDTH),
-      .SRAM_DATA_WIDTH(SRAM_RDATA_WIDTH)
+      .SRAM_DATA_WIDTH(SRAM_DATA_WIDTH)
   ) svc_ice40_sram_io_i (
       .clk  (clk),
       .rst_n(rst_n),
@@ -155,7 +134,7 @@ module svc_ice40_sram_io_if #(
     end
 
     if (state_next == STATE_WRITE) begin
-      pad_wr_data <= SRAM_RDATA_WIDTH'(sram_cmd_wr_data);
+      pad_wr_data <= SRAM_DATA_WIDTH'(sram_cmd_wr_data);
     end
   end
 
@@ -194,14 +173,7 @@ module svc_ice40_sram_io_if #(
   assign sram_resp_rd_valid = !fifo_r_empty;
   assign sram_resp_rd_data  = SRAM_DATA_WIDTH'(fifo_r_data);
 
-  if (SRAM_DATA_WIDTH == SRAM_RDATA_WIDTH) begin : gen_unused
-    `SVC_UNUSED({sram_cmd_wr_strb});
-  end else begin : gen_unused_real
-    // verilog_format: off
-    `SVC_UNUSED({sram_cmd_wr_strb,
-                 sram_cmd_wr_data[SRAM_DATA_WIDTH-1:SRAM_RDATA_WIDTH]});
-    // verilog_format: on
-  end
+  `SVC_UNUSED({sram_cmd_wr_strb});
 
 `ifdef FORMAL
 `ifdef FORMAL_SVC_ICE40_SRAM_IO_IF
