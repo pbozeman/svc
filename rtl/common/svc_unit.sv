@@ -13,7 +13,7 @@
 `define COLOR_GREEN "\033[32m"
 `define COLOR_YELLOW "\033[33m"
 `define COLOR_BLUE "\033[34m"
-`define COLOR_MGENTA "\033[34m"
+`define COLOR_MAGENTA "\033[35m"
 `define COLOR_CYAN "\033[36m"
 `define COLOR_WHITE "\033[36m"
 `define COLOR_RESET "\033[0m"
@@ -98,7 +98,7 @@
   `SVC_TINY_TICK;                                                             \
   if (((a) > (b)) || ((a) === 'x) || ((b) === 'x) ||                          \
       ((a) === 'z) || ((b) === 'z)) begin                                     \
-    `CHECK_MSG_2("LT", `__FILE__, `__LINE__, a, b);                           \
+    `CHECK_MSG_2("LTE", `__FILE__, `__LINE__, a, b);                          \
   end
 
 `define CHECK_GT(a, b)                                                        \
