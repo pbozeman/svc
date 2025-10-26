@@ -7,6 +7,9 @@ tb/formal/private
 # direnv
 .direnv
 
+# claude
+.claude
+
 # python
 __pycache__
 
