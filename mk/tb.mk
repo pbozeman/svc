@@ -87,14 +87,15 @@ $(TB_BUILD_DIR)/%.pass: $(TB_BUILD_DIR)/%
 TB_PRJ_INC = $(PRJ_RTL_DIR)/$(patsubst %_tb,%, $(notdir $(*)))
 .PRECIOUS: $(TB_BUILD_DIR)/%
 $(TB_BUILD_DIR)/%: $(PRJ_TB_DIR)/%.sv $(ICE40_CELLS_SIM) Makefile | $(TB_BUILD_DIR)
-	@$(IVERILOG) -M $(@).dep $(I_RTL) $(I_TB) -I$(TB_PRJ_INC) -o $@ $(filter-out Makefile,$^)
+	@$(IVERILOG) -M $(@).dep $(I_RTL) $(I_TB) -I$(TB_PRJ_INC) -o $@ $(filter-out Makefile,$^) 2>&1 | grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2 || true
 	@echo "$@: $$(tr '\n' ' ' < $(@).dep)" > $(@).d
 
 # run a tb and do results tracking
 define tb_run_test
 	@echo "$1" >> $(TB_BUILD_DIR)/tb_run.log;
 	@$(VVP) $1 +SKIP_SLOW_TESTS=$(SKIP_SLOW_TESTS) +run=$(RUN) 2>&1 |\
-		grep -v "VCD info:"; \
+		grep -v "VCD info:" |\
+		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored"; \
 		status=$${PIPESTATUS[0]}; \
 		if [ $$status -eq 0 ]; then \
 			if [ -z "$(RUN)" ]; then \
