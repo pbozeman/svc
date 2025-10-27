@@ -1,7 +1,7 @@
 ifndef MD_MK
 MD_MK := 1
 
-MD_FORMATTER := mdformat --wrap 80
+MD_FORMATTER := prettier --prose-wrap always --print-width 80 --write
 MD_FILES := $(shell find . -name "*.md" -type f)
 
 .PHONY: mdformat

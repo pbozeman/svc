@@ -162,7 +162,7 @@ module svc_sync_fifo #(
     output logic                  w_full,     // FIFO full indicator
     output logic                  w_half_full,// FIFO half full indicator
     // Read interface
-    input  logic                  r_inc,      // Read increment 
+    input  logic                  r_inc,      // Read increment
     output logic                  r_empty,    // FIFO empty indicator
     output logic [DATA_WIDTH-1:0] r_data      // Read data (FWFT)
 );
@@ -236,7 +236,7 @@ module svc_cdc_fifo #(
     // Read domain
     input  logic                  r_clk,      // Read clock
     input  logic                  r_rst_n,    // Read reset
-    input  logic                  r_inc,      // Read increment 
+    input  logic                  r_inc,      // Read increment
     output logic                  r_empty,    // FIFO empty indicator
     output logic [DATA_WIDTH-1:0] r_data      // Read data
 );
@@ -320,7 +320,7 @@ module svc_axi_arbiter #(
 ) (
     input logic clk,
     input logic rst_n,
-    
+
     // Manager 0 AXI interface
     input  logic                      m0_axi_awvalid,
     input  logic [AXI_ADDR_WIDTH-1:0] m0_axi_awaddr,
@@ -355,10 +355,10 @@ module svc_axi_arbiter #(
     output logic [               1:0] m0_axi_rresp,
     output logic                      m0_axi_rlast,
     input  logic                      m0_axi_rready,
-    
+
     // Manager 1 AXI interface (if NUM_MANAGERS > 1)
     // [Same interface as Manager 0, with m1_ prefix]
-    
+
     // Subordinate AXI interface (single output)
     output logic                      s_axi_awvalid,
     output logic [AXI_ADDR_WIDTH-1:0] s_axi_awaddr,
@@ -507,7 +507,7 @@ Implements address striping across multiple AXI subordinates.
 **Interface:**
 
 - One manager AXI interface (m_axi\_\*)
-- Multiple subordinate AXI interfaces (s0_axi\_*, s1_axi\_*, etc.)
+- Multiple subordinate AXI interfaces (s0_axi\_\_, s1_axi\_\_, etc.)
 
 ### `svc_axi_mem.sv`
 
@@ -731,7 +731,7 @@ module svc_gfx_vga #(
 
     // AXI memory interface
     // Complete AXI manager interface (m_axi_*)
-    
+
     // VGA timing parameters
     input logic [H_WIDTH-1:0] h_visible,
     input logic [H_WIDTH-1:0] h_sync_start,
@@ -890,7 +890,7 @@ state_t state, state_next;
 // Next state logic
 always_comb begin
     state_next = state;
-    
+
     case (state)
         STATE_IDLE: if (start) state_next = STATE_BUSY;
         STATE_BUSY: if (done)  state_next = STATE_DONE;
@@ -925,12 +925,12 @@ svc_axi_arbiter #(
     .m0_axi_awvalid(cpu_axi_awvalid),
     .m0_axi_awaddr(cpu_axi_awaddr),
     // ...other signals...
-    
+
     // Connect manager 1
     .m1_axi_awvalid(dma_axi_awvalid),
     .m1_axi_awaddr(dma_axi_awaddr),
     // ...other signals...
-    
+
     // Connect to subordinate
     .s_axi_awvalid(mem_axi_awvalid),
     .s_axi_awaddr(mem_axi_awaddr),
@@ -949,7 +949,7 @@ svc_axi_mem #(
     .s_axi_awvalid(mem_axi_awvalid),
     .s_axi_awaddr(mem_axi_awaddr),
     // ...other signals...
-    
+
     // Connect to memory
     .mem_addr(sram_addr),
     .mem_we(sram_we),
