@@ -1,6 +1,9 @@
 # private ip
 tb/formal/private
 
+# claude
+.claude
+
 # direnv
 .direnv
 
