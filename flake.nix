@@ -15,7 +15,6 @@
 
         # Python package with required dependencies
         pythonEnv = pkgs.python3.withPackages (ps: with ps; [
-          mdformat-gfm
           pyserial
         ]);
 
@@ -25,8 +24,8 @@
           flock
           gtkwave
           icestorm
-          mdformat
           nextpnr
+          nodePackages.prettier
           pythonEnv
           sby
           socat

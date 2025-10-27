@@ -22,14 +22,14 @@ module <module_name>_tb;
   // 1. Clock and reset generation
   `TEST_CLK_NS(clk, 10);  // 10ns clock period
   `TEST_RST_N(clk, rst_n); // Reset signal generation
-  
+
   // 2. Module instantiation
   <module_name> #(
     // Parameters
   ) uut (
     // Port connections
   );
-  
+
   // 3. Signal initialization in reset block
   always_ff @(posedge clk) begin
     if (~rst_n) begin
@@ -39,19 +39,19 @@ module <module_name>_tb;
       // ...
     end
   end
-  
+
   // 4. Individual test tasks
   task automatic test_reset();
     // Always include a reset test
     `CHECK_FALSE(uut_output_signal);
     // More assertions...
   endtask
-  
+
   task automatic test_basic_operation();
     // Test basic functionality
     // ...
   endtask
-  
+
   // 5. Test suite definition
   `TEST_SUITE_BEGIN(<module_name>_tb);
   `TEST_CASE(test_reset);
@@ -187,30 +187,30 @@ Here's a comprehensive example testbench for a simple module:
 module svc_example_module_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
-  
+
   // Testbench signals
   logic       input_valid;
   logic       input_ready;
   logic [7:0] input_data;
-  
+
   logic       output_valid;
   logic       output_ready;
   logic [7:0] output_data;
-  
+
   // UUT instantiation
   svc_example_module uut (
     .clk       (clk),
     .rst_n     (rst_n),
-    
+
     .in_valid  (input_valid),
     .in_ready  (input_ready),
     .in_data   (input_data),
-    
+
     .out_valid (output_valid),
     .out_ready (output_ready),
     .out_data  (output_data)
   );
-  
+
   // Initialize signals in reset
   always_ff @(posedge clk) begin
     if (~rst_n) begin
@@ -219,62 +219,62 @@ module svc_example_module_tb;
       output_ready <= 1'b1;
     end
   end
-  
+
   // Test reset behavior
   task automatic test_reset();
     `CHECK_FALSE(output_valid);
     `CHECK_TRUE(input_ready);
   endtask
-  
+
   // Test basic data flow
   task automatic test_basic_data_flow();
     // Send single data word
     input_valid = 1'b1;
     input_data  = 8'hA5;
-    
+
     `TICK(clk);
     `CHECK_TRUE(input_ready);
-    
+
     // Wait for output
     `CHECK_WAIT_FOR(clk, output_valid, 5);
     `CHECK_EQ(output_data, 8'hA5);
-    
+
     // Complete transaction
     output_ready = 1'b1;
     input_valid  = 1'b0;
-    
+
     `TICK(clk);
     `CHECK_FALSE(output_valid);
   endtask
-  
+
   // Test backpressure
   task automatic test_backpressure();
     // Apply backpressure
     output_ready = 1'b0;
-    
+
     // Send data
     input_valid = 1'b1;
     input_data  = 8'h42;
-    
+
     `TICK(clk);
-    
+
     // Check data is held
     `CHECK_WAIT_FOR(clk, output_valid, 5);
     output_ready = 1'b0;  // Keep backpressure
-    
+
     repeat (3) `TICK(clk);
-    
+
     // Verify data is still valid and unchanged
     `CHECK_TRUE(output_valid);
     `CHECK_EQ(output_data, 8'h42);
-    
+
     // Release backpressure
     output_ready = 1'b1;
-    
+
     `TICK(clk);
     `CHECK_FALSE(output_valid);
   endtask
-  
+
   // Register and run all tests
   `TEST_SUITE_BEGIN(svc_example_module_tb);
   `TEST_CASE(test_reset);
@@ -295,7 +295,7 @@ always_ff @(posedge clk) begin
   if (input_valid && input_ready) begin
     input_valid <= 1'b0;
   end
-  
+
   if (output_valid && output_ready) begin
     output_valid <= 1'b0;
   end
