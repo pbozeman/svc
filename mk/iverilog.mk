@@ -7,4 +7,7 @@ IVERILOG_FLAGS_WARN := -Wall -Wno-portbind -Wno-timescale
 IVERILOG_FLAGS      := $(IVERILOG_FLAGS_SV) $(IVERILOG_FLAGS_DEFS) $(IVERILOG_FLAGS_WARN)
 IVERILOG            := iverilog $(IVERILOG_FLAGS)
 
+# VVP simulator command
+VVP := vvp
+
 endif
