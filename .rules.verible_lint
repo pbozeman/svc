@@ -1,0 +1,4 @@
+# Verible linter rules configuration
+
+# Disable parameter naming style check
+-parameter-name-style
