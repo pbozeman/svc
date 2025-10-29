@@ -7,8 +7,8 @@ patterns.
 ## Framework Overview
 
 The SVC repository uses a custom lightweight testing framework implemented in
-`svc_unit.sv`. This framework is designed to work with iverilog and provides a
-structured approach for creating and organizing testbenches.
+`rtl/common/svc_unit.sv`. This framework is designed to work with iverilog and
+provides a structured approach for creating and organizing testbenches.
 
 ## Basic Testbench Structure
 
@@ -19,18 +19,26 @@ Every testbench should follow this basic structure:
 `include "<module_under_test>.sv"
 
 module <module_name>_tb;
+  //
   // 1. Clock and reset generation
-  `TEST_CLK_NS(clk, 10);  // 10ns clock period
-  `TEST_RST_N(clk, rst_n); // Reset signal generation
+  //
+  // 10ns clock period
+  `TEST_CLK_NS(clk, 10);
+  // Reset signal generation
+  `TEST_RST_N(clk, rst_n);
 
+  //
   // 2. Module instantiation
+  //
   <module_name> #(
     // Parameters
   ) uut (
     // Port connections
   );
 
+  //
   // 3. Signal initialization in reset block
+  //
   always_ff @(posedge clk) begin
     if (~rst_n) begin
       // Initialize all inputs/outputs here
@@ -40,7 +48,9 @@ module <module_name>_tb;
     end
   end
 
+  //
   // 4. Individual test tasks
+  //
   task automatic test_reset();
     // Always include a reset test
     `CHECK_FALSE(uut_output_signal);
@@ -52,7 +62,9 @@ module <module_name>_tb;
     // ...
   endtask
 
+  //
   // 5. Test suite definition
+  //
   `TEST_SUITE_BEGIN(<module_name>_tb);
   `TEST_CASE(test_reset);
   `TEST_CASE(test_basic_operation);
@@ -290,7 +302,9 @@ For complex testbenches, it's common to have additional logic for managing
 signals beyond the reset initialization:
 
 ```systemverilog
+//
 // Clear valid signals after handshake
+//
 always_ff @(posedge clk) begin
   if (input_valid && input_ready) begin
     input_valid <= 1'b0;
@@ -321,9 +335,9 @@ on:
 
 For more examples, refer to existing testbenches in the repository:
 
-- Basic module testing: `svc_arbiter_tb.sv`
-- Complex interface testing: `svc_axi_axil_adapter_tb.sv`
-- Graphics module testing: `svc_gfx_vga_tb.sv`
+- Basic module testing: `tb/common/svc_arbiter_tb.sv`
+- Complex interface testing: `tb/axi/svc_axi_axil_adapter_tb.sv`
+- Graphics module testing: `tb/gfx/svc_gfx_vga_tb.sv`
 
 Always run `make format` after writing new testbenches to ensure consistent code
 style.
