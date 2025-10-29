@@ -65,8 +65,10 @@ module svc_example #(
 - **Module naming**: Use `svc_` prefix for all modules
 - **Testbench suffix**: Use `_tb` suffix for testbenches
 - **Formal verification suffix**: Use `_f` suffix for formal verification
-- **RTL files**: Place all RTL files in the `rtl/` directory
-- **Testbench files**: Place all testbench files in the `tb/` directory
+- **RTL files**: Place in appropriate `rtl/` subdirectory (axi, cdc, common,
+  fifo, gfx, ice40, stats, uart)
+- **Testbench files**: Place in corresponding `tb/` subdirectory mirroring RTL
+  organization
 - **Formal verification files**: Place formal verification in `tb/formal/`
   directory
 
@@ -184,10 +186,6 @@ guidelines:
 
 1. **Consistency**: Claude should strictly adhere to the style conventions of
    existing code
-1. **Annotations**: Add "✨🤖✨ vibe coded with claude" comment at the top of
-   Claude-generated files
-1. **Commit messages**: Add [🤖] emoji to commit message tags when commits are
-   Claude-generated
 1. **NEVER add Co-Authored-By blocks in commit messages** - this policy is
    strictly enforced
 
@@ -252,10 +250,10 @@ SVC_UNUSED is defined in svc_unused.sv.
 
 Refer to these files as reference implementations:
 
-- Basic module: `rtl/svc_sync_fifo.sv`
-- AXI interface: `rtl/svc_axi_arbiter.sv`
-- Graphics module: `rtl/svc_gfx_vga.sv`
-- Testbench: `tb/svc_sync_fifo_tb.sv`
+- Basic module: `rtl/fifo/svc_sync_fifo.sv`
+- AXI interface: `rtl/axi/svc_axi_arbiter.sv`
+- Graphics module: `rtl/gfx/svc_gfx_vga.sv`
+- Testbench: `tb/fifo/svc_sync_fifo_tb.sv`
 
 ## Build and Verification Commands
 
