@@ -111,9 +111,9 @@ endef
 
 # create dependencies for future runs
 .PRECIOUS: $(F_BUILD_DIR)/%_f/ran.dep
-$(F_BUILD_DIR)/%_f/ran.dep: $(PRJ_RTL_DIR)/%.sv
+$(F_BUILD_DIR)/%_f/ran.dep:
 	@mkdir -p $(dir $(@))
-	@$(IVERILOG) -M $(@) -DNO_SB_IO $(I_RTL) $(I_TB) -o /dev/null $^
+	@$(IVERILOG) -M $(@) -DNO_SB_IO $(I_RTL) $(I_TB) -o /dev/null $(shell find $(PRJ_RTL_DIR) -name '$*.sv' 2>/dev/null)
 
 .PRECIOUS: $(F_BUILD_DIR)/%_f/ran.d
 $(F_BUILD_DIR)/%_f/ran.d: $(F_BUILD_DIR)/%_f/ran.dep

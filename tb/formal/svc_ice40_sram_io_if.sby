@@ -11,7 +11,7 @@ depth 14
 smtbmc boolector
 
 [script]
-read_verilog -formal -DFORMAL_SVC_ICE40_SRAM_IO_IF -sv svc_ice40_sram_io_if.sv
+read_verilog -formal -DFORMAL_SVC_ICE40_SRAM_IO_IF -sv -I. -Iice40 -Ififo -Icommon ice40/svc_ice40_sram_io_if.sv
 prep -top svc_ice40_sram_io_if
 
 [files]

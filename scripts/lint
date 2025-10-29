@@ -4,7 +4,11 @@
 PRJ_RTL_LIB="rtl"
 SVC_RTL_LIB="svc/rtl"
 
-cmd="verilator --lint-only --quiet -Wall --Wno-PINCONNECTEMPTY --timing -I${PRJ_RTL_LIB} -I${SVC_RTL_LIB} $1"
+# Find all subdirectories and add them as include paths
+PRJ_RTL_INCLUDES=$(find ${PRJ_RTL_LIB} -type d 2>/dev/null | sed 's/^/-I/' | tr '\n' ' ')
+SVC_RTL_INCLUDES=$(find ${SVC_RTL_LIB} -type d 2>/dev/null | sed 's/^/-I/' | tr '\n' ' ')
+
+cmd="verilator --lint-only --quiet -Wall --Wno-PINCONNECTEMPTY --timing ${PRJ_RTL_INCLUDES} ${SVC_RTL_INCLUDES} $1"
 
 echo $cmd
 $cmd

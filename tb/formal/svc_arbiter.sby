@@ -11,7 +11,7 @@ cover: depth 40
 smtbmc boolector
 
 [script]
-read_verilog -formal -DFORMAL_SVC_ARBITER -sv svc_arbiter.sv
+read_verilog -formal -DFORMAL_SVC_ARBITER -sv common/svc_arbiter.sv
 chparam -set NUM_M 6 svc_arbiter
 prep -top svc_arbiter
 

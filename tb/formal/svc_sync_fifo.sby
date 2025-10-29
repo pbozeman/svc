@@ -15,13 +15,13 @@ bmc_data: depth 12
 smtbmc boolector
 
 [script]
-cover: read_verilog -formal -DFORMAL_SVC_SYNC_FIFO -sv svc_sync_fifo.sv
+cover: read_verilog -formal -DFORMAL_SVC_SYNC_FIFO -sv fifo/svc_sync_fifo.sv
 cover: prep -top svc_sync_fifo
 
-bmc: read_verilog -formal -DFORMAL_SVC_SYNC_FIFO -sv svc_sync_fifo.sv
+bmc: read_verilog -formal -DFORMAL_SVC_SYNC_FIFO -sv fifo/svc_sync_fifo.sv
 bmc: prep -top svc_sync_fifo
 
-bmc_data: read_verilog -formal -DFORMAL_SVC_SYNC_FIFO -DFORMAL_SVC_SYNC_FIFO_DATA -sv svc_sync_fifo.sv
+bmc_data: read_verilog -formal -DFORMAL_SVC_SYNC_FIFO -DFORMAL_SVC_SYNC_FIFO_DATA -sv fifo/svc_sync_fifo.sv
 bmc_data: chparam -set ADDR_WIDTH 4 svc_sync_fifo
 bmc_data: prep -top svc_sync_fifo
 

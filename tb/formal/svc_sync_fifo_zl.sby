@@ -11,7 +11,7 @@ depth 16
 smtbmc boolector
 
 [script]
-read_verilog -formal -DFORMAL_SVC_SYNC_FIFO -DFORMAL_SVC_SYNC_FIFO_ZL -sv svc_sync_fifo_zl.sv
+read_verilog -formal -DFORMAL_SVC_SYNC_FIFO -DFORMAL_SVC_SYNC_FIFO_ZL -sv fifo/svc_sync_fifo_zl.sv
 prep -top svc_sync_fifo_zl
 
 [files]

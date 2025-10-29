@@ -8,8 +8,12 @@ include mk/lint.mk
 ICE40_CELLS_SIM := $(shell yosys-config --datdir/ice40/cells_sim.v)
 
 # TB sources and modules
-TB_SV := $(wildcard $(PRJ_TB_DIR)/*_tb.sv)
+TB_SV := $(shell find $(PRJ_TB_DIR) -name '*_tb.sv' 2>/dev/null)
 TB_MODULES := $(basename $(notdir $(TB_SV)))
+TB_SUBDIRS := $(shell find $(PRJ_TB_DIR) -type d 2>/dev/null)
+
+# Tell Make where to find _tb.sv files
+vpath %_tb.sv $(TB_SUBDIRS)
 
 # TB output
 TB_BUILD_DIR := $(BUILD_DIR)/tb
@@ -86,7 +90,7 @@ $(TB_BUILD_DIR)/%.pass: $(TB_BUILD_DIR)/%
 # simulation "synthesis"
 TB_PRJ_INC = $(PRJ_RTL_DIR)/$(patsubst %_tb,%, $(notdir $(*)))
 .PRECIOUS: $(TB_BUILD_DIR)/%
-$(TB_BUILD_DIR)/%: $(PRJ_TB_DIR)/%.sv $(ICE40_CELLS_SIM) Makefile | $(TB_BUILD_DIR)
+$(TB_BUILD_DIR)/%: %.sv $(ICE40_CELLS_SIM) Makefile | $(TB_BUILD_DIR)
 	@$(IVERILOG) -M $(@).dep $(I_RTL) $(I_TB) -I$(TB_PRJ_INC) -o $@ $(filter-out Makefile,$^) 2>&1 | grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2 || true
 	@echo "$@: $$(tr '\n' ' ' < $(@).dep)" > $(@).d
 
