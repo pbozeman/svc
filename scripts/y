@@ -6,6 +6,10 @@ CMD=$(basename "$0")
 PRJ_RTL_LIB="rtl"
 SVC_RTL_LIB="svc/rtl"
 
+# Find all subdirectories and add them as include paths
+PRJ_RTL_INCLUDES=$(find ${PRJ_RTL_LIB} -type d 2>/dev/null | sed 's/^/-I/' | tr '\n' ' ')
+SVC_RTL_INCLUDES=$(find ${SVC_RTL_LIB} -type d 2>/dev/null | sed 's/^/-I/' | tr '\n' ' ')
+
 echo $RTL_LIB
 
 if [ $CMD = "y" ]; then
@@ -14,4 +18,4 @@ else
     YOSYS_CMD=$CMD
 fi
 
-yosys -DICE40 -DSYNTH_YOSYS -p "read_verilog -sv -I${PRJ_RTL_LIB} -I${SVC_RTL_LIB} $1; synth_ice40; $YOSYS_CMD"
+yosys -DICE40 -DSYNTH_YOSYS -p "read_verilog -sv ${PRJ_RTL_INCLUDES} ${SVC_RTL_INCLUDES} $1; synth_ice40; $YOSYS_CMD"

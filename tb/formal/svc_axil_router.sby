@@ -11,7 +11,7 @@ depth 14
 smtbmc boolector
 
 [script]
-read_verilog -formal -DFORMAL_SVC_AXIL_ROUTER -sv svc_axil_router.sv
+read_verilog -formal -DFORMAL_SVC_AXIL_ROUTER -sv -Iaxi -Icommon axi/svc_axil_router.sv
 read -formal -sv faxil_master.v
 read -formal -sv faxil_slave.v
 prep -top svc_axil_router

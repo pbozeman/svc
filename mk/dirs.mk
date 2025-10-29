@@ -17,8 +17,12 @@ RTL_DIRS := $(foreach d, $(TOP_DIRS), $(d)/rtl)
 TB_DIRS := $(foreach d, $(TOP_DIRS), $(d)/tb)
 FORMAL_DIRS := $(foreach d, $(TOP_DIRS), $(d)/tb/formal)
 
-I_RTL := $(foreach d, $(RTL_DIRS), -I$(d))
-I_TB := $(foreach d, $(TB_DIRS), -I$(d))
+# Add RTL and TB subdirectories to include path
+RTL_SUBDIRS := $(foreach d, $(RTL_DIRS), $(shell find $(d) -type d 2>/dev/null))
+TB_SUBDIRS := $(foreach d, $(TB_DIRS), $(shell find $(d) -type d 2>/dev/null))
+
+I_RTL := $(foreach d, $(RTL_DIRS) $(RTL_SUBDIRS), -I$(d))
+I_TB := $(foreach d, $(TB_DIRS) $(TB_SUBDIRS), -I$(d))
 I_FORMAL := $(foreach d, $(FORMAL_DIRS), -I$(d))
 
 endif

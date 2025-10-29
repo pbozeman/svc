@@ -42,7 +42,7 @@ files = "\n".join(glob.glob("tb/formal/private/*.v"))
 files += "\n"
 files += "\n".join(glob.glob("tb/formal/*.v"))
 files += "\n"
-files += "\n".join(glob.glob("rtl/*.sv"))
+files += "\n".join(glob.glob("rtl/**/*.sv", recursive=True))
 output(files)
 --pycode-end--
 

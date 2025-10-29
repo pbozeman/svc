@@ -11,7 +11,7 @@ depth 16
 smtbmc boolector
 
 [script]
-read_verilog -formal -sv -DFORMAL_SVC_BURST_ITER_AX svc_axi_burst_iter_ax.sv
+read_verilog -formal -sv -DFORMAL_SVC_BURST_ITER_AX -I. axi/svc_axi_burst_iter_ax.sv
 prep -top svc_axi_burst_iter_ax
 
 [files]

@@ -11,7 +11,7 @@ depth 14
 smtbmc boolector
 
 [script]
-read_verilog -formal -DFORMAL_SVC_ICE40_AXIL_SRAM -sv svc_ice40_axil_sram.sv
+read_verilog -formal -DFORMAL_SVC_ICE40_AXIL_SRAM -sv -I. -Iice40 -Iaxi -Icommon -Ififo ice40/svc_ice40_axil_sram.sv
 read -formal -sv faxil_slave.v
 prep -top svc_ice40_axil_sram
 
