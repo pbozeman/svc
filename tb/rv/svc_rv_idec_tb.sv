@@ -11,7 +11,7 @@ module svc_rv_idec_tb;
   logic        mem_write;
   logic        alu_a_src;
   logic [ 1:0] alu_b_src;
-  logic [ 1:0] alu_op_type;
+  logic [ 1:0] alu_instr;
   logic [ 1:0] res_src;
   logic [ 2:0] imm_type;
   logic        is_branch;
@@ -32,15 +32,15 @@ module svc_rv_idec_tb;
   svc_rv_idec uut (
       .instr(instr),
 
-      .reg_write  (reg_write),
-      .mem_write  (mem_write),
-      .alu_a_src  (alu_a_src),
-      .alu_b_src  (alu_b_src),
-      .alu_op_type(alu_op_type),
-      .res_src    (res_src),
-      .imm_type   (imm_type),
-      .is_branch  (is_branch),
-      .is_jump    (is_jump),
+      .reg_write(reg_write),
+      .mem_write(mem_write),
+      .alu_a_src(alu_a_src),
+      .alu_b_src(alu_b_src),
+      .alu_instr(alu_instr),
+      .res_src  (res_src),
+      .imm_type (imm_type),
+      .is_branch(is_branch),
+      .is_jump  (is_jump),
 
       .rd    (rd),
       .rs1   (rs1),
@@ -69,7 +69,7 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(mem_write);
     `CHECK_EQ(alu_a_src, uut.ALU_A_RS1);
     `CHECK_EQ(alu_b_src, uut.ALU_B_IMM);
-    `CHECK_EQ(alu_op_type, uut.ALU_OP_ADD);
+    `CHECK_EQ(alu_instr, uut.ALU_INSTR_ADD);
     `CHECK_EQ(res_src, uut.RES_MEM);
     `CHECK_EQ(imm_type, uut.IMM_I);
     `CHECK_FALSE(is_branch);
@@ -88,7 +88,7 @@ module svc_rv_idec_tb;
     `CHECK_TRUE(mem_write);
     `CHECK_EQ(alu_a_src, uut.ALU_A_RS1);
     `CHECK_EQ(alu_b_src, uut.ALU_B_IMM);
-    `CHECK_EQ(alu_op_type, uut.ALU_OP_ADD);
+    `CHECK_EQ(alu_instr, uut.ALU_INSTR_ADD);
     `CHECK_EQ(res_src, uut.RES_ALU);
     `CHECK_EQ(imm_type, uut.IMM_S);
     `CHECK_FALSE(is_branch);
@@ -108,7 +108,7 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(mem_write);
     `CHECK_EQ(alu_a_src, uut.ALU_A_RS1);
     `CHECK_EQ(alu_b_src, uut.ALU_B_RS2);
-    `CHECK_EQ(alu_op_type, uut.ALU_OP_FN3);
+    `CHECK_EQ(alu_instr, uut.ALU_INSTR_FN3);
     `CHECK_EQ(res_src, uut.RES_ALU);
     `CHECK_FALSE(is_branch);
     `CHECK_FALSE(is_jump);
@@ -126,7 +126,7 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(mem_write);
     `CHECK_EQ(alu_a_src, uut.ALU_A_RS1);
     `CHECK_EQ(alu_b_src, uut.ALU_B_RS2);
-    `CHECK_EQ(alu_op_type, uut.ALU_OP_SUB);
+    `CHECK_EQ(alu_instr, uut.ALU_INSTR_SUB);
     `CHECK_EQ(res_src, uut.RES_ALU);
     `CHECK_EQ(imm_type, uut.IMM_B);
     `CHECK_TRUE(is_branch);
@@ -145,7 +145,7 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(mem_write);
     `CHECK_EQ(alu_a_src, uut.ALU_A_RS1);
     `CHECK_EQ(alu_b_src, uut.ALU_B_IMM);
-    `CHECK_EQ(alu_op_type, uut.ALU_OP_FN3);
+    `CHECK_EQ(alu_instr, uut.ALU_INSTR_FN3);
     `CHECK_EQ(res_src, uut.RES_ALU);
     `CHECK_EQ(imm_type, uut.IMM_I);
     `CHECK_FALSE(is_branch);
@@ -162,7 +162,7 @@ module svc_rv_idec_tb;
     instr = 32'b0_0000000001_0_00000000_00001_1101111;
     `CHECK_TRUE(reg_write);
     `CHECK_FALSE(mem_write);
-    `CHECK_EQ(alu_op_type, uut.ALU_OP_ADD);
+    `CHECK_EQ(alu_instr, uut.ALU_INSTR_ADD);
     `CHECK_EQ(res_src, uut.RES_PC4);
     `CHECK_EQ(imm_type, uut.IMM_J);
     `CHECK_FALSE(is_branch);
@@ -179,7 +179,7 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(mem_write);
     `CHECK_EQ(alu_a_src, uut.ALU_A_PC);
     `CHECK_EQ(alu_b_src, uut.ALU_B_TGT);
-    `CHECK_EQ(alu_op_type, uut.ALU_OP_ADD);
+    `CHECK_EQ(alu_instr, uut.ALU_INSTR_ADD);
     `CHECK_EQ(res_src, uut.RES_ALU);
     `CHECK_EQ(imm_type, uut.IMM_U);
     `CHECK_FALSE(is_branch);
@@ -196,7 +196,7 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(mem_write);
     `CHECK_EQ(alu_a_src, uut.ALU_A_PC);
     `CHECK_EQ(alu_b_src, uut.ALU_B_IMM);
-    `CHECK_EQ(alu_op_type, uut.ALU_OP_ADD);
+    `CHECK_EQ(alu_instr, uut.ALU_INSTR_ADD);
     `CHECK_EQ(res_src, uut.RES_ALU);
     `CHECK_EQ(imm_type, uut.IMM_U);
     `CHECK_FALSE(is_branch);
@@ -213,7 +213,7 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(mem_write);
     `CHECK_EQ(alu_a_src, uut.ALU_A_RS1);
     `CHECK_EQ(alu_b_src, uut.ALU_B_IMM);
-    `CHECK_EQ(alu_op_type, uut.ALU_OP_ADD);
+    `CHECK_EQ(alu_instr, uut.ALU_INSTR_ADD);
     `CHECK_EQ(res_src, uut.RES_PC4);
     `CHECK_EQ(imm_type, uut.IMM_I);
     `CHECK_FALSE(is_branch);
