@@ -23,7 +23,7 @@ module svc_rv_asm_tb;
   logic        reg_write;
   logic        mem_write;
   logic [ 1:0] alu_a_src;
-  logic [ 1:0] alu_b_src;
+  logic        alu_b_src;
   logic [ 1:0] alu_instr;
   logic [ 1:0] res_src;
   logic [ 2:0] imm_type;
