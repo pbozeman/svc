@@ -49,6 +49,7 @@ module svc_rv #(
   logic [     2:0] imm_type;
   logic            is_branch;
   logic            is_jump;
+  logic            jb_target_src;
   logic [     4:0] rd;
   logic [     4:0] rs1;
   logic [     4:0] rs2;
@@ -116,26 +117,27 @@ module svc_rv #(
   svc_rv_idec #(
       .XLEN(XLEN)
   ) idec (
-      .instr    (instr),
-      .reg_write(reg_write),
-      .mem_write(mem_write),
-      .alu_a_src(alu_a_src),
-      .alu_b_src(alu_b_src),
-      .alu_instr(alu_instr),
-      .res_src  (res_src),
-      .imm_type (imm_type),
-      .is_branch(is_branch),
-      .is_jump  (is_jump),
-      .rd       (rd),
-      .rs1      (rs1),
-      .rs2      (rs2),
-      .funct3   (funct3),
-      .funct7   (funct7),
-      .imm_i    (imm_i),
-      .imm_s    (imm_s),
-      .imm_b    (imm_b),
-      .imm_u    (imm_u),
-      .imm_j    (imm_j)
+      .instr        (instr),
+      .reg_write    (reg_write),
+      .mem_write    (mem_write),
+      .alu_a_src    (alu_a_src),
+      .alu_b_src    (alu_b_src),
+      .alu_instr    (alu_instr),
+      .res_src      (res_src),
+      .imm_type     (imm_type),
+      .is_branch    (is_branch),
+      .is_jump      (is_jump),
+      .jb_target_src(jb_target_src),
+      .rd           (rd),
+      .rs1          (rs1),
+      .rs2          (rs2),
+      .funct3       (funct3),
+      .funct7       (funct7),
+      .imm_i        (imm_i),
+      .imm_s        (imm_s),
+      .imm_b        (imm_b),
+      .imm_u        (imm_u),
+      .imm_j        (imm_j)
   );
 
   //
@@ -220,15 +222,31 @@ module svc_rv #(
   );
 
   //
-  // PC target uses a second adder so that the alu can be running in parallel
+  // Jump/Branch target calculation
   //
-  assign jb_target = pc + imm;
+  // For JALR: Use ALU result (rs1 + imm) with LSB cleared per RISC-V spec
+  // For JAL/branches: Use PC + imm from dedicated adder (no LSB clearing)
+  //
+  logic [XLEN-1:0] jb_target_alu;
+  logic [XLEN-1:0] jb_target_pc;
+
+  assign jb_target_alu = {alu_result[XLEN-1:1], 1'b0};
+  assign jb_target_pc  = pc + imm;
+
+  svc_muxn #(
+      .WIDTH(XLEN),
+      .N    (2)
+  ) mux_jb_target (
+      .sel (jb_target_src),
+      .data({jb_target_alu, jb_target_pc}),
+      .out (jb_target)
+  );
 
   //
   // PC muxing
   //
-  assign zero_flag = alu_result == 0;
-  assign pc_sel    = is_branch & zero_flag | is_jump;
+  assign zero_flag      = alu_result == 0;
+  assign pc_sel         = is_branch & zero_flag | is_jump;
 
   //
   // Result mux
