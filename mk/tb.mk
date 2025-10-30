@@ -91,7 +91,7 @@ $(TB_BUILD_DIR)/%.pass: $(TB_BUILD_DIR)/%
 TB_PRJ_INC = $(PRJ_RTL_DIR)/$(patsubst %_tb,%, $(notdir $(*)))
 .PRECIOUS: $(TB_BUILD_DIR)/%
 $(TB_BUILD_DIR)/%: %.sv $(ICE40_CELLS_SIM) Makefile | $(TB_BUILD_DIR)
-	@$(IVERILOG) -M $(@).dep $(I_RTL) $(I_TB) -I$(TB_PRJ_INC) -o $@ $(filter-out Makefile,$^) 2>&1 | grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2 || true
+	@$(IVERILOG) -M $(@).dep $(I_RTL) $(I_TB) -I$(TB_PRJ_INC) -o $@ $< $(ICE40_CELLS_SIM) 2>&1 | grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2 || true
 	@echo "$@: $$(tr '\n' ' ' < $(@).dep)" > $(@).d
 
 # run a tb and do results tracking
