@@ -10,7 +10,7 @@ module svc_rv_alu_tb;
 
   logic [XLEN-1:0] a;
   logic [XLEN-1:0] b;
-  logic [     2:0] alu_op;
+  logic [     3:0] alu_op;
   logic [XLEN-1:0] result;
 
   svc_rv_alu #(
@@ -225,6 +225,159 @@ module svc_rv_alu_tb;
   endtask
 
   //
+  // Test: SLTU operation
+  //
+  task automatic test_sltu;
+    alu_op = ALU_SLTU;
+    a      = 32'h00000000;
+    b      = 32'h00000001;
+
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h00000001);
+
+    a = 32'h00000001;
+    b = 32'h00000000;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h00000000);
+
+    a = 32'hFFFFFFFF;
+    b = 32'h00000000;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h00000000);
+
+    a = 32'h00000000;
+    b = 32'hFFFFFFFF;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h00000001);
+
+    a = 32'h80000000;
+    b = 32'h7FFFFFFF;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h00000000);
+
+    a = 32'h7FFFFFFF;
+    b = 32'h80000000;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h00000001);
+  endtask
+
+  //
+  // Test: SLL operation
+  //
+  task automatic test_sll;
+    alu_op = ALU_SLL;
+    a      = 32'h00000001;
+    b      = 32'h00000000;
+
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h00000001);
+
+    a = 32'h00000001;
+    b = 32'h00000001;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h00000002);
+
+    a = 32'h00000001;
+    b = 32'h00000004;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h00000010);
+
+    a = 32'h12345678;
+    b = 32'h00000008;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h34567800);
+
+    a = 32'hFFFFFFFF;
+    b = 32'h0000001F;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h80000000);
+
+    a = 32'h00000001;
+    b = 32'h00000020;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h00000001);
+  endtask
+
+  //
+  // Test: SRL operation
+  //
+  task automatic test_srl;
+    alu_op = ALU_SRL;
+    a      = 32'h00000001;
+    b      = 32'h00000000;
+
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h00000001);
+
+    a = 32'h00000002;
+    b = 32'h00000001;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h00000001);
+
+    a = 32'h00000010;
+    b = 32'h00000004;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h00000001);
+
+    a = 32'h12345678;
+    b = 32'h00000008;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h00123456);
+
+    a = 32'hFFFFFFFF;
+    b = 32'h0000001F;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h00000001);
+
+    a = 32'h80000000;
+    b = 32'h00000001;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h40000000);
+  endtask
+
+  //
+  // Test: SRA operation
+  //
+  task automatic test_sra;
+    alu_op = ALU_SRA;
+    a      = 32'h00000001;
+    b      = 32'h00000000;
+
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h00000001);
+
+    a = 32'h00000002;
+    b = 32'h00000001;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h00000001);
+
+    a = 32'h00000010;
+    b = 32'h00000004;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h00000001);
+
+    a = 32'h80000000;
+    b = 32'h00000001;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'hC0000000);
+
+    a = 32'hFFFFFFFF;
+    b = 32'h0000001F;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'hFFFFFFFF);
+
+    a = 32'h12345678;
+    b = 32'h00000008;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'h00123456);
+
+    a = 32'h80000000;
+    b = 32'h0000001F;
+    `TICK(clk);
+    `CHECK_EQ(result, 32'hFFFFFFFF);
+  endtask
+
+  //
   // Test suite execution
   //
   `TEST_SUITE_BEGIN(svc_rv_alu_tb);
@@ -234,6 +387,10 @@ module svc_rv_alu_tb;
   `TEST_CASE(test_or);
   `TEST_CASE(test_xor);
   `TEST_CASE(test_slt);
+  `TEST_CASE(test_sltu);
+  `TEST_CASE(test_sll);
+  `TEST_CASE(test_srl);
+  `TEST_CASE(test_sra);
   `TEST_SUITE_END();
 
 endmodule
