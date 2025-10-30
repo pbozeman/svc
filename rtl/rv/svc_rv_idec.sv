@@ -13,6 +13,10 @@
 // The decoder is purely combinational. Control signal constants are provided
 // as localparams that callers can access hierarchically (e.g., idec_i.IMM_I).
 //
+// Design note: The ALU decode logic is separated into svc_rv_alu_dec to keep
+// this module's combinational depth manageable and allow flexibility in
+// pipeline placement for timing closure.
+//
 module svc_rv_idec #(
     parameter int XLEN = 32
 ) (
