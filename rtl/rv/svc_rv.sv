@@ -2,11 +2,15 @@
 `define SVC_RV_SV
 
 `include "svc.sv"
+`include "svc_muxn.sv"
 `include "svc_unused.sv"
 
+`include "svc_rv_alu.sv"
+`include "svc_rv_alu_dec.sv"
+`include "svc_rv_idec.sv"
 `include "svc_rv_imem.sv"
 `include "svc_rv_pc.sv"
-`include "svc_rv_idec.sv"
+`include "svc_rv_regfile.sv"
 
 module svc_rv #(
     parameter int XLEN    = 32,
@@ -51,6 +55,22 @@ module svc_rv #(
   logic [XLEN-1:0] imm_j;
 
   //
+  // Register file signals
+  //
+  logic [XLEN-1:0] rs1_data;
+  logic [XLEN-1:0] rs2_data;
+  logic [XLEN-1:0] rd_data;
+
+  //
+  // ALU signals
+  //
+  logic [     3:0] alu_op;
+  logic [XLEN-1:0] alu_a;
+  logic [XLEN-1:0] alu_b;
+  logic [XLEN-1:0] alu_result;
+  logic [XLEN-1:0] imm_selected;
+
+  //
   // PC
   //
   svc_rv_pc #(
@@ -76,9 +96,10 @@ module svc_rv #(
       .data (instr)
   );
 
-  //
-  // Instruction decoder
-  //
+  //----------------------------------------------------------------------------
+  // Instruction Decode
+  //----------------------------------------------------------------------------
+
   svc_rv_idec #(
       .XLEN(XLEN)
   ) idec (
@@ -104,13 +125,103 @@ module svc_rv #(
       .imm_j    (imm_j)
   );
 
+  //
+  // Immediate mux
+  //
+  svc_muxn #(
+      .WIDTH(XLEN),
+      .N    (5)
+  ) mux_imm (
+      .sel (imm_type),
+      .data({imm_j, imm_u, imm_b, imm_s, imm_i}),
+      .out (imm_selected)
+  );
+
+  //----------------------------------------------------------------------------
+  // Register File
+  //----------------------------------------------------------------------------
+
+  svc_rv_regfile #(
+      .XLEN(XLEN)
+  ) regfile (
+      .clk     (clk),
+      .rst_n   (rst_n),
+      .rs1_addr(rs1),
+      .rs1_data(rs1_data),
+      .rs2_addr(rs2),
+      .rs2_data(rs2_data),
+      .rd_en   (reg_write),
+      .rd_addr (rd),
+      .rd_data (rd_data)
+  );
+
+  //----------------------------------------------------------------------------
+  // ALU
+  //----------------------------------------------------------------------------
+
+  //
+  // ALU Decoder
+  //
+  svc_rv_alu_dec alu_dec (
+      .alu_instr(alu_instr),
+      .funct3   (funct3),
+      .funct7_b5(funct7[5]),
+      .op_b5    (instr[5]),
+      .alu_op   (alu_op)
+  );
+
+  //
+  // ALU A input mux
+  //
+  svc_muxn #(
+      .WIDTH(XLEN),
+      .N    (3)
+  ) mux_alu_a (
+      .sel (alu_a_src),
+      .data({pc, {XLEN{1'b0}}, rs1_data}),
+      .out (alu_a)
+  );
+
+  //
+  // ALU B input mux
+  //
+  svc_muxn #(
+      .WIDTH(XLEN),
+      .N    (3)
+  ) mux_alu_b (
+      .sel (alu_b_src),
+      .data({32'd4, imm_selected, rs2_data}),
+      .out (alu_b)
+  );
+
+  //
+  // ALU
+  //
+  svc_rv_alu #(
+      .XLEN(XLEN)
+  ) alu (
+      .a     (alu_a),
+      .b     (alu_b),
+      .alu_op(alu_op),
+      .result(alu_result)
+  );
+
+  //
+  // Result mux
+  //
+  svc_muxn #(
+      .WIDTH(XLEN),
+      .N    (3)
+  ) mux_res (
+      .sel (res_src),
+      .data({pc_plus4, {XLEN{1'bx}}, alu_result}),
+      .out (rd_data)
+  );
+
   assign ebreak = (instr == I_EBREAK);
 
-  `SVC_UNUSED({pc[XLEN-1:IMEM_AW+2], pc[1:0], pc_plus4, reg_write, mem_write,
-               alu_a_src, alu_b_src, alu_instr, res_src, imm_type, is_branch,
-               is_jump, rd, rs1, rs2, funct3, funct7, imm_i, imm_s, imm_b, imm_u,
-               imm_j});
-
+  `SVC_UNUSED({pc[XLEN-1:IMEM_AW+2], pc[1:0], mem_write, is_branch, is_jump,
+               funct7[6], funct7[4:0]});
 
 endmodule
 
