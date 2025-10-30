@@ -24,7 +24,7 @@ module svc_rv_idec #(
 
     output logic       reg_write,
     output logic       mem_write,
-    output logic       alu_a_src,
+    output logic [1:0] alu_a_src,
     output logic [1:0] alu_b_src,
     output logic [1:0] alu_instr,
     output logic [1:0] res_src,
@@ -63,21 +63,21 @@ module svc_rv_idec #(
   // Control signal decoder
   //
   always_comb begin
-    logic [13:0] c;
+    logic [14:0] c;
 
     case (opcode)
-      OP_LOAD:   c = 14'b1_0_0_01_00_01_000_0_0;
-      OP_STORE:  c = 14'b0_1_0_01_00_00_001_0_0;
-      OP_RTYPE:  c = 14'b1_0_0_00_10_00_xxx_0_0;
-      OP_BRANCH: c = 14'b0_0_0_00_01_00_010_1_0;
-      OP_ITYPE:  c = 14'b1_0_0_01_10_00_000_0_0;
-      OP_JAL:    c = 14'b1_0_0_00_00_10_011_0_1;
-      OP_AUIPC:  c = 14'b1_0_1_10_00_00_100_0_0;
-      OP_LUI:    c = 14'b1_0_1_01_00_00_100_0_0;
-      OP_JALR:   c = 14'b1_0_0_01_00_10_000_0_1;
-      OP_SYSTEM: c = 14'b0_0_0_00_00_00_000_0_0;
-      OP_RESET:  c = 14'b0_0_0_00_00_00_000_0_0;
-      default:   c = 14'bx_x_x_xx_xx_xx_xxx_x_x;
+      OP_LOAD:   c = 15'b1_0_00_01_00_01_000_0_0;
+      OP_STORE:  c = 15'b0_1_00_01_00_00_001_0_0;
+      OP_RTYPE:  c = 15'b1_0_00_00_10_00_xxx_0_0;
+      OP_BRANCH: c = 15'b0_0_00_00_01_00_010_1_0;
+      OP_ITYPE:  c = 15'b1_0_00_01_10_00_000_0_0;
+      OP_JAL:    c = 15'b1_0_00_00_00_10_011_0_1;
+      OP_AUIPC:  c = 15'b1_0_10_10_00_00_100_0_0;
+      OP_LUI:    c = 15'b1_0_01_01_00_00_100_0_0;
+      OP_JALR:   c = 15'b1_0_00_01_00_10_000_0_1;
+      OP_SYSTEM: c = 15'b0_0_00_00_00_00_000_0_0;
+      OP_RESET:  c = 15'b0_0_00_00_00_00_000_0_0;
+      default:   c = 15'bx_x_xx_xx_xx_xx_xxx_x_x;
     endcase
 
     {reg_write, mem_write, alu_a_src, alu_b_src, alu_instr, res_src, imm_type,

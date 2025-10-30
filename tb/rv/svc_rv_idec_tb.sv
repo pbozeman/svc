@@ -11,7 +11,7 @@ module svc_rv_idec_tb;
 
   logic        reg_write;
   logic        mem_write;
-  logic        alu_a_src;
+  logic [ 1:0] alu_a_src;
   logic [ 1:0] alu_b_src;
   logic [ 1:0] alu_instr;
   logic [ 1:0] res_src;
@@ -196,7 +196,7 @@ module svc_rv_idec_tb;
     instr = 32'b00000000000000000001_00001_0110111;
     `CHECK_TRUE(reg_write);
     `CHECK_FALSE(mem_write);
-    `CHECK_EQ(alu_a_src, ALU_A_PC);
+    `CHECK_EQ(alu_a_src, ALU_A_ZERO);
     `CHECK_EQ(alu_b_src, ALU_B_IMM);
     `CHECK_EQ(alu_instr, ALU_INSTR_ADD);
     `CHECK_EQ(res_src, RES_ALU);

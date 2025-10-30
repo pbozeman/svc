@@ -31,7 +31,7 @@ module svc_rv #(
   //
   logic            reg_write;
   logic            mem_write;
-  logic            alu_a_src;
+  logic [     1:0] alu_a_src;
   logic [     1:0] alu_b_src;
   logic [     1:0] alu_instr;
   logic [     1:0] res_src;
