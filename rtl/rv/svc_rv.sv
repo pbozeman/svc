@@ -37,7 +37,7 @@ module svc_rv #(
   logic            reg_write;
   logic            mem_write;
   logic [     1:0] alu_a_src;
-  logic [     1:0] alu_b_src;
+  logic            alu_b_src;
   logic [     1:0] alu_instr;
   logic [     1:0] res_src;
   logic [     2:0] imm_type;
@@ -68,7 +68,7 @@ module svc_rv #(
   logic [XLEN-1:0] alu_a;
   logic [XLEN-1:0] alu_b;
   logic [XLEN-1:0] alu_result;
-  logic [XLEN-1:0] imm_selected;
+  logic [XLEN-1:0] imm;
 
   //
   // PC
@@ -134,7 +134,7 @@ module svc_rv #(
   ) mux_imm (
       .sel (imm_type),
       .data({imm_j, imm_u, imm_b, imm_s, imm_i}),
-      .out (imm_selected)
+      .out (imm)
   );
 
   //----------------------------------------------------------------------------
@@ -187,10 +187,10 @@ module svc_rv #(
   //
   svc_muxn #(
       .WIDTH(XLEN),
-      .N    (3)
+      .N    (2)
   ) mux_alu_b (
       .sel (alu_b_src),
-      .data({32'd4, imm_selected, rs2_data}),
+      .data({imm, rs2_data}),
       .out (alu_b)
   );
 

@@ -25,7 +25,7 @@ module svc_rv_idec #(
     output logic       reg_write,
     output logic       mem_write,
     output logic [1:0] alu_a_src,
-    output logic [1:0] alu_b_src,
+    output logic       alu_b_src,
     output logic [1:0] alu_instr,
     output logic [1:0] res_src,
     output logic [2:0] imm_type,
@@ -63,25 +63,69 @@ module svc_rv_idec #(
   // Control signal decoder
   //
   always_comb begin
-    logic [14:0] c;
+    logic [13:0] c;
 
+    //
+    // Short aliases for decode table
+    //
+    // Yes, these are a bit weird, but it makes it very easy to interpret the
+    // table in a quick glance without having to decode binary. It is also hard
+    // to see the big picture if each of the control signals is explicitly set
+    // in the case statement.
+    //
+    // verilog_format: off
+    localparam logic       y    = 1'b1;
+    localparam logic       n    = 1'b0;
+
+    localparam logic       x    = 1'bx;
+    localparam logic [1:0] xx   = 2'bxx;
+    localparam logic [2:0] xxx  = 3'bxxx;
+
+    localparam logic [1:0] RS1  = ALU_A_RS1;
+    localparam logic [1:0] ZERO = ALU_A_ZERO;
+
+    localparam logic       RS2  = ALU_B_RS2;
+    localparam logic       IMM  = ALU_B_IMM;
+
+    localparam logic [1:0] ADD  = ALU_INSTR_ADD;
+    localparam logic [1:0] SUB  = ALU_INSTR_SUB;
+    localparam logic [1:0] FN3  = ALU_INSTR_FN3;
+
+    localparam logic [1:0] ALU  = RES_ALU;
+    localparam logic [1:0] MEM  = RES_MEM;
+    localparam logic [1:0] PC4  = RES_PC4;
+    localparam logic [1:0] TGT  = RES_TGT;
+
+    localparam logic [2:0] I    = IMM_I;
+    localparam logic [2:0] S    = IMM_S;
+    localparam logic [2:0] B    = IMM_B;
+    localparam logic [2:0] J    = IMM_J;
+    localparam logic [2:0] U    = IMM_U;
+
+    //
+    // Control signal decode
+    //
     case (opcode)
-      OP_LOAD:   c = 15'b1_0_00_01_00_01_000_0_0;
-      OP_STORE:  c = 15'b0_1_00_01_00_00_001_0_0;
-      OP_RTYPE:  c = 15'b1_0_00_00_10_00_xxx_0_0;
-      OP_BRANCH: c = 15'b0_0_00_00_01_00_010_1_0;
-      OP_ITYPE:  c = 15'b1_0_00_01_10_00_000_0_0;
-      OP_JAL:    c = 15'b1_0_00_00_00_10_011_0_1;
-      OP_AUIPC:  c = 15'b1_0_10_10_00_00_100_0_0;
-      OP_LUI:    c = 15'b1_0_01_01_00_00_100_0_0;
-      OP_JALR:   c = 15'b1_0_00_01_00_10_000_0_1;
-      OP_SYSTEM: c = 15'b0_0_00_00_00_00_000_0_0;
-      OP_RESET:  c = 15'b0_0_00_00_00_00_000_0_0;
-      default:   c = 15'bx_x_xx_xx_xx_xx_xxx_x_x;
+      //              r  m   alu alu  alu  res     imm  b  j
+      //                       a   b   op
+      OP_LOAD:   c = {y, n,  RS1, IMM, ADD, MEM,     I, n, n};
+      OP_STORE:  c = {n, y,  RS1, IMM, ADD,  xx,     S, n, n};
+      OP_RTYPE:  c = {y, n,  RS1, RS2, FN3, ALU,   xxx, n, n};
+      OP_BRANCH: c = {n, n,  RS1, RS2, SUB,  xx,     B, y, n};
+      OP_ITYPE:  c = {y, n,  RS1, IMM, FN3, ALU,     I, n, n};
+      OP_JAL:    c = {y, n,   xx,   x,  xx, PC4,     J, n, y};
+      OP_AUIPC:  c = {y, n,   xx,   x,  xx, TGT,     U, n, n};
+      OP_LUI:    c = {y, n, ZERO, IMM, ADD, ALU,     U, n, n};
+      OP_JALR:   c = {y, n,  RS1, IMM, ADD, PC4,     I, n, y};
+      OP_SYSTEM: c = {n, n,   xx,   x,  xx,  xx,   xxx, n, n};
+      OP_RESET:  c = {n, n,   xx,   x,  xx,  xx,   xxx, n, n};
+      default:   c = {x, x,   xx,   x,  xx,  xx,   xxx, x, x};
     endcase
 
-    {reg_write, mem_write, alu_a_src, alu_b_src, alu_instr, res_src, imm_type,
-     is_branch, is_jump} = c;
+    { reg_write, mem_write,
+      alu_a_src, alu_b_src, alu_instr,
+      res_src, imm_type, is_branch, is_jump } = c;
+
   end
 
   // Extract immediates
@@ -91,21 +135,14 @@ module svc_rv_idec #(
 
   assign imm_b = {
     {(XLEN - 13) {instr[31]}},
-    instr[31],
-    instr[7],
-    instr[30:25],
-    instr[11:8],
-    1'b0
+    instr[31], instr[7], instr[30:25], instr[11:8], 1'b0
   };
 
   assign imm_j = {
     {(XLEN - 21) {instr[31]}},
-    instr[31],
-    instr[19:12],
-    instr[20],
-    instr[30:21],
-    1'b0
+    instr[31], instr[19:12], instr[20], instr[30:21], 1'b0
   };
+  // verilog_format: on
 
 endmodule
 

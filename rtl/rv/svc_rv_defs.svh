@@ -40,9 +40,8 @@ localparam logic [1:0] ALU_A_ZERO = 2'b01;
 localparam logic [1:0] ALU_A_PC   = 2'b10;
 
 // alu_b_src values
-localparam logic [1:0] ALU_B_RS2 = 2'b00;
-localparam logic [1:0] ALU_B_IMM = 2'b01;
-localparam logic [1:0] ALU_B_TGT = 2'b10;
+localparam logic ALU_B_RS2 = 1'b0;
+localparam logic ALU_B_IMM = 1'b1;
 
 // alu_instr values
 localparam logic [1:0] ALU_INSTR_ADD = 2'b00;
@@ -53,6 +52,7 @@ localparam logic [1:0] ALU_INSTR_FN3 = 2'b10;
 localparam logic [1:0] RES_ALU = 2'b00;
 localparam logic [1:0] RES_MEM = 2'b01;
 localparam logic [1:0] RES_PC4 = 2'b10;
+localparam logic [1:0] RES_TGT = 2'b11;
 
 // imm_type values
 localparam logic [2:0] IMM_I = 3'b000;
