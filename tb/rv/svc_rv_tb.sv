@@ -599,7 +599,7 @@ module svc_rv_tb;
   // Test: JALR with base register
   //
   // Tests JALR with a non-zero base register. Target is computed as x5 + (-8)
-  // = 16 - 8 = 8, demonstrating register-based indirect jumps.
+  // = 16 - 8 = 8, jumping to the ADDI instruction which executes.
   //
   task automatic test_jalr_with_base_register;
     ADDI(x5, x0, 16);
@@ -611,7 +611,7 @@ module svc_rv_tb;
 
     `CHECK_WAIT_FOR_EBREAK(clk);
     `CHECK_EQ(uut.regfile.regs[1], 32'd8);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd0);
+    `CHECK_EQ(uut.regfile.regs[2], 32'd99);
     `CHECK_EQ(uut.regfile.regs[5], 32'd16);
   endtask
 
@@ -756,7 +756,7 @@ module svc_rv_tb;
   `TEST_CASE(test_jal_simple);
   `TEST_CASE(test_jalr_simple);
   `TEST_CASE(test_jalr_lsb_clear);
-  // `TEST_CASE(test_jalr_with_base_register);
+  `TEST_CASE(test_jalr_with_base_register);
   // `TEST_CASE(test_call_return_pattern);
   //
   // Pipeline stress tests - validate instruction flushing on control flow

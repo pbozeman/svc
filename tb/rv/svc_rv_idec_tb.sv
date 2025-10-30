@@ -18,6 +18,7 @@ module svc_rv_idec_tb;
   logic [ 2:0] imm_type;
   logic        is_branch;
   logic        is_jump;
+  logic        jb_target_src;
 
   logic [ 4:0] rd;
   logic [ 4:0] rs1;
@@ -34,15 +35,16 @@ module svc_rv_idec_tb;
   svc_rv_idec uut (
       .instr(instr),
 
-      .reg_write(reg_write),
-      .mem_write(mem_write),
-      .alu_a_src(alu_a_src),
-      .alu_b_src(alu_b_src),
-      .alu_instr(alu_instr),
-      .res_src  (res_src),
-      .imm_type (imm_type),
-      .is_branch(is_branch),
-      .is_jump  (is_jump),
+      .reg_write    (reg_write),
+      .mem_write    (mem_write),
+      .alu_a_src    (alu_a_src),
+      .alu_b_src    (alu_b_src),
+      .alu_instr    (alu_instr),
+      .res_src      (res_src),
+      .imm_type     (imm_type),
+      .is_branch    (is_branch),
+      .is_jump      (is_jump),
+      .jb_target_src(jb_target_src),
 
       .rd    (rd),
       .rs1   (rs1),
@@ -213,6 +215,7 @@ module svc_rv_idec_tb;
     `CHECK_EQ(imm_type, IMM_I);
     `CHECK_FALSE(is_branch);
     `CHECK_TRUE(is_jump);
+    `CHECK_EQ(jb_target_src, JB_TARGET_ALU);
 
     `CHECK_EQ(rd, 5'd2);
     `CHECK_EQ(rs1, 5'd1);
