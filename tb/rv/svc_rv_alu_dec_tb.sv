@@ -4,6 +4,8 @@
 module svc_rv_alu_dec_tb;
   `TEST_CLK_NS(clk, 10);
 
+  `include "svc_rv_defs.svh"
+
   logic [1:0] alu_instr;
   logic [2:0] funct3;
   logic       funct7_b5;
@@ -28,7 +30,7 @@ module svc_rv_alu_dec_tb;
     funct7_b5 = 1'b0;
     op_b5     = 1'b0;
     `TICK(clk);
-    `CHECK_EQ(alu_op, uut.ALU_ADD);
+    `CHECK_EQ(alu_op, ALU_ADD);
   endtask
 
   //
@@ -40,7 +42,7 @@ module svc_rv_alu_dec_tb;
     funct7_b5 = 1'b0;
     op_b5     = 1'b0;
     `TICK(clk);
-    `CHECK_EQ(alu_op, uut.ALU_SUB);
+    `CHECK_EQ(alu_op, ALU_SUB);
   endtask
 
   //
@@ -52,7 +54,7 @@ module svc_rv_alu_dec_tb;
     funct7_b5 = 1'b0;
     op_b5     = 1'b1;
     `TICK(clk);
-    `CHECK_EQ(alu_op, uut.ALU_ADD);
+    `CHECK_EQ(alu_op, ALU_ADD);
   endtask
 
   //
@@ -64,7 +66,7 @@ module svc_rv_alu_dec_tb;
     funct7_b5 = 1'b1;
     op_b5     = 1'b1;
     `TICK(clk);
-    `CHECK_EQ(alu_op, uut.ALU_SUB);
+    `CHECK_EQ(alu_op, ALU_SUB);
   endtask
 
   //
@@ -76,7 +78,7 @@ module svc_rv_alu_dec_tb;
     funct7_b5 = 1'b1;
     op_b5     = 1'b0;
     `TICK(clk);
-    `CHECK_EQ(alu_op, uut.ALU_ADD);
+    `CHECK_EQ(alu_op, ALU_ADD);
   endtask
 
   //
@@ -88,7 +90,7 @@ module svc_rv_alu_dec_tb;
     funct7_b5 = 1'b0;
     op_b5     = 1'b1;
     `TICK(clk);
-    `CHECK_EQ(alu_op, uut.ALU_SLT);
+    `CHECK_EQ(alu_op, ALU_SLT);
   endtask
 
   //
@@ -100,7 +102,7 @@ module svc_rv_alu_dec_tb;
     funct7_b5 = 1'b0;
     op_b5     = 1'b1;
     `TICK(clk);
-    `CHECK_EQ(alu_op, uut.ALU_XOR);
+    `CHECK_EQ(alu_op, ALU_XOR);
   endtask
 
   //
@@ -112,7 +114,7 @@ module svc_rv_alu_dec_tb;
     funct7_b5 = 1'b0;
     op_b5     = 1'b1;
     `TICK(clk);
-    `CHECK_EQ(alu_op, uut.ALU_OR);
+    `CHECK_EQ(alu_op, ALU_OR);
   endtask
 
   //
@@ -124,7 +126,7 @@ module svc_rv_alu_dec_tb;
     funct7_b5 = 1'b0;
     op_b5     = 1'b1;
     `TICK(clk);
-    `CHECK_EQ(alu_op, uut.ALU_AND);
+    `CHECK_EQ(alu_op, ALU_AND);
   endtask
 
   //
@@ -137,23 +139,23 @@ module svc_rv_alu_dec_tb;
 
     funct3    = 3'b000;
     `TICK(clk);
-    `CHECK_EQ(alu_op, uut.ALU_ADD);
+    `CHECK_EQ(alu_op, ALU_ADD);
 
     funct3 = 3'b010;
     `TICK(clk);
-    `CHECK_EQ(alu_op, uut.ALU_SLT);
+    `CHECK_EQ(alu_op, ALU_SLT);
 
     funct3 = 3'b100;
     `TICK(clk);
-    `CHECK_EQ(alu_op, uut.ALU_XOR);
+    `CHECK_EQ(alu_op, ALU_XOR);
 
     funct3 = 3'b110;
     `TICK(clk);
-    `CHECK_EQ(alu_op, uut.ALU_OR);
+    `CHECK_EQ(alu_op, ALU_OR);
 
     funct3 = 3'b111;
     `TICK(clk);
-    `CHECK_EQ(alu_op, uut.ALU_AND);
+    `CHECK_EQ(alu_op, ALU_AND);
   endtask
 
   //
