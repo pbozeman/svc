@@ -23,6 +23,7 @@ module svc_rv #(
   `include "svc_rv_defs.svh"
 
   logic [XLEN-1:0] pc;
+  logic [XLEN-1:0] pc_plus4;
 
   logic [    31:0] instr;
 
@@ -55,9 +56,10 @@ module svc_rv #(
   svc_rv_pc #(
       .XLEN(XLEN)
   ) pc_ctrl (
-      .clk  (clk),
-      .rst_n(rst_n),
-      .pc   (pc)
+      .clk     (clk),
+      .rst_n   (rst_n),
+      .pc      (pc),
+      .pc_plus4(pc_plus4)
   );
 
   //
@@ -104,9 +106,10 @@ module svc_rv #(
 
   assign ebreak = (instr == I_EBREAK);
 
-  `SVC_UNUSED({pc[XLEN-1:IMEM_AW+2], pc[1:0], reg_write, mem_write, alu_a_src,
-               alu_b_src, alu_instr, res_src, imm_type, is_branch, is_jump, rd,
-               rs1, rs2, funct3, funct7, imm_i, imm_s, imm_b, imm_u, imm_j});
+  `SVC_UNUSED({pc[XLEN-1:IMEM_AW+2], pc[1:0], pc_plus4, reg_write, mem_write,
+               alu_a_src, alu_b_src, alu_instr, res_src, imm_type, is_branch,
+               is_jump, rd, rs1, rs2, funct3, funct7, imm_i, imm_s, imm_b, imm_u,
+               imm_j});
 
 
 endmodule
