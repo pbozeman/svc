@@ -52,7 +52,7 @@ module svc_rv #(
   //
   svc_rv_pc #(
       .XLEN(XLEN)
-  ) pc_i (
+  ) pc_ctrl (
       .clk  (clk),
       .rst_n(rst_n),
       .pc   (pc)
@@ -64,7 +64,7 @@ module svc_rv #(
   svc_rv_imem #(
       .AW       (IMEM_AW),
       .INIT_FILE(IMEM_INIT)
-  ) imem_i (
+  ) imem (
       .clk  (clk),
       .rst_n(rst_n),
       .en   (1'b1),
@@ -77,7 +77,7 @@ module svc_rv #(
   //
   svc_rv_idec #(
       .XLEN(XLEN)
-  ) idec_i (
+  ) idec (
       .instr      (instr),
       .reg_write  (reg_write),
       .mem_write  (mem_write),
