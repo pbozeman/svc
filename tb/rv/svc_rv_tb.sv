@@ -35,7 +35,7 @@ module svc_rv_tb;
   task automatic load_program;
     int i;
     for (i = 0; i < 1024; i++) begin
-      uut.imem_i.mem[i] = MEM[i];
+      uut.imem.mem[i] = MEM[i];
     end
   endtask
 
