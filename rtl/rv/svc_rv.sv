@@ -12,9 +12,12 @@
 `include "svc_rv_pc.sv"
 `include "svc_rv_regfile.sv"
 
+// NOTE:: IMEM_REGISTERED = 1 is not supported yet. It requires
+// a small hazard unit.
 module svc_rv #(
-    parameter int XLEN    = 32,
-    parameter int IMEM_AW = 10,
+    parameter int XLEN            = 32,
+    parameter int IMEM_AW         = 10,
+    parameter bit IMEM_REGISTERED = 0,
 
     // verilog_lint: waive explicit-parameter-storage-type
     parameter IMEM_INIT = ""
@@ -30,6 +33,9 @@ module svc_rv #(
   logic [XLEN-1:0] pc_plus4;
 
   logic [    31:0] instr;
+  logic [XLEN-1:0] jb_target;
+  logic            pc_sel;
+  logic            zero_flag;
 
   //
   // Decoder signals
@@ -76,8 +82,14 @@ module svc_rv #(
   svc_rv_pc #(
       .XLEN(XLEN)
   ) pc_ctrl (
-      .clk     (clk),
-      .rst_n   (rst_n),
+      .clk  (clk),
+      .rst_n(rst_n),
+
+      // pc sources
+      .pc_sel   (pc_sel),
+      .jb_target(jb_target),
+
+      // pc output
       .pc      (pc),
       .pc_plus4(pc_plus4)
   );
@@ -86,8 +98,9 @@ module svc_rv #(
   // Instruction memory
   //
   svc_rv_imem #(
-      .AW       (IMEM_AW),
-      .INIT_FILE(IMEM_INIT)
+      .AW        (IMEM_AW),
+      .REGISTERED(IMEM_REGISTERED),
+      .INIT_FILE (IMEM_INIT)
   ) imem (
       .clk  (clk),
       .rst_n(rst_n),
@@ -133,7 +146,7 @@ module svc_rv #(
       .N    (5)
   ) mux_imm (
       .sel (imm_type),
-      .data({imm_j, imm_u, imm_b, imm_s, imm_i}),
+      .data({imm_u, imm_j, imm_b, imm_s, imm_i}),
       .out (imm)
   );
 
@@ -156,7 +169,7 @@ module svc_rv #(
   );
 
   //----------------------------------------------------------------------------
-  // ALU
+  // Execution
   //----------------------------------------------------------------------------
 
   //
@@ -207,21 +220,32 @@ module svc_rv #(
   );
 
   //
+  // PC target uses a second adder so that the alu can be running in parallel
+  //
+  assign jb_target = pc + imm;
+
+  //
+  // PC muxing
+  //
+  assign zero_flag = alu_result == 0;
+  assign pc_sel    = is_branch & zero_flag | is_jump;
+
+  //
   // Result mux
   //
   svc_muxn #(
       .WIDTH(XLEN),
-      .N    (3)
+      .N    (4)
   ) mux_res (
       .sel (res_src),
-      .data({pc_plus4, {XLEN{1'bx}}, alu_result}),
+      .data({jb_target, pc_plus4, {XLEN{1'bx}}, alu_result}),
       .out (rd_data)
   );
 
-  assign ebreak = (instr == I_EBREAK);
+  assign ebreak = (rst_n && instr == I_EBREAK);
 
-  `SVC_UNUSED({pc[XLEN-1:IMEM_AW+2], pc[1:0], mem_write, is_branch, is_jump,
-               funct7[6], funct7[4:0]});
+  `SVC_UNUSED({pc[XLEN-1:IMEM_AW+2], pc[1:0], mem_write, funct7[6], funct7[4:0]
+                });
 
 endmodule
 

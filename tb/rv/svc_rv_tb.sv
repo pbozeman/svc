@@ -89,18 +89,17 @@ module svc_rv_tb;
   // be calling a trap function, but this is not implemented yet.
   //
   task automatic test_ebreak_instruction;
+    NOP();
     EBREAK();
     NOP();
 
     load_program();
 
-    // After reset, ebreak should be low
     `CHECK_FALSE(ebreak);
 
-    `TICK(clk);
+    `CHECK_WAIT_FOR_EBREAK(clk);
     `CHECK_TRUE(ebreak);
 
-    // We don't currently stop on ebreak
     `TICK(clk);
     `CHECK_FALSE(ebreak);
   endtask
@@ -548,7 +547,8 @@ module svc_rv_tb;
   // saves the return address (PC+4) in the link register.
   //
   task automatic test_jal_simple;
-    JAL(x1, 8);
+    JAL(x1, 12);
+    NOP();
     ADDI(x2, x0, 99);
     EBREAK();
 
@@ -665,16 +665,16 @@ module svc_rv_tb;
   endtask
 
   //
-  // Test: JAL forward jump skipping one instruction
+  // Test: JAL short forward jump skipping one instruction
   //
   // Tests pipeline behavior when jumping forward past a single instruction.
   // The ADDI(x4) should be skipped (x4 stays 0). This test validates that the
   // processor correctly handles the pipeline flush for a smaller jump offset.
   //
-  task automatic test_jal_backward_pipeline;
+  task automatic test_jal_short_forward_pipeline;
     ADDI(x2, x0, 1);
     ADDI(x3, x0, 2);
-    JAL(x1, 12);
+    JAL(x1, 8);
     ADDI(x4, x0, 99);
     ADDI(x5, x0, 3);
     EBREAK();
@@ -753,15 +753,15 @@ module svc_rv_tb;
   `TEST_CASE(test_chained_dependencies);
 
   // Jump tests (JAL/JALR) - uncomment when JAL/JALR are implemented
-  // `TEST_CASE(test_jal_simple);
-  // `TEST_CASE(test_jalr_simple);
-  // `TEST_CASE(test_jalr_lsb_clear);
+  `TEST_CASE(test_jal_simple);
+  `TEST_CASE(test_jalr_simple);
+  `TEST_CASE(test_jalr_lsb_clear);
   // `TEST_CASE(test_jalr_with_base_register);
   // `TEST_CASE(test_call_return_pattern);
   //
   // Pipeline stress tests - validate instruction flushing on control flow
-  // `TEST_CASE(test_jal_forward_pipeline);
-  // `TEST_CASE(test_jal_backward_pipeline);
+  `TEST_CASE(test_jal_forward_pipeline);
+  `TEST_CASE(test_jal_short_forward_pipeline);
   // `TEST_CASE(test_jalr_forward_pipeline);
 
   `TEST_SUITE_END();
