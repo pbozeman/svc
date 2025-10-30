@@ -23,7 +23,7 @@ module svc_rv_asm_tb;
   logic        mem_write;
   logic        alu_a_src;
   logic [ 1:0] alu_b_src;
-  logic [ 1:0] alu_op_type;
+  logic [ 1:0] alu_instr;
   logic [ 1:0] res_src;
   logic [ 2:0] imm_type;
   logic        is_branch;
@@ -42,26 +42,26 @@ module svc_rv_asm_tb;
   svc_rv_idec #(
       .XLEN(XLEN)
   ) decoder (
-      .instr      (instr),
-      .reg_write  (reg_write),
-      .mem_write  (mem_write),
-      .alu_a_src  (alu_a_src),
-      .alu_b_src  (alu_b_src),
-      .alu_op_type(alu_op_type),
-      .res_src    (res_src),
-      .imm_type   (imm_type),
-      .is_branch  (is_branch),
-      .is_jump    (is_jump),
-      .rd         (rd),
-      .rs1        (rs1),
-      .rs2        (rs2),
-      .funct3     (funct3),
-      .funct7     (funct7),
-      .imm_i      (imm_i),
-      .imm_s      (imm_s),
-      .imm_b      (imm_b),
-      .imm_u      (imm_u),
-      .imm_j      (imm_j)
+      .instr    (instr),
+      .reg_write(reg_write),
+      .mem_write(mem_write),
+      .alu_a_src(alu_a_src),
+      .alu_b_src(alu_b_src),
+      .alu_instr(alu_instr),
+      .res_src  (res_src),
+      .imm_type (imm_type),
+      .is_branch(is_branch),
+      .is_jump  (is_jump),
+      .rd       (rd),
+      .rs1      (rs1),
+      .rs2      (rs2),
+      .funct3   (funct3),
+      .funct7   (funct7),
+      .imm_i    (imm_i),
+      .imm_s    (imm_s),
+      .imm_b    (imm_b),
+      .imm_u    (imm_u),
+      .imm_j    (imm_j)
   );
 
   // Test R-type instruction encoding
