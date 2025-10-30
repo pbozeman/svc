@@ -47,38 +47,7 @@ module svc_rv_idec #(
   //
   // Control signal constants
   //
-  // These are not used internally to keep the case statement compact, but
-  // callers can access them hierarchically (e.g., idec_i.IMM_I) to make their
-  // code more readable.
-  //
-  // verilator lint_off: UNUSEDPARAM
-
-  // alu_a_src values
-  localparam logic ALU_A_RS1 = 1'b0;
-  localparam logic ALU_A_PC = 1'b1;
-
-  // alu_b_src values
-  localparam logic [1:0] ALU_B_RS2 = 2'b00;
-  localparam logic [1:0] ALU_B_IMM = 2'b01;
-  localparam logic [1:0] ALU_B_TGT = 2'b10;
-
-  // alu_instr values
-  localparam logic [1:0] ALU_INSTR_ADD = 2'b00;
-  localparam logic [1:0] ALU_INSTR_SUB = 2'b01;
-  localparam logic [1:0] ALU_INSTR_FN3 = 2'b10;
-
-  // res_src values
-  localparam logic [1:0] RES_ALU = 2'b00;
-  localparam logic [1:0] RES_MEM = 2'b01;
-  localparam logic [1:0] RES_PC4 = 2'b10;
-
-  // imm_type values
-  localparam logic [2:0] IMM_I = 3'b000;
-  localparam logic [2:0] IMM_S = 3'b001;
-  localparam logic [2:0] IMM_B = 3'b010;
-  localparam logic [2:0] IMM_J = 3'b011;
-  localparam logic [2:0] IMM_U = 3'b100;
-  // verilator lint_on: UNUSEDPARAM
+  `include "svc_rv_defs.svh"
 
   logic [6:0] opcode;
 
@@ -97,17 +66,18 @@ module svc_rv_idec #(
     logic [13:0] c;
 
     case (opcode)
-      7'b0000011: c = 14'b1_0_0_01_00_01_000_0_0;  // lw
-      7'b0100011: c = 14'b0_1_0_01_00_00_001_0_0;  // sw
-      7'b0110011: c = 14'b1_0_0_00_10_00_xxx_0_0;  // R-type
-      7'b1100011: c = 14'b0_0_0_00_01_00_010_1_0;  // B-type
-      7'b0010011: c = 14'b1_0_0_01_10_00_000_0_0;  // I-type ALU
-      7'b1101111: c = 14'b1_0_0_00_00_10_011_0_1;  // jal
-      7'b0010111: c = 14'b1_0_1_10_00_00_100_0_0;  // auipc
-      7'b0110111: c = 14'b1_0_1_01_00_00_100_0_0;  // lui
-      7'b1100111: c = 14'b1_0_0_01_00_10_000_0_1;  // jalr
-      7'b0000000: c = 14'b0_0_0_00_00_00_000_0_0;  // during reset
-      default:    c = 14'bx_x_x_xx_xx_xx_xxx_x_x;
+      OP_LOAD:   c = 14'b1_0_0_01_00_01_000_0_0;
+      OP_STORE:  c = 14'b0_1_0_01_00_00_001_0_0;
+      OP_RTYPE:  c = 14'b1_0_0_00_10_00_xxx_0_0;
+      OP_BRANCH: c = 14'b0_0_0_00_01_00_010_1_0;
+      OP_ITYPE:  c = 14'b1_0_0_01_10_00_000_0_0;
+      OP_JAL:    c = 14'b1_0_0_00_00_10_011_0_1;
+      OP_AUIPC:  c = 14'b1_0_1_10_00_00_100_0_0;
+      OP_LUI:    c = 14'b1_0_1_01_00_00_100_0_0;
+      OP_JALR:   c = 14'b1_0_0_01_00_10_000_0_1;
+      OP_SYSTEM: c = 14'b0_0_0_00_00_00_000_0_0;
+      OP_RESET:  c = 14'b0_0_0_00_00_00_000_0_0;
+      default:   c = 14'bx_x_x_xx_xx_xx_xxx_x_x;
     endcase
 
     {reg_write, mem_write, alu_a_src, alu_b_src, alu_instr, res_src, imm_type,

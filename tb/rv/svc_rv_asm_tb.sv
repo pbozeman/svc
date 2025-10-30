@@ -8,6 +8,7 @@
 
 // verilator lint_off UNUSEDSIGNAL
 module svc_rv_asm_tb;
+  `include "svc_rv_defs.svh"
 
   localparam int XLEN = 32;
 
@@ -84,7 +85,7 @@ module svc_rv_asm_tb;
     // Verify ADD instruction
     addr  = 0;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b0110011);
+    `CHECK_EQ(instr[6:0], OP_RTYPE);
     `CHECK_EQ(rd, 1);
     `CHECK_EQ(rs1, 2);
     `CHECK_EQ(rs2, 3);
@@ -94,7 +95,7 @@ module svc_rv_asm_tb;
     // Verify SUB instruction (funct7[5] = 1)
     addr  = 1;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b0110011);
+    `CHECK_EQ(instr[6:0], OP_RTYPE);
     `CHECK_EQ(rd, 4);
     `CHECK_EQ(rs1, 5);
     `CHECK_EQ(rs2, 6);
@@ -104,7 +105,7 @@ module svc_rv_asm_tb;
     // Verify SRA instruction (funct7[5] = 1)
     addr  = 7;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b0110011);
+    `CHECK_EQ(instr[6:0], OP_RTYPE);
     `CHECK_EQ(rd, 22);
     `CHECK_EQ(rs1, 23);
     `CHECK_EQ(rs2, 24);
@@ -123,7 +124,7 @@ module svc_rv_asm_tb;
     // Verify MUL instruction
     addr  = 0;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b0110011);
+    `CHECK_EQ(instr[6:0], OP_RTYPE);
     `CHECK_EQ(rd, 1);
     `CHECK_EQ(rs1, 2);
     `CHECK_EQ(rs2, 3);
@@ -147,7 +148,7 @@ module svc_rv_asm_tb;
     // Verify ADDI instruction
     addr  = 0;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b0010011);
+    `CHECK_EQ(instr[6:0], OP_ITYPE);
     `CHECK_EQ(rd, 1);
     `CHECK_EQ(rs1, 2);
     `CHECK_EQ(funct3, 3'b000);
@@ -156,7 +157,7 @@ module svc_rv_asm_tb;
     // Verify XORI with -1 (sign-extended to all bits set)
     addr  = 1;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b0010011);
+    `CHECK_EQ(instr[6:0], OP_ITYPE);
     `CHECK_EQ(rd, 3);
     `CHECK_EQ(rs1, 4);
     `CHECK_EQ(funct3, 3'b100);
@@ -176,7 +177,7 @@ module svc_rv_asm_tb;
     // Verify SLLI instruction
     addr  = 0;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b0010011);
+    `CHECK_EQ(instr[6:0], OP_ITYPE);
     `CHECK_EQ(rd, 1);
     `CHECK_EQ(rs1, 2);
     `CHECK_EQ(rs2, 5);
@@ -186,7 +187,7 @@ module svc_rv_asm_tb;
     // Verify SRAI instruction (funct7[5] = 1)
     addr  = 2;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b0010011);
+    `CHECK_EQ(instr[6:0], OP_ITYPE);
     `CHECK_EQ(rd, 5);
     `CHECK_EQ(rs1, 6);
     `CHECK_EQ(rs2, 15);
@@ -209,7 +210,7 @@ module svc_rv_asm_tb;
     // Verify LW instruction
     addr  = 0;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b0000011);
+    `CHECK_EQ(instr[6:0], OP_LOAD);
     `CHECK_EQ(rd, 1);
     `CHECK_EQ(rs1, 2);
     `CHECK_EQ(funct3, 3'b010);
@@ -218,7 +219,7 @@ module svc_rv_asm_tb;
     // Verify LBU instruction
     addr  = 4;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b0000011);
+    `CHECK_EQ(instr[6:0], OP_LOAD);
     `CHECK_EQ(rd, 9);
     `CHECK_EQ(rs1, 10);
     `CHECK_EQ(funct3, 3'b100);
@@ -241,7 +242,7 @@ module svc_rv_asm_tb;
     // In instruction: rs1=base, rs2=data
     addr  = 0;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b0100011);
+    `CHECK_EQ(instr[6:0], OP_STORE);
     `CHECK_EQ(rs1, 2);
     `CHECK_EQ(rs2, 1);
     `CHECK_EQ(funct3, 3'b010);
@@ -264,7 +265,7 @@ module svc_rv_asm_tb;
     // Verify BEQ instruction
     addr  = 0;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b1100011);
+    `CHECK_EQ(instr[6:0], OP_BRANCH);
     `CHECK_EQ(rs1, 1);
     `CHECK_EQ(rs2, 2);
     `CHECK_EQ(funct3, 3'b000);
@@ -274,7 +275,7 @@ module svc_rv_asm_tb;
     // Verify BLT with negative offset (sign-extended -8)
     addr  = 2;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b1100011);
+    `CHECK_EQ(instr[6:0], OP_BRANCH);
     `CHECK_EQ(rs1, 5);
     `CHECK_EQ(rs2, 6);
     `CHECK_EQ(funct3, 3'b100);
@@ -293,14 +294,14 @@ module svc_rv_asm_tb;
     // Verify LUI instruction
     addr  = 0;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b0110111);
+    `CHECK_EQ(instr[6:0], OP_LUI);
     `CHECK_EQ(rd, 1);
     `CHECK_EQ(imm_u, 32'h12345000);
 
     // Verify AUIPC instruction
     addr  = 1;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b0010111);
+    `CHECK_EQ(instr[6:0], OP_AUIPC);
     `CHECK_EQ(rd, 2);
     `CHECK_EQ(imm_u, 32'h00010000);
   endtask
@@ -317,7 +318,7 @@ module svc_rv_asm_tb;
     // Verify JAL instruction
     addr  = 0;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b1101111);
+    `CHECK_EQ(instr[6:0], OP_JAL);
     `CHECK_EQ(rd, ra);
     `CHECK_EQ(imm_j, 100);
     `CHECK_TRUE(is_jump);
@@ -325,7 +326,7 @@ module svc_rv_asm_tb;
     // Verify JALR instruction (encoded as I-type)
     addr  = 1;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b1100111);
+    `CHECK_EQ(instr[6:0], OP_JALR);
     `CHECK_EQ(rd, 5);
     `CHECK_EQ(rs1, 6);
     `CHECK_EQ(funct3, 3'b000);
@@ -349,7 +350,7 @@ module svc_rv_asm_tb;
     MV(x1, x2);
     addr  = 0;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b0110011);
+    `CHECK_EQ(instr[6:0], OP_RTYPE);
     `CHECK_EQ(rd, 1);
     `CHECK_EQ(rs1, 2);
     `CHECK_EQ(rs2, 0);
@@ -359,7 +360,7 @@ module svc_rv_asm_tb;
     LI(x1, 42);
     addr  = 0;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b0010011);
+    `CHECK_EQ(instr[6:0], OP_ITYPE);
     `CHECK_EQ(rd, 1);
     `CHECK_EQ(rs1, 0);
     `CHECK_EQ(imm_i, 42);
@@ -369,17 +370,17 @@ module svc_rv_asm_tb;
     LI(x1, 32'h12345678);
     addr  = 0;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b0110111);
+    `CHECK_EQ(instr[6:0], OP_LUI);
     addr  = 1;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b0010011);
+    `CHECK_EQ(instr[6:0], OP_ITYPE);
 
     // Test BEQZ (branch if equal to zero)
     asm_pc = 0;
     BEQZ(x1, 16);
     addr  = 0;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b1100011);
+    `CHECK_EQ(instr[6:0], OP_BRANCH);
     `CHECK_EQ(rs1, 1);
     `CHECK_EQ(rs2, 0);
     `CHECK_EQ(funct3, 3'b000);
@@ -413,8 +414,8 @@ module svc_rv_asm_tb;
     // Verify EBREAK instruction encoding
     addr  = 0;
     instr = MEM[addr];
-    `CHECK_EQ(instr, 32'h00100073);
-    `CHECK_EQ(instr[6:0], 7'b1110011);
+    `CHECK_EQ(instr, I_EBREAK);
+    `CHECK_EQ(instr[6:0], OP_SYSTEM);
     `CHECK_EQ(funct3, 3'b000);
     `CHECK_EQ(imm_i, 32'd1);
   endtask
@@ -435,7 +436,7 @@ module svc_rv_asm_tb;
     // Verify the branch instruction
     addr  = 1;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b1100011);
+    `CHECK_EQ(instr[6:0], OP_BRANCH);
     `CHECK_EQ(imm_b, 32'hFFFFFFFC);
 
     // Forward branch
@@ -462,7 +463,7 @@ module svc_rv_asm_tb;
     // Verify JAL instruction
     addr  = 1;
     instr = MEM[addr];
-    `CHECK_EQ(instr[6:0], 7'b1101111);
+    `CHECK_EQ(instr[6:0], OP_JAL);
     `CHECK_EQ(imm_j, 32'hFFFFFFFC);
 
     endASM();

@@ -20,6 +20,8 @@ module svc_rv #(
 
     output logic ebreak
 );
+  `include "svc_rv_defs.svh"
+
   logic [XLEN-1:0] pc;
 
   logic [    31:0] instr;
@@ -100,7 +102,7 @@ module svc_rv #(
       .imm_j    (imm_j)
   );
 
-  assign ebreak = (instr == 32'h00100073);
+  assign ebreak = (instr == I_EBREAK);
 
   `SVC_UNUSED({pc[XLEN-1:IMEM_AW+2], pc[1:0], reg_write, mem_write, alu_a_src,
                alu_b_src, alu_instr, res_src, imm_type, is_branch, is_jump, rd,

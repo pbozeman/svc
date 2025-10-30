@@ -23,13 +23,7 @@ module svc_rv_alu_dec (
 
     output logic [2:0] alu_op
 );
-  // ALU op types
-  localparam logic [2:0] ALU_ADD = 3'b000;
-  localparam logic [2:0] ALU_SUB = 3'b001;
-  localparam logic [2:0] ALU_AND = 3'b010;
-  localparam logic [2:0] ALU_OR = 3'b011;
-  localparam logic [2:0] ALU_XOR = 3'b100;
-  localparam logic [2:0] ALU_SLT = 3'b101;
+  `include "svc_rv_defs.svh"
 
   logic rtype_sub;
   assign rtype_sub = funct7_b5 & op_b5;
