@@ -31,8 +31,9 @@ localparam logic [2:0] ALU_SLT = 3'b101;
 // Instruction decoder control signal constants
 //
 // alu_a_src values
-localparam logic ALU_A_RS1 = 1'b0;
-localparam logic ALU_A_PC  = 1'b1;
+localparam logic [1:0] ALU_A_RS1  = 2'b00;
+localparam logic [1:0] ALU_A_ZERO = 2'b01;
+localparam logic [1:0] ALU_A_PC   = 2'b10;
 
 // alu_b_src values
 localparam logic [1:0] ALU_B_RS2 = 2'b00;
