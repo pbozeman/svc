@@ -2,13 +2,18 @@
 `define SVC_RV_IMEM_SV
 
 `include "svc.sv"
+`include "svc_unused.sv"
 
-// Synchronous read memory with registered output to infer Block RAM.
+// Instruction memory with optional registered output.
+//
+// When REGISTERED=1: Output is registered to infer Block RAM (adds 1 cycle latency)
+// When REGISTERED=0: Output is combinational (for single-cycle designs)
 //
 // Enable signal allows holding the output register during pipeline stalls
 
 module svc_rv_imem #(
-    parameter integer AW = 10,
+    parameter integer AW         = 10,
+    parameter bit     REGISTERED = 1,
 
     // verilog_lint: waive explicit-parameter-storage-type
     parameter INIT_FILE = ""
@@ -21,7 +26,8 @@ module svc_rv_imem #(
     output logic [  31:0] data
 );
   (* ram_style = "block" *)
-  logic [31:0] mem[2**AW];
+  logic [31:0] mem       [2**AW];
+  logic [31:0] data_next;
 
   // Initialize memory
   //
@@ -40,13 +46,28 @@ module svc_rv_imem #(
     end
   end
 
-  // Synchronous read with registered output (critical for BRAM inference)
-  always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      data <= 32'b0;
-    end else if (en) begin
-      data <= mem[addr];
+  //
+  // Combinational read
+  //
+  assign data_next = mem[addr];
+
+  //
+  // Output path: registered or combinational based on parameter
+  //
+  if (REGISTERED) begin : gen_registered
+    // Registered version
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        data <= 32'b0;
+      end else if (en) begin
+        data <= data_next;
+      end
     end
+  end else begin : gen_combinational
+    // Unregistered version
+    assign data = data_next;
+
+    `SVC_UNUSED({clk, rst_n, en});
   end
 
 endmodule
