@@ -11,7 +11,7 @@ module svc_rv_alu_dec_tb;
   logic       funct7_b5;
   logic       op_b5;
 
-  logic [2:0] alu_op;
+  logic [3:0] alu_op;
 
   svc_rv_alu_dec uut (
       .alu_instr(alu_instr),
@@ -130,6 +130,54 @@ module svc_rv_alu_dec_tb;
   endtask
 
   //
+  // Test: SLTU operation
+  //
+  task automatic test_sltu;
+    alu_instr = 2'b10;
+    funct3    = 3'b011;
+    funct7_b5 = 1'b0;
+    op_b5     = 1'b1;
+    `TICK(clk);
+    `CHECK_EQ(alu_op, ALU_SLTU);
+  endtask
+
+  //
+  // Test: SLL operation
+  //
+  task automatic test_sll;
+    alu_instr = 2'b10;
+    funct3    = 3'b001;
+    funct7_b5 = 1'b0;
+    op_b5     = 1'b1;
+    `TICK(clk);
+    `CHECK_EQ(alu_op, ALU_SLL);
+  endtask
+
+  //
+  // Test: SRL operation
+  //
+  task automatic test_srl;
+    alu_instr = 2'b10;
+    funct3    = 3'b101;
+    funct7_b5 = 1'b0;
+    op_b5     = 1'b1;
+    `TICK(clk);
+    `CHECK_EQ(alu_op, ALU_SRL);
+  endtask
+
+  //
+  // Test: SRA operation
+  //
+  task automatic test_sra;
+    alu_instr = 2'b10;
+    funct3    = 3'b101;
+    funct7_b5 = 1'b1;
+    op_b5     = 1'b1;
+    `TICK(clk);
+    `CHECK_EQ(alu_op, ALU_SRA);
+  endtask
+
+  //
   // Test: All funct3 combinations with I-type
   //
   task automatic test_all_itype;
@@ -168,6 +216,10 @@ module svc_rv_alu_dec_tb;
   `TEST_CASE(test_rtype_sub);
   `TEST_CASE(test_itype_addi);
   `TEST_CASE(test_slt);
+  `TEST_CASE(test_sltu);
+  `TEST_CASE(test_sll);
+  `TEST_CASE(test_srl);
+  `TEST_CASE(test_sra);
   `TEST_CASE(test_xor);
   `TEST_CASE(test_or);
   `TEST_CASE(test_and);

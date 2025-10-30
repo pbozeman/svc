@@ -21,7 +21,7 @@ module svc_rv_alu_dec (
     input logic       funct7_b5,
     input logic       op_b5,
 
-    output logic [2:0] alu_op
+    output logic [3:0] alu_op
 );
   `include "svc_rv_defs.svh"
 
@@ -38,11 +38,14 @@ module svc_rv_alu_dec (
       default: begin
         case (funct3)
           3'b000:  alu_op = rtype_sub ? ALU_SUB : ALU_ADD;
+          3'b001:  alu_op = ALU_SLL;
           3'b010:  alu_op = ALU_SLT;
+          3'b011:  alu_op = ALU_SLTU;
           3'b100:  alu_op = ALU_XOR;
+          3'b101:  alu_op = funct7_b5 ? ALU_SRA : ALU_SRL;
           3'b110:  alu_op = ALU_OR;
           3'b111:  alu_op = ALU_AND;
-          default: alu_op = 3'bxxx;
+          default: alu_op = 4'bxxxx;
         endcase
       end
     endcase
