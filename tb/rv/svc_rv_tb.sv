@@ -1028,6 +1028,171 @@ module svc_rv_tb;
   endtask
 
   //
+  //--------------------------------------------------------------------
+  // LUI and AUIPC tests
+  //--------------------------------------------------------------------
+  //
+
+  //
+  // Test: LUI basic functionality
+  //
+  // Tests LUI (Load Upper Immediate) which loads a 20-bit immediate value
+  // into the upper 20 bits of a register, setting the lower 12 bits to zero.
+  //
+  task automatic test_lui_basic;
+    LUI(x1, 32'h12345000);
+    LUI(x2, 32'hABCDE000);
+    LUI(x3, 32'h00001000);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[1], 32'h12345000);
+    `CHECK_EQ(uut.regfile.regs[2], 32'hABCDE000);
+    `CHECK_EQ(uut.regfile.regs[3], 32'h00001000);
+  endtask
+
+  //
+  // Test: LUI with zero immediate
+  //
+  // Tests LUI with a zero immediate value, which should produce zero.
+  //
+  task automatic test_lui_zero;
+    LUI(x1, 32'h00000000);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[1], 32'h00000000);
+  endtask
+
+  //
+  // Test: LUI with negative value (sign bit set)
+  //
+  // Tests LUI with a value that has the sign bit set in the upper bits.
+  // The immediate still zero-extends into the register.
+  //
+  task automatic test_lui_negative;
+    LUI(x1, 32'hFFFFF000);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[1], 32'hFFFFF000);
+  endtask
+
+  //
+  // Test: AUIPC basic functionality
+  //
+  // Tests AUIPC (Add Upper Immediate to PC) which adds a 20-bit immediate
+  // (shifted left 12 bits) to the current PC and stores the result.
+  //
+  task automatic test_auipc_basic;
+    AUIPC(x1, 32'h00001000);
+    AUIPC(x2, 32'h00002000);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[1], 32'h00001000);
+    `CHECK_EQ(uut.regfile.regs[2], 32'h00002004);
+  endtask
+
+  //
+  // Test: AUIPC with zero immediate
+  //
+  // Tests AUIPC with zero immediate, which should produce the current PC.
+  //
+  task automatic test_auipc_zero;
+    AUIPC(x1, 32'h00000000);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[1], 32'h00000000);
+  endtask
+
+  //
+  // Test: AUIPC with negative offset
+  //
+  // Tests AUIPC with a negative offset (sign bit set). The result is PC plus
+  // the sign-extended immediate value.
+  //
+  task automatic test_auipc_negative;
+    NOP();
+    NOP();
+    NOP();
+    AUIPC(x1, 32'hFFFFF000);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[1], 32'hFFFFF00C);
+  endtask
+
+  //
+  // Test: LI pseudo-instruction with small values
+  //
+  // Tests the LI (Load Immediate) pseudo-instruction with values that fit in
+  // 12 bits. These expand to a single ADDI instruction.
+  //
+  task automatic test_li_pseudo_small;
+    LI(x1, 32'd100);
+    LI(x2, 32'd0);
+    LI(x3, -32'd50);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[1], 32'd100);
+    `CHECK_EQ(uut.regfile.regs[2], 32'd0);
+    `CHECK_EQ(uut.regfile.regs[3], 32'hFFFFFFCE);
+  endtask
+
+  //
+  // Test: LI pseudo-instruction with large values
+  //
+  // Tests the LI pseudo-instruction with full 32-bit values. These expand to
+  // LUI+ADDI sequence, which creates a read-after-write dependency that tests
+  // data forwarding.
+  //
+  task automatic test_li_pseudo_large;
+    LI(x1, 32'h12345678);
+    LI(x2, 32'hDEADBEEF);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[1], 32'h12345678);
+    `CHECK_EQ(uut.regfile.regs[2], 32'hDEADBEEF);
+  endtask
+
+  //
+  // Test: LUI+ADDI combination
+  //
+  // Tests the common pattern of loading a full 32-bit constant using LUI
+  // followed by ADDI. Tests data forwarding since ADDI depends on LUI result.
+  //
+  task automatic test_lui_addi_combination;
+    LUI(x1, 32'h12345000);
+    ADDI(x1, x1, 32'h678);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[1], 32'h12345678);
+  endtask
+
+  //
   // Test setup
   //
   `TEST_SUITE_BEGIN(svc_rv_tb);
@@ -1059,7 +1224,7 @@ module svc_rv_tb;
 
   // Read-after-write dependency tests
   `TEST_CASE(test_raw_dependency);
-  //
+
   // Dependency stress test - deep chains that stress forwarding/stalls
   `TEST_CASE(test_chained_dependencies);
 
@@ -1068,12 +1233,12 @@ module svc_rv_tb;
   `TEST_CASE(test_jalr_simple);
   `TEST_CASE(test_jalr_lsb_clear);
   `TEST_CASE(test_jalr_with_base_register);
-  // `TEST_CASE(test_call_return_pattern);
-  //
+  `TEST_CASE(test_call_return_pattern);
+
   // Pipeline stress tests - validate instruction flushing on control flow
   `TEST_CASE(test_jal_forward_pipeline);
   `TEST_CASE(test_jal_short_forward_pipeline);
-  // `TEST_CASE(test_jalr_forward_pipeline);
+  `TEST_CASE(test_jalr_forward_pipeline);
 
   // Branch tests
   `TEST_CASE(test_beq_taken_forward);
@@ -1091,6 +1256,21 @@ module svc_rv_tb;
   `TEST_CASE(test_bgeu_not_taken_unsigned);
   `TEST_CASE(test_bgeu_zero);
   `TEST_CASE(test_branch_loop);
+
+  // LUI and AUIPC tests
+  `TEST_CASE(test_lui_basic);
+  `TEST_CASE(test_lui_zero);
+  `TEST_CASE(test_lui_negative);
+  `TEST_CASE(test_auipc_basic);
+  `TEST_CASE(test_auipc_zero);
+  `TEST_CASE(test_auipc_negative);
+  `TEST_CASE(test_li_pseudo_small);
+
+  // LI pseudo-instruction for large values has LUI+ADDI hazard
+  `TEST_CASE(test_li_pseudo_large);
+
+  // LUI+ADDI combination has data hazard
+  `TEST_CASE(test_lui_addi_combination);
 
   `TEST_SUITE_END();
 
