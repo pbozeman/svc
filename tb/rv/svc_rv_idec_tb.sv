@@ -127,9 +127,9 @@ module svc_rv_idec_tb;
     instr = 32'b0_000001_00011_00010_000_0000_0_1100011;
     `CHECK_FALSE(reg_write);
     `CHECK_FALSE(mem_write);
-    `CHECK_EQ(alu_a_src, ALU_A_RS1);
-    `CHECK_EQ(alu_b_src, ALU_B_RS2);
-    `CHECK_EQ(alu_instr, ALU_INSTR_SUB);
+    //
+    // ALU control signals are don't-care for branches (use bcmp instead)
+    //
     `CHECK_EQ(imm_type, IMM_B);
     `CHECK_TRUE(is_branch);
     `CHECK_FALSE(is_jump);

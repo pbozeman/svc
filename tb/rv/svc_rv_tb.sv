@@ -717,6 +717,317 @@ module svc_rv_tb;
   endtask
 
   //
+  //--------------------------------------------------------------------
+  // Branch tests (BEQ, BNE, BLT, BGE, BLTU, BGEU)
+  //--------------------------------------------------------------------
+  //
+
+  //
+  // Test: BEQ taken forward
+  //
+  // Tests BEQ when condition is true (registers are equal). Branch should be
+  // taken and skip the intermediate instruction.
+  //
+  task automatic test_beq_taken_forward;
+    ADDI(x1, x0, 42);
+    ADDI(x2, x0, 42);
+    BEQ(x1, x2, 8);
+    ADDI(x3, x0, 99);
+    ADDI(x4, x0, 100);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[1], 32'd42);
+    `CHECK_EQ(uut.regfile.regs[2], 32'd42);
+    `CHECK_EQ(uut.regfile.regs[3], 32'd0);
+    `CHECK_EQ(uut.regfile.regs[4], 32'd100);
+  endtask
+
+  //
+  // Test: BEQ not taken
+  //
+  // Tests BEQ when condition is false (registers are not equal). Branch should
+  // not be taken and fall through to the next instruction.
+  //
+  task automatic test_beq_not_taken;
+    ADDI(x1, x0, 42);
+    ADDI(x2, x0, 43);
+    BEQ(x1, x2, 8);
+    ADDI(x3, x0, 100);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[1], 32'd42);
+    `CHECK_EQ(uut.regfile.regs[2], 32'd43);
+    `CHECK_EQ(uut.regfile.regs[3], 32'd100);
+  endtask
+
+  //
+  // Test: BNE taken backward (loop)
+  //
+  // Tests BNE in a loop pattern. Increments x1 until it equals x2, using a
+  // backward branch to repeat the loop body.
+  //
+  task automatic test_bne_taken_backward;
+    ADDI(x1, x0, 0);
+    ADDI(x2, x0, 5);
+    ADDI(x1, x1, 1);
+    BNE(x1, x2, -4);
+    ADDI(x3, x0, 99);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR(clk, ebreak, 128);
+    `CHECK_EQ(uut.regfile.regs[1], 32'd5);
+    `CHECK_EQ(uut.regfile.regs[2], 32'd5);
+    `CHECK_EQ(uut.regfile.regs[3], 32'd99);
+  endtask
+
+  //
+  // Test: BNE not taken
+  //
+  // Tests BNE when condition is false (registers are equal). Branch should not
+  // be taken and fall through to the next instruction.
+  //
+  task automatic test_bne_not_taken;
+    ADDI(x1, x0, 42);
+    ADDI(x2, x0, 42);
+    BNE(x1, x2, 8);
+    ADDI(x3, x0, 100);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[1], 32'd42);
+    `CHECK_EQ(uut.regfile.regs[2], 32'd42);
+    `CHECK_EQ(uut.regfile.regs[3], 32'd100);
+  endtask
+
+  //
+  // Test: BLT taken (signed comparison)
+  //
+  // Tests BLT when condition is true (rs1 < rs2 signed). Uses a negative
+  // value to verify signed comparison.
+  //
+  task automatic test_blt_taken_signed;
+    ADDI(x1, x0, -10);
+    ADDI(x2, x0, 10);
+    BLT(x1, x2, 8);
+    ADDI(x3, x0, 99);
+    ADDI(x4, x0, 100);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[1], 32'hFFFFFFF6);
+    `CHECK_EQ(uut.regfile.regs[2], 32'd10);
+    `CHECK_EQ(uut.regfile.regs[3], 32'd0);
+    `CHECK_EQ(uut.regfile.regs[4], 32'd100);
+  endtask
+
+  //
+  // Test: BLT not taken (signed comparison)
+  //
+  // Tests BLT when condition is false (rs1 >= rs2 signed).
+  //
+  task automatic test_blt_not_taken_signed;
+    ADDI(x1, x0, 10);
+    ADDI(x2, x0, -10);
+    BLT(x1, x2, 8);
+    ADDI(x3, x0, 100);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[1], 32'd10);
+    `CHECK_EQ(uut.regfile.regs[2], 32'hFFFFFFF6);
+    `CHECK_EQ(uut.regfile.regs[3], 32'd100);
+  endtask
+
+  //
+  // Test: BGE taken (signed comparison)
+  //
+  // Tests BGE when condition is true (rs1 >= rs2 signed).
+  //
+  task automatic test_bge_taken_signed;
+    ADDI(x1, x0, 10);
+    ADDI(x2, x0, -10);
+    BGE(x1, x2, 8);
+    ADDI(x3, x0, 99);
+    ADDI(x4, x0, 100);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[3], 32'd0);
+    `CHECK_EQ(uut.regfile.regs[4], 32'd100);
+  endtask
+
+  //
+  // Test: BGE not taken (signed comparison)
+  //
+  // Tests BGE when condition is false (rs1 < rs2 signed).
+  //
+  task automatic test_bge_not_taken_signed;
+    ADDI(x1, x0, -10);
+    ADDI(x2, x0, 10);
+    BGE(x1, x2, 8);
+    ADDI(x3, x0, 100);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[3], 32'd100);
+  endtask
+
+  //
+  // Test: BGE with equal values
+  //
+  // Tests BGE when rs1 == rs2. Should be taken since equal satisfies >=.
+  //
+  task automatic test_bge_equal;
+    ADDI(x1, x0, 42);
+    ADDI(x2, x0, 42);
+    BGE(x1, x2, 8);
+    ADDI(x3, x0, 99);
+    ADDI(x4, x0, 100);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[3], 32'd0);
+    `CHECK_EQ(uut.regfile.regs[4], 32'd100);
+  endtask
+
+  //
+  // Test: BLTU taken (unsigned comparison)
+  //
+  // Tests BLTU when condition is true (rs1 < rs2 unsigned). Uses negative
+  // value (large unsigned) to verify unsigned comparison.
+  //
+  task automatic test_bltu_taken_unsigned;
+    ADDI(x1, x0, 10);
+    ADDI(x2, x0, -10);
+    BLTU(x1, x2, 8);
+    ADDI(x3, x0, 99);
+    ADDI(x4, x0, 100);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[3], 32'd0);
+    `CHECK_EQ(uut.regfile.regs[4], 32'd100);
+  endtask
+
+  //
+  // Test: BLTU not taken (unsigned comparison)
+  //
+  // Tests BLTU when condition is false (rs1 >= rs2 unsigned).
+  //
+  task automatic test_bltu_not_taken_unsigned;
+    ADDI(x1, x0, -10);
+    ADDI(x2, x0, 10);
+    BLTU(x1, x2, 8);
+    ADDI(x3, x0, 100);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[3], 32'd100);
+  endtask
+
+  //
+  // Test: BGEU taken (unsigned comparison)
+  //
+  // Tests BGEU when condition is true (rs1 >= rs2 unsigned).
+  //
+  task automatic test_bgeu_taken_unsigned;
+    ADDI(x1, x0, -10);
+    ADDI(x2, x0, 10);
+    BGEU(x1, x2, 8);
+    ADDI(x3, x0, 99);
+    ADDI(x4, x0, 100);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[3], 32'd0);
+    `CHECK_EQ(uut.regfile.regs[4], 32'd100);
+  endtask
+
+  //
+  // Test: BGEU not taken (unsigned comparison)
+  //
+  // Tests BGEU when condition is false (rs1 < rs2 unsigned).
+  //
+  task automatic test_bgeu_not_taken_unsigned;
+    ADDI(x1, x0, 10);
+    ADDI(x2, x0, -10);
+    BGEU(x1, x2, 8);
+    ADDI(x3, x0, 100);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[3], 32'd100);
+  endtask
+
+  //
+  // Test: BGEU with zero
+  //
+  // Tests BGEU when both operands are zero. Should be taken since 0 >= 0.
+  //
+  task automatic test_bgeu_zero;
+    ADDI(x1, x0, 0);
+    BGEU(x1, x0, 8);
+    ADDI(x2, x0, 99);
+    ADDI(x3, x0, 100);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[2], 32'd0);
+    `CHECK_EQ(uut.regfile.regs[3], 32'd100);
+  endtask
+
+  //
+  // Test: Branch loop pattern
+  //
+  // Tests a realistic loop using BLT to count from 0 to 5.
+  //
+  task automatic test_branch_loop;
+    ADDI(x1, x0, 0);
+    ADDI(x2, x0, 5);
+    ADDI(x1, x1, 1);
+    BLT(x1, x2, -4);
+    ADDI(x3, x0, 99);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR(clk, ebreak, 128);
+    `CHECK_EQ(uut.regfile.regs[1], 32'd5);
+    `CHECK_EQ(uut.regfile.regs[2], 32'd5);
+    `CHECK_EQ(uut.regfile.regs[3], 32'd99);
+  endtask
+
+  //
   // Test setup
   //
   `TEST_SUITE_BEGIN(svc_rv_tb);
@@ -752,7 +1063,7 @@ module svc_rv_tb;
   // Dependency stress test - deep chains that stress forwarding/stalls
   `TEST_CASE(test_chained_dependencies);
 
-  // Jump tests (JAL/JALR) - uncomment when JAL/JALR are implemented
+  // Jump tests (JAL/JALR)
   `TEST_CASE(test_jal_simple);
   `TEST_CASE(test_jalr_simple);
   `TEST_CASE(test_jalr_lsb_clear);
@@ -763,6 +1074,23 @@ module svc_rv_tb;
   `TEST_CASE(test_jal_forward_pipeline);
   `TEST_CASE(test_jal_short_forward_pipeline);
   // `TEST_CASE(test_jalr_forward_pipeline);
+
+  // Branch tests
+  `TEST_CASE(test_beq_taken_forward);
+  `TEST_CASE(test_beq_not_taken);
+  `TEST_CASE(test_bne_taken_backward);
+  `TEST_CASE(test_bne_not_taken);
+  `TEST_CASE(test_blt_taken_signed);
+  `TEST_CASE(test_blt_not_taken_signed);
+  `TEST_CASE(test_bge_taken_signed);
+  `TEST_CASE(test_bge_not_taken_signed);
+  `TEST_CASE(test_bge_equal);
+  `TEST_CASE(test_bltu_taken_unsigned);
+  `TEST_CASE(test_bltu_not_taken_unsigned);
+  `TEST_CASE(test_bgeu_taken_unsigned);
+  `TEST_CASE(test_bgeu_not_taken_unsigned);
+  `TEST_CASE(test_bgeu_zero);
+  `TEST_CASE(test_branch_loop);
 
   `TEST_SUITE_END();
 
