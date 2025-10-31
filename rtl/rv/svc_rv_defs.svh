@@ -42,6 +42,22 @@ localparam logic [2:0] FUNCT3_BLTU = 3'b110;
 localparam logic [2:0] FUNCT3_BGEU = 3'b111;
 
 //
+// Load funct3 values
+//
+localparam logic [2:0] FUNCT3_LB  = 3'b000;
+localparam logic [2:0] FUNCT3_LH  = 3'b001;
+localparam logic [2:0] FUNCT3_LW  = 3'b010;
+localparam logic [2:0] FUNCT3_LBU = 3'b100;
+localparam logic [2:0] FUNCT3_LHU = 3'b101;
+
+//
+// Store funct3 values
+//
+localparam logic [2:0] FUNCT3_SB = 3'b000;
+localparam logic [2:0] FUNCT3_SH = 3'b001;
+localparam logic [2:0] FUNCT3_SW = 3'b010;
+
+//
 // Instruction decoder control signal constants
 //
 // alu_a_src values
