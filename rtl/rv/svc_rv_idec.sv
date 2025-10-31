@@ -88,9 +88,11 @@ module svc_rv_idec #(
     localparam logic       RS2  = ALU_B_RS2;
     localparam logic       IMM  = ALU_B_IMM;
 
-    localparam logic [1:0] ADD  = ALU_INSTR_ADD;
-    localparam logic [1:0] SUB  = ALU_INSTR_SUB;
-    localparam logic [1:0] FN3  = ALU_INSTR_FN3;
+    localparam logic [1:0] ADD = ALU_INSTR_ADD;
+    // verilator lint_off UNUSEDPARAM
+    localparam logic [1:0] SUB = ALU_INSTR_SUB;
+    // verilator lint_on UNUSEDPARAM
+    localparam logic [1:0] FN3 = ALU_INSTR_FN3;
 
     localparam logic [1:0] ALU  = RES_ALU;
     localparam logic [1:0] MEM  = RES_MEM;
@@ -110,12 +112,12 @@ module svc_rv_idec #(
     // Control signal decode
     //
     case (opcode)
-      //              r  m   alu alu  alu  res     imm  b  j   jb
-      //                       a   b   op                      src
+      //              r  m   alu  alu  alu  res    imm  b  j    jb
+      //                       a    b   op
       OP_LOAD:   c = {y, n,  RS1, IMM, ADD, MEM,     I, n, n,    x};
       OP_STORE:  c = {n, y,  RS1, IMM, ADD,  xx,     S, n, n,    x};
       OP_RTYPE:  c = {y, n,  RS1, RS2, FN3, ALU,   xxx, n, n,    x};
-      OP_BRANCH: c = {n, n,  RS1, RS2, SUB,  xx,     B, y, n,   PC};
+      OP_BRANCH: c = {n, n,   xx,   x,  xx,  xx,     B, y, n,   PC};
       OP_ITYPE:  c = {y, n,  RS1, IMM, FN3, ALU,     I, n, n,    x};
       OP_JAL:    c = {y, n,   xx,   x,  xx, PC4,     J, n, y,   PC};
       OP_AUIPC:  c = {y, n,   xx,   x,  xx, TGT,     U, n, n,   PC};

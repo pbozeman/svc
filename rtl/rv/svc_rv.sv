@@ -7,6 +7,7 @@
 
 `include "svc_rv_alu.sv"
 `include "svc_rv_alu_dec.sv"
+`include "svc_rv_bcmp.sv"
 `include "svc_rv_idec.sv"
 `include "svc_rv_imem.sv"
 `include "svc_rv_pc.sv"
@@ -35,7 +36,6 @@ module svc_rv #(
   logic [    31:0] instr;
   logic [XLEN-1:0] jb_target;
   logic            pc_sel;
-  logic            zero_flag;
 
   //
   // Decoder signals
@@ -243,10 +243,23 @@ module svc_rv #(
   );
 
   //
+  // Branch comparison
+  //
+  logic branch_taken;
+
+  svc_rv_bcmp #(
+      .XLEN(XLEN)
+  ) bcmp (
+      .a           (rs1_data),
+      .b           (rs2_data),
+      .funct3      (funct3),
+      .branch_taken(branch_taken)
+  );
+
+  //
   // PC muxing
   //
-  assign zero_flag      = alu_result == 0;
-  assign pc_sel         = is_branch & zero_flag | is_jump;
+  assign pc_sel = is_branch & branch_taken | is_jump;
 
   //
   // Result mux

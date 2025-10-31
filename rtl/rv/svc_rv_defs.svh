@@ -32,6 +32,16 @@ localparam logic [3:0] ALU_SRL  = 4'b1000;
 localparam logic [3:0] ALU_SRA  = 4'b1001;
 
 //
+// Branch comparison funct3 values
+//
+localparam logic [2:0] FUNCT3_BEQ  = 3'b000;
+localparam logic [2:0] FUNCT3_BNE  = 3'b001;
+localparam logic [2:0] FUNCT3_BLT  = 3'b100;
+localparam logic [2:0] FUNCT3_BGE  = 3'b101;
+localparam logic [2:0] FUNCT3_BLTU = 3'b110;
+localparam logic [2:0] FUNCT3_BGEU = 3'b111;
+
+//
 // Instruction decoder control signal constants
 //
 // alu_a_src values
