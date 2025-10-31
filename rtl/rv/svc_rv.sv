@@ -8,8 +8,11 @@
 `include "svc_rv_alu.sv"
 `include "svc_rv_alu_dec.sv"
 `include "svc_rv_bcmp.sv"
+`include "svc_rv_dmem.sv"
 `include "svc_rv_idec.sv"
 `include "svc_rv_imem.sv"
+`include "svc_rv_ld_fmt.sv"
+`include "svc_rv_st_fmt.sv"
 `include "svc_rv_pc.sv"
 `include "svc_rv_regfile.sv"
 
@@ -19,6 +22,7 @@ module svc_rv #(
     parameter int XLEN            = 32,
     parameter int IMEM_AW         = 10,
     parameter bit IMEM_REGISTERED = 0,
+    parameter int DMEM_AW         = 10,
 
     // verilog_lint: waive explicit-parameter-storage-type
     parameter IMEM_INIT = ""
@@ -30,52 +34,60 @@ module svc_rv #(
 );
   `include "svc_rv_defs.svh"
 
-  logic [XLEN-1:0] pc;
-  logic [XLEN-1:0] pc_plus4;
+  logic [  XLEN-1:0] pc;
+  logic [  XLEN-1:0] pc_plus4;
 
-  logic [    31:0] instr;
-  logic [XLEN-1:0] jb_target;
-  logic            pc_sel;
+  logic [      31:0] instr;
+  logic [  XLEN-1:0] jb_target;
+  logic              pc_sel;
 
   //
   // Decoder signals
   //
-  logic            reg_write;
-  logic            mem_write;
-  logic [     1:0] alu_a_src;
-  logic            alu_b_src;
-  logic [     1:0] alu_instr;
-  logic [     1:0] res_src;
-  logic [     2:0] imm_type;
-  logic            is_branch;
-  logic            is_jump;
-  logic            jb_target_src;
-  logic [     4:0] rd;
-  logic [     4:0] rs1;
-  logic [     4:0] rs2;
-  logic [     2:0] funct3;
-  logic [     6:0] funct7;
-  logic [XLEN-1:0] imm_i;
-  logic [XLEN-1:0] imm_s;
-  logic [XLEN-1:0] imm_b;
-  logic [XLEN-1:0] imm_u;
-  logic [XLEN-1:0] imm_j;
+  logic              reg_write;
+  logic              mem_write;
+  logic [       1:0] alu_a_src;
+  logic              alu_b_src;
+  logic [       1:0] alu_instr;
+  logic [       1:0] res_src;
+  logic [       2:0] imm_type;
+  logic              is_branch;
+  logic              is_jump;
+  logic              jb_target_src;
+  logic [       4:0] rd;
+  logic [       4:0] rs1;
+  logic [       4:0] rs2;
+  logic [       2:0] funct3;
+  logic [       6:0] funct7;
+  logic [  XLEN-1:0] imm_i;
+  logic [  XLEN-1:0] imm_s;
+  logic [  XLEN-1:0] imm_b;
+  logic [  XLEN-1:0] imm_u;
+  logic [  XLEN-1:0] imm_j;
 
   //
   // Register file signals
   //
-  logic [XLEN-1:0] rs1_data;
-  logic [XLEN-1:0] rs2_data;
-  logic [XLEN-1:0] rd_data;
+  logic [  XLEN-1:0] rs1_data;
+  logic [  XLEN-1:0] rs2_data;
+  logic [  XLEN-1:0] rd_data;
 
   //
   // ALU signals
   //
-  logic [     3:0] alu_op;
-  logic [XLEN-1:0] alu_a;
-  logic [XLEN-1:0] alu_b;
-  logic [XLEN-1:0] alu_result;
-  logic [XLEN-1:0] imm;
+  logic [       3:0] alu_op;
+  logic [  XLEN-1:0] alu_a;
+  logic [  XLEN-1:0] alu_b;
+  logic [  XLEN-1:0] alu_result;
+  logic [  XLEN-1:0] imm;
+
+  //
+  // Data memory signals
+  //
+  logic [  XLEN-1:0] dmem_rdata;
+  logic [  XLEN-1:0] dmem_rdata_ext;
+  logic [  XLEN-1:0] dmem_wdata;
+  logic [XLEN/8-1:0] dmem_wstrb;
 
   //
   // PC
@@ -262,6 +274,46 @@ module svc_rv #(
   assign pc_sel = is_branch & branch_taken | is_jump;
 
   //
+  // Data memory
+  //
+  svc_rv_st_fmt #(
+      .XLEN(XLEN)
+  ) st_fmt (
+      .data_in  (rs2_data),
+      .addr     (alu_result[1:0]),
+      .funct3   (funct3),
+      .mem_write(mem_write),
+      .data_out (dmem_wdata),
+      .wstrb    (dmem_wstrb)
+  );
+
+  svc_rv_dmem #(
+      .DW        (XLEN),
+      .AW        (DMEM_AW),
+      .REGISTERED(0)
+  ) dmem (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .addr (alu_result[DMEM_AW-1+2:2]),
+      .wdata(dmem_wdata),
+      .we   (mem_write),
+      .wstrb(dmem_wstrb),
+      .rdata(dmem_rdata)
+  );
+
+  //
+  // Load data extension
+  //
+  svc_rv_ld_fmt #(
+      .XLEN(XLEN)
+  ) ld_fmt (
+      .data_in (dmem_rdata),
+      .addr    (alu_result[1:0]),
+      .funct3  (funct3),
+      .data_out(dmem_rdata_ext)
+  );
+
+  //
   // Result mux
   //
   svc_muxn #(
@@ -269,14 +321,14 @@ module svc_rv #(
       .N    (4)
   ) mux_res (
       .sel (res_src),
-      .data({jb_target, pc_plus4, {XLEN{1'bx}}, alu_result}),
+      .data({jb_target, pc_plus4, dmem_rdata_ext, alu_result}),
       .out (rd_data)
   );
 
+
   assign ebreak = (rst_n && instr == I_EBREAK);
 
-  `SVC_UNUSED({pc[XLEN-1:IMEM_AW+2], pc[1:0], mem_write, funct7[6], funct7[4:0]
-                });
+  `SVC_UNUSED({pc[XLEN-1:IMEM_AW+2], pc[1:0], funct7[6], funct7[4:0]});
 
 endmodule
 
