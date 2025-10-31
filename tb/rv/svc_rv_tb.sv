@@ -1193,6 +1193,418 @@ module svc_rv_tb;
   endtask
 
   //
+  //--------------------------------------------------------------------
+  // Load/Store tests
+  //--------------------------------------------------------------------
+  //
+
+  //
+  // Test: Basic load word and store word
+  //
+  // Tests basic LW and SW instructions with multiple memory locations.
+  //
+  task automatic test_lw_sw_basic;
+    uut.dmem.mem[0] = 32'hDEADBEEF;
+    uut.dmem.mem[1] = 32'h12345678;
+    uut.dmem.mem[2] = 32'hCAFEBABE;
+
+    ADDI(x1, x0, 0);
+    LW(x2, x1, 0);
+    LW(x3, x1, 4);
+    LW(x4, x1, 8);
+    LI(x5, 32'hABCD1234);
+    SW(x5, x1, 12);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[2], 32'hDEADBEEF);
+    `CHECK_EQ(uut.regfile.regs[3], 32'h12345678);
+    `CHECK_EQ(uut.regfile.regs[4], 32'hCAFEBABE);
+    `TICK(clk);
+    `CHECK_EQ(uut.dmem.mem[3], 32'hABCD1234);
+  endtask
+
+  //
+  // Test: Load byte (signed)
+  //
+  // Tests LB instruction which loads a byte and sign-extends to 32 bits.
+  // Tests all four byte positions within a word.
+  //
+  task automatic test_lb_basic;
+    uut.dmem.mem[0] = 32'h89ABCDEF;
+
+    ADDI(x1, x0, 0);
+    LB(x2, x1, 0);
+    LB(x3, x1, 1);
+    LB(x4, x1, 2);
+    LB(x5, x1, 3);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[2], 32'hFFFFFFEF);
+    `CHECK_EQ(uut.regfile.regs[3], 32'hFFFFFFCD);
+    `CHECK_EQ(uut.regfile.regs[4], 32'hFFFFFFAB);
+    `CHECK_EQ(uut.regfile.regs[5], 32'hFFFFFF89);
+  endtask
+
+  //
+  // Test: Load byte unsigned
+  //
+  // Tests LBU instruction which loads a byte and zero-extends to 32 bits.
+  //
+  task automatic test_lbu_basic;
+    uut.dmem.mem[0] = 32'h89ABCDEF;
+
+    ADDI(x1, x0, 0);
+    LBU(x2, x1, 0);
+    LBU(x3, x1, 1);
+    LBU(x4, x1, 2);
+    LBU(x5, x1, 3);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[2], 32'h000000EF);
+    `CHECK_EQ(uut.regfile.regs[3], 32'h000000CD);
+    `CHECK_EQ(uut.regfile.regs[4], 32'h000000AB);
+    `CHECK_EQ(uut.regfile.regs[5], 32'h00000089);
+  endtask
+
+  //
+  // Test: Load halfword (signed)
+  //
+  // Tests LH instruction which loads a halfword and sign-extends to 32 bits.
+  //
+  task automatic test_lh_basic;
+    uut.dmem.mem[0] = 32'h8765CDEF;
+
+    ADDI(x1, x0, 0);
+    LH(x2, x1, 0);
+    LH(x3, x1, 2);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[2], 32'hFFFFCDEF);
+    `CHECK_EQ(uut.regfile.regs[3], 32'hFFFF8765);
+  endtask
+
+  //
+  // Test: Load halfword unsigned
+  //
+  // Tests LHU instruction which loads a halfword and zero-extends to 32 bits.
+  //
+  task automatic test_lhu_basic;
+    uut.dmem.mem[0] = 32'h8765CDEF;
+
+    ADDI(x1, x0, 0);
+    LHU(x2, x1, 0);
+    LHU(x3, x1, 2);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[2], 32'h0000CDEF);
+    `CHECK_EQ(uut.regfile.regs[3], 32'h00008765);
+  endtask
+
+  //
+  // Test: Store byte
+  //
+  // Tests SB instruction which stores the low byte to all byte positions.
+  //
+  task automatic test_sb_basic;
+    uut.dmem.mem[0] = 32'h00000000;
+
+    ADDI(x1, x0, 0);
+    LI(x2, 32'h12345678);
+    SB(x2, x1, 0);
+    SB(x2, x1, 1);
+    SB(x2, x1, 2);
+    SB(x2, x1, 3);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `TICK(clk);
+    `CHECK_EQ(uut.dmem.mem[0], 32'h78787878);
+  endtask
+
+  //
+  // Test: Store halfword
+  //
+  // Tests SH instruction which stores the low halfword to both positions.
+  //
+  task automatic test_sh_basic;
+    uut.dmem.mem[0] = 32'h00000000;
+
+    ADDI(x1, x0, 0);
+    LI(x2, 32'h12345678);
+    SH(x2, x1, 0);
+    SH(x2, x1, 2);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `TICK(clk);
+    `CHECK_EQ(uut.dmem.mem[0], 32'h56785678);
+  endtask
+
+  //
+  // Test: Store byte preserves other bytes
+  //
+  // Tests that SB only modifies the target byte without affecting others.
+  //
+  task automatic test_sb_partial_word;
+    uut.dmem.mem[0] = 32'hDEADBEEF;
+
+    ADDI(x1, x0, 0);
+    LI(x2, 32'hFF);
+    SB(x2, x1, 1);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `TICK(clk);
+    `CHECK_EQ(uut.dmem.mem[0], 32'hDEADFFEF);
+  endtask
+
+  //
+  // Test: Store halfword preserves other halfword
+  //
+  // Tests that SH only modifies the target halfword without affecting others.
+  //
+  task automatic test_sh_partial_word;
+    uut.dmem.mem[0] = 32'hDEADBEEF;
+
+    ADDI(x1, x0, 0);
+    LI(x2, 32'h1234);
+    SH(x2, x1, 2);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `TICK(clk);
+    `CHECK_EQ(uut.dmem.mem[0], 32'h1234BEEF);
+  endtask
+
+  //
+  // Test: Store-load forwarding
+  //
+  // Tests store followed immediately by load from the same address.
+  // Verifies store-to-load forwarding or proper handling of the dependency.
+  //
+  task automatic test_sw_lw_forwarding;
+
+    ADDI(x1, x0, 0);
+    LI(x2, 32'h11223344);
+    SW(x2, x1, 0);
+    LW(x3, x1, 0);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `TICK(clk);
+    `CHECK_EQ(uut.regfile.regs[3], 32'h11223344);
+    `CHECK_EQ(uut.dmem.mem[0], 32'h11223344);
+  endtask
+
+  //
+  // Test: Load-use hazard
+  //
+  // Tests the load-use hazard where an instruction immediately uses the
+  // result of a load. This creates a pipeline stall since the load data
+  // isn't available until the MEM stage.
+  //
+  task automatic test_load_use_hazard;
+    uut.dmem.mem[0] = 32'd42;
+    uut.dmem.mem[1] = 32'd100;
+
+    ADDI(x1, x0, 0);
+    LW(x2, x1, 0);
+    ADDI(x3, x2, 1);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[1], 32'd0);
+    `CHECK_EQ(uut.regfile.regs[2], 32'd42);
+    `CHECK_EQ(uut.regfile.regs[3], 32'd43);
+  endtask
+
+  //
+  // Test: Multiple load/store operations
+  //
+  // Tests a sequence of loads, arithmetic, and stores to verify proper
+  // interaction between memory and ALU operations.
+  //
+  task automatic test_lw_sw_multiple;
+    uut.dmem.mem[0] = 32'd10;
+    uut.dmem.mem[1] = 32'd20;
+    uut.dmem.mem[2] = 32'd30;
+
+    ADDI(x1, x0, 0);
+    LW(x2, x1, 0);
+    LW(x3, x1, 4);
+    ADD(x4, x2, x3);
+    SW(x4, x1, 12);
+    LW(x5, x1, 8);
+    ADD(x6, x5, x5);
+    SW(x6, x1, 16);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[2], 32'd10);
+    `CHECK_EQ(uut.regfile.regs[3], 32'd20);
+    `CHECK_EQ(uut.regfile.regs[4], 32'd30);
+    `CHECK_EQ(uut.regfile.regs[5], 32'd30);
+    `CHECK_EQ(uut.regfile.regs[6], 32'd60);
+    `CHECK_EQ(uut.dmem.mem[3], 32'd30);
+    `TICK(clk);
+    `CHECK_EQ(uut.dmem.mem[4], 32'd60);
+  endtask
+
+  //
+  // Test: Mixed byte/halfword/word operations
+  //
+  // Tests mixing SB, SH, SW, LB, LH, and LW on the same memory location.
+  //
+  task automatic test_mixed_byte_halfword_word;
+    uut.dmem.mem[0] = 32'h00000000;
+
+    ADDI(x1, x0, 0);
+    LI(x2, 32'h12);
+    SB(x2, x1, 0);
+    LI(x3, 32'h34);
+    SB(x3, x1, 1);
+    LI(x4, 32'h5678);
+    SH(x4, x1, 2);
+    LW(x5, x1, 0);
+    LH(x6, x1, 0);
+    LBU(x7, x1, 3);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[5], 32'h56783412);
+    `CHECK_EQ(uut.regfile.regs[6], 32'h00003412);
+    `CHECK_EQ(uut.regfile.regs[7], 32'h00000056);
+  endtask
+
+  //
+  //--------------------------------------------------------------------
+  // Smoke tests
+  //--------------------------------------------------------------------
+  //
+
+  //
+  // Test: Fibonacci(12)
+  //
+  // Computes the 12th Fibonacci number (144) using an iterative loop.
+  // This smoke test validates:
+  // - Branch instructions in a loop
+  // - Jump instructions (JAL for looping)
+  // - Register dependencies
+  // - Arithmetic operations
+  // - Shift operations
+  //
+  task automatic test_fib12;
+    ADDI(x10, x0, 12);
+    ADDI(x11, x0, 0);
+    ADDI(x12, x0, 1);
+    ADDI(x13, x0, 0);
+    BEQ(x13, x10, 24);
+    ADD(x14, x11, x12);
+    ADD(x11, x12, x0);
+    ADD(x12, x14, x0);
+    ADDI(x13, x13, 1);
+    JAL(x0, -20);
+    SLLI(x30, x11, 1);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR(clk, ebreak, 256);
+    `CHECK_EQ(uut.regfile.regs[11], 32'd144);
+    `CHECK_EQ(uut.regfile.regs[30], 32'd288);
+  endtask
+
+  //
+  // Test: Bubble sort (requires dmem - not yet implemented)
+  //
+  // Implements bubble sort algorithm on an array of 8 elements.
+  // This comprehensive smoke test validates:
+  // - Nested loops with branches
+  // - Load/store operations
+  // - Address calculation
+  // - Comparison and conditional branches
+  // - Complex control flow
+  //
+  task automatic test_bubble_sort;
+    uut.dmem.mem[0] = 32'd64;
+    uut.dmem.mem[1] = 32'd34;
+    uut.dmem.mem[2] = 32'd25;
+    uut.dmem.mem[3] = 32'd12;
+    uut.dmem.mem[4] = 32'd22;
+    uut.dmem.mem[5] = 32'd11;
+    uut.dmem.mem[6] = 32'd90;
+    uut.dmem.mem[7] = 32'd88;
+
+    ADDI(x1, x0, 0);
+    ADDI(x2, x0, 8);
+    ADDI(x10, x0, 0);
+    ADDI(x20, x2, -1);
+    BGE(x10, x20, 76);
+    ADDI(x11, x0, 0);
+    SUB(x12, x2, x10);
+    ADDI(x12, x12, -1);
+    BGE(x11, x12, 52);
+    SLLI(x15, x11, 2);
+    ADD(x15, x1, x15);
+    ADDI(x16, x11, 1);
+    SLLI(x16, x16, 2);
+    ADD(x16, x1, x16);
+    LW(x13, x15, 0);
+    LW(x14, x16, 0);
+    BLEU(x13, x14, 12);
+    SW(x14, x15, 0);
+    SW(x13, x16, 0);
+    ADDI(x11, x11, 1);
+    JAL(x0, -48);
+    ADDI(x10, x10, 1);
+    JAL(x0, -76);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR(clk, ebreak, 5000);
+    `CHECK_EQ(uut.dmem.mem[0], 32'd11);
+    `CHECK_EQ(uut.dmem.mem[1], 32'd12);
+    `CHECK_EQ(uut.dmem.mem[2], 32'd22);
+    `CHECK_EQ(uut.dmem.mem[3], 32'd25);
+    `CHECK_EQ(uut.dmem.mem[4], 32'd34);
+    `CHECK_EQ(uut.dmem.mem[5], 32'd64);
+    `CHECK_EQ(uut.dmem.mem[6], 32'd88);
+    `CHECK_EQ(uut.dmem.mem[7], 32'd90);
+  endtask
+
+  //
   // Test setup
   //
   `TEST_SUITE_BEGIN(svc_rv_tb);
@@ -1271,6 +1683,27 @@ module svc_rv_tb;
 
   // LUI+ADDI combination has data hazard
   `TEST_CASE(test_lui_addi_combination);
+
+  // Load/store tests - word operations supported
+  `TEST_CASE(test_lw_sw_basic);
+  `TEST_CASE(test_sw_lw_forwarding);
+  `TEST_CASE(test_load_use_hazard);
+  `TEST_CASE(test_lw_sw_multiple);
+
+  // Byte/halfword operations
+  `TEST_CASE(test_lb_basic);
+  `TEST_CASE(test_lbu_basic);
+  `TEST_CASE(test_lh_basic);
+  `TEST_CASE(test_lhu_basic);
+  `TEST_CASE(test_sb_basic);
+  `TEST_CASE(test_sh_basic);
+  `TEST_CASE(test_sb_partial_word);
+  `TEST_CASE(test_sh_partial_word);
+  `TEST_CASE(test_mixed_byte_halfword_word);
+
+  // Smoke tests
+  `TEST_CASE(test_fib12);
+  `TEST_CASE(test_bubble_sort);
 
   `TEST_SUITE_END();
 
