@@ -48,7 +48,7 @@ SYNTH_TARGET_PCF = $(BIN_DIR)/$(notdir $(basename $(@))).pcf
 # Nextprn
 #
 NEXTPNR_FLAGS  = --$(ICE40_DEVICE) --package $(ICE40_PACKAGE)
-NEXTPNR_FLAGS += --freq $(ICE40_CLK_FREQ)
+NEXTPNR_FLAGS += --freq $(or $($(notdir $(basename $@))_ICE40_CLK_FREQ),$(ICE40_CLK_FREQ))
 NEXTPNR_FLAGS += --top $(notdir $(basename $@))
 NEXTPNR_FLAGS += --pcf $(basename $(@)).pcf
 NEXTPNR = nextpnr-ice40 $(NEXTPNR_FLAGS) --json $<
@@ -117,11 +117,16 @@ $(BIN_DIR)/%.seed: $(BUILD_DIR)/%.json
 	@mkdir -p $(BIN_DIR)
 	@flock -w 180 $(SEED_LOCK) scripts/find_seed.py -o $@ $(NEXTPNR) --asc /dev/null
 
-# pnr
+# pnr with optional seed finding
 .PRECIOUS: $(BIN_DIR)/%.asc
-$(BIN_DIR)/%.asc: $(BUILD_DIR)/%.json $(BIN_DIR)/%.seed
+$(BIN_DIR)/%.asc: $(BUILD_DIR)/%.json
 	@mkdir -p $(BIN_DIR)
-	$(NEXTPNR) --seed $$(cat $(BIN_DIR)/$(*).seed) --asc $(@)
+	@if echo " $(ICE40_FIND_SEED_MODULES) " | grep -q " $(*) "; then \
+		$(MAKE) $(BIN_DIR)/$(*).seed && \
+		$(NEXTPNR) --seed $$(cat $(BIN_DIR)/$(*).seed) --asc $(@) || { rm -f $(@); exit 1; }; \
+	else \
+		$(NEXTPNR) --asc $(@) || { rm -f $(@); exit 1; }; \
+	fi
 
 .PHONY: pnr
 pnr: $(PNR_TARGETS)
