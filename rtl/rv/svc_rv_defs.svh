@@ -58,6 +58,24 @@ localparam logic [2:0] FUNCT3_SH = 3'b001;
 localparam logic [2:0] FUNCT3_SW = 3'b010;
 
 //
+// CSR instruction funct3 values
+//
+localparam logic [2:0] FUNCT3_CSRRW  = 3'b001;
+localparam logic [2:0] FUNCT3_CSRRS  = 3'b010;
+localparam logic [2:0] FUNCT3_CSRRC  = 3'b011;
+localparam logic [2:0] FUNCT3_CSRRWI = 3'b101;
+localparam logic [2:0] FUNCT3_CSRRSI = 3'b110;
+localparam logic [2:0] FUNCT3_CSRRCI = 3'b111;
+
+//
+// CSR addresses (Zicntr - Base Counters and Timers)
+//
+localparam logic [11:0] CSR_CYCLE    = 12'hC00;
+localparam logic [11:0] CSR_CYCLEH   = 12'hC80;
+localparam logic [11:0] CSR_INSTRET  = 12'hC02;
+localparam logic [11:0] CSR_INSTRETH = 12'hC82;
+
+//
 // Instruction decoder control signal constants
 //
 // alu_a_src values
