@@ -31,7 +31,7 @@ def find_working_seed(
 ):
     """Find a working nextpnr seed using parallel processing"""
     if num_processes is None:
-        num_processes = mp.cpu_count()
+        num_processes = int(mp.cpu_count() / 2)
 
     # Create a pool of workers
     with mp.Pool(processes=num_processes) as pool:
