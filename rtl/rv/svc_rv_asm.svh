@@ -572,6 +572,29 @@ task automatic NOP;
   ADD(x0, x0, x0);
 endtask
 
+//
+// Zicntr pseudoinstructions (read-only performance counters)
+//
+task automatic RDCYCLE;
+  input [4:0] rd;
+  CSRRS(rd, 12'hC00, x0);
+endtask
+
+task automatic RDCYCLEH;
+  input [4:0] rd;
+  CSRRS(rd, 12'hC80, x0);
+endtask
+
+task automatic RDINSTRET;
+  input [4:0] rd;
+  CSRRS(rd, 12'hC02, x0);
+endtask
+
+task automatic RDINSTRETH;
+  input [4:0] rd;
+  CSRRS(rd, 12'hC82, x0);
+endtask
+
 task automatic LI;
   input [4:0] rd;
   input [31:0] imm;

@@ -422,6 +422,79 @@ module svc_rv_asm_tb;
     `CHECK_EQ(imm_i, 32'd1);
   endtask
 
+  //
+  // Test CSR instruction encoding (Zicntr pseudoinstructions)
+  //
+  task automatic test_csr_encoding;
+    integer addr;
+    asm_pc = 0;
+
+    //
+    // RDCYCLE should expand to: CSRRS rd, 0xC00, x0
+    // CSR addresses are in bits [31:20], sign-extended in imm_i
+    //
+    RDCYCLE(x1);
+    addr  = 0;
+    instr = MEM[addr];
+    `CHECK_EQ(instr[6:0], OP_SYSTEM);
+    `CHECK_EQ(rd, 1);
+    `CHECK_EQ(rs1, 0);
+    `CHECK_EQ(funct3, FUNCT3_CSRRS);
+    `CHECK_EQ(instr[31:20], CSR_CYCLE);
+
+    //
+    // RDCYCLEH should expand to: CSRRS rd, 0xC80, x0
+    //
+    asm_pc = 0;
+    RDCYCLEH(x2);
+    addr  = 0;
+    instr = MEM[addr];
+    `CHECK_EQ(instr[6:0], OP_SYSTEM);
+    `CHECK_EQ(rd, 2);
+    `CHECK_EQ(rs1, 0);
+    `CHECK_EQ(funct3, FUNCT3_CSRRS);
+    `CHECK_EQ(instr[31:20], CSR_CYCLEH);
+
+    //
+    // RDINSTRET should expand to: CSRRS rd, 0xC02, x0
+    //
+    asm_pc = 0;
+    RDINSTRET(x3);
+    addr  = 0;
+    instr = MEM[addr];
+    `CHECK_EQ(instr[6:0], OP_SYSTEM);
+    `CHECK_EQ(rd, 3);
+    `CHECK_EQ(rs1, 0);
+    `CHECK_EQ(funct3, FUNCT3_CSRRS);
+    `CHECK_EQ(instr[31:20], CSR_INSTRET);
+
+    //
+    // RDINSTRETH should expand to: CSRRS rd, 0xC82, x0
+    //
+    asm_pc = 0;
+    RDINSTRETH(x4);
+    addr  = 0;
+    instr = MEM[addr];
+    `CHECK_EQ(instr[6:0], OP_SYSTEM);
+    `CHECK_EQ(rd, 4);
+    `CHECK_EQ(rs1, 0);
+    `CHECK_EQ(funct3, FUNCT3_CSRRS);
+    `CHECK_EQ(instr[31:20], CSR_INSTRETH);
+
+    //
+    // Test CSRRS base instruction
+    //
+    asm_pc = 0;
+    CSRRS(x10, CSR_CYCLE, x0);
+    addr  = 0;
+    instr = MEM[addr];
+    `CHECK_EQ(instr[6:0], OP_SYSTEM);
+    `CHECK_EQ(rd, 10);
+    `CHECK_EQ(rs1, 0);
+    `CHECK_EQ(funct3, FUNCT3_CSRRS);
+    `CHECK_EQ(instr[31:20], CSR_CYCLE);
+  endtask
+
   // Test label support
   task automatic test_labels;
     integer loop_start;
@@ -484,6 +557,7 @@ module svc_rv_asm_tb;
   `TEST_CASE(test_pseudo_instructions);
   `TEST_CASE(test_abi_names);
   `TEST_CASE(test_ebreak_encoding);
+  `TEST_CASE(test_csr_encoding);
   `TEST_CASE(test_labels);
   `TEST_SUITE_END();
 
