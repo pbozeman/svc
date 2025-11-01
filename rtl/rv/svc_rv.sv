@@ -8,6 +8,7 @@
 `include "svc_rv_alu.sv"
 `include "svc_rv_alu_dec.sv"
 `include "svc_rv_bcmp.sv"
+`include "svc_rv_csr.sv"
 `include "svc_rv_dmem.sv"
 `include "svc_rv_idec.sv"
 `include "svc_rv_imem.sv"
@@ -49,7 +50,7 @@ module svc_rv #(
   logic [       1:0] alu_a_src;
   logic              alu_b_src;
   logic [       1:0] alu_instr;
-  logic [       1:0] res_src;
+  logic [       2:0] res_src;
   logic [       2:0] imm_type;
   logic              is_branch;
   logic              is_jump;
@@ -88,6 +89,20 @@ module svc_rv #(
   logic [  XLEN-1:0] dmem_rdata_ext;
   logic [  XLEN-1:0] dmem_wdata;
   logic [XLEN/8-1:0] dmem_wstrb;
+
+  //
+  // CSR signals
+  //
+  logic [  XLEN-1:0] csr_rdata;
+  logic              instr_retired;
+
+  //
+  // Instruction retirement
+  //
+  // In this single-cycle implementation, every instruction retires every cycle.
+  // In a pipelined implementation, this would be connected to pipeline commit logic.
+  //
+  assign instr_retired = 1'b1;
 
   //
   // PC
@@ -314,14 +329,25 @@ module svc_rv #(
   );
 
   //
+  // CSR (Control and Status Registers) - Zicntr
+  //
+  svc_rv_csr csr (
+      .clk        (clk),
+      .rst_n      (rst_n),
+      .csr_addr   (imm_i[11:0]),
+      .csr_rdata  (csr_rdata),
+      .instret_inc(instr_retired)
+  );
+
+  //
   // Result mux
   //
   svc_muxn #(
       .WIDTH(XLEN),
-      .N    (4)
+      .N    (5)
   ) mux_res (
       .sel (res_src),
-      .data({jb_target, pc_plus4, dmem_rdata_ext, alu_result}),
+      .data({csr_rdata, jb_target, pc_plus4, dmem_rdata_ext, alu_result}),
       .out (rd_data)
   );
 

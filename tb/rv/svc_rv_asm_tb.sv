@@ -25,7 +25,7 @@ module svc_rv_asm_tb;
   logic [ 1:0] alu_a_src;
   logic        alu_b_src;
   logic [ 1:0] alu_instr;
-  logic [ 1:0] res_src;
+  logic [ 2:0] res_src;
   logic [ 2:0] imm_type;
   logic        is_branch;
   logic        is_jump;

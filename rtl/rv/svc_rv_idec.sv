@@ -27,7 +27,7 @@ module svc_rv_idec #(
     output logic [1:0] alu_a_src,
     output logic       alu_b_src,
     output logic [1:0] alu_instr,
-    output logic [1:0] res_src,
+    output logic [2:0] res_src,
     output logic [2:0] imm_type,
     output logic       is_branch,
     output logic       is_jump,
@@ -64,7 +64,7 @@ module svc_rv_idec #(
   // Control signal decoder
   //
   always_comb begin
-    logic [14:0] c;
+    logic [15:0] c;
 
     //
     // Short aliases for decode table
@@ -94,10 +94,11 @@ module svc_rv_idec #(
     // verilator lint_on UNUSEDPARAM
     localparam logic [1:0] FN3 = ALU_INSTR_FN3;
 
-    localparam logic [1:0] ALU  = RES_ALU;
-    localparam logic [1:0] MEM  = RES_MEM;
-    localparam logic [1:0] PC4  = RES_PC4;
-    localparam logic [1:0] TGT  = RES_TGT;
+    localparam logic [2:0] ALU  = RES_ALU;
+    localparam logic [2:0] MEM  = RES_MEM;
+    localparam logic [2:0] PC4  = RES_PC4;
+    localparam logic [2:0] TGT  = RES_TGT;
+    localparam logic [2:0] CSR  = RES_CSR;
 
     localparam logic [2:0] I    = IMM_I;
     localparam logic [2:0] S    = IMM_S;
@@ -115,17 +116,17 @@ module svc_rv_idec #(
       //              r  m   alu  alu  alu  res    imm  b  j    jb
       //                       a    b   op
       OP_LOAD:   c = {y, n,  RS1, IMM, ADD, MEM,     I, n, n,    x};
-      OP_STORE:  c = {n, y,  RS1, IMM, ADD,  xx,     S, n, n,    x};
+      OP_STORE:  c = {n, y,  RS1, IMM, ADD, xxx,     S, n, n,    x};
       OP_RTYPE:  c = {y, n,  RS1, RS2, FN3, ALU,   xxx, n, n,    x};
-      OP_BRANCH: c = {n, n,   xx,   x,  xx,  xx,     B, y, n,   PC};
+      OP_BRANCH: c = {n, n,   xx,   x,  xx, xxx,     B, y, n,   PC};
       OP_ITYPE:  c = {y, n,  RS1, IMM, FN3, ALU,     I, n, n,    x};
       OP_JAL:    c = {y, n,   xx,   x,  xx, PC4,     J, n, y,   PC};
       OP_AUIPC:  c = {y, n,   xx,   x,  xx, TGT,     U, n, n,   PC};
       OP_LUI:    c = {y, n, ZERO, IMM, ADD, ALU,     U, n, n,    x};
       OP_JALR:   c = {y, n,  RS1, IMM, ADD, PC4,     I, n, y, ALUR};
-      OP_SYSTEM: c = {n, n,   xx,   x,  xx,  xx,   xxx, n, n,    x};
-      OP_RESET:  c = {n, n,   xx,   x,  xx,  xx,   xxx, n, n,    x};
-      default:   c = {x, x,   xx,   x,  xx,  xx,   xxx, x, x,    x};
+      OP_SYSTEM: c = {y, n,   xx,   x,  xx, CSR,     I, n, n,    x};
+      OP_RESET:  c = {n, n,   xx,   x,  xx, xxx,   xxx, n, n,    x};
+      default:   c = {x, x,   xx,   x,  xx, xxx,   xxx, x, x,    x};
     endcase
 
     { reg_write, mem_write,

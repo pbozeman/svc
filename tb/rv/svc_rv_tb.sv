@@ -1509,6 +1509,117 @@ module svc_rv_tb;
 
   //
   //--------------------------------------------------------------------
+  // CSR tests (Zicntr - Performance Counters)
+  //--------------------------------------------------------------------
+  //
+
+  //
+  // Test: RDCYCLE reads cycle counter
+  //
+  task automatic test_rdcycle;
+    NOP();
+    NOP();
+    NOP();
+    RDCYCLE(x1);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    #0;
+    `CHECK_TRUE(uut.regfile.regs[1] > 32'h0);
+  endtask
+
+  //
+  // Test: RDCYCLEH reads cycle counter high word
+  //
+  task automatic test_rdcycleh;
+    RDCYCLEH(x1);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[1], 32'h0);
+  endtask
+
+  //
+  // Test: RDINSTRET reads instruction counter
+  //
+  task automatic test_rdinstret;
+    NOP();
+    NOP();
+    NOP();
+    RDINSTRET(x1);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_TRUE(uut.regfile.regs[1] > 32'h0);
+  endtask
+
+  //
+  // Test: RDINSTRETH reads instruction counter high word
+  //
+  task automatic test_rdinstreth;
+    RDINSTRETH(x1);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_EQ(uut.regfile.regs[1], 32'h0);
+  endtask
+
+  //
+  // Test: CYCLE counter increments
+  //
+  task automatic test_csr_cycle_increments;
+    NOP();
+    NOP();
+    NOP();
+    RDCYCLE(x1);
+    NOP();
+    NOP();
+    NOP();
+    RDCYCLE(x2);
+    SUB(x3, x2, x1);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_TRUE(uut.regfile.regs[1] > 32'h0);
+    `CHECK_TRUE(uut.regfile.regs[2] > uut.regfile.regs[1]);
+    `CHECK_TRUE(uut.regfile.regs[3] > 32'h0);
+  endtask
+
+  //
+  // Test: INSTRET counter increments
+  //
+  task automatic test_csr_instret_increments;
+    NOP();
+    NOP();
+    NOP();
+    RDINSTRET(x1);
+    NOP();
+    NOP();
+    NOP();
+    RDINSTRET(x2);
+    SUB(x3, x2, x1);
+    EBREAK();
+
+    load_program();
+
+    `CHECK_WAIT_FOR_EBREAK(clk);
+    `CHECK_TRUE(uut.regfile.regs[1] > 32'h0);
+    `CHECK_TRUE(uut.regfile.regs[2] > uut.regfile.regs[1]);
+    `CHECK_EQ(uut.regfile.regs[3], 32'd4);
+  endtask
+
+  //
+  //--------------------------------------------------------------------
   // Smoke tests
   //--------------------------------------------------------------------
   //
@@ -1525,6 +1636,8 @@ module svc_rv_tb;
   // - Shift operations
   //
   task automatic test_fib12;
+    RDCYCLE(x20);
+    RDINSTRET(x21);
     ADDI(x10, x0, 12);
     ADDI(x11, x0, 0);
     ADDI(x12, x0, 1);
@@ -1536,6 +1649,10 @@ module svc_rv_tb;
     ADDI(x13, x13, 1);
     JAL(x0, -20);
     SLLI(x30, x11, 1);
+    RDCYCLE(x22);
+    RDINSTRET(x23);
+    SUB(x24, x22, x20);
+    SUB(x25, x23, x21);
     EBREAK();
 
     load_program();
@@ -1543,6 +1660,7 @@ module svc_rv_tb;
     `CHECK_WAIT_FOR(clk, ebreak, 256);
     `CHECK_EQ(uut.regfile.regs[11], 32'd144);
     `CHECK_EQ(uut.regfile.regs[30], 32'd288);
+    `CHECK_EQ(uut.regfile.regs[24], uut.regfile.regs[25]);
   endtask
 
   //
@@ -1566,6 +1684,8 @@ module svc_rv_tb;
     uut.dmem.mem[6] = 32'd90;
     uut.dmem.mem[7] = 32'd88;
 
+    RDCYCLE(x28);
+    RDINSTRET(x29);
     ADDI(x1, x0, 0);
     ADDI(x2, x0, 8);
     ADDI(x10, x0, 0);
@@ -1589,6 +1709,10 @@ module svc_rv_tb;
     JAL(x0, -48);
     ADDI(x10, x10, 1);
     JAL(x0, -76);
+    RDCYCLE(x30);
+    RDINSTRET(x31);
+    SUB(x26, x30, x28);
+    SUB(x27, x31, x29);
     EBREAK();
 
     load_program();
@@ -1602,6 +1726,7 @@ module svc_rv_tb;
     `CHECK_EQ(uut.dmem.mem[5], 32'd64);
     `CHECK_EQ(uut.dmem.mem[6], 32'd88);
     `CHECK_EQ(uut.dmem.mem[7], 32'd90);
+    `CHECK_EQ(uut.regfile.regs[26], uut.regfile.regs[27]);
   endtask
 
   //
@@ -1700,6 +1825,14 @@ module svc_rv_tb;
   `TEST_CASE(test_sb_partial_word);
   `TEST_CASE(test_sh_partial_word);
   `TEST_CASE(test_mixed_byte_halfword_word);
+
+  // CSR tests (Zicntr - performance counters)
+  `TEST_CASE(test_rdcycle);
+  `TEST_CASE(test_rdcycleh);
+  `TEST_CASE(test_rdinstret);
+  `TEST_CASE(test_rdinstreth);
+  `TEST_CASE(test_csr_cycle_increments);
+  `TEST_CASE(test_csr_instret_increments);
 
   // Smoke tests
   `TEST_CASE(test_fib12);

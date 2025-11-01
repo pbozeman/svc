@@ -44,6 +44,7 @@ module svc_rv_csr (
   // CSR reads
   //
   always_comb begin
+    csr_rdata = 32'h0;
     case (csr_addr)
       CSR_CYCLE:    csr_rdata = cycle;
       CSR_CYCLEH:   csr_rdata = cycleh;
