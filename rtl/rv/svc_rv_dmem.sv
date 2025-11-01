@@ -28,13 +28,6 @@ module svc_rv_dmem #(
 
     output logic [DW-1:0] rdata
 );
-
-  //
-  // Synthesis attributes for BRAM inference
-  // Xilinx: ram_style, Altera/Intel: ramstyle
-  //
-  (* ram_style = "block" *)
-  (* ramstyle  = "block" *)
   logic [DW-1:0] mem        [2**AW];
   logic [DW-1:0] rdata_next;
 

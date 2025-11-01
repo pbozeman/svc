@@ -25,7 +25,6 @@ module svc_rv_imem #(
     input  logic [AW-1:0] addr,
     output logic [  31:0] data
 );
-  (* ram_style = "block" *)
   logic [31:0] mem       [2**AW];
   logic [31:0] data_next;
 
