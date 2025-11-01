@@ -14,7 +14,7 @@ module svc_rv_idec_tb;
   logic [ 1:0] alu_a_src;
   logic        alu_b_src;
   logic [ 1:0] alu_instr;
-  logic [ 1:0] res_src;
+  logic [ 2:0] res_src;
   logic [ 2:0] imm_type;
   logic        is_branch;
   logic        is_jump;
@@ -65,6 +65,26 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(mem_write);
     `CHECK_FALSE(is_branch);
     `CHECK_FALSE(is_jump);
+  endtask
+
+  //
+  // Test: CSR instruction decode (RDCYCLE)
+  //
+  task automatic test_csr_decode;
+    //
+    // CSRRS x1, 0xC00, x0 (RDCYCLE pseudoinstruction)
+    //
+    instr = {12'hC00, 5'h00, 3'b010, 5'd1, 7'b1110011};
+    `CHECK_TRUE(reg_write);
+    `CHECK_FALSE(mem_write);
+    `CHECK_EQ(res_src, RES_CSR);
+    `CHECK_EQ(imm_type, IMM_I);
+    `CHECK_FALSE(is_branch);
+    `CHECK_FALSE(is_jump);
+    `CHECK_EQ(rd, 5'd1);
+    `CHECK_EQ(rs1, 5'd0);
+    `CHECK_EQ(funct3, FUNCT3_CSRRS);
+    `CHECK_EQ(imm_i[11:0], CSR_CYCLE);
   endtask
 
   task automatic test_lw_decode;
@@ -230,6 +250,7 @@ module svc_rv_idec_tb;
 
   `TEST_SUITE_BEGIN(svc_rv_idec_tb);
   `TEST_CASE(test_reset);
+  `TEST_CASE(test_csr_decode);
   `TEST_CASE(test_lw_decode);
   `TEST_CASE(test_sw_decode);
   `TEST_CASE(test_add_decode);
