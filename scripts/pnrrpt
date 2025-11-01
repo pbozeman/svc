@@ -1,0 +1,128 @@
+#!/usr/bin/env python3
+"""
+Extract and display device utilization and fmax from nextpnr builds.
+
+Usage:
+    ./pnrrpt [path]
+
+If path is not specified, uses .build by default.
+Path can be either a directory or a specific .asc file.
+"""
+
+import sys
+import re
+from pathlib import Path
+from typing import Dict, List, Tuple, Optional
+
+
+def parse_nextpnr_log(log_path: Path) -> Optional[str]:
+    """Read nextpnr log file."""
+    if not log_path.exists():
+        return None
+
+    with open(log_path, 'r') as f:
+        return f.read()
+
+
+def parse_nextpnr_output(content: str, module_name: str) -> Optional[Dict[str, any]]:
+    """Parse nextpnr output for utilization and timing info."""
+    result = {
+        'module': module_name,
+        'luts': None,
+        'brams': None,
+        'fmax': None,
+        'target_freq': None,
+        'met_timing': None
+    }
+
+    lut_match = re.search(r'ICESTORM_LC:\s+(\d+)/\s*(\d+)', content)
+    if lut_match:
+        result['luts'] = (int(lut_match.group(1)), int(lut_match.group(2)))
+
+    bram_match = re.search(r'ICESTORM_RAM:\s+(\d+)/\s*(\d+)', content)
+    if bram_match:
+        result['brams'] = (int(bram_match.group(1)), int(bram_match.group(2)))
+
+    fmax_matches = re.findall(r'Max frequency for clock\s+.*?:\s+([\d.]+)\s+MHz\s+\((PASS|FAIL) at ([\d.]+) MHz\)', content)
+    if fmax_matches:
+        last_match = fmax_matches[-1]
+        result['fmax'] = float(last_match[0])
+        result['target_freq'] = int(float(last_match[2]))
+        result['met_timing'] = last_match[1] == 'PASS'
+
+    return result if any(v is not None for k, v in result.items() if k != 'module') else None
+
+
+def find_and_analyze_builds(path: Path) -> List[Tuple[Path, Dict]]:
+    """Find and analyze all .asc files with corresponding logs."""
+    results = []
+
+    if path.is_file() and path.suffix == '.asc':
+        asc_files = [path]
+    elif path.is_file() and path.name.endswith('.asc.log'):
+        asc_files = [path.with_suffix('')]
+    elif path.is_dir():
+        asc_files = list(path.rglob('*.asc'))
+    else:
+        return results
+
+    for asc_file in asc_files:
+        log_file = asc_file.with_suffix('.asc.log')
+        output = parse_nextpnr_log(log_file)
+        if output:
+            module_name = asc_file.stem
+            data = parse_nextpnr_output(output, module_name)
+            if data:
+                results.append((asc_file, data))
+
+    return sorted(results, key=lambda x: x[1]['module'])
+
+
+def print_summary(results: List[Tuple[Path, Dict]]):
+    """Print formatted summary table in markdown format."""
+    if not results:
+        print("No build results found.")
+        return
+
+    max_module_len = max(len(data['module']) for _, data in results)
+    module_width = max(32, max_module_len)
+
+    print()
+    print(f"| {'Module':<{module_width}} | LCs Used | LCs Total | BRAMs Used | BRAMs Total | Fmax   | Target |")
+    print(f"|{'-' * (module_width + 2)}|----------|-----------|------------|-------------|--------|--------|")
+
+    for _, data in results:
+        module = data['module']
+
+        lc_used = str(data['luts'][0]) if data['luts'] else '-'
+        lc_total = str(data['luts'][1]) if data['luts'] else '-'
+
+        bram_used = str(data['brams'][0]) if data['brams'] else '-'
+        bram_total = str(data['brams'][1]) if data['brams'] else '-'
+
+        fmax = f"{data['fmax']:.1f}" if data['fmax'] is not None else '-'
+        target = str(data['target_freq']) if data['target_freq'] is not None else '-'
+
+        print(f"| {module:<{module_width}} | {lc_used:>8} | {lc_total:>9} | {bram_used:>10} | {bram_total:>11} | {fmax:>6} | {target:>6} |")
+
+    print()
+
+
+def main():
+    if len(sys.argv) > 1:
+        paths = [Path(arg) for arg in sys.argv[1:]]
+    else:
+        paths = [Path('.build')]
+
+    results = []
+    for path in paths:
+        if not path.exists():
+            print(f"Error: Path '{path}' not found.", file=sys.stderr)
+            continue
+        results.extend(find_and_analyze_builds(path))
+
+    print_summary(results)
+
+
+if __name__ == '__main__':
+    main()
