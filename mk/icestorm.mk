@@ -123,9 +123,9 @@ $(BIN_DIR)/%.asc: $(BUILD_DIR)/%.json
 	@mkdir -p $(BIN_DIR)
 	@if echo " $(ICE40_FIND_SEED_MODULES) " | grep -q " $(*) "; then \
 		$(MAKE) $(BIN_DIR)/$(*).seed && \
-		$(NEXTPNR) --seed $$(cat $(BIN_DIR)/$(*).seed) --asc $(@) || { rm -f $(@); exit 1; }; \
+		{ $(NEXTPNR) --seed $$(cat $(BIN_DIR)/$(*).seed) --asc $(@) 2>&1 | tee $(@).log; test $${PIPESTATUS[0]} -eq 0 || { rm -f $(@); exit 1; }; }; \
 	else \
-		$(NEXTPNR) --asc $(@) || { rm -f $(@); exit 1; }; \
+		{ $(NEXTPNR) --asc $(@) 2>&1 | tee $(@).log; test $${PIPESTATUS[0]} -eq 0 || { rm -f $(@); exit 1; }; }; \
 	fi
 
 .PHONY: pnr
