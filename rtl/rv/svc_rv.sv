@@ -264,21 +264,36 @@ module svc_rv #(
   //
   // Jump/Branch target calculation
   //
-  // For JALR: Use ALU result (rs1 + imm) with LSB cleared per RISC-V spec
-  // For JAL/branches: Use PC + imm from dedicated adder (no LSB clearing)
+  // Two target address calculation modes:
   //
-  logic [XLEN-1:0] jb_target_alu;
-  logic [XLEN-1:0] jb_target_pc;
+  // 1. PC-relative (JAL and all branches):
+  //    target = PC + offset
+  //    Used by: JAL, BEQ, BNE, BLT, BGE, BLTU, BGEU
+  //
+  // 2. Register-indirect (JALR only):
+  //    target = (rs1 + offset) & ~1
+  //    The ALU computes rs1+offset, then LSB is cleared per RISC-V spec.
+  //    This ensures all jump targets are aligned to even addresses
+  //
+  logic [XLEN-1:0] jb_target_jalr;
+  logic [XLEN-1:0] jb_target_pc_rel;
 
-  assign jb_target_alu = {alu_result[XLEN-1:1], 1'b0};
-  assign jb_target_pc  = pc + imm;
+  //
+  // JALR target: ALU result with LSB cleared
+  //
+  assign jb_target_jalr   = {alu_result[XLEN-1:1], 1'b0};
+
+  //
+  // PC-relative target: Dedicated adder for JAL and branches
+  //
+  assign jb_target_pc_rel = pc + imm;
 
   svc_muxn #(
       .WIDTH(XLEN),
       .N    (2)
   ) mux_jb_target (
       .sel (jb_target_src),
-      .data({jb_target_alu, jb_target_pc}),
+      .data({jb_target_jalr, jb_target_pc_rel}),
       .out (jb_target)
   );
 
