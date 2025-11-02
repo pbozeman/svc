@@ -136,11 +136,11 @@ module svc_rv #(
   //
   // EX stage signals
   //
-  logic [     3:0] alu_op;
-  logic [XLEN-1:0] alu_a;
-  logic [XLEN-1:0] alu_b;
-  logic [XLEN-1:0] alu_result;
-  logic [XLEN-1:0] jb_target;
+  logic [     3:0] alu_op_ex;
+  logic [XLEN-1:0] alu_a_ex;
+  logic [XLEN-1:0] alu_b_ex;
+  logic [XLEN-1:0] alu_result_ex;
+  logic [XLEN-1:0] jb_target_ex;
 
   //
   // EX/MEM pipeline register signals
@@ -183,7 +183,7 @@ module svc_rv #(
   //
   // CSR signals
   //
-  logic [XLEN-1:0] csr_rdata;
+  logic [XLEN-1:0] csr_rdata_ex;
   logic            instr_retired;
 
   //
@@ -205,7 +205,7 @@ module svc_rv #(
 
       // pc sources
       .pc_sel   (pc_sel),
-      .jb_target(jb_target),
+      .jb_target(jb_target_ex),
 
       // pc output
       .pc      (pc),
@@ -373,7 +373,7 @@ module svc_rv #(
       .funct3   (funct3_ex),
       .funct7_b5(funct7_ex[5]),
       .op_b5    (instr_ex[5]),
-      .alu_op   (alu_op)
+      .alu_op   (alu_op_ex)
   );
 
   //
@@ -385,7 +385,7 @@ module svc_rv #(
   ) mux_alu_a (
       .sel (alu_a_src_ex),
       .data({pc_ex, {XLEN{1'b0}}, rs1_data_ex}),
-      .out (alu_a)
+      .out (alu_a_ex)
   );
 
   //
@@ -397,20 +397,19 @@ module svc_rv #(
   ) mux_alu_b (
       .sel (alu_b_src_ex),
       .data({imm_ex, rs2_data_ex}),
-      .out (alu_b)
+      .out (alu_b_ex)
   );
 
   //
   // ALU
   //
-  (* keep_hierarchy = "yes" *)
   svc_rv_alu #(
       .XLEN(XLEN)
   ) alu (
-      .a     (alu_a),
-      .b     (alu_b),
-      .alu_op(alu_op),
-      .result(alu_result)
+      .a     (alu_a_ex),
+      .b     (alu_b_ex),
+      .alu_op(alu_op_ex),
+      .result(alu_result_ex)
   );
 
   //
@@ -433,7 +432,7 @@ module svc_rv #(
   //
   // JALR target: ALU result with LSB cleared
   //
-  assign jb_target_jalr   = {alu_result[XLEN-1:1], 1'b0};
+  assign jb_target_jalr   = {alu_result_ex[XLEN-1:1], 1'b0};
 
   //
   // PC-relative target: Dedicated adder for JAL and branches
@@ -446,7 +445,7 @@ module svc_rv #(
   ) mux_jb_target (
       .sel (jb_target_src_ex),
       .data({jb_target_jalr, jb_target_pc_rel}),
-      .out (jb_target)
+      .out (jb_target_ex)
   );
 
   //
@@ -460,7 +459,6 @@ module svc_rv #(
   //
   logic branch_taken_ex;
 
-  (* keep_hierarchy = "yes" *)
   svc_rv_bcmp #(
       .XLEN(XLEN)
   ) bcmp (
@@ -496,8 +494,8 @@ module svc_rv #(
   svc_rv_csr csr (
       .clk        (clk),
       .rst_n      (rst_n),
-      .csr_addr   (imm_i[11:0]),
-      .csr_rdata  (csr_rdata),
+      .csr_addr   (imm_id[11:0]),
+      .csr_rdata  (csr_rdata_ex),
       .instret_inc(instr_retired)
   );
 
@@ -519,11 +517,11 @@ module svc_rv #(
       .instr_ex     (instr_ex),
       .rd_ex        (rd_ex),
       .funct3_ex    (funct3_ex),
-      .alu_result_ex(alu_result),
+      .alu_result_ex(alu_result_ex),
       .rs2_data_ex  (rs2_data_ex),
       .pc_plus4_ex  (pc_plus4_ex),
-      .jb_target_ex (jb_target),
-      .csr_rdata_ex (csr_rdata),
+      .jb_target_ex (jb_target_ex),
+      .csr_rdata_ex (csr_rdata_ex),
 
       // MEM stage outputs
       .reg_write_mem (reg_write_mem),
