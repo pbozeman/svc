@@ -1526,6 +1526,31 @@ task automatic test_sw_lw_forwarding;
 endtask
 
 //
+// Test: Store-load with different address registers
+//
+// Tests memory hazard when storing through one register and loading
+// through a different register to the same address. This verifies that
+// memory operations complete in order even when register hazard detection
+// doesn't catch the dependency.
+//
+task automatic test_sw_lw_different_regs;
+
+  ADDI(x1, x0, 0);
+  ADDI(x2, x0, 0);
+  LI(x3, 32'hAABBCCDD);
+  SW(x3, x1, 0);
+  LW(x4, x2, 0);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk);
+  `TICK(clk);
+  `CHECK_EQ(uut.cpu.regfile.regs[4], 32'hAABBCCDD);
+  `CHECK_EQ(uut.dmem.mem[0], 32'hAABBCCDD);
+endtask
+
+//
 // Test: Load-use hazard
 //
 // Tests the load-use hazard where an instruction immediately uses the
