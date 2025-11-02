@@ -23,6 +23,11 @@ module svc_rv_reg_id_ex #(
     input logic rst_n,
 
     //
+    // Hazard control
+    //
+    input logic flush,
+
+    //
     // ID stage inputs (control signals)
     //
     input logic       reg_write_id,
@@ -96,7 +101,7 @@ module svc_rv_reg_id_ex #(
 
   if (ID_EX_REG != 0) begin : g_registered
     always_ff @(posedge clk) begin
-      if (!rst_n) begin
+      if (!rst_n || flush) begin
         reg_write_ex     <= '0;
         mem_write_ex     <= '0;
         alu_a_src_ex     <= '0;
@@ -171,7 +176,7 @@ module svc_rv_reg_id_ex #(
     assign rs_lt_u_lo_ex    = rs_lt_u_lo_id;
     assign rs_lt_s_lo_ex    = rs_lt_s_lo_id;
 
-    `SVC_UNUSED({clk, rst_n});
+    `SVC_UNUSED({clk, rst_n, flush});
   end
 
 endmodule

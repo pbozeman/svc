@@ -9,6 +9,7 @@
 `include "svc_rv_alu_dec.sv"
 `include "svc_rv_bcmp.sv"
 `include "svc_rv_csr.sv"
+`include "svc_rv_hazard.sv"
 `include "svc_rv_idec.sv"
 `include "svc_rv_ld_fmt.sv"
 `include "svc_rv_pc.sv"
@@ -61,6 +62,8 @@ module svc_rv #(
 
     output logic ebreak
 );
+  localparam int PIPELINED = IF_ID_REG | ID_EX_REG | EX_MEM_REG | MEM_WB_REG;
+
   `include "svc_rv_defs.svh"
 
   logic [XLEN-1:0] pc;
@@ -187,6 +190,13 @@ module svc_rv #(
   logic            instr_retired;
 
   //
+  // Hazard control signals
+  //
+  logic            pc_stall;
+  logic            if_id_stall;
+  logic            id_ex_flush;
+
+  //
   // Instruction retirement
   //
   // In this single-cycle implementation, every instruction retires every cycle.
@@ -202,6 +212,9 @@ module svc_rv #(
   ) pc_ctrl (
       .clk  (clk),
       .rst_n(rst_n),
+
+      // hazard control
+      .stall(pc_stall),
 
       // pc sources
       .pc_sel   (pc_sel),
@@ -233,6 +246,9 @@ module svc_rv #(
   ) reg_if_id (
       .clk  (clk),
       .rst_n(rst_n),
+
+      // hazard control
+      .stall(if_id_stall),
 
       // IF signals
       .instr_if   (instr),
@@ -303,6 +319,41 @@ module svc_rv #(
       .rd_data (rd_data)
   );
 
+  //
+  // Hazard Detection Unit
+  //
+  // Only instantiate when pipeline registers are enabled.
+  // In a single-cycle design, there are no pipeline hazards.
+  //
+  if (PIPELINED == 1) begin : g_hazard
+    svc_rv_hazard hazard (
+        // ID stage register addresses
+        .rs1_id(rs1_id),
+        .rs2_id(rs2_id),
+
+        // EX stage
+        .rd_ex       (rd_ex),
+        .reg_write_ex(reg_write_ex),
+
+        // MEM stage
+        .rd_mem       (rd_mem),
+        .reg_write_mem(reg_write_mem),
+
+        // WB stage
+        .rd_wb       (rd_wb),
+        .reg_write_wb(reg_write_wb),
+
+        // hazard control outputs
+        .pc_stall   (pc_stall),
+        .if_id_stall(if_id_stall),
+        .id_ex_flush(id_ex_flush)
+    );
+  end else begin : g_no_hazard
+    assign pc_stall    = 1'b0;
+    assign if_id_stall = 1'b0;
+    assign id_ex_flush = 1'b0;
+  end
+
   //----------------------------------------------------------------------------
   // ID/EX Pipeline Boundary
   //----------------------------------------------------------------------------
@@ -313,6 +364,9 @@ module svc_rv #(
   ) reg_id_ex (
       .clk  (clk),
       .rst_n(rst_n),
+
+      // hazard control
+      .flush(id_ex_flush),
 
       // ID stage inputs
       .reg_write_id    (reg_write_id),
@@ -633,7 +687,7 @@ module svc_rv #(
 
   assign ebreak = (rst_n && instr_wb == I_EBREAK);
 
-  `SVC_UNUSED({IMEM_AW, DMEM_AW, ID_EX_REG, EX_MEM_REG, MEM_WB_REG,
+  `SVC_UNUSED({IMEM_AW, DMEM_AW, IF_ID_REG, ID_EX_REG, EX_MEM_REG, MEM_WB_REG,
                imem_arready, imem_rvalid, dmem_awready, dmem_wready,
                dmem_arready, dmem_rvalid, pc, pc_plus4, pc_id[1:0], pc_ex[1:0],
                funct7_id[6], funct7_id[4:0], funct7_ex[6], funct7_ex[4:0],

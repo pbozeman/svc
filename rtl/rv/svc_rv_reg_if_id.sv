@@ -22,6 +22,11 @@ module svc_rv_reg_if_id #(
     input logic rst_n,
 
     //
+    // Hazard control
+    //
+    input logic stall,
+
+    //
     // IF stage inputs
     //
     input logic [    31:0] instr_if,
@@ -43,7 +48,7 @@ module svc_rv_reg_if_id #(
         instr_id    <= '0;
         pc_id       <= '0;
         pc_plus4_id <= '0;
-      end else begin
+      end else if (!stall) begin
         instr_id    <= instr_if;
         pc_id       <= pc_if;
         pc_plus4_id <= pc_plus4_if;
@@ -54,7 +59,7 @@ module svc_rv_reg_if_id #(
     assign pc_id       = pc_if;
     assign pc_plus4_id = pc_plus4_if;
 
-    `SVC_UNUSED({clk, rst_n});
+    `SVC_UNUSED({clk, rst_n, stall});
   end
 
 endmodule

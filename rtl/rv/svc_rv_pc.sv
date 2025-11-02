@@ -9,6 +9,7 @@ module svc_rv_pc #(
     input logic clk,
     input logic rst_n,
 
+    input logic            stall,
     input logic            pc_sel,
     input logic [XLEN-1:0] jb_target,
 
@@ -23,7 +24,7 @@ module svc_rv_pc #(
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       pc <= '0;
-    end else begin
+    end else if (!stall) begin
       pc <= pc_next;
     end
   end
