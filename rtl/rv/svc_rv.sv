@@ -391,6 +391,7 @@ module svc_rv #(
   //
   // ALU
   //
+  (* keep_hierarchy = "yes" *)
   svc_rv_alu #(
       .XLEN(XLEN)
   ) alu (
@@ -441,6 +442,7 @@ module svc_rv #(
   //
   logic branch_taken;
 
+  (* keep_hierarchy = "yes" *)
   svc_rv_bcmp #(
       .XLEN(XLEN)
   ) bcmp (
