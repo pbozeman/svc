@@ -40,7 +40,7 @@ module svc_rv_reg_if_id #(
   if (IF_ID_REG != 0) begin : g_registered
     always_ff @(posedge clk) begin
       if (!rst_n) begin
-        instr_id    <= {25'b0, OP_RESET};
+        instr_id    <= '0;
         pc_id       <= '0;
         pc_plus4_id <= '0;
       end else begin
