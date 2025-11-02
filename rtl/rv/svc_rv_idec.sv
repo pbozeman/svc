@@ -39,6 +39,9 @@ module svc_rv_idec #(
     output logic [2:0] funct3,
     output logic [6:0] funct7,
 
+    output logic rs1_used,
+    output logic rs2_used,
+
     output logic [XLEN-1:0] imm_i,
     output logic [XLEN-1:0] imm_s,
     output logic [XLEN-1:0] imm_b,
@@ -64,7 +67,7 @@ module svc_rv_idec #(
   // Control signal decoder
   //
   always_comb begin
-    logic [15:0] c;
+    logic [17:0] c;
 
     //
     // Short aliases for decode table
@@ -113,25 +116,26 @@ module svc_rv_idec #(
     // Control signal decode
     //
     case (opcode)
-      //              r  m   alu  alu  alu  res    imm  b  j    jb
-      //                       a    b   op
-      OP_LOAD:   c = {y, n,  RS1, IMM, ADD, MEM,     I, n, n,    x};
-      OP_STORE:  c = {n, y,  RS1, IMM, ADD, xxx,     S, n, n,    x};
-      OP_RTYPE:  c = {y, n,  RS1, RS2, FN3, ALU,   xxx, n, n,    x};
-      OP_BRANCH: c = {n, n,   xx,   x,  xx, xxx,     B, y, n,   PC};
-      OP_ITYPE:  c = {y, n,  RS1, IMM, FN3, ALU,     I, n, n,    x};
-      OP_JAL:    c = {y, n,   xx,   x,  xx, PC4,     J, n, y,   PC};
-      OP_AUIPC:  c = {y, n,   xx,   x,  xx, TGT,     U, n, n,   PC};
-      OP_LUI:    c = {y, n, ZERO, IMM, ADD, ALU,     U, n, n,    x};
-      OP_JALR:   c = {y, n,  RS1, IMM, ADD, PC4,     I, n, y, ALUR};
-      OP_SYSTEM: c = {y, n,   xx,   x,  xx, CSR,     I, n, n,    x};
-      OP_RESET:  c = {n, n,   xx,   x,  xx, xxx,   xxx, n, n,    x};
-      default:   c = {x, x,   xx,   x,  xx, xxx,   xxx, x, x,    x};
+      //              r  m   alu  alu  alu  res    imm  b  j    jb rs rs
+      //                       a    b   op                          1  2
+      OP_LOAD:   c = {y, n,  RS1, IMM, ADD, MEM,     I, n, n,    x, y, n};
+      OP_STORE:  c = {n, y,  RS1, IMM, ADD, xxx,     S, n, n,    x, y, y};
+      OP_RTYPE:  c = {y, n,  RS1, RS2, FN3, ALU,   xxx, n, n,    x, y, y};
+      OP_BRANCH: c = {n, n,   xx,   x,  xx, xxx,     B, y, n,   PC, y, y};
+      OP_ITYPE:  c = {y, n,  RS1, IMM, FN3, ALU,     I, n, n,    x, y, n};
+      OP_JAL:    c = {y, n,   xx,   x,  xx, PC4,     J, n, y,   PC, n, n};
+      OP_AUIPC:  c = {y, n,   xx,   x,  xx, TGT,     U, n, n,   PC, n, n};
+      OP_LUI:    c = {y, n, ZERO, IMM, ADD, ALU,     U, n, n,    x, n, n};
+      OP_JALR:   c = {y, n,  RS1, IMM, ADD, PC4,     I, n, y, ALUR, y, n};
+      OP_SYSTEM: c = {y, n,   xx,   x,  xx, CSR,     I, n, n,    x, y, n};
+      OP_RESET:  c = {n, n,   xx,   x,  xx, xxx,   xxx, n, n,    x, n, n};
+      default:   c = {x, x,   xx,   x,  xx, xxx,   xxx, x, x,    x, x, x};
     endcase
 
     { reg_write, mem_write,
       alu_a_src, alu_b_src, alu_instr,
-      res_src, imm_type, is_branch, is_jump, jb_target_src } = c;
+      res_src, imm_type, is_branch, is_jump, jb_target_src,
+      rs1_used, rs2_used } = c;
 
   end
 

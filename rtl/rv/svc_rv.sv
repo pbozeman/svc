@@ -98,6 +98,8 @@ module svc_rv #(
   logic [     4:0] rs2_id;
   logic [     2:0] funct3_id;
   logic [     6:0] funct7_id;
+  logic            rs1_used_id;
+  logic            rs2_used_id;
   logic [XLEN-1:0] imm_i;
   logic [XLEN-1:0] imm_s;
   logic [XLEN-1:0] imm_b;
@@ -287,6 +289,8 @@ module svc_rv #(
       .rs2          (rs2_id),
       .funct3       (funct3_id),
       .funct7       (funct7_id),
+      .rs1_used     (rs1_used_id),
+      .rs2_used     (rs2_used_id),
       .imm_i        (imm_i),
       .imm_s        (imm_s),
       .imm_b        (imm_b),
@@ -703,7 +707,8 @@ module svc_rv #(
                imem_arready, imem_rvalid, dmem_awready, dmem_wready,
                dmem_arready, dmem_rvalid, pc, pc_plus4, pc_id[1:0], pc_ex[1:0],
                funct7_id[6], funct7_id[4:0], funct7_ex[6], funct7_ex[4:0],
-               rs1_ex, rs2_ex, instr_ex, alu_result_mem[1:0]});
+               rs1_ex, rs2_ex, instr_ex, alu_result_mem[1:0],
+               rs1_used_id, rs2_used_id});
 
 endmodule
 

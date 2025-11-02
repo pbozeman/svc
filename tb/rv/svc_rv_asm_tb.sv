@@ -35,6 +35,8 @@ module svc_rv_asm_tb;
   logic [ 4:0] rs2;
   logic [ 2:0] funct3;
   logic [ 6:0] funct7;
+  logic        rs1_used;
+  logic        rs2_used;
   logic [31:0] imm_i;
   logic [31:0] imm_s;
   logic [31:0] imm_b;
@@ -60,6 +62,8 @@ module svc_rv_asm_tb;
       .rs2          (rs2),
       .funct3       (funct3),
       .funct7       (funct7),
+      .rs1_used     (rs1_used),
+      .rs2_used     (rs2_used),
       .imm_i        (imm_i),
       .imm_s        (imm_s),
       .imm_b        (imm_b),
