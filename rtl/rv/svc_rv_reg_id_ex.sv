@@ -51,6 +51,13 @@ module svc_rv_reg_id_ex #(
     input logic [XLEN-1:0] pc_plus4_id,
 
     //
+    // ID stage inputs (branch partial comparisons)
+    //
+    input logic rs_eq_lo_id,
+    input logic rs_lt_u_lo_id,
+    input logic rs_lt_s_lo_id,
+
+    //
     // EX stage outputs (control signals)
     //
     output logic       reg_write_ex,
@@ -76,7 +83,14 @@ module svc_rv_reg_id_ex #(
     output logic [XLEN-1:0] rs2_data_ex,
     output logic [XLEN-1:0] imm_ex,
     output logic [XLEN-1:0] pc_ex,
-    output logic [XLEN-1:0] pc_plus4_ex
+    output logic [XLEN-1:0] pc_plus4_ex,
+
+    //
+    // EX stage outputs (branch partial comparisons)
+    //
+    output logic rs_eq_lo_ex,
+    output logic rs_lt_u_lo_ex,
+    output logic rs_lt_s_lo_ex
 );
   `include "svc_rv_defs.svh"
 
@@ -103,6 +117,9 @@ module svc_rv_reg_id_ex #(
         imm_ex           <= '0;
         pc_ex            <= '0;
         pc_plus4_ex      <= '0;
+        rs_eq_lo_ex      <= '0;
+        rs_lt_u_lo_ex    <= '0;
+        rs_lt_s_lo_ex    <= '0;
       end else begin
         reg_write_ex     <= reg_write_id;
         mem_write_ex     <= mem_write_id;
@@ -124,6 +141,9 @@ module svc_rv_reg_id_ex #(
         imm_ex           <= imm_id;
         pc_ex            <= pc_id;
         pc_plus4_ex      <= pc_plus4_id;
+        rs_eq_lo_ex      <= rs_eq_lo_id;
+        rs_lt_u_lo_ex    <= rs_lt_u_lo_id;
+        rs_lt_s_lo_ex    <= rs_lt_s_lo_id;
       end
     end
   end else begin : g_passthrough
@@ -147,6 +167,9 @@ module svc_rv_reg_id_ex #(
     assign imm_ex           = imm_id;
     assign pc_ex            = pc_id;
     assign pc_plus4_ex      = pc_plus4_id;
+    assign rs_eq_lo_ex      = rs_eq_lo_id;
+    assign rs_lt_u_lo_ex    = rs_lt_u_lo_id;
+    assign rs_lt_s_lo_ex    = rs_lt_s_lo_id;
 
     `SVC_UNUSED({clk, rst_n});
   end
