@@ -339,8 +339,10 @@ module svc_rv #(
         .REGFILE_FWD(REGFILE_FWD)
     ) hazard (
         // ID stage register addresses
-        .rs1_id(rs1_id),
-        .rs2_id(rs2_id),
+        .rs1_id  (rs1_id),
+        .rs2_id  (rs2_id),
+        .rs1_used(rs1_used_id),
+        .rs2_used(rs2_used_id),
 
         // EX stage
         .rd_ex       (rd_ex),
@@ -368,6 +370,8 @@ module svc_rv #(
     assign if_id_stall = 1'b0;
     assign if_id_flush = 1'b0;
     assign id_ex_flush = 1'b0;
+
+    `SVC_UNUSED({rs1_used_id, rs2_used_id});
   end
 
   //----------------------------------------------------------------------------
@@ -707,8 +711,7 @@ module svc_rv #(
                imem_arready, imem_rvalid, dmem_awready, dmem_wready,
                dmem_arready, dmem_rvalid, pc, pc_plus4, pc_id[1:0], pc_ex[1:0],
                funct7_id[6], funct7_id[4:0], funct7_ex[6], funct7_ex[4:0],
-               rs1_ex, rs2_ex, instr_ex, alu_result_mem[1:0],
-               rs1_used_id, rs2_used_id});
+               rs1_ex, rs2_ex, instr_ex, alu_result_mem[1:0]});
 
 endmodule
 
