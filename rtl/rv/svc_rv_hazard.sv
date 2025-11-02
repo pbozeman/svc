@@ -16,6 +16,16 @@
 // In early tests on an hx8k, forwarding dropped fmax by almost 40% compared to
 // stalling. Overall perf (CPI * clock_rate) is TBD for optimal tuning.
 //
+// NOTE: This unit only detects register-based RAW hazards. It does NOT detect
+// memory address hazards (e.g., store followed by load to the same address
+// through different base registers). The current design assumes single-cycle
+// memory operations where stores complete before subsequent loads execute.
+// For multi-cycle memory (caches, slow SRAM, external memory), additional
+// hazard detection would be needed:
+// - Store buffer with address comparison and forwarding
+// - Memory ordering unit to enforce load/store dependencies
+// - Stall logic based on memory ready signals
+//
 module svc_rv_hazard (
 
     // ID stage input registers

@@ -80,6 +80,7 @@
 // Load/store tests - word operations supported
 `TEST_CASE(test_lw_sw_basic);
 `TEST_CASE(test_sw_lw_forwarding);
+`TEST_CASE(test_sw_lw_different_regs);
 `TEST_CASE(test_load_use_hazard);
 `TEST_CASE(test_lw_sw_multiple);
 
