@@ -13,10 +13,10 @@ module svc_rv_soc_sram_pipelined_tb;
   svc_rv_soc_sram #(
       .IMEM_AW   (IMEM_AW),
       .DMEM_AW   (DMEM_AW),
-      .IF_ID_REG (0),
-      .ID_EX_REG (0),
-      .EX_MEM_REG(0),
-      .MEM_WB_REG(0)
+      .IF_ID_REG (1),
+      .ID_EX_REG (1),
+      .EX_MEM_REG(1),
+      .MEM_WB_REG(1)
   ) uut (
       .clk   (clk),
       .rst_n (rst_n),
