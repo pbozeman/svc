@@ -8,6 +8,8 @@ module svc_rv_soc_sram_tb;
 
   localparam int IMEM_AW = 10;
   localparam int DMEM_AW = 10;
+  localparam real fib12_expected_cpi = 1.0;
+  localparam real bubble_expected_cpi = 1.0;
   logic ebreak;
 
   svc_rv_soc_sram #(
