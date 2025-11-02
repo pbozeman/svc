@@ -543,11 +543,15 @@ endtask
 //
 // Test: Simple JAL
 //
-// Tests basic JAL functionality: jumps forward over one instruction and
+// Tests basic JAL functionality: jumps forward over instructions and
 // saves the return address (PC+4) in the link register.
 //
+// In a 5-stage pipeline, when JAL executes in EX stage, 2 instructions
+// after it are already in the pipeline, so we need 2 NOPs in delay slots.
+//
 task automatic test_jal_simple;
-  JAL(x1, 12);
+  JAL(x1, 16);
+  NOP();
   NOP();
   ADDI(x2, x0, 99);
   EBREAK();
@@ -565,8 +569,12 @@ endtask
 // Tests basic JALR functionality: computes target as base register (x0) plus
 // offset, jumps to that address, and saves return address in link register.
 //
+// In a 5-stage pipeline, when JALR executes in EX stage, 2 instructions
+// after it are already in the pipeline, so we need 2 NOPs in delay slots.
+//
 task automatic test_jalr_simple;
-  JALR(x1, x0, 12);
+  JALR(x1, x0, 16);
+  NOP();
   NOP();
   ADDI(x2, x0, 99);
   EBREAK();
@@ -634,11 +642,13 @@ endtask
 // functionality testing. Pipeline hazards are tested separately.
 //
 task automatic test_call_return_pattern;
-  JAL(ra, 12);
+  JAL(ra, 16);
+  NOP();
   NOP();
   EBREAK();
   ADDI(x2, x0, 42);
   JALR(x0, ra, 0);
+  NOP();
   NOP();
 
   load_program();
