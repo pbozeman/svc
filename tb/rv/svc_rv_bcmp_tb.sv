@@ -10,15 +10,29 @@ module svc_rv_bcmp_tb;
   logic [XLEN-1:0] a;
   logic [XLEN-1:0] b;
   logic [     2:0] funct3;
-  logic            branch_taken;
+  logic            branch_taken_ex;
+  logic            rs_eq_lo;
+  logic            rs_lt_u_lo;
+  logic            rs_lt_s_lo;
 
   svc_rv_bcmp #(
       .XLEN(XLEN)
   ) uut (
-      .a           (a),
-      .b           (b),
-      .funct3      (funct3),
-      .branch_taken(branch_taken)
+      // ID stage partial comparisons
+      .a_id         (a),
+      .b_id         (b),
+      .rs_eq_lo_id  (rs_eq_lo),
+      .rs_lt_u_lo_id(rs_lt_u_lo),
+      .rs_lt_s_lo_id(rs_lt_s_lo),
+
+      // EX stage final comparison (using same values as ID for testbench)
+      .a_ex           (a),
+      .b_ex           (b),
+      .funct3         (funct3),
+      .rs_eq_lo_ex    (rs_eq_lo),
+      .rs_lt_u_lo_ex  (rs_lt_u_lo),
+      .rs_lt_s_lo_ex  (rs_lt_s_lo),
+      .branch_taken_ex(branch_taken_ex)
   );
 
   `include "svc_rv_defs.svh"
@@ -34,7 +48,7 @@ module svc_rv_bcmp_tb;
     b      = 32'd42;
     funct3 = FUNCT3_BEQ;
     `TICK(clk);
-    `CHECK_TRUE(branch_taken);
+    `CHECK_TRUE(branch_taken_ex);
 
     //
     // Not equal values
@@ -43,7 +57,7 @@ module svc_rv_bcmp_tb;
     b      = 32'd43;
     funct3 = FUNCT3_BEQ;
     `TICK(clk);
-    `CHECK_FALSE(branch_taken);
+    `CHECK_FALSE(branch_taken_ex);
 
     //
     // Zero values
@@ -52,7 +66,7 @@ module svc_rv_bcmp_tb;
     b      = 32'd0;
     funct3 = FUNCT3_BEQ;
     `TICK(clk);
-    `CHECK_TRUE(branch_taken);
+    `CHECK_TRUE(branch_taken_ex);
   endtask
 
   //
@@ -66,7 +80,7 @@ module svc_rv_bcmp_tb;
     b      = 32'd43;
     funct3 = FUNCT3_BNE;
     `TICK(clk);
-    `CHECK_TRUE(branch_taken);
+    `CHECK_TRUE(branch_taken_ex);
 
     //
     // Equal values
@@ -75,7 +89,7 @@ module svc_rv_bcmp_tb;
     b      = 32'd42;
     funct3 = FUNCT3_BNE;
     `TICK(clk);
-    `CHECK_FALSE(branch_taken);
+    `CHECK_FALSE(branch_taken_ex);
 
     //
     // Large values
@@ -84,7 +98,7 @@ module svc_rv_bcmp_tb;
     b      = 32'hFFFFFFFE;
     funct3 = FUNCT3_BNE;
     `TICK(clk);
-    `CHECK_TRUE(branch_taken);
+    `CHECK_TRUE(branch_taken_ex);
   endtask
 
   //
@@ -98,7 +112,7 @@ module svc_rv_bcmp_tb;
     b      = 32'd10;
     funct3 = FUNCT3_BLT;
     `TICK(clk);
-    `CHECK_TRUE(branch_taken);
+    `CHECK_TRUE(branch_taken_ex);
 
     //
     // Positive < Positive
@@ -107,7 +121,7 @@ module svc_rv_bcmp_tb;
     b      = 32'd10;
     funct3 = FUNCT3_BLT;
     `TICK(clk);
-    `CHECK_TRUE(branch_taken);
+    `CHECK_TRUE(branch_taken_ex);
 
     //
     // Positive >= Negative
@@ -116,7 +130,7 @@ module svc_rv_bcmp_tb;
     b      = 32'hFFFFFFF6;
     funct3 = FUNCT3_BLT;
     `TICK(clk);
-    `CHECK_FALSE(branch_taken);
+    `CHECK_FALSE(branch_taken_ex);
 
     //
     // Equal values
@@ -125,7 +139,7 @@ module svc_rv_bcmp_tb;
     b      = 32'd42;
     funct3 = FUNCT3_BLT;
     `TICK(clk);
-    `CHECK_FALSE(branch_taken);
+    `CHECK_FALSE(branch_taken_ex);
   endtask
 
   //
@@ -139,7 +153,7 @@ module svc_rv_bcmp_tb;
     b      = 32'hFFFFFFF6;
     funct3 = FUNCT3_BGE;
     `TICK(clk);
-    `CHECK_TRUE(branch_taken);
+    `CHECK_TRUE(branch_taken_ex);
 
     //
     // Equal values
@@ -148,7 +162,7 @@ module svc_rv_bcmp_tb;
     b      = 32'd42;
     funct3 = FUNCT3_BGE;
     `TICK(clk);
-    `CHECK_TRUE(branch_taken);
+    `CHECK_TRUE(branch_taken_ex);
 
     //
     // Negative < Positive
@@ -157,7 +171,7 @@ module svc_rv_bcmp_tb;
     b      = 32'd10;
     funct3 = FUNCT3_BGE;
     `TICK(clk);
-    `CHECK_FALSE(branch_taken);
+    `CHECK_FALSE(branch_taken_ex);
 
     //
     // Positive < Positive
@@ -166,7 +180,7 @@ module svc_rv_bcmp_tb;
     b      = 32'd10;
     funct3 = FUNCT3_BGE;
     `TICK(clk);
-    `CHECK_FALSE(branch_taken);
+    `CHECK_FALSE(branch_taken_ex);
   endtask
 
   //
@@ -180,7 +194,7 @@ module svc_rv_bcmp_tb;
     b      = 32'hFFFFFFF6;
     funct3 = FUNCT3_BLTU;
     `TICK(clk);
-    `CHECK_TRUE(branch_taken);
+    `CHECK_TRUE(branch_taken_ex);
 
     //
     // Small < Small unsigned
@@ -189,7 +203,7 @@ module svc_rv_bcmp_tb;
     b      = 32'd10;
     funct3 = FUNCT3_BLTU;
     `TICK(clk);
-    `CHECK_TRUE(branch_taken);
+    `CHECK_TRUE(branch_taken_ex);
 
     //
     // Large >= Small unsigned
@@ -198,7 +212,7 @@ module svc_rv_bcmp_tb;
     b      = 32'd10;
     funct3 = FUNCT3_BLTU;
     `TICK(clk);
-    `CHECK_FALSE(branch_taken);
+    `CHECK_FALSE(branch_taken_ex);
 
     //
     // Equal values
@@ -207,7 +221,7 @@ module svc_rv_bcmp_tb;
     b      = 32'd42;
     funct3 = FUNCT3_BLTU;
     `TICK(clk);
-    `CHECK_FALSE(branch_taken);
+    `CHECK_FALSE(branch_taken_ex);
   endtask
 
   //
@@ -221,7 +235,7 @@ module svc_rv_bcmp_tb;
     b      = 32'd10;
     funct3 = FUNCT3_BGEU;
     `TICK(clk);
-    `CHECK_TRUE(branch_taken);
+    `CHECK_TRUE(branch_taken_ex);
 
     //
     // Equal values
@@ -230,7 +244,7 @@ module svc_rv_bcmp_tb;
     b      = 32'd42;
     funct3 = FUNCT3_BGEU;
     `TICK(clk);
-    `CHECK_TRUE(branch_taken);
+    `CHECK_TRUE(branch_taken_ex);
 
     //
     // Small < Large unsigned
@@ -239,7 +253,7 @@ module svc_rv_bcmp_tb;
     b      = 32'hFFFFFFF6;
     funct3 = FUNCT3_BGEU;
     `TICK(clk);
-    `CHECK_FALSE(branch_taken);
+    `CHECK_FALSE(branch_taken_ex);
 
     //
     // Zero comparison
@@ -248,7 +262,7 @@ module svc_rv_bcmp_tb;
     b      = 32'd0;
     funct3 = FUNCT3_BGEU;
     `TICK(clk);
-    `CHECK_TRUE(branch_taken);
+    `CHECK_TRUE(branch_taken_ex);
   endtask
 
   //
@@ -262,7 +276,7 @@ module svc_rv_bcmp_tb;
     b      = 32'h80000000;
     funct3 = FUNCT3_BLT;
     `TICK(clk);
-    `CHECK_FALSE(branch_taken);
+    `CHECK_FALSE(branch_taken_ex);
 
     //
     // Max signed vs min signed (BLTU)
@@ -271,7 +285,7 @@ module svc_rv_bcmp_tb;
     b      = 32'h80000000;
     funct3 = FUNCT3_BLTU;
     `TICK(clk);
-    `CHECK_TRUE(branch_taken);
+    `CHECK_TRUE(branch_taken_ex);
 
     //
     // All ones vs zero
@@ -280,13 +294,13 @@ module svc_rv_bcmp_tb;
     b      = 32'd0;
     funct3 = FUNCT3_BLT;
     `TICK(clk);
-    `CHECK_TRUE(branch_taken);
+    `CHECK_TRUE(branch_taken_ex);
 
     a      = 32'hFFFFFFFF;
     b      = 32'd0;
     funct3 = FUNCT3_BLTU;
     `TICK(clk);
-    `CHECK_FALSE(branch_taken);
+    `CHECK_FALSE(branch_taken_ex);
   endtask
 
   //

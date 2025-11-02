@@ -102,6 +102,9 @@ module svc_rv #(
   logic [XLEN-1:0] imm_id;
   logic [XLEN-1:0] rs1_data_id;
   logic [XLEN-1:0] rs2_data_id;
+  logic            rs_eq_lo_id;
+  logic            rs_lt_u_lo_id;
+  logic            rs_lt_s_lo_id;
 
   //
   // ID/EX pipeline register signals
@@ -126,6 +129,9 @@ module svc_rv #(
   logic [XLEN-1:0] imm_ex;
   logic [XLEN-1:0] pc_ex;
   logic [XLEN-1:0] pc_plus4_ex;
+  logic            rs_eq_lo_ex;
+  logic            rs_lt_u_lo_ex;
+  logic            rs_lt_s_lo_ex;
 
   //
   // EX stage signals
@@ -329,6 +335,9 @@ module svc_rv #(
       .imm_id          (imm_id),
       .pc_id           (pc_id),
       .pc_plus4_id     (pc_plus4_id),
+      .rs_eq_lo_id     (rs_eq_lo_id),
+      .rs_lt_u_lo_id   (rs_lt_u_lo_id),
+      .rs_lt_s_lo_id   (rs_lt_s_lo_id),
 
       // EX stage outputs
       .reg_write_ex    (reg_write_ex),
@@ -350,7 +359,10 @@ module svc_rv #(
       .rs2_data_ex     (rs2_data_ex),
       .imm_ex          (imm_ex),
       .pc_ex           (pc_ex),
-      .pc_plus4_ex     (pc_plus4_ex)
+      .pc_plus4_ex     (pc_plus4_ex),
+      .rs_eq_lo_ex     (rs_eq_lo_ex),
+      .rs_lt_u_lo_ex   (rs_lt_u_lo_ex),
+      .rs_lt_s_lo_ex   (rs_lt_s_lo_ex)
   );
 
   //
@@ -438,24 +450,45 @@ module svc_rv #(
   );
 
   //
-  // Branch comparison
+  // Branch comparison (spans ID and EX stages)
   //
-  logic branch_taken;
+  // TODO: it is worth looking into making the regfile a bram interface,
+  // in which case this would need to split into EX and MEM stages, adding
+  // an extra cycle for branches. Once a predictor is in place, revisit this
+  // and see how overall CPI is impacted and total perf from being able to
+  // run at faster clocks.
+  //
+  logic branch_taken_ex;
 
   (* keep_hierarchy = "yes" *)
   svc_rv_bcmp #(
       .XLEN(XLEN)
   ) bcmp (
-      .a           (rs1_data_ex),
-      .b           (rs2_data_ex),
-      .funct3      (funct3_ex),
-      .branch_taken(branch_taken)
+      // ID input
+      .a_id(rs1_data_id),
+      .b_id(rs2_data_id),
+
+      // ID output
+      .rs_eq_lo_id  (rs_eq_lo_id),
+      .rs_lt_u_lo_id(rs_lt_u_lo_id),
+      .rs_lt_s_lo_id(rs_lt_s_lo_id),
+
+      // EX input
+      .a_ex         (rs1_data_ex),
+      .b_ex         (rs2_data_ex),
+      .funct3       (funct3_ex),
+      .rs_eq_lo_ex  (rs_eq_lo_ex),
+      .rs_lt_u_lo_ex(rs_lt_u_lo_ex),
+      .rs_lt_s_lo_ex(rs_lt_s_lo_ex),
+
+      // EX output
+      .branch_taken_ex(branch_taken_ex)
   );
 
   //
   // PC muxing
   //
-  assign pc_sel = is_branch_ex & branch_taken | is_jump_ex;
+  assign pc_sel = is_branch_ex & branch_taken_ex | is_jump_ex;
 
   //
   // CSR (Control and Status Registers) - Zicntr

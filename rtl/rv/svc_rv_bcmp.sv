@@ -2,6 +2,7 @@
 `define SVC_RV_BCMP_SV
 
 `include "svc.sv"
+`include "svc_unused.sv"
 
 //
 // RISC-V Branch Comparator
@@ -14,73 +15,115 @@
 // - BLT/BGE: Signed less-than comparison
 // - BLTU/BGEU: Unsigned less-than comparison
 //
-// The module uses direct comparison rather than subtraction to avoid
-// complexity in extracting unsigned borrow flags.
+// Two-stage comparison optimization:
+// - ID stage: Computes partial comparison on lower 16 bits (outputs)
+// - EX stage: Finishes using upper 16 bits + partial results (inputs)
+//
+// Splitting into 2 phases was a huge improvement in early testing on
+// an hx8k, whereas this was consistently the critical path when all in EX.
 //
 module svc_rv_bcmp #(
     parameter int XLEN = 32
 ) (
-    input logic [XLEN-1:0] a,
-    input logic [XLEN-1:0] b,
-    input logic [     2:0] funct3,
+    //
+    // ID stage: compute partial comparisons on lower 16 bits
+    //
+    input  logic [XLEN-1:0] a_id,
+    input  logic [XLEN-1:0] b_id,
+    output logic            rs_eq_lo_id,
+    output logic            rs_lt_u_lo_id,
+    output logic            rs_lt_s_lo_id,
 
-    output logic branch_taken
+    //
+    // EX stage: complete comparison using upper 16 bits + registered partials
+    //
+    input logic [XLEN-1:0] a_ex,
+    input logic [XLEN-1:0] b_ex,
+    input logic [     2:0] funct3,
+    input logic            rs_eq_lo_ex,
+    input logic            rs_lt_u_lo_ex,
+    input logic            rs_lt_s_lo_ex,
+
+    output logic branch_taken_ex
 );
   `include "svc_rv_defs.svh"
 
-  logic eq;
-  logic lt_signed;
-  logic lt_unsigned;
-
-  logic sign_a;
-  logic sign_b;
-  logic mag_lt;
-
   //
-  // Comparison operations
+  // ID stage: Lower 16-bit partial comparisons
   //
-  assign eq          = (a == b);
+  // Upper bits of a_id/b_id are unused here - they're used in EX stage via a_ex/b_ex
+  //
+  assign rs_eq_lo_id   = (a_id[15:0] == b_id[15:0]);
+  assign rs_lt_u_lo_id = (a_id[15:0] < b_id[15:0]);
+  assign rs_lt_s_lo_id = (a_id[14:0] < b_id[14:0]);
 
   //
-  // Unsigned comparison (uses full carry chain)
+  // EX stage: Upper 16-bit comparisons
   //
-  assign lt_unsigned = (a < b);
+  logic rs_eq;
+  logic rs_lt_s;
+  logic rs_lt_u;
+
+  logic rs_eq_hi;
+  logic rs_lt_u_hi;
+  logic rs_lt_s_hi;
+
+  assign rs_eq_hi   = (a_ex[XLEN-1:16] == b_ex[XLEN-1:16]);
+  assign rs_lt_u_hi = (a_ex[XLEN-1:16] < b_ex[XLEN-1:16]);
 
   //
-  // Signed comparison (optimized to avoid full carry chain)
+  // For signed, compare upper 15 bits as magnitude
   //
-  // Strategy: Compare sign bits first, then magnitudes
-  // - If signs differ: negative < positive
-  // - If signs same: compare magnitudes
-  //
-  assign sign_a      = a[XLEN-1];
-  assign sign_b      = b[XLEN-1];
-  assign mag_lt      = a[XLEN-2:0] < b[XLEN-2:0];
+  assign rs_lt_s_hi = (a_ex[XLEN-2:16] < b_ex[XLEN-2:16]);
 
-  assign lt_signed   = (sign_a & ~sign_b) | ((sign_a ~^ sign_b) & mag_lt);
+  //
+  // Combine with partial results from ID stage (now registered in EX stage)
+  //
+  // eq: both halves must be equal
+  assign rs_eq      = rs_eq_hi & rs_eq_lo_ex;
+
+  //
+  // lt_unsigned: upper half less, OR upper half equal and lower half less
+  //
+  assign rs_lt_u    = rs_lt_u_hi | (rs_eq_hi & rs_lt_u_lo_ex);
+
+  //
+  // lt_signed: handle sign bits, then check magnitude
+  // - If sign bits differ: negative < positive
+  // - If sign bits same: compare magnitudes (upper 15 + lower 16 bits)
+  //
+  logic rs_sign_a;
+  logic rs_sign_b;
+  logic rs_mag_lt;
+
+  assign rs_sign_a = a_ex[XLEN-1];
+  assign rs_sign_b = b_ex[XLEN-1];
+
+  //
+  // Magnitude less than: upper bits less, OR upper bits equal and lower partial
+  // says less
+  //
+  assign rs_mag_lt = rs_lt_s_hi | (rs_eq_hi & rs_lt_s_lo_ex);
+
+  assign rs_lt_s = ((rs_sign_a & ~rs_sign_b) |
+                    ((rs_sign_a ~^ rs_sign_b) & rs_mag_lt));
 
   //
   // Branch decision based on funct3
   //
-  // RISC-V funct3 encoding:
-  //   BEQ:  000 - branch if equal
-  //   BNE:  001 - branch if not equal
-  //   BLT:  100 - branch if less than (signed)
-  //   BGE:  101 - branch if greater/equal (signed)
-  //   BLTU: 110 - branch if less than (unsigned)
-  //   BGEU: 111 - branch if greater/equal (unsigned)
-  //
   always_comb begin
     case (funct3)
-      FUNCT3_BEQ:  branch_taken = eq;
-      FUNCT3_BNE:  branch_taken = ~eq;
-      FUNCT3_BLT:  branch_taken = lt_signed;
-      FUNCT3_BGE:  branch_taken = ~lt_signed;
-      FUNCT3_BLTU: branch_taken = lt_unsigned;
-      FUNCT3_BGEU: branch_taken = ~lt_unsigned;
-      default:     branch_taken = 1'b0;
+      FUNCT3_BEQ:  branch_taken_ex = rs_eq;
+      FUNCT3_BNE:  branch_taken_ex = ~rs_eq;
+      FUNCT3_BLT:  branch_taken_ex = rs_lt_s;
+      FUNCT3_BGE:  branch_taken_ex = ~rs_lt_s;
+      FUNCT3_BLTU: branch_taken_ex = rs_lt_u;
+      FUNCT3_BGEU: branch_taken_ex = ~rs_lt_u;
+      default:     branch_taken_ex = 1'b0;
     endcase
   end
+
+  `SVC_UNUSED({a_id[XLEN-1:16], b_id[XLEN-1:16]});
 
 endmodule
 
