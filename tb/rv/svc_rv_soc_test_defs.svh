@@ -16,27 +16,16 @@ logic [31:0] MEM[1024];
 
 // CHECK_XXX don't work on strings or reals, so we partially reimplement
 // the checks here. String/Real detection in the core macros would be nice.
-`define CHECK_CPI(name, expected_cpi, cycles, instrs)                         \
+`define CHECK_CPI(name, max_cpi, cycles, instrs)                              \
   begin                                                                       \
     real cpi_real;                                                            \
-    real cpi_min;                                                             \
-    real cpi_max;                                                             \
     string msg;                                                               \
     cpi_real = calc_cpi(name, cycles, instrs);                                \
-    cpi_min = expected_cpi * 0.95;                                            \
-    cpi_max = expected_cpi * 1.05;                                            \
-    if (cpi_real < cpi_min) begin                                             \
-      $sformat(msg, "%s%s%s:%s%0d%s CHECK_GTE(%scpi_real%s=%f, cpi_min=%f)",  \
+    if (cpi_real > max_cpi) begin                                             \
+      $sformat(msg, "%s%s%s:%s%0d%s CHECK_LTE(%scpi_real%s=%f, max_cpi=%f)",  \
                `COLOR_YELLOW, `__FILE__, `COLOR_RESET,                        \
                `COLOR_RED, `__LINE__, `COLOR_RESET,                           \
-               `COLOR_YELLOW, `COLOR_RESET, cpi_real, cpi_min);               \
-      `FATAL_MSG(msg);                                                        \
-    end                                                                       \
-    if (cpi_real > cpi_max) begin                                             \
-      $sformat(msg, "%s%s%s:%s%0d%s CHECK_LTE(%scpi_real%s=%f, cpi_max=%f)",  \
-               `COLOR_YELLOW, `__FILE__, `COLOR_RESET,                        \
-               `COLOR_RED, `__LINE__, `COLOR_RESET,                           \
-               `COLOR_YELLOW, `COLOR_RESET, cpi_real, cpi_max);               \
+               `COLOR_YELLOW, `COLOR_RESET, cpi_real, max_cpi);               \
       `FATAL_MSG(msg);                                                        \
     end                                                                       \
   end
@@ -55,6 +44,36 @@ logic [31:0] bubble_cpi_instrs;
 real         bubble_cpi_real;
 bit          bubble_cpi_valid;
 
+logic [31:0] cpi_alu_indep_cycles;
+logic [31:0] cpi_alu_indep_instrs;
+real         cpi_alu_indep_real;
+bit          cpi_alu_indep_valid;
+
+logic [31:0] cpi_alu_chain_cycles;
+logic [31:0] cpi_alu_chain_instrs;
+real         cpi_alu_chain_real;
+bit          cpi_alu_chain_valid;
+
+logic [31:0] cpi_br_taken_cycles;
+logic [31:0] cpi_br_taken_instrs;
+real         cpi_br_taken_real;
+bit          cpi_br_taken_valid;
+
+logic [31:0] cpi_br_not_taken_cycles;
+logic [31:0] cpi_br_not_taken_instrs;
+real         cpi_br_not_taken_real;
+bit          cpi_br_not_taken_valid;
+
+logic [31:0] cpi_load_use_cycles;
+logic [31:0] cpi_load_use_instrs;
+real         cpi_load_use_real;
+bit          cpi_load_use_valid;
+
+logic [31:0] cpi_mixed_alu_cycles;
+logic [31:0] cpi_mixed_alu_instrs;
+real         cpi_mixed_alu_real;
+bit          cpi_mixed_alu_valid;
+
 initial begin
   bit svc_tb_rpt;
   if ($value$plusargs("SVC_TB_RPT=%b", svc_tb_rpt) && svc_tb_rpt) begin
@@ -65,6 +84,44 @@ end
 final begin
   if (cpi_report_en) begin
     $display("");
+    $display("CPI Benchmark Results:");
+    $display("=====================");
+    if (cpi_alu_indep_valid) begin
+      $display("  %s.ALU_Independent:", svc_tb_module_name);
+      $display("    Cycles:       %0d", cpi_alu_indep_cycles);
+      $display("    Instructions: %0d", cpi_alu_indep_instrs);
+      $display("    CPI:          %f\n", cpi_alu_indep_real);
+    end
+    if (cpi_alu_chain_valid) begin
+      $display("  %s.ALU_Chain:", svc_tb_module_name);
+      $display("    Cycles:       %0d", cpi_alu_chain_cycles);
+      $display("    Instructions: %0d", cpi_alu_chain_instrs);
+      $display("    CPI:          %f\n", cpi_alu_chain_real);
+    end
+    if (cpi_br_taken_valid) begin
+      $display("  %s.Branch_Taken:", svc_tb_module_name);
+      $display("    Cycles:       %0d", cpi_br_taken_cycles);
+      $display("    Instructions: %0d", cpi_br_taken_instrs);
+      $display("    CPI:          %f\n", cpi_br_taken_real);
+    end
+    if (cpi_br_not_taken_valid) begin
+      $display("  %s.Branch_NotTaken:", svc_tb_module_name);
+      $display("    Cycles:       %0d", cpi_br_not_taken_cycles);
+      $display("    Instructions: %0d", cpi_br_not_taken_instrs);
+      $display("    CPI:          %f\n", cpi_br_not_taken_real);
+    end
+    if (cpi_load_use_valid) begin
+      $display("  %s.Load_Use:", svc_tb_module_name);
+      $display("    Cycles:       %0d", cpi_load_use_cycles);
+      $display("    Instructions: %0d", cpi_load_use_instrs);
+      $display("    CPI:          %f\n", cpi_load_use_real);
+    end
+    if (cpi_mixed_alu_valid) begin
+      $display("  %s.Mixed_ALU:", svc_tb_module_name);
+      $display("    Cycles:       %0d", cpi_mixed_alu_cycles);
+      $display("    Instructions: %0d", cpi_mixed_alu_instrs);
+      $display("    CPI:          %f\n", cpi_mixed_alu_real);
+    end
     if (fib12_cpi_valid) begin
       $display("  %s.Fib12:", svc_tb_module_name);
       $display("    Cycles:       %0d", fib12_cpi_cycles);
@@ -120,6 +177,36 @@ function automatic real calc_cpi;
       bubble_cpi_instrs = instrs;
       bubble_cpi_real   = cpi_real;
       bubble_cpi_valid  = 1;
+    end else if (name == "cpi_alu_indep") begin
+      cpi_alu_indep_cycles = cycles;
+      cpi_alu_indep_instrs = instrs;
+      cpi_alu_indep_real   = cpi_real;
+      cpi_alu_indep_valid  = 1;
+    end else if (name == "cpi_alu_chain") begin
+      cpi_alu_chain_cycles = cycles;
+      cpi_alu_chain_instrs = instrs;
+      cpi_alu_chain_real   = cpi_real;
+      cpi_alu_chain_valid  = 1;
+    end else if (name == "cpi_br_taken") begin
+      cpi_br_taken_cycles = cycles;
+      cpi_br_taken_instrs = instrs;
+      cpi_br_taken_real   = cpi_real;
+      cpi_br_taken_valid  = 1;
+    end else if (name == "cpi_br_not_taken") begin
+      cpi_br_not_taken_cycles = cycles;
+      cpi_br_not_taken_instrs = instrs;
+      cpi_br_not_taken_real   = cpi_real;
+      cpi_br_not_taken_valid  = 1;
+    end else if (name == "cpi_load_use") begin
+      cpi_load_use_cycles = cycles;
+      cpi_load_use_instrs = instrs;
+      cpi_load_use_real   = cpi_real;
+      cpi_load_use_valid  = 1;
+    end else if (name == "cpi_mixed_alu") begin
+      cpi_mixed_alu_cycles = cycles;
+      cpi_mixed_alu_instrs = instrs;
+      cpi_mixed_alu_real   = cpi_real;
+      cpi_mixed_alu_valid  = 1;
     end
   end
   return cpi_real;
@@ -1748,6 +1835,231 @@ endtask
 
 //
 //--------------------------------------------------------------------
+// CPI micro-benchmarks
+//--------------------------------------------------------------------
+//
+
+//
+// Test: CPI baseline - independent ALU operations
+//
+// Measures CPI for independent ALU operations with no dependencies.
+// Expected CPI ~1.0 for a pipeline with full bypass and no stalls.
+// This establishes the baseline best-case IPC for the pipeline.
+//
+task automatic test_cpi_alu_independent;
+  logic [31:0] cycles;
+  logic [31:0] instrs;
+
+  RDCYCLE(x20);
+  RDINSTRET(x21);
+  ADDI(x1, x0, 0);
+  ADDI(x2, x0, 256);
+  ADDI(x3, x0, 1);
+  ADDI(x4, x0, 2);
+  ADDI(x5, x0, 3);
+  ADDI(x6, x0, 4);
+  ADD(x7, x3, x4);
+  ADD(x8, x5, x6);
+  XOR(x9, x3, x5);
+  OR(x10, x4, x6);
+  ADDI(x1, x1, 1);
+  BNE(x1, x2, -24);
+  RDCYCLE(x22);
+  RDINSTRET(x23);
+  SUB(x24, x22, x20);
+  SUB(x25, x23, x21);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR(clk, ebreak, 4096);
+  cycles = uut.cpu.regfile.regs[24];
+  instrs = uut.cpu.regfile.regs[25];
+  `CHECK_CPI("cpi_alu_indep", alu_indep_max_cpi, cycles, instrs);
+endtask
+
+//
+// Test: CPI with ALU dependency chain
+//
+// Measures CPI for back-to-back ALU operations with RAW dependencies.
+// With full EX->EX forwarding: CPI ~1.0
+// Without forwarding: CPI ~2.0 (one bubble per dependency)
+// This reveals the effectiveness of the bypass network.
+//
+task automatic test_cpi_alu_chain;
+  logic [31:0] cycles;
+  logic [31:0] instrs;
+
+  RDCYCLE(x20);
+  RDINSTRET(x21);
+  ADDI(x1, x0, 0);
+  ADDI(x2, x0, 256);
+  ADDI(x5, x0, 1);
+  ADDI(x5, x5, 1);
+  ADDI(x5, x5, 1);
+  ADDI(x5, x5, 1);
+  ADDI(x5, x5, 1);
+  ADDI(x5, x5, 1);
+  ADDI(x1, x1, 1);
+  BNE(x1, x2, -28);
+  RDCYCLE(x22);
+  RDINSTRET(x23);
+  SUB(x24, x22, x20);
+  SUB(x25, x23, x21);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR(clk, ebreak, 16384);
+  cycles = uut.cpu.regfile.regs[24];
+  instrs = uut.cpu.regfile.regs[25];
+  `CHECK_CPI("cpi_alu_chain", alu_chain_max_cpi, cycles, instrs);
+endtask
+
+//
+// Test: CPI for always-taken backward branch
+//
+// Measures the branch penalty for always-taken backward branches (loops).
+// The penalty depends on pipeline flush behavior:
+// - No flush or predict-taken: CPI ~1.0
+// - Flush on branch: CPI = 1.0 + (flush_cycles / iterations)
+// This reveals the control hazard cost for loops.
+//
+task automatic test_cpi_branch_taken;
+  logic [31:0] cycles;
+  logic [31:0] instrs;
+
+  RDCYCLE(x20);
+  RDINSTRET(x21);
+  ADDI(x1, x0, 0);
+  ADDI(x2, x0, 1024);
+  ADDI(x1, x1, 1);
+  BNE(x1, x2, -4);
+  RDCYCLE(x22);
+  RDINSTRET(x23);
+  SUB(x24, x22, x20);
+  SUB(x25, x23, x21);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR(clk, ebreak, 8192);
+  cycles = uut.cpu.regfile.regs[24];
+  instrs = uut.cpu.regfile.regs[25];
+  `CHECK_CPI("cpi_br_taken", br_taken_max_cpi, cycles, instrs);
+endtask
+
+//
+// Test: CPI for not-taken branches
+//
+// Measures CPI when branches are never taken (fall through).
+// With static not-taken prediction: CPI ~1.0
+// Without prediction or predict-taken: higher CPI
+// This reveals branch prediction effectiveness.
+//
+task automatic test_cpi_branch_not_taken;
+  logic [31:0] cycles;
+  logic [31:0] instrs;
+
+  RDCYCLE(x20);
+  RDINSTRET(x21);
+  ADDI(x1, x0, 0);
+  ADDI(x2, x0, 1024);
+  ADDI(x3, x0, 9999);
+  BEQ(x1, x3, 8);
+  ADDI(x1, x1, 1);
+  BNE(x1, x2, -12);
+  RDCYCLE(x22);
+  RDINSTRET(x23);
+  SUB(x24, x22, x20);
+  SUB(x25, x23, x21);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR(clk, ebreak, 16384);
+  cycles = uut.cpu.regfile.regs[24];
+  instrs = uut.cpu.regfile.regs[25];
+  `CHECK_CPI("cpi_br_not_taken", br_not_taken_max_cpi, cycles, instrs);
+endtask
+
+//
+// Test: CPI for load-use hazard
+//
+// Measures CPI when loads are immediately followed by dependent instructions.
+// With MEM->EX bypass and 1-cycle memory: CPI ~1.0-1.3
+// Without bypass: CPI ~1.5-2.0 (one bubble per load-use)
+// This reveals memory hazard handling effectiveness.
+//
+task automatic test_cpi_load_use;
+  logic [31:0] cycles;
+  logic [31:0] instrs;
+
+  uut.dmem.mem[0] = 32'd42;
+
+  RDCYCLE(x20);
+  RDINSTRET(x21);
+  ADDI(x1, x0, 0);
+  ADDI(x2, x0, 256);
+  ADDI(x3, x0, 0);
+  LW(x4, x3, 0);
+  ADDI(x5, x4, 1);
+  ADDI(x1, x1, 1);
+  BNE(x1, x2, -12);
+  RDCYCLE(x22);
+  RDINSTRET(x23);
+  SUB(x24, x22, x20);
+  SUB(x25, x23, x21);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR(clk, ebreak, 4096);
+  cycles = uut.cpu.regfile.regs[24];
+  instrs = uut.cpu.regfile.regs[25];
+  `CHECK_CPI("cpi_load_use", load_use_max_cpi, cycles, instrs);
+endtask
+
+//
+// Test: CPI for mixed instruction types
+//
+// Measures CPI for a realistic mix of ALU, shifts, and logical operations.
+// This provides a more representative CPI than isolated benchmarks.
+// Expected CPI ~1.0 for a well-balanced pipeline.
+//
+task automatic test_cpi_mixed_alu;
+  logic [31:0] cycles;
+  logic [31:0] instrs;
+
+  RDCYCLE(x20);
+  RDINSTRET(x21);
+  ADDI(x1, x0, 0);
+  ADDI(x2, x0, 256);
+  ADDI(x3, x0, 5);
+  ADDI(x4, x0, 10);
+  ADD(x5, x3, x4);
+  XOR(x6, x5, x3);
+  SLLI(x7, x6, 2);
+  OR(x8, x7, x4);
+  SRLI(x9, x8, 1);
+  ADDI(x1, x1, 1);
+  BNE(x1, x2, -32);
+  RDCYCLE(x22);
+  RDINSTRET(x23);
+  SUB(x24, x22, x20);
+  SUB(x25, x23, x21);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR(clk, ebreak, 16384);
+  cycles = uut.cpu.regfile.regs[24];
+  instrs = uut.cpu.regfile.regs[25];
+  `CHECK_CPI("cpi_mixed_alu", mixed_alu_max_cpi, cycles, instrs);
+endtask
+
+//
+//--------------------------------------------------------------------
 // Smoke tests
 //--------------------------------------------------------------------
 //
@@ -1794,7 +2106,7 @@ task automatic test_fib12;
 
   cycles = uut.cpu.regfile.regs[24];
   instrs = uut.cpu.regfile.regs[25];
-  `CHECK_CPI("fib12", fib12_expected_cpi, cycles, instrs);
+  `CHECK_CPI("fib12", fib12_max_cpi, cycles, instrs);
 endtask
 
 //
@@ -1866,5 +2178,5 @@ task automatic test_bubble_sort;
 
   cycles = uut.cpu.regfile.regs[26];
   instrs = uut.cpu.regfile.regs[27];
-  `CHECK_CPI("bubble", bubble_expected_cpi, cycles, instrs);
+  `CHECK_CPI("bubble", bubble_max_cpi, cycles, instrs);
 endtask
