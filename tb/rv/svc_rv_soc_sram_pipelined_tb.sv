@@ -11,9 +11,12 @@ module svc_rv_soc_sram_pipelined_tb;
   logic ebreak;
 
   svc_rv_soc_sram #(
-      .IMEM_AW  (IMEM_AW),
-      .DMEM_AW  (DMEM_AW),
-      .IF_ID_REG(0)
+      .IMEM_AW   (IMEM_AW),
+      .DMEM_AW   (DMEM_AW),
+      .IF_ID_REG (0),
+      .ID_EX_REG (0),
+      .EX_MEM_REG(0),
+      .MEM_WB_REG(0)
   ) uut (
       .clk   (clk),
       .rst_n (rst_n),
