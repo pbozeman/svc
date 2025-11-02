@@ -21,13 +21,14 @@
 `include "svc_rv_st_fmt.sv"
 
 module svc_rv #(
-    parameter int XLEN       = 32,
-    parameter int IMEM_AW    = 10,
-    parameter int DMEM_AW    = 10,
-    parameter int IF_ID_REG  = 0,
-    parameter int ID_EX_REG  = 0,
-    parameter int EX_MEM_REG = 0,
-    parameter int MEM_WB_REG = 0
+    parameter int XLEN        = 32,
+    parameter int IMEM_AW     = 10,
+    parameter int DMEM_AW     = 10,
+    parameter int IF_ID_REG   = 0,
+    parameter int ID_EX_REG   = 0,
+    parameter int EX_MEM_REG  = 0,
+    parameter int MEM_WB_REG  = 0,
+    parameter int REGFILE_FWD = 1
 ) (
     input logic clk,
     input logic rst_n,
@@ -309,8 +310,8 @@ module svc_rv #(
   // Register File
   //
   svc_rv_regfile #(
-      .XLEN            (XLEN),
-      .INTERNAL_FORWARD(PIPELINED)
+      .XLEN       (XLEN),
+      .REGFILE_FWD(REGFILE_FWD)
   ) regfile (
       .clk     (clk),
       .rst_n   (rst_n),
@@ -330,7 +331,9 @@ module svc_rv #(
   // In a single-cycle design, there are no pipeline hazards.
   //
   if (PIPELINED == 1) begin : g_hazard
-    svc_rv_hazard hazard (
+    svc_rv_hazard #(
+        .REGFILE_FWD(REGFILE_FWD)
+    ) hazard (
         // ID stage register addresses
         .rs1_id(rs1_id),
         .rs2_id(rs2_id),

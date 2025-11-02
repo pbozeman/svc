@@ -2,6 +2,7 @@
 `define SVC_RV_HAZARD_SV
 
 `include "svc.sv"
+`include "svc_unused.sv"
 
 // Hazard detection unit for RISC-V pipeline
 //
@@ -26,8 +27,9 @@
 // - Memory ordering unit to enforce load/store dependencies
 // - Stall logic based on memory ready signals
 //
-module svc_rv_hazard (
-
+module svc_rv_hazard #(
+    parameter int REGFILE_FWD = 1
+) (
     // ID stage input registers
     input logic [4:0] rs1_id,
     input logic [4:0] rs2_id,
@@ -79,22 +81,34 @@ module svc_rv_hazard (
   assign mem_hazard = mem_hazard_rs1 || mem_hazard_rs2;
 
   //
-  // Detect if ID stage reads from WB stage destination
+  // WB hazard detection (conditional based on regfile forwarding)
+  //
+  // If the regfile has internal forwarding, WB hazards are handled there.
+  // Otherwise, we need to detect and stall for WB stage hazards.
   //
   logic wb_hazard_rs1;
   logic wb_hazard_rs2;
   logic wb_hazard;
 
-  assign wb_hazard_rs1 = reg_write_wb && (rd_wb != 5'd0) && (rd_wb == rs1_id);
-  assign wb_hazard_rs2 = reg_write_wb && (rd_wb != 5'd0) && (rd_wb == rs2_id);
-  assign wb_hazard     = wb_hazard_rs1 || wb_hazard_rs2;
+  if (REGFILE_FWD != 0) begin : g_wb_no_hazard
+    assign wb_hazard_rs1 = 1'b0;
+    assign wb_hazard_rs2 = 1'b0;
+    assign wb_hazard     = 1'b0;
+
+    `SVC_UNUSED({rd_wb, reg_write_wb, wb_hazard_rs1, wb_hazard_rs2});
+  end else begin : g_wb_hazard
+    assign
+        wb_hazard_rs1 = (reg_write_wb && (rd_wb != 5'd0) && (rd_wb == rs1_id));
+    assign
+        wb_hazard_rs2 = (reg_write_wb && (rd_wb != 5'd0) && (rd_wb == rs2_id));
+    assign wb_hazard = wb_hazard_rs1 || wb_hazard_rs2;
+  end
 
   //
   // Generate stall and flush signals
   //
-  // Data hazards: We need to stall if there's a RAW hazard in EX, MEM, or WB stage.
-  // WB stage also causes hazards because the regfile write is synchronous
-  // and the data won't be visible to ID stage reads in the same cycle.
+  // Data hazards: We need to stall if there's a RAW hazard in EX, MEM, or
+  // WB stage (unless regfile has internal forwarding for WB).
   //
   // When a data hazard is detected:
   // - Stall PC to prevent fetching new instructions

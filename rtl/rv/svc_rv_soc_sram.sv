@@ -13,13 +13,14 @@
 // Both memories have 0-cycle read latency (combinational reads).
 //
 module svc_rv_soc_sram #(
-    parameter int XLEN       = 32,
-    parameter int IMEM_AW    = 10,
-    parameter int DMEM_AW    = 10,
-    parameter int IF_ID_REG  = 0,
-    parameter int ID_EX_REG  = 0,
-    parameter int EX_MEM_REG = 0,
-    parameter int MEM_WB_REG = 0,
+    parameter int XLEN        = 32,
+    parameter int IMEM_AW     = 10,
+    parameter int DMEM_AW     = 10,
+    parameter int IF_ID_REG   = 0,
+    parameter int ID_EX_REG   = 0,
+    parameter int EX_MEM_REG  = 0,
+    parameter int MEM_WB_REG  = 0,
+    parameter int REGFILE_FWD = 1,
 
     // verilog_lint: waive explicit-parameter-storage-type
     parameter IMEM_INIT = ""
@@ -54,13 +55,14 @@ module svc_rv_soc_sram #(
   // RISC-V core
   //
   svc_rv #(
-      .XLEN      (XLEN),
-      .IMEM_AW   (IMEM_AW),
-      .DMEM_AW   (DMEM_AW),
-      .IF_ID_REG (IF_ID_REG),
-      .ID_EX_REG (ID_EX_REG),
-      .EX_MEM_REG(EX_MEM_REG),
-      .MEM_WB_REG(MEM_WB_REG)
+      .XLEN       (XLEN),
+      .IMEM_AW    (IMEM_AW),
+      .DMEM_AW    (DMEM_AW),
+      .IF_ID_REG  (IF_ID_REG),
+      .ID_EX_REG  (ID_EX_REG),
+      .EX_MEM_REG (EX_MEM_REG),
+      .MEM_WB_REG (MEM_WB_REG),
+      .REGFILE_FWD(REGFILE_FWD)
   ) cpu (
       .clk         (clk),
       .rst_n       (rst_n),
