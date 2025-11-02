@@ -32,12 +32,32 @@ module svc_rv_bcmp #(
   logic lt_signed;
   logic lt_unsigned;
 
+  logic sign_a;
+  logic sign_b;
+  logic mag_lt;
+
   //
   // Comparison operations
   //
   assign eq          = (a == b);
-  assign lt_signed   = $signed(a) < $signed(b);
+
+  //
+  // Unsigned comparison (uses full carry chain)
+  //
   assign lt_unsigned = (a < b);
+
+  //
+  // Signed comparison (optimized to avoid full carry chain)
+  //
+  // Strategy: Compare sign bits first, then magnitudes
+  // - If signs differ: negative < positive
+  // - If signs same: compare magnitudes
+  //
+  assign sign_a      = a[XLEN-1];
+  assign sign_b      = b[XLEN-1];
+  assign mag_lt      = a[XLEN-2:0] < b[XLEN-2:0];
+
+  assign lt_signed   = (sign_a & ~sign_b) | ((sign_a ~^ sign_b) & mag_lt);
 
   //
   // Branch decision based on funct3
