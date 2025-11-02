@@ -33,6 +33,8 @@ module svc_rv_hazard #(
     // ID stage input registers
     input logic [4:0] rs1_id,
     input logic [4:0] rs2_id,
+    input logic       rs1_used,
+    input logic       rs2_used,
 
     // EX stage control signals and destination
     input logic [4:0] rd_ex,
@@ -63,9 +65,11 @@ module svc_rv_hazard #(
   logic ex_hazard_rs2;
   logic ex_hazard;
 
-  assign ex_hazard_rs1 = reg_write_ex && (rd_ex != 5'd0) && (rd_ex == rs1_id);
-  assign ex_hazard_rs2 = reg_write_ex && (rd_ex != 5'd0) && (rd_ex == rs2_id);
-  assign ex_hazard     = ex_hazard_rs1 || ex_hazard_rs2;
+  assign ex_hazard_rs1 = (reg_write_ex && (rd_ex != 5'd0) &&
+                          (rd_ex == rs1_id) && rs1_used);
+  assign ex_hazard_rs2 = (reg_write_ex && (rd_ex != 5'd0) &&
+                          (rd_ex == rs2_id) && rs2_used);
+  assign ex_hazard = ex_hazard_rs1 || ex_hazard_rs2;
 
   //
   // Detect if ID stage reads from MEM stage destination
@@ -75,9 +79,9 @@ module svc_rv_hazard #(
   logic mem_hazard;
 
   assign mem_hazard_rs1 = (reg_write_mem && (rd_mem != 5'd0) &&
-                           (rd_mem == rs1_id));
+                           (rd_mem == rs1_id) && rs1_used);
   assign mem_hazard_rs2 = (reg_write_mem && (rd_mem != 5'd0) &&
-                           (rd_mem == rs2_id));
+                           (rd_mem == rs2_id) && rs2_used);
   assign mem_hazard = mem_hazard_rs1 || mem_hazard_rs2;
 
   //
@@ -97,10 +101,10 @@ module svc_rv_hazard #(
 
     `SVC_UNUSED({rd_wb, reg_write_wb, wb_hazard_rs1, wb_hazard_rs2});
   end else begin : g_wb_hazard
-    assign
-        wb_hazard_rs1 = (reg_write_wb && (rd_wb != 5'd0) && (rd_wb == rs1_id));
-    assign
-        wb_hazard_rs2 = (reg_write_wb && (rd_wb != 5'd0) && (rd_wb == rs2_id));
+    assign wb_hazard_rs1 = (reg_write_wb && (rd_wb != 5'd0) &&
+                            (rd_wb == rs1_id) && rs1_used);
+    assign wb_hazard_rs2 = (reg_write_wb && (rd_wb != 5'd0) &&
+                            (rd_wb == rs2_id) && rs2_used);
     assign wb_hazard = wb_hazard_rs1 || wb_hazard_rs2;
   end
 
