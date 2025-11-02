@@ -1,16 +1,18 @@
 `include "svc_unit.sv"
 
-`include "svc_rv.sv"
+`include "svc_rv_soc_sram.sv"
 
-module svc_rv_tb;
+module svc_rv_soc_sram_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
   localparam int IMEM_AW = 10;
+  localparam int DMEM_AW = 10;
   logic ebreak;
 
-  svc_rv #(
-      .IMEM_AW(IMEM_AW)
+  svc_rv_soc_sram #(
+      .IMEM_AW(IMEM_AW),
+      .DMEM_AW(DMEM_AW)
   ) uut (
       .clk   (clk),
       .rst_n (rst_n),
@@ -51,7 +53,7 @@ module svc_rv_tb;
   // Verifies the processor starts with PC at address 0 after reset.
   //
   task automatic test_reset;
-    `CHECK_EQ(uut.pc, '0);
+    `CHECK_EQ(uut.cpu.pc, '0);
   endtask
 
   //
@@ -69,16 +71,16 @@ module svc_rv_tb;
     load_program();
 
     `TICK(clk);
-    `CHECK_EQ(uut.pc, 32'd4);
+    `CHECK_EQ(uut.cpu.pc, 32'd4);
 
     `TICK(clk);
-    `CHECK_EQ(uut.pc, 32'd8);
+    `CHECK_EQ(uut.cpu.pc, 32'd8);
 
     `TICK(clk);
-    `CHECK_EQ(uut.pc, 32'd12);
+    `CHECK_EQ(uut.cpu.pc, 32'd12);
 
     `TICK(clk);
-    `CHECK_EQ(uut.pc, 32'd16);
+    `CHECK_EQ(uut.cpu.pc, 32'd16);
   endtask
 
   //
@@ -127,11 +129,11 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd42);
-    `CHECK_EQ(uut.regfile.regs[2], 32'hFFFFFFCE);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[4], 32'd2047);
-    `CHECK_EQ(uut.regfile.regs[5], 32'hFFFFF800);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd42);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'hFFFFFFCE);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd2047);
+    `CHECK_EQ(uut.cpu.regfile.regs[5], 32'hFFFFF800);
   endtask
 
   //
@@ -149,9 +151,9 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd255);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd240);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd255);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd240);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd0);
   endtask
 
   //
@@ -169,9 +171,9 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd0);
   endtask
 
   //
@@ -189,9 +191,9 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd1);  // 0 < 10 (signed)
-    `CHECK_EQ(uut.regfile.regs[2], 32'd0);  // 0 >= -10 (signed)
-    `CHECK_EQ(uut.regfile.regs[3], 32'd1);  // 0 < 10 (unsigned)
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd1);  // 0 < 10 (signed)
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd0);  // 0 >= -10 (signed)
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd1);  // 0 < 10 (unsigned)
   endtask
 
   //
@@ -216,16 +218,16 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[4], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[5], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[6], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[7], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[8], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[9], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[10], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[5], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[6], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[7], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[8], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[9], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[10], 32'd0);
   endtask
 
   //
@@ -243,8 +245,8 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[0], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[0], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd0);
   endtask
 
   //
@@ -272,13 +274,13 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd100);
-    `CHECK_EQ(uut.regfile.regs[2], 32'hFFFFFFCE);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[4], 32'd2047);
-    `CHECK_EQ(uut.regfile.regs[5], 32'hFFFFF800);
-    `CHECK_EQ(uut.regfile.regs[6], 32'd10);
-    `CHECK_EQ(uut.regfile.regs[7], 32'd15);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd100);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'hFFFFFFCE);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd2047);
+    `CHECK_EQ(uut.cpu.regfile.regs[5], 32'hFFFFF800);
+    `CHECK_EQ(uut.cpu.regfile.regs[6], 32'd10);
+    `CHECK_EQ(uut.cpu.regfile.regs[7], 32'd15);
   endtask
 
   //
@@ -297,10 +299,10 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd255);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd240);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd255);
-    `CHECK_EQ(uut.regfile.regs[4], 32'd15);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd255);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd240);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd255);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd15);
   endtask
 
   //
@@ -320,11 +322,11 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd10);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd1);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[4], 32'hFFFFFFF6);
-    `CHECK_EQ(uut.regfile.regs[5], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd10);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd1);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'hFFFFFFF6);
+    `CHECK_EQ(uut.cpu.regfile.regs[5], 32'd0);
   endtask
 
   //
@@ -347,14 +349,14 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd1);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd2);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd32);
-    `CHECK_EQ(uut.regfile.regs[4], 32'h80000000);
-    `CHECK_EQ(uut.regfile.regs[5], 32'd128);
-    `CHECK_EQ(uut.regfile.regs[6], 32'd32);
-    `CHECK_EQ(uut.regfile.regs[7], 32'hFFFFFF80);
-    `CHECK_EQ(uut.regfile.regs[8], 32'hFFFFFFE0);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd1);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd2);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd32);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'h80000000);
+    `CHECK_EQ(uut.cpu.regfile.regs[5], 32'd128);
+    `CHECK_EQ(uut.cpu.regfile.regs[6], 32'd32);
+    `CHECK_EQ(uut.cpu.regfile.regs[7], 32'hFFFFFF80);
+    `CHECK_EQ(uut.cpu.regfile.regs[8], 32'hFFFFFFE0);
   endtask
 
   //
@@ -381,12 +383,12 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd100);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd50);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd150);
-    `CHECK_EQ(uut.regfile.regs[4], 32'd50);
-    `CHECK_EQ(uut.regfile.regs[5], 32'hFFFFFFF6);
-    `CHECK_EQ(uut.regfile.regs[6], 32'd40);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd100);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd50);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd150);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd50);
+    `CHECK_EQ(uut.cpu.regfile.regs[5], 32'hFFFFFFF6);
+    `CHECK_EQ(uut.cpu.regfile.regs[6], 32'd40);
   endtask
 
   //
@@ -406,11 +408,11 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd255);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd240);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd240);
-    `CHECK_EQ(uut.regfile.regs[4], 32'd255);
-    `CHECK_EQ(uut.regfile.regs[5], 32'd15);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd255);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd240);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd240);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd255);
+    `CHECK_EQ(uut.cpu.regfile.regs[5], 32'd15);
   endtask
 
   //
@@ -431,12 +433,12 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd8);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd2);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd32);
-    `CHECK_EQ(uut.regfile.regs[4], 32'd2);
-    `CHECK_EQ(uut.regfile.regs[5], 32'hFFFFFFF8);
-    `CHECK_EQ(uut.regfile.regs[6], 32'hFFFFFFFE);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd8);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd2);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd32);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd2);
+    `CHECK_EQ(uut.cpu.regfile.regs[5], 32'hFFFFFFF8);
+    `CHECK_EQ(uut.cpu.regfile.regs[6], 32'hFFFFFFFE);
   endtask
 
   //
@@ -457,12 +459,12 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd10);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd20);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd1);
-    `CHECK_EQ(uut.regfile.regs[4], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[5], 32'hFFFFFFF6);
-    `CHECK_EQ(uut.regfile.regs[6], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd10);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd20);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd1);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[5], 32'hFFFFFFF6);
+    `CHECK_EQ(uut.cpu.regfile.regs[6], 32'd0);
   endtask
 
   //
@@ -485,8 +487,8 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd10);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd15);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd10);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd15);
   endtask
 
   //
@@ -522,16 +524,16 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd100);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd200);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd100);
-    `CHECK_EQ(uut.regfile.regs[10], 32'd5);
-    `CHECK_EQ(uut.regfile.regs[11], 32'd10);
-    `CHECK_EQ(uut.regfile.regs[20], 32'd1);
-    `CHECK_EQ(uut.regfile.regs[21], 32'd2);
-    `CHECK_EQ(uut.regfile.regs[22], 32'd3);
-    `CHECK_EQ(uut.regfile.regs[23], 32'd4);
-    `CHECK_EQ(uut.regfile.regs[24], 32'd5);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd100);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd200);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd100);
+    `CHECK_EQ(uut.cpu.regfile.regs[10], 32'd5);
+    `CHECK_EQ(uut.cpu.regfile.regs[11], 32'd10);
+    `CHECK_EQ(uut.cpu.regfile.regs[20], 32'd1);
+    `CHECK_EQ(uut.cpu.regfile.regs[21], 32'd2);
+    `CHECK_EQ(uut.cpu.regfile.regs[22], 32'd3);
+    `CHECK_EQ(uut.cpu.regfile.regs[23], 32'd4);
+    `CHECK_EQ(uut.cpu.regfile.regs[24], 32'd5);
   endtask
 
   //
@@ -555,8 +557,8 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd4);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd4);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd0);
   endtask
 
   //
@@ -573,8 +575,8 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd4);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd4);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd0);
   endtask
 
   //
@@ -591,8 +593,8 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd4);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd4);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd0);
   endtask
 
   //
@@ -610,9 +612,9 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd8);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd99);
-    `CHECK_EQ(uut.regfile.regs[5], 32'd16);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd8);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd99);
+    `CHECK_EQ(uut.cpu.regfile.regs[5], 32'd16);
   endtask
 
   //
@@ -632,8 +634,8 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd4);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd42);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd4);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd42);
   endtask
 
   //
@@ -656,12 +658,12 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd4);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[4], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[5], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[6], 32'd5);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd4);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[5], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[6], 32'd5);
   endtask
 
   //
@@ -682,11 +684,11 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd12);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd1);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd2);
-    `CHECK_EQ(uut.regfile.regs[4], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[5], 32'd3);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd12);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd1);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd2);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[5], 32'd3);
   endtask
 
   //
@@ -708,12 +710,12 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd4);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[4], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[5], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[6], 32'd5);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd4);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[5], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[6], 32'd5);
   endtask
 
   //
@@ -739,10 +741,10 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd42);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd42);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[4], 32'd100);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd42);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd42);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd100);
   endtask
 
   //
@@ -761,9 +763,9 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd42);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd43);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd100);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd42);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd43);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd100);
   endtask
 
   //
@@ -783,9 +785,9 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR(clk, ebreak, 128);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd5);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd5);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd99);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd5);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd5);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd99);
   endtask
 
   //
@@ -804,9 +806,9 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd42);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd42);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd100);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd42);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd42);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd100);
   endtask
 
   //
@@ -826,10 +828,10 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'hFFFFFFF6);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd10);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[4], 32'd100);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'hFFFFFFF6);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd10);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd100);
   endtask
 
   //
@@ -847,9 +849,9 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd10);
-    `CHECK_EQ(uut.regfile.regs[2], 32'hFFFFFFF6);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd100);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd10);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'hFFFFFFF6);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd100);
   endtask
 
   //
@@ -868,8 +870,8 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[4], 32'd100);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd100);
   endtask
 
   //
@@ -887,7 +889,7 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd100);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd100);
   endtask
 
   //
@@ -906,8 +908,8 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[4], 32'd100);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd100);
   endtask
 
   //
@@ -927,8 +929,8 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[4], 32'd100);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd100);
   endtask
 
   //
@@ -946,7 +948,7 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd100);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd100);
   endtask
 
   //
@@ -965,8 +967,8 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[4], 32'd100);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd100);
   endtask
 
   //
@@ -984,7 +986,7 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd100);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd100);
   endtask
 
   //
@@ -1002,8 +1004,8 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd100);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd100);
   endtask
 
   //
@@ -1022,9 +1024,9 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR(clk, ebreak, 128);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd5);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd5);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd99);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd5);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd5);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd99);
   endtask
 
   //
@@ -1048,9 +1050,9 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'h12345000);
-    `CHECK_EQ(uut.regfile.regs[2], 32'hABCDE000);
-    `CHECK_EQ(uut.regfile.regs[3], 32'h00001000);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'h12345000);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'hABCDE000);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'h00001000);
   endtask
 
   //
@@ -1065,7 +1067,7 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'h00000000);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'h00000000);
   endtask
 
   //
@@ -1081,7 +1083,7 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'hFFFFF000);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'hFFFFF000);
   endtask
 
   //
@@ -1098,8 +1100,8 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'h00001000);
-    `CHECK_EQ(uut.regfile.regs[2], 32'h00002004);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'h00001000);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'h00002004);
   endtask
 
   //
@@ -1114,7 +1116,7 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'h00000000);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'h00000000);
   endtask
 
   //
@@ -1133,7 +1135,7 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'hFFFFF00C);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'hFFFFF00C);
   endtask
 
   //
@@ -1151,9 +1153,9 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd100);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[3], 32'hFFFFFFCE);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd100);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'hFFFFFFCE);
   endtask
 
   //
@@ -1171,8 +1173,8 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'h12345678);
-    `CHECK_EQ(uut.regfile.regs[2], 32'hDEADBEEF);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'h12345678);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'hDEADBEEF);
   endtask
 
   //
@@ -1189,7 +1191,7 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'h12345678);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'h12345678);
   endtask
 
   //
@@ -1219,9 +1221,9 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[2], 32'hDEADBEEF);
-    `CHECK_EQ(uut.regfile.regs[3], 32'h12345678);
-    `CHECK_EQ(uut.regfile.regs[4], 32'hCAFEBABE);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'hDEADBEEF);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'h12345678);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'hCAFEBABE);
     `TICK(clk);
     `CHECK_EQ(uut.dmem.mem[3], 32'hABCD1234);
   endtask
@@ -1245,10 +1247,10 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[2], 32'hFFFFFFEF);
-    `CHECK_EQ(uut.regfile.regs[3], 32'hFFFFFFCD);
-    `CHECK_EQ(uut.regfile.regs[4], 32'hFFFFFFAB);
-    `CHECK_EQ(uut.regfile.regs[5], 32'hFFFFFF89);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'hFFFFFFEF);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'hFFFFFFCD);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'hFFFFFFAB);
+    `CHECK_EQ(uut.cpu.regfile.regs[5], 32'hFFFFFF89);
   endtask
 
   //
@@ -1269,10 +1271,10 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[2], 32'h000000EF);
-    `CHECK_EQ(uut.regfile.regs[3], 32'h000000CD);
-    `CHECK_EQ(uut.regfile.regs[4], 32'h000000AB);
-    `CHECK_EQ(uut.regfile.regs[5], 32'h00000089);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'h000000EF);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'h000000CD);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'h000000AB);
+    `CHECK_EQ(uut.cpu.regfile.regs[5], 32'h00000089);
   endtask
 
   //
@@ -1291,8 +1293,8 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[2], 32'hFFFFCDEF);
-    `CHECK_EQ(uut.regfile.regs[3], 32'hFFFF8765);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'hFFFFCDEF);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'hFFFF8765);
   endtask
 
   //
@@ -1311,8 +1313,8 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[2], 32'h0000CDEF);
-    `CHECK_EQ(uut.regfile.regs[3], 32'h00008765);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'h0000CDEF);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'h00008765);
   endtask
 
   //
@@ -1417,7 +1419,7 @@ module svc_rv_tb;
 
     `CHECK_WAIT_FOR_EBREAK(clk);
     `TICK(clk);
-    `CHECK_EQ(uut.regfile.regs[3], 32'h11223344);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'h11223344);
     `CHECK_EQ(uut.dmem.mem[0], 32'h11223344);
   endtask
 
@@ -1440,9 +1442,9 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'd0);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd42);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd43);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd0);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd42);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd43);
   endtask
 
   //
@@ -1469,11 +1471,11 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[2], 32'd10);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd20);
-    `CHECK_EQ(uut.regfile.regs[4], 32'd30);
-    `CHECK_EQ(uut.regfile.regs[5], 32'd30);
-    `CHECK_EQ(uut.regfile.regs[6], 32'd60);
+    `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd10);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd20);
+    `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd30);
+    `CHECK_EQ(uut.cpu.regfile.regs[5], 32'd30);
+    `CHECK_EQ(uut.cpu.regfile.regs[6], 32'd60);
     `CHECK_EQ(uut.dmem.mem[3], 32'd30);
     `TICK(clk);
     `CHECK_EQ(uut.dmem.mem[4], 32'd60);
@@ -1502,9 +1504,9 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[5], 32'h56783412);
-    `CHECK_EQ(uut.regfile.regs[6], 32'h00003412);
-    `CHECK_EQ(uut.regfile.regs[7], 32'h00000056);
+    `CHECK_EQ(uut.cpu.regfile.regs[5], 32'h56783412);
+    `CHECK_EQ(uut.cpu.regfile.regs[6], 32'h00003412);
+    `CHECK_EQ(uut.cpu.regfile.regs[7], 32'h00000056);
   endtask
 
   //
@@ -1527,7 +1529,7 @@ module svc_rv_tb;
 
     `CHECK_WAIT_FOR_EBREAK(clk);
     #0;
-    `CHECK_TRUE(uut.regfile.regs[1] > 32'h0);
+    `CHECK_TRUE(uut.cpu.regfile.regs[1] > 32'h0);
   endtask
 
   //
@@ -1540,7 +1542,7 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'h0);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'h0);
   endtask
 
   //
@@ -1556,7 +1558,7 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_TRUE(uut.regfile.regs[1] > 32'h0);
+    `CHECK_TRUE(uut.cpu.regfile.regs[1] > 32'h0);
   endtask
 
   //
@@ -1569,7 +1571,7 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_EQ(uut.regfile.regs[1], 32'h0);
+    `CHECK_EQ(uut.cpu.regfile.regs[1], 32'h0);
   endtask
 
   //
@@ -1590,9 +1592,9 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_TRUE(uut.regfile.regs[1] > 32'h0);
-    `CHECK_TRUE(uut.regfile.regs[2] > uut.regfile.regs[1]);
-    `CHECK_TRUE(uut.regfile.regs[3] > 32'h0);
+    `CHECK_TRUE(uut.cpu.regfile.regs[1] > 32'h0);
+    `CHECK_TRUE(uut.cpu.regfile.regs[2] > uut.cpu.regfile.regs[1]);
+    `CHECK_TRUE(uut.cpu.regfile.regs[3] > 32'h0);
   endtask
 
   //
@@ -1613,9 +1615,9 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR_EBREAK(clk);
-    `CHECK_TRUE(uut.regfile.regs[1] > 32'h0);
-    `CHECK_TRUE(uut.regfile.regs[2] > uut.regfile.regs[1]);
-    `CHECK_EQ(uut.regfile.regs[3], 32'd4);
+    `CHECK_TRUE(uut.cpu.regfile.regs[1] > 32'h0);
+    `CHECK_TRUE(uut.cpu.regfile.regs[2] > uut.cpu.regfile.regs[1]);
+    `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd4);
   endtask
 
   //
@@ -1662,11 +1664,11 @@ module svc_rv_tb;
     load_program();
 
     `CHECK_WAIT_FOR(clk, ebreak, 256);
-    `CHECK_EQ(uut.regfile.regs[11], 32'd144);
-    `CHECK_EQ(uut.regfile.regs[30], 32'd288);
+    `CHECK_EQ(uut.cpu.regfile.regs[11], 32'd144);
+    `CHECK_EQ(uut.cpu.regfile.regs[30], 32'd288);
 
-    cycles = uut.regfile.regs[24];
-    instrs = uut.regfile.regs[25];
+    cycles = uut.cpu.regfile.regs[24];
+    instrs = uut.cpu.regfile.regs[25];
     cpi    = cycles / instrs;
     `CHECK_EQ(cpi, 1);
   endtask
@@ -1739,8 +1741,8 @@ module svc_rv_tb;
     `CHECK_EQ(uut.dmem.mem[6], 32'd88);
     `CHECK_EQ(uut.dmem.mem[7], 32'd90);
 
-    cycles = uut.regfile.regs[26];
-    instrs = uut.regfile.regs[27];
+    cycles = uut.cpu.regfile.regs[26];
+    instrs = uut.cpu.regfile.regs[27];
     cpi    = cycles / instrs;
     `CHECK_EQ(cpi, 1);
   endtask
@@ -1748,7 +1750,7 @@ module svc_rv_tb;
   //
   // Test setup
   //
-  `TEST_SUITE_BEGIN(svc_rv_tb);
+  `TEST_SUITE_BEGIN(svc_rv_soc_sram_tb);
 
   // Basic tests
   `TEST_CASE(test_reset);
