@@ -309,7 +309,8 @@ module svc_rv #(
   // Register File
   //
   svc_rv_regfile #(
-      .XLEN(XLEN)
+      .XLEN            (XLEN),
+      .INTERNAL_FORWARD(PIPELINED)
   ) regfile (
       .clk     (clk),
       .rst_n   (rst_n),
