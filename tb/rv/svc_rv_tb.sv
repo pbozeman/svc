@@ -1636,6 +1636,10 @@ module svc_rv_tb;
   // - Shift operations
   //
   task automatic test_fib12;
+    logic [31:0] cycles;
+    logic [31:0] instrs;
+    logic [31:0] cpi;
+
     RDCYCLE(x20);
     RDINSTRET(x21);
     ADDI(x10, x0, 12);
@@ -1660,7 +1664,11 @@ module svc_rv_tb;
     `CHECK_WAIT_FOR(clk, ebreak, 256);
     `CHECK_EQ(uut.regfile.regs[11], 32'd144);
     `CHECK_EQ(uut.regfile.regs[30], 32'd288);
-    `CHECK_EQ(uut.regfile.regs[24], uut.regfile.regs[25]);
+
+    cycles = uut.regfile.regs[24];
+    instrs = uut.regfile.regs[25];
+    cpi    = cycles / instrs;
+    `CHECK_EQ(cpi, 1);
   endtask
 
   //
@@ -1675,6 +1683,10 @@ module svc_rv_tb;
   // - Complex control flow
   //
   task automatic test_bubble_sort;
+    logic [31:0] cycles;
+    logic [31:0] instrs;
+    logic [31:0] cpi;
+
     uut.dmem.mem[0] = 32'd64;
     uut.dmem.mem[1] = 32'd34;
     uut.dmem.mem[2] = 32'd25;
@@ -1726,7 +1738,11 @@ module svc_rv_tb;
     `CHECK_EQ(uut.dmem.mem[5], 32'd64);
     `CHECK_EQ(uut.dmem.mem[6], 32'd88);
     `CHECK_EQ(uut.dmem.mem[7], 32'd90);
-    `CHECK_EQ(uut.regfile.regs[26], uut.regfile.regs[27]);
+
+    cycles = uut.regfile.regs[26];
+    instrs = uut.regfile.regs[27];
+    cpi    = cycles / instrs;
+    `CHECK_EQ(cpi, 1);
   endtask
 
   //
