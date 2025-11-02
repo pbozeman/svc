@@ -2,7 +2,7 @@
 
 `include "svc_rv_soc_sram.sv"
 
-module svc_rv_soc_sram_tb;
+module svc_rv_soc_sram_pipelined_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
@@ -25,7 +25,7 @@ module svc_rv_soc_sram_tb;
   //
   // Test suite
   //
-  `TEST_SUITE_BEGIN(svc_rv_soc_sram_tb);
+  `TEST_SUITE_BEGIN(svc_rv_soc_sram_pipelined_tb);
   `include "svc_rv_soc_test_list.svh"
   `TEST_SUITE_END();
 

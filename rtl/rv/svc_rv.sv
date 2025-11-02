@@ -12,13 +12,15 @@
 `include "svc_rv_idec.sv"
 `include "svc_rv_ld_fmt.sv"
 `include "svc_rv_pc.sv"
+`include "svc_rv_reg_if_id.sv"
 `include "svc_rv_regfile.sv"
 `include "svc_rv_st_fmt.sv"
 
 module svc_rv #(
-    parameter int XLEN    = 32,
-    parameter int IMEM_AW = 10,
-    parameter int DMEM_AW = 10
+    parameter int XLEN      = 32,
+    parameter int IMEM_AW   = 10,
+    parameter int DMEM_AW   = 10,
+    parameter int IF_ID_REG = 0
 ) (
     input logic clk,
     input logic rst_n,
@@ -61,6 +63,13 @@ module svc_rv #(
   logic [    31:0] instr;
   logic [XLEN-1:0] jb_target;
   logic            pc_sel;
+
+  //
+  // IF/ID pipeline register signals
+  //
+  logic [    31:0] instr_id;
+  logic [XLEN-1:0] pc_id;
+  logic [XLEN-1:0] pc_plus4_id;
 
   //
   // Decoder signals
@@ -151,13 +160,34 @@ module svc_rv #(
   assign instr        = imem_rdata;
 
   //----------------------------------------------------------------------------
-  // Instruction Decode
+  // IF/ID Pipeline Boundary
   //----------------------------------------------------------------------------
 
+  svc_rv_reg_if_id #(
+      .XLEN     (XLEN),
+      .IF_ID_REG(IF_ID_REG)
+  ) reg_if_id (
+      .clk  (clk),
+      .rst_n(rst_n),
+
+      // IF signals
+      .instr_if   (instr),
+      .pc_if      (pc),
+      .pc_plus4_if(pc_plus4),
+
+      // ID signals
+      .instr_id   (instr_id),
+      .pc_id      (pc_id),
+      .pc_plus4_id(pc_plus4_id)
+  );
+
+  //
+  // Instruction Decode
+  //
   svc_rv_idec #(
       .XLEN(XLEN)
   ) idec (
-      .instr        (instr),
+      .instr        (instr_id),
       .reg_write    (reg_write),
       .mem_write    (mem_write),
       .alu_a_src    (alu_a_src),
@@ -221,7 +251,7 @@ module svc_rv #(
       .alu_instr(alu_instr),
       .funct3   (funct3),
       .funct7_b5(funct7[5]),
-      .op_b5    (instr[5]),
+      .op_b5    (instr_id[5]),
       .alu_op   (alu_op)
   );
 
@@ -233,7 +263,7 @@ module svc_rv #(
       .N    (3)
   ) mux_alu_a (
       .sel (alu_a_src),
-      .data({pc, {XLEN{1'b0}}, rs1_data}),
+      .data({pc_id, {XLEN{1'b0}}, rs1_data}),
       .out (alu_a)
   );
 
@@ -286,7 +316,7 @@ module svc_rv #(
   //
   // PC-relative target: Dedicated adder for JAL and branches
   //
-  assign jb_target_pc_rel = pc + imm;
+  assign jb_target_pc_rel = pc_id + imm;
 
   svc_muxn #(
       .WIDTH(XLEN),
@@ -377,16 +407,16 @@ module svc_rv #(
       .N    (5)
   ) mux_res (
       .sel (res_src),
-      .data({csr_rdata, jb_target, pc_plus4, dmem_rdata_ext, alu_result}),
+      .data({csr_rdata, jb_target, pc_plus4_id, dmem_rdata_ext, alu_result}),
       .out (rd_data)
   );
 
 
-  assign ebreak = (rst_n && instr == I_EBREAK);
+  assign ebreak = (rst_n && instr_id == I_EBREAK);
 
   `SVC_UNUSED({IMEM_AW, DMEM_AW, imem_arready, imem_rvalid, dmem_awready,
-               dmem_wready, dmem_arready, dmem_rvalid, pc[1:0], funct7[6],
-               funct7[4:0]});
+               dmem_wready, dmem_arready, dmem_rvalid, pc, pc_plus4,
+               pc_id[1:0], funct7[6], funct7[4:0]});
 
 endmodule
 
