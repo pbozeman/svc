@@ -9,30 +9,30 @@ module svc_rv_soc_sram_pipelined_tb;
   localparam int IMEM_AW = 10;
   localparam int DMEM_AW = 10;
 
-  // These cpi are terrible, but these are our current cpi. Aside from
-  // optimizations like branch prediction, there are currently 2 design issues
-  // that need to be addressed. 1) We have WB hazards that could be addressed by
-  // forwarding within the reg file. 2) We are overly conservative with rs2 in
-  // the hazard unit because it doesn't know the difference between rs2
-  // conflicts and immediate. Also, we don't have forwarding in general yet
-  // because it synthesizes poorly on lattice fpga.
-  localparam real alu_indep_max_cpi = 2.0;
-  localparam real alu_chain_max_cpi = 3.5;
-  localparam real br_taken_max_cpi = 3.5;
-  localparam real br_not_taken_max_cpi = 3.5;
+  //
+  // CPI expectations without regfile internal forwarding
+  //
+  // No regfile forwarding for better fmax on ice40 and similar FPGAs.
+  // WB hazards require stalling, increasing CPI.
+  //
+  localparam real alu_indep_max_cpi = 2.1;
+  localparam real alu_chain_max_cpi = 3.6;
+  localparam real br_taken_max_cpi = 3.6;
+  localparam real br_not_taken_max_cpi = 3.1;
   localparam real load_use_max_cpi = 3.1;
-  localparam real mixed_alu_max_cpi = 3.5;
+  localparam real mixed_alu_max_cpi = 3.3;
   localparam real fib12_max_cpi = 2.2;
   localparam real bubble_max_cpi = 2.5;
   logic ebreak;
 
   svc_rv_soc_sram #(
-      .IMEM_AW   (IMEM_AW),
-      .DMEM_AW   (DMEM_AW),
-      .IF_ID_REG (1),
-      .ID_EX_REG (1),
-      .EX_MEM_REG(1),
-      .MEM_WB_REG(1)
+      .IMEM_AW    (IMEM_AW),
+      .DMEM_AW    (DMEM_AW),
+      .IF_ID_REG  (1),
+      .ID_EX_REG  (1),
+      .EX_MEM_REG (1),
+      .MEM_WB_REG (1),
+      .REGFILE_FWD(0)
   ) uut (
       .clk   (clk),
       .rst_n (rst_n),
