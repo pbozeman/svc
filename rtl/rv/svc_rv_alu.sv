@@ -26,21 +26,31 @@ module svc_rv_alu #(
 );
   `include "svc_rv_defs.svh"
 
+  logic [4:0] shamt;
+
+  //
+  // Extract shift amount
+  //
+  assign shamt = b[4:0];
+
   //
   // Combinational ALU operations
   //
-  // verilog_format: off
-  assign result = (alu_op == ALU_ADD)  ? a + b :
-                  (alu_op == ALU_SUB)  ? a - b :
-                  (alu_op == ALU_AND)  ? a & b :
-                  (alu_op == ALU_OR)   ? a | b :
-                  (alu_op == ALU_XOR)  ? a ^ b :
-                  (alu_op == ALU_SLT)  ? {{(XLEN - 1) {1'b0}}, ($signed(a) < $signed(b))} :
-                  (alu_op == ALU_SLTU) ? {{(XLEN - 1) {1'b0}}, (a < b)} :
-                  (alu_op == ALU_SLL)  ? a << b[4:0] :
-                  (alu_op == ALU_SRL)  ? a >> b[4:0] :
-                  (alu_op == ALU_SRA)  ? $unsigned($signed(a) >>> b[4:0]) : {XLEN{1'bx}};
-  // verilog_format: on
+  always_comb begin
+    case (alu_op)
+      ALU_ADD:  result = a + b;
+      ALU_SUB:  result = a - b;
+      ALU_AND:  result = a & b;
+      ALU_OR:   result = a | b;
+      ALU_XOR:  result = a ^ b;
+      ALU_SLT:  result = {{(XLEN - 1) {1'b0}}, ($signed(a) < $signed(b))};
+      ALU_SLTU: result = {{(XLEN - 1) {1'b0}}, (a < b)};
+      ALU_SLL:  result = a << shamt;
+      ALU_SRL:  result = a >> shamt;
+      ALU_SRA:  result = $unsigned($signed(a) >>> shamt);
+      default:  result = {XLEN{1'bx}};
+    endcase
+  end
 
 endmodule
 
