@@ -5,18 +5,17 @@
 `include "svc_unused.sv"
 
 //
-// Block RAM with AXI4-Lite-ish interface
+// Block RAM with simple memory interface
 //
 // Read behavior:
 // - Registered reads (1-cycle latency)
-// - arvalid & arready → rvalid & rdata NEXT cycle
-// - arready can backpressure if previous read not consumed (rready=0)
-// - Read data held stable until rready asserted
+// - rd_valid → rd_data_valid & rd_data NEXT cycle
+// - Caller must be ready to accept response when asserting rd_valid
 //
 // Write behavior:
 // - Synchronous writes with byte strobes
-// - Always accepts write requests (awready/wready always high)
-// - Writes complete immediately (no write response channel)
+// - Always accepts write requests
+// - Writes complete immediately (no write response)
 //
 // Read-during-write:
 // - Returns OLD data (standard BRAM behavior)
@@ -31,56 +30,33 @@ module svc_mem_bram #(
     input logic clk,
     input logic rst_n,
 
-    //
-    // Read channel
-    //
-    input  logic [31:0] araddr,
-    input  logic        arvalid,
-    output logic        arready,
+    // Read request
+    input logic [31:0] rd_addr,
+    input logic        rd_valid,
 
-    //
-    // Read data channel
-    //
-    output logic [DW-1:0] rdata,
-    output logic          rvalid,
-    input  logic          rready,
+    // Read response
+    output logic [DW-1:0] rd_data,
+    output logic          rd_data_valid,
 
-    //
-    // Write address channel
-    //
-    input  logic [31:0] awaddr,
-    input  logic        awvalid,
-    output logic        awready,
-
-    //
-    // Write data channel
-    //
-    input  logic [  DW-1:0] wdata,
-    input  logic [DW/8-1:0] wstrb,
-    input  logic            wvalid,
-    output logic            wready
+    // Write request
+    input logic [    31:0] wr_addr,
+    input logic [  DW-1:0] wr_data,
+    input logic [DW/8-1:0] wr_strb,
+    input logic            wr_valid
 );
-
-  //
   // Block RAM inference
-  //
   (* ramstyle = "block" *)
   (* ram_style = "block" *)
   logic [DW-1:0] mem          [2**AW];
-  logic [DW-1:0] rdata_next;
 
-  //
   // Word address extraction (shift off byte offset)
-  //
   logic [AW-1:0] word_addr_rd;
   logic [AW-1:0] word_addr_wr;
 
-  assign word_addr_rd = araddr[AW-1+2:2];
-  assign word_addr_wr = awaddr[AW-1+2:2];
+  assign word_addr_rd = rd_addr[AW-1+2:2];
+  assign word_addr_wr = wr_addr[AW-1+2:2];
 
-  //
   // Initialize memory
-  //
   initial begin : init_block
 `ifndef SYNTHESIS
     for (int i = 0; i < 2 ** AW; i = i + 1) begin
@@ -93,43 +69,18 @@ module svc_mem_bram #(
     end
   end
 
-  //
-  // Read address channel
-  //
-  // Can only accept new read if:
-  // - No outstanding response (rvalid=0), OR
-  // - Outstanding response being consumed (rvalid=1 && rready=1)
-  //
-  assign arready    = !rvalid || rready;
-
-  //
-  // Combinational read path
-  //
-  assign rdata_next = mem[word_addr_rd];
-
-  //
-  // Registered read output (1-cycle latency)
-  //
-  // Only update rdata/rvalid when:
-  // - No outstanding response (rvalid=0), OR
-  // - Outstanding response consumed (rready=1)
-  //
+  // Registered read (1-cycle latency)
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      rdata  <= {DW{1'b0}};
-      rvalid <= 1'b0;
-    end else if (!rvalid || rready) begin
-      rdata  <= rdata_next;
-      rvalid <= arvalid;
+      rd_data       <= {DW{1'b0}};
+      rd_data_valid <= 1'b0;
+    end else begin
+      rd_data       <= mem[word_addr_rd];
+      rd_data_valid <= rd_valid;
     end
   end
 
-  //
   // Synchronous write with byte strobes
-  //
-  assign awready = 1'b1;
-  assign wready  = 1'b1;
-
   always_ff @(posedge clk) begin
     if (!rst_n) begin
 `ifndef SYNTHESIS
@@ -139,16 +90,16 @@ module svc_mem_bram #(
         end
       end
 `endif
-    end else if (awvalid && wvalid) begin
+    end else if (wr_valid) begin
       for (int i = 0; i < DW / 8; i++) begin
-        if (wstrb[i]) begin
-          mem[word_addr_wr][i*8+:8] <= wdata[i*8+:8];
+        if (wr_strb[i]) begin
+          mem[word_addr_wr][i*8+:8] <= wr_data[i*8+:8];
         end
       end
     end
   end
 
-  `SVC_UNUSED({araddr[31:AW+2], araddr[1:0], awaddr[31:AW+2], awaddr[1:0]});
+  `SVC_UNUSED({rd_addr[31:AW+2], rd_addr[1:0], wr_addr[31:AW+2], wr_addr[1:0]});
 
 endmodule
 
