@@ -103,6 +103,14 @@
 `TEST_CASE(test_csr_cycle_increments);
 `TEST_CASE(test_csr_instret_increments);
 
+// CPI micro-benchmarks - characterize pipeline performance
+`TEST_CASE(test_cpi_alu_independent);
+`TEST_CASE(test_cpi_alu_chain);
+`TEST_CASE(test_cpi_branch_taken);
+`TEST_CASE(test_cpi_branch_not_taken);
+`TEST_CASE(test_cpi_load_use);
+`TEST_CASE(test_cpi_mixed_alu);
+
 // Smoke tests
 `TEST_CASE(test_fib12);
 `TEST_CASE(test_bubble_sort);

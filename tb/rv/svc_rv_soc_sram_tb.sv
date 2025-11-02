@@ -8,8 +8,14 @@ module svc_rv_soc_sram_tb;
 
   localparam int IMEM_AW = 10;
   localparam int DMEM_AW = 10;
-  localparam real fib12_expected_cpi = 1.0;
-  localparam real bubble_expected_cpi = 1.0;
+  localparam real alu_indep_max_cpi = 1.0;
+  localparam real alu_chain_max_cpi = 1.0;
+  localparam real br_taken_max_cpi = 1.0;
+  localparam real br_not_taken_max_cpi = 1.0;
+  localparam real load_use_max_cpi = 1.0;
+  localparam real mixed_alu_max_cpi = 1.0;
+  localparam real fib12_max_cpi = 1.0;
+  localparam real bubble_max_cpi = 1.0;
   logic ebreak;
 
   svc_rv_soc_sram #(
@@ -30,7 +36,7 @@ module svc_rv_soc_sram_tb;
   //
   // Test suite
   //
-  `TEST_SUITE_BEGIN(svc_rv_soc_sram_tb);
+  `TEST_SUITE_BEGIN(svc_rv_soc_sram_tb, 100000);
   `include "svc_rv_soc_test_list.svh"
   `TEST_SUITE_END();
 
