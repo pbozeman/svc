@@ -34,9 +34,13 @@ module svc_rv_hazard (
     input logic [4:0] rd_wb,
     input logic       reg_write_wb,
 
+    // Control flow changes (branches/jumps taken in EX stage)
+    input logic pc_sel,
+
     // Hazard control outputs
     output logic pc_stall,
     output logic if_id_stall,
+    output logic if_id_flush,
     output logic id_ex_flush
 );
 
@@ -78,18 +82,28 @@ module svc_rv_hazard (
   //
   // Generate stall and flush signals
   //
-  // We need to stall if there's a hazard in EX, MEM, or WB stage.
+  // Data hazards: We need to stall if there's a RAW hazard in EX, MEM, or WB stage.
   // WB stage also causes hazards because the regfile write is synchronous
   // and the data won't be visible to ID stage reads in the same cycle.
   //
-  // When a hazard is detected:
+  // When a data hazard is detected:
   // - Stall PC to prevent fetching new instructions
   // - Stall IF/ID to hold current instruction in decode
   // - Flush ID/EX to insert a bubble (NOP) in execute stage
   //
-  assign pc_stall      = ex_hazard || mem_hazard || wb_hazard;
-  assign if_id_stall   = ex_hazard || mem_hazard || wb_hazard;
-  assign id_ex_flush   = ex_hazard || mem_hazard || wb_hazard;
+  // Control hazards: When a branch/jump is taken (pc_sel asserted in EX stage),
+  // we need to flush the instructions already in the pipeline:
+  // - Flush IF/ID (the instruction we just fetched shouldn't execute)
+  // - Flush ID/EX (the instruction we just decoded shouldn't execute)
+  //
+  logic data_hazard;
+
+  assign data_hazard = ex_hazard || mem_hazard || wb_hazard;
+
+  assign pc_stall    = data_hazard;
+  assign if_id_stall = data_hazard;
+  assign if_id_flush = pc_sel;
+  assign id_ex_flush = data_hazard || pc_sel;
 
 endmodule
 

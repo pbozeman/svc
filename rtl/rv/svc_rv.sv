@@ -194,15 +194,17 @@ module svc_rv #(
   //
   logic            pc_stall;
   logic            if_id_stall;
+  logic            if_id_flush;
   logic            id_ex_flush;
 
   //
   // Instruction retirement
   //
-  // In this single-cycle implementation, every instruction retires every cycle.
-  // In a pipelined implementation, this would be connected to pipeline commit logic.
+  // An instruction retires when it reaches WB and is not a bubble.
+  // Bubbles are injected as 0 on reset. Flushed instructions become NOPs
+  // (0x00000013) which also should not count as retired.
   //
-  assign instr_retired = 1'b1;
+  assign instr_retired = (instr_wb != 32'h0) && (instr_wb != 32'h00000013);
 
   //
   // PC
@@ -249,6 +251,7 @@ module svc_rv #(
 
       // hazard control
       .stall(if_id_stall),
+      .flush(if_id_flush),
 
       // IF signals
       .instr_if   (instr),
@@ -343,14 +346,19 @@ module svc_rv #(
         .rd_wb       (rd_wb),
         .reg_write_wb(reg_write_wb),
 
+        // Control flow changes
+        .pc_sel(pc_sel),
+
         // hazard control outputs
         .pc_stall   (pc_stall),
         .if_id_stall(if_id_stall),
+        .if_id_flush(if_id_flush),
         .id_ex_flush(id_ex_flush)
     );
   end else begin : g_no_hazard
     assign pc_stall    = 1'b0;
     assign if_id_stall = 1'b0;
+    assign if_id_flush = 1'b0;
     assign id_ex_flush = 1'b0;
   end
 
@@ -548,7 +556,7 @@ module svc_rv #(
   svc_rv_csr csr (
       .clk        (clk),
       .rst_n      (rst_n),
-      .csr_addr   (imm_id[11:0]),
+      .csr_addr   (imm_ex[11:0]),
       .csr_rdata  (csr_rdata_ex),
       .instret_inc(instr_retired)
   );

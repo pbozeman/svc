@@ -14,6 +14,72 @@ logic [31:0] MEM[1024];
 
 `define CHECK_WAIT_FOR_EBREAK(clk) `CHECK_WAIT_FOR(clk, ebreak, 128)
 
+// CHECK_XXX don't work on strings or reals, so we partially reimplement
+// the checks here. String/Real detection in the core macros would be nice.
+`define CHECK_CPI(name, expected_cpi, cycles, instrs)                         \
+  begin                                                                       \
+    real cpi_real;                                                            \
+    real cpi_min;                                                             \
+    real cpi_max;                                                             \
+    string msg;                                                               \
+    cpi_real = calc_cpi(name, cycles, instrs);                                \
+    cpi_min = expected_cpi * 0.95;                                            \
+    cpi_max = expected_cpi * 1.05;                                            \
+    if (cpi_real < cpi_min) begin                                             \
+      $sformat(msg, "%s%s%s:%s%0d%s CHECK_GTE(%scpi_real%s=%f, cpi_min=%f)",  \
+               `COLOR_YELLOW, `__FILE__, `COLOR_RESET,                        \
+               `COLOR_RED, `__LINE__, `COLOR_RESET,                           \
+               `COLOR_YELLOW, `COLOR_RESET, cpi_real, cpi_min);               \
+      `FATAL_MSG(msg);                                                        \
+    end                                                                       \
+    if (cpi_real > cpi_max) begin                                             \
+      $sformat(msg, "%s%s%s:%s%0d%s CHECK_LTE(%scpi_real%s=%f, cpi_max=%f)",  \
+               `COLOR_YELLOW, `__FILE__, `COLOR_RESET,                        \
+               `COLOR_RED, `__LINE__, `COLOR_RESET,                           \
+               `COLOR_YELLOW, `COLOR_RESET, cpi_real, cpi_max);               \
+      `FATAL_MSG(msg);                                                        \
+    end                                                                       \
+  end
+
+//
+// CPI reporting control
+//
+bit          cpi_report_en;
+logic [31:0] fib12_cpi_cycles;
+logic [31:0] fib12_cpi_instrs;
+real         fib12_cpi_real;
+bit          fib12_cpi_valid;
+
+logic [31:0] bubble_cpi_cycles;
+logic [31:0] bubble_cpi_instrs;
+real         bubble_cpi_real;
+bit          bubble_cpi_valid;
+
+initial begin
+  bit svc_tb_rpt;
+  if ($value$plusargs("SVC_TB_RPT=%b", svc_tb_rpt) && svc_tb_rpt) begin
+    cpi_report_en = 1;
+  end
+end
+
+final begin
+  if (cpi_report_en) begin
+    $display("");
+    if (fib12_cpi_valid) begin
+      $display("  %s.Fib12:", svc_tb_module_name);
+      $display("    Cycles:       %0d", fib12_cpi_cycles);
+      $display("    Instructions: %0d", fib12_cpi_instrs);
+      $display("    CPI:          %f\n", fib12_cpi_real);
+    end
+    if (bubble_cpi_valid) begin
+      $display("  %s.BubbleSort:", svc_tb_module_name);
+      $display("    Cycles:       %0d", bubble_cpi_cycles);
+      $display("    Instructions: %0d", bubble_cpi_instrs);
+      $display("    CPI:          %f\n", bubble_cpi_real);
+    end
+  end
+end
+
 //
 // Reset assembly state on reset
 //
@@ -32,6 +98,32 @@ task automatic load_program;
     uut.imem.mem[i] = MEM[i];
   end
 endtask
+
+//
+// CPI calculation function
+//
+function automatic real calc_cpi;
+  input string name;
+  input logic [31:0] cycles;
+  input logic [31:0] instrs;
+  real cpi_real;
+
+  cpi_real = real'(cycles) / real'(instrs);
+  if (cpi_report_en) begin
+    if (name == "fib12") begin
+      fib12_cpi_cycles = cycles;
+      fib12_cpi_instrs = instrs;
+      fib12_cpi_real   = cpi_real;
+      fib12_cpi_valid  = 1;
+    end else if (name == "bubble") begin
+      bubble_cpi_cycles = cycles;
+      bubble_cpi_instrs = instrs;
+      bubble_cpi_real   = cpi_real;
+      bubble_cpi_valid  = 1;
+    end
+  end
+  return cpi_real;
+endfunction
 //
 // Shared test cases for RISC-V SoC testbenches
 //
@@ -543,15 +635,11 @@ endtask
 //
 // Test: Simple JAL
 //
-// Tests basic JAL functionality: jumps forward over instructions and
+// Tests basic JAL functionality: jumps forward over one instruction and
 // saves the return address (PC+4) in the link register.
 //
-// In a 5-stage pipeline, when JAL executes in EX stage, 2 instructions
-// after it are already in the pipeline, so we need 2 NOPs in delay slots.
-//
 task automatic test_jal_simple;
-  JAL(x1, 16);
-  NOP();
+  JAL(x1, 12);
   NOP();
   ADDI(x2, x0, 99);
   EBREAK();
@@ -569,12 +657,8 @@ endtask
 // Tests basic JALR functionality: computes target as base register (x0) plus
 // offset, jumps to that address, and saves return address in link register.
 //
-// In a 5-stage pipeline, when JALR executes in EX stage, 2 instructions
-// after it are already in the pipeline, so we need 2 NOPs in delay slots.
-//
 task automatic test_jalr_simple;
-  JALR(x1, x0, 16);
-  NOP();
+  JALR(x1, x0, 12);
   NOP();
   ADDI(x2, x0, 99);
   EBREAK();
@@ -642,13 +726,11 @@ endtask
 // functionality testing. Pipeline hazards are tested separately.
 //
 task automatic test_call_return_pattern;
-  JAL(ra, 16);
-  NOP();
+  JAL(ra, 12);
   NOP();
   EBREAK();
   ADDI(x2, x0, 42);
   JALR(x0, ra, 0);
-  NOP();
   NOP();
 
   load_program();
@@ -1548,7 +1630,6 @@ task automatic test_rdcycle;
   load_program();
 
   `CHECK_WAIT_FOR_EBREAK(clk);
-  #0;
   `CHECK_TRUE(uut.cpu.regfile.regs[1] > 32'h0);
 endtask
 
@@ -1660,7 +1741,6 @@ endtask
 task automatic test_fib12;
   logic [31:0] cycles;
   logic [31:0] instrs;
-  logic [31:0] cpi;
 
   RDCYCLE(x20);
   RDINSTRET(x21);
@@ -1689,8 +1769,7 @@ task automatic test_fib12;
 
   cycles = uut.cpu.regfile.regs[24];
   instrs = uut.cpu.regfile.regs[25];
-  cpi    = cycles / instrs;
-  `CHECK_EQ(cpi, 1);
+  `CHECK_CPI("fib12", fib12_expected_cpi, cycles, instrs);
 endtask
 
 //
@@ -1707,7 +1786,6 @@ endtask
 task automatic test_bubble_sort;
   logic [31:0] cycles;
   logic [31:0] instrs;
-  logic [31:0] cpi;
 
   uut.dmem.mem[0] = 32'd64;
   uut.dmem.mem[1] = 32'd34;
@@ -1763,6 +1841,5 @@ task automatic test_bubble_sort;
 
   cycles = uut.cpu.regfile.regs[26];
   instrs = uut.cpu.regfile.regs[27];
-  cpi    = cycles / instrs;
-  `CHECK_EQ(cpi, 1);
+  `CHECK_CPI("bubble", bubble_expected_cpi, cycles, instrs);
 endtask
