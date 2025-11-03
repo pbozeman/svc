@@ -49,10 +49,10 @@ module svc_rv #(
     input  logic [31:0] dmem_rdata,
 
     // Data memory write interface
+    output logic        dmem_we,
     output logic [31:0] dmem_waddr,
     output logic [31:0] dmem_wdata,
     output logic [ 3:0] dmem_wstrb,
-    output logic        dmem_we,
 
     output logic ebreak
 );
