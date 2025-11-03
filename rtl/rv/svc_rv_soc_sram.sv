@@ -16,10 +16,7 @@ module svc_rv_soc_sram #(
     parameter int XLEN        = 32,
     parameter int IMEM_AW     = 10,
     parameter int DMEM_AW     = 10,
-    parameter int IF_ID_REG   = 0,
-    parameter int ID_EX_REG   = 0,
-    parameter int EX_MEM_REG  = 0,
-    parameter int MEM_WB_REG  = 0,
+    parameter int PIPELINED   = 0,
     parameter int REGFILE_FWD = 1,
 
     // verilog_lint: waive explicit-parameter-storage-type
@@ -51,10 +48,7 @@ module svc_rv_soc_sram #(
       .XLEN       (XLEN),
       .IMEM_AW    (IMEM_AW),
       .DMEM_AW    (DMEM_AW),
-      .IF_ID_REG  (IF_ID_REG),
-      .ID_EX_REG  (ID_EX_REG),
-      .EX_MEM_REG (EX_MEM_REG),
-      .MEM_WB_REG (MEM_WB_REG),
+      .PIPELINED  (PIPELINED),
       .REGFILE_FWD(REGFILE_FWD)
   ) cpu (
       .clk  (clk),

@@ -28,10 +28,7 @@ module svc_rv_soc_sram_pipelined_tb;
   svc_rv_soc_sram #(
       .IMEM_AW    (IMEM_AW),
       .DMEM_AW    (DMEM_AW),
-      .IF_ID_REG  (1),
-      .ID_EX_REG  (1),
-      .EX_MEM_REG (1),
-      .MEM_WB_REG (1),
+      .PIPELINED  (1),
       .REGFILE_FWD(0)
   ) uut (
       .clk   (clk),

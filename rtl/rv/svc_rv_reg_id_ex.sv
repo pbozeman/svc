@@ -12,12 +12,12 @@
 // values, immediates, and PC from the decode stage and presents them
 // to the execute stage on the next cycle.
 //
-// When ID_EX_REG=0, signals are passed through combinationally instead
+// When PIPELINED=0, signals are passed through combinationally instead
 // of being registered, effectively disabling the pipeline stage.
 //
 module svc_rv_reg_id_ex #(
     parameter int XLEN      = 32,
-    parameter int ID_EX_REG = 1
+    parameter int PIPELINED = 1
 ) (
     input logic clk,
     input logic rst_n,
@@ -104,7 +104,7 @@ module svc_rv_reg_id_ex #(
 );
   `include "svc_rv_defs.svh"
 
-  if (ID_EX_REG != 0) begin : g_registered
+  if (PIPELINED != 0) begin : g_registered
     //
     // Control signals with reset/flush
     //

@@ -12,12 +12,12 @@
 // data results from the memory stage and presents them to the
 // writeback stage on the next cycle.
 //
-// When MEM_WB_REG=0, signals are passed through combinationally instead
+// When PIPELINED=0, signals are passed through combinationally instead
 // of being registered, effectively disabling the pipeline stage.
 //
 module svc_rv_reg_mem_wb #(
-    parameter int XLEN       = 32,
-    parameter int MEM_WB_REG = 1
+    parameter int XLEN      = 32,
+    parameter int PIPELINED = 1
 ) (
     input logic clk,
     input logic rst_n,
@@ -59,7 +59,7 @@ module svc_rv_reg_mem_wb #(
     output logic [XLEN-1:0] csr_rdata_wb
 );
 
-  if (MEM_WB_REG != 0) begin : g_registered
+  if (PIPELINED != 0) begin : g_registered
     //
     // Control signals with reset
     //
