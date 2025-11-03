@@ -181,6 +181,10 @@ module svc_rv #(
   logic [XLEN-1:0] jb_target_wb;
   logic [XLEN-1:0] csr_rdata_wb;
 
+  // verilator lint_off UNUSEDSIGNAL
+  logic [     2:0] funct3_wb;
+  // verilator lint_on UNUSEDSIGNAL
+
   //
   // WB stage signals
   //
@@ -198,6 +202,7 @@ module svc_rv #(
   logic            pc_stall;
   logic            if_id_stall;
   logic            if_id_flush;
+  logic            id_ex_stall;
   logic            id_ex_flush;
 
   //
@@ -350,7 +355,8 @@ module svc_rv #(
   //
   if (PIPELINED == 1) begin : g_hazard
     svc_rv_hazard #(
-        .REGFILE_FWD(REGFILE_FWD)
+        .REGFILE_FWD(REGFILE_FWD),
+        .MEM_TYPE   (MEM_TYPE)
     ) hazard (
         // ID stage register addresses
         .rs1_id  (rs1_id),
@@ -377,12 +383,14 @@ module svc_rv #(
         .pc_stall   (pc_stall),
         .if_id_stall(if_id_stall),
         .if_id_flush(if_id_flush),
+        .id_ex_stall(id_ex_stall),
         .id_ex_flush(id_ex_flush)
     );
   end else begin : g_no_hazard
     assign pc_stall    = 1'b0;
     assign if_id_stall = 1'b0;
     assign if_id_flush = 1'b0;
+    assign id_ex_stall = 1'b0;
     assign id_ex_flush = 1'b0;
   end
 
@@ -398,6 +406,7 @@ module svc_rv #(
       .rst_n(rst_n),
 
       // hazard control
+      .stall(id_ex_stall),
       .flush(id_ex_flush),
 
       // ID stage inputs
@@ -679,6 +688,7 @@ module svc_rv #(
       // MEM stage inputs
       .reg_write_mem     (reg_write_mem),
       .res_src_mem       (res_src_mem),
+      .funct3_mem        (funct3_mem),
       .instr_mem         (instr_mem),
       .rd_mem            (rd_mem),
       .alu_result_mem    (alu_result_mem),
@@ -690,6 +700,7 @@ module svc_rv #(
       // WB stage outputs
       .reg_write_wb     (reg_write_wb),
       .res_src_wb       (res_src_wb),
+      .funct3_wb        (funct3_wb),
       .instr_wb         (instr_wb),
       .rd_wb            (rd_wb),
       .alu_result_wb    (alu_result_wb),

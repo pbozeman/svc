@@ -25,6 +25,7 @@ module svc_rv_reg_id_ex #(
     //
     // Hazard control
     //
+    input logic stall,
     input logic flush,
 
     //
@@ -111,7 +112,7 @@ module svc_rv_reg_id_ex #(
       if (!rst_n || flush) begin
         reg_write_ex <= '0;
         mem_write_ex <= '0;
-      end else begin
+      end else if (!stall) begin
         reg_write_ex <= reg_write_id;
         mem_write_ex <= mem_write_id;
       end
@@ -135,7 +136,7 @@ module svc_rv_reg_id_ex #(
         rs2_ex           <= '0;
         funct3_ex        <= '0;
         funct7_ex        <= '0;
-      end else begin
+      end else if (!stall) begin
         alu_a_src_ex     <= alu_a_src_id;
         alu_b_src_ex     <= alu_b_src_id;
         alu_instr_ex     <= alu_instr_id;
@@ -156,16 +157,18 @@ module svc_rv_reg_id_ex #(
     // Pure datapath without any reset
     //
     always_ff @(posedge clk) begin
-      rs1_data_ex   <= rs1_data_id;
-      rs2_data_ex   <= rs2_data_id;
-      imm_ex        <= imm_id;
-      pc_ex         <= pc_id;
-      pc_plus4_ex   <= pc_plus4_id;
-      rs_eq_lo_ex   <= rs_eq_lo_id;
-      rs_lt_u_lo_ex <= rs_lt_u_lo_id;
-      rs_lt_s_lo_ex <= rs_lt_s_lo_id;
-      rs_sign_a_ex  <= rs_sign_a_id;
-      rs_sign_b_ex  <= rs_sign_b_id;
+      if (!stall) begin
+        rs1_data_ex   <= rs1_data_id;
+        rs2_data_ex   <= rs2_data_id;
+        imm_ex        <= imm_id;
+        pc_ex         <= pc_id;
+        pc_plus4_ex   <= pc_plus4_id;
+        rs_eq_lo_ex   <= rs_eq_lo_id;
+        rs_lt_u_lo_ex <= rs_lt_u_lo_id;
+        rs_lt_s_lo_ex <= rs_lt_s_lo_id;
+        rs_sign_a_ex  <= rs_sign_a_id;
+        rs_sign_b_ex  <= rs_sign_b_id;
+      end
     end
   end else begin : g_passthrough
     assign reg_write_ex     = reg_write_id;
@@ -194,7 +197,7 @@ module svc_rv_reg_id_ex #(
     assign rs_sign_a_ex     = rs_sign_a_id;
     assign rs_sign_b_ex     = rs_sign_b_id;
 
-    `SVC_UNUSED({clk, rst_n, flush});
+    `SVC_UNUSED({clk, rst_n, stall, flush});
   end
 
 endmodule

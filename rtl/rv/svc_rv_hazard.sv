@@ -28,7 +28,8 @@
 // - Stall logic based on memory ready signals
 //
 module svc_rv_hazard #(
-    parameter int REGFILE_FWD = 1
+    parameter int REGFILE_FWD = 1,
+    parameter int MEM_TYPE    = 0
 ) (
     // ID stage input registers
     input logic [4:0] rs1_id,
@@ -55,6 +56,7 @@ module svc_rv_hazard #(
     output logic pc_stall,
     output logic if_id_stall,
     output logic if_id_flush,
+    output logic id_ex_stall,
     output logic id_ex_flush
 );
 
@@ -124,14 +126,19 @@ module svc_rv_hazard #(
   // - Flush IF/ID (the instruction we just fetched shouldn't execute)
   // - Flush ID/EX (the instruction we just decoded shouldn't execute)
   //
+  `include "svc_rv_defs.svh"
+
   logic data_hazard;
 
   assign data_hazard = ex_hazard || mem_hazard || wb_hazard;
 
   assign pc_stall    = data_hazard;
   assign if_id_stall = data_hazard;
+  assign id_ex_stall = 1'b0;
   assign if_id_flush = pc_sel;
   assign id_ex_flush = data_hazard || pc_sel;
+
+  `SVC_UNUSED({MEM_TYPE});
 
 endmodule
 
