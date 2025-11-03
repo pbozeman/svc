@@ -33,10 +33,10 @@ module svc_rv_soc_sram #(
   //
   // Memory interface signals
   //
-  logic [31:0] imem_addr;
-  logic [31:0] imem_data;
+  logic [31:0] imem_raddr;
+  logic [31:0] imem_rdata;
 
-  logic [31:0] dmem_addr;
+  logic [31:0] dmem_raddr;
   logic [31:0] dmem_rdata;
 
   logic        dmem_we;
@@ -60,9 +60,10 @@ module svc_rv_soc_sram #(
       .clk  (clk),
       .rst_n(rst_n),
 
-      .imem_addr (imem_addr),
-      .imem_data (imem_data),
-      .dmem_addr (dmem_addr),
+      .imem_raddr(imem_raddr),
+      .imem_rdata(imem_rdata),
+
+      .dmem_raddr(dmem_raddr),
       .dmem_rdata(dmem_rdata),
 
       .dmem_we   (dmem_we),
@@ -84,8 +85,8 @@ module svc_rv_soc_sram #(
       .clk  (clk),
       .rst_n(rst_n),
 
-      .rd_addr(imem_addr),
-      .rd_data(imem_data),
+      .rd_addr(imem_raddr),
+      .rd_data(imem_rdata),
 
       .wr_en  (1'b0),
       .wr_addr(32'h0),
@@ -103,7 +104,7 @@ module svc_rv_soc_sram #(
       .clk  (clk),
       .rst_n(rst_n),
 
-      .rd_addr(dmem_addr),
+      .rd_addr(dmem_raddr),
       .rd_data(dmem_rdata),
 
       .wr_en  (dmem_we),
