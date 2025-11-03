@@ -49,7 +49,7 @@ module svc_rv_reg_if_id #(
     //
     always_ff @(posedge clk) begin
       if (!rst_n || flush) begin
-        instr_id <= 32'h00000013;
+        instr_id <= I_NOP;
       end else if (!stall) begin
         instr_id <= instr_if;
       end
