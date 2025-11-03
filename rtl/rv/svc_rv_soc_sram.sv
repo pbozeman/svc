@@ -60,9 +60,11 @@ module svc_rv_soc_sram #(
       .clk  (clk),
       .rst_n(rst_n),
 
+      .imem_ren  (),
       .imem_raddr(imem_raddr),
       .imem_rdata(imem_rdata),
 
+      .dmem_ren  (),
       .dmem_raddr(dmem_raddr),
       .dmem_rdata(dmem_rdata),
 
