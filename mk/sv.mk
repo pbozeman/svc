@@ -21,14 +21,20 @@ include mk/top.mk
 .PHONY: quick
 quick: SILENT_SUCCESS := 1
 quick: F_SILENT := 1
+ifeq ($(SVC_SKIP_FORMAL),1)
+quick: tb .WAIT report
+else
 quick: tb .WAIT formal .WAIT report
+endif
 
 .PHONY:
 report:
 	@echo "=============================="
 	@$(call tb_quick_report)
+ifneq ($(SVC_SKIP_FORMAL),1)
 	@echo
 	@$(call f_quick_report)
+endif
 	@echo "=============================="
 
 # Load previous deps
