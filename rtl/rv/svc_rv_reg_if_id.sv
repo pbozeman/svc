@@ -44,13 +44,22 @@ module svc_rv_reg_if_id #(
   `include "svc_rv_defs.svh"
 
   if (IF_ID_REG != 0) begin : g_registered
+    //
+    // Instruction with flush (insert NOP)
+    //
     always_ff @(posedge clk) begin
       if (!rst_n || flush) begin
-        instr_id    <= 32'h00000013;
-        pc_id       <= '0;
-        pc_plus4_id <= '0;
+        instr_id <= 32'h00000013;
       end else if (!stall) begin
-        instr_id    <= instr_if;
+        instr_id <= instr_if;
+      end
+    end
+
+    //
+    // PC values without reset
+    //
+    always_ff @(posedge clk) begin
+      if (!stall) begin
         pc_id       <= pc_if;
         pc_plus4_id <= pc_plus4_if;
       end

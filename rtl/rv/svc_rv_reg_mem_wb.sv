@@ -58,28 +58,29 @@ module svc_rv_reg_mem_wb #(
 );
 
   if (MEM_WB_REG != 0) begin : g_registered
+    //
+    // Control signals with reset
+    //
     always_ff @(posedge clk) begin
       if (!rst_n) begin
-        reg_write_wb      <= '0;
-        res_src_wb        <= '0;
-        instr_wb          <= '0;
-        rd_wb             <= '0;
-        alu_result_wb     <= '0;
-        dmem_rdata_ext_wb <= '0;
-        pc_plus4_wb       <= '0;
-        jb_target_wb      <= '0;
-        csr_rdata_wb      <= '0;
+        reg_write_wb <= '0;
       end else begin
-        reg_write_wb      <= reg_write_mem;
-        res_src_wb        <= res_src_mem;
-        instr_wb          <= instr_mem;
-        rd_wb             <= rd_mem;
-        alu_result_wb     <= alu_result_mem;
-        dmem_rdata_ext_wb <= dmem_rdata_ext_mem;
-        pc_plus4_wb       <= pc_plus4_mem;
-        jb_target_wb      <= jb_target_mem;
-        csr_rdata_wb      <= csr_rdata_mem;
+        reg_write_wb <= reg_write_mem;
       end
+    end
+
+    //
+    // Datapath signals without reset
+    //
+    always_ff @(posedge clk) begin
+      res_src_wb        <= res_src_mem;
+      instr_wb          <= instr_mem;
+      rd_wb             <= rd_mem;
+      alu_result_wb     <= alu_result_mem;
+      dmem_rdata_ext_wb <= dmem_rdata_ext_mem;
+      pc_plus4_wb       <= pc_plus4_mem;
+      jb_target_wb      <= jb_target_mem;
+      csr_rdata_wb      <= csr_rdata_mem;
     end
   end else begin : g_passthrough
     assign reg_write_wb      = reg_write_mem;

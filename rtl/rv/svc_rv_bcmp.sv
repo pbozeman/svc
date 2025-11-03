@@ -124,8 +124,7 @@ module svc_rv_bcmp #(
     endcase
   end
 
-  `SVC_UNUSED(a_id[XLEN-2:16]);
-  `SVC_UNUSED(b_id[XLEN-2:16]);
+  `SVC_UNUSED({a_id[XLEN-2:16], b_id[XLEN-2:16], a_ex[15:0], b_ex[15:0]});
 
 endmodule
 
