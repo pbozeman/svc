@@ -15,7 +15,7 @@ module svc_rv_soc_sram_pipelined_tb;
   // No regfile forwarding for better fmax on ice40 and similar FPGAs.
   // WB hazards require stalling, increasing CPI.
   //
-  localparam real alu_indep_max_cpi = 2.0;
+  localparam real alu_indep_max_cpi = 1.35;
   localparam real alu_chain_max_cpi = 3.5;
   localparam real br_taken_max_cpi = 3.5;
   localparam real br_not_taken_max_cpi = 3.0;
