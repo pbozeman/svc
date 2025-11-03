@@ -40,12 +40,14 @@ module svc_rv #(
     //
     // Instruction memory interface (read-only)
     //
+    output logic        imem_ren,
     output logic [31:0] imem_raddr,
     input  logic [31:0] imem_rdata,
 
     //
     // Data memory read interface
     //
+    output logic        dmem_ren,
     output logic [31:0] dmem_raddr,
     input  logic [31:0] dmem_rdata,
 
@@ -231,6 +233,7 @@ module svc_rv #(
   //
   // Instruction memory interface
   //
+  assign imem_ren   = 1'b1;
   assign imem_raddr = pc;
   assign instr      = imem_rdata;
 
@@ -645,6 +648,7 @@ module svc_rv #(
   //
   // Data memory interface
   //
+  assign dmem_ren   = 1'b1;
   assign dmem_raddr = alu_result_mem;
   assign dmem_waddr = alu_result_mem;
   assign dmem_we    = mem_write_mem;
