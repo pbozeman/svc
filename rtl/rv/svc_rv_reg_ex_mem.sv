@@ -62,32 +62,32 @@ module svc_rv_reg_ex_mem #(
 );
 
   if (EX_MEM_REG != 0) begin : g_registered
+    //
+    // Control signals with reset
+    //
     always_ff @(posedge clk) begin
       if (!rst_n) begin
-        reg_write_mem  <= '0;
-        mem_write_mem  <= '0;
-        res_src_mem    <= '0;
-        instr_mem      <= '0;
-        rd_mem         <= '0;
-        funct3_mem     <= '0;
-        alu_result_mem <= '0;
-        rs2_data_mem   <= '0;
-        pc_plus4_mem   <= '0;
-        jb_target_mem  <= '0;
-        csr_rdata_mem  <= '0;
+        reg_write_mem <= '0;
+        mem_write_mem <= '0;
       end else begin
-        reg_write_mem  <= reg_write_ex;
-        mem_write_mem  <= mem_write_ex;
-        res_src_mem    <= res_src_ex;
-        instr_mem      <= instr_ex;
-        rd_mem         <= rd_ex;
-        funct3_mem     <= funct3_ex;
-        alu_result_mem <= alu_result_ex;
-        rs2_data_mem   <= rs2_data_ex;
-        pc_plus4_mem   <= pc_plus4_ex;
-        jb_target_mem  <= jb_target_ex;
-        csr_rdata_mem  <= csr_rdata_ex;
+        reg_write_mem <= reg_write_ex;
+        mem_write_mem <= mem_write_ex;
       end
+    end
+
+    //
+    // Datapath signals without reset
+    //
+    always_ff @(posedge clk) begin
+      res_src_mem    <= res_src_ex;
+      instr_mem      <= instr_ex;
+      rd_mem         <= rd_ex;
+      funct3_mem     <= funct3_ex;
+      alu_result_mem <= alu_result_ex;
+      rs2_data_mem   <= rs2_data_ex;
+      pc_plus4_mem   <= pc_plus4_ex;
+      jb_target_mem  <= jb_target_ex;
+      csr_rdata_mem  <= csr_rdata_ex;
     end
   end else begin : g_passthrough
     assign reg_write_mem  = reg_write_ex;
