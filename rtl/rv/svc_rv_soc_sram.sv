@@ -31,25 +31,17 @@ module svc_rv_soc_sram #(
     output logic ebreak
 );
   //
-  // Instruction memory interface
+  // Memory interface signals
   //
-  logic [31:0] imem_araddr;
-  logic        imem_arvalid;
-  logic [31:0] imem_rdata;
-  logic        imem_rvalid;
+  logic [31:0] imem_addr;
+  logic [31:0] imem_data;
 
-  //
-  // Data memory interface
-  //
-  logic [31:0] dmem_awaddr;
+  logic [31:0] dmem_addr;
+  logic [31:0] dmem_rdata;
+  logic [31:0] dmem_waddr;
   logic [31:0] dmem_wdata;
   logic [ 3:0] dmem_wstrb;
-  logic        dmem_wvalid;
-
-  logic [31:0] dmem_araddr;
-  logic        dmem_arvalid;
-  logic [31:0] dmem_rdata;
-  logic        dmem_rvalid;
+  logic        dmem_we;
 
   //
   // RISC-V core
@@ -64,28 +56,17 @@ module svc_rv_soc_sram #(
       .MEM_WB_REG (MEM_WB_REG),
       .REGFILE_FWD(REGFILE_FWD)
   ) cpu (
-      .clk         (clk),
-      .rst_n       (rst_n),
-      .imem_araddr (imem_araddr),
-      .imem_arvalid(imem_arvalid),
-      .imem_arready(1'b1),
-      .imem_rdata  (imem_rdata),
-      .imem_rvalid (imem_rvalid),
-      .imem_rready (),
-      .dmem_awaddr (dmem_awaddr),
-      .dmem_awvalid(),
-      .dmem_awready(1'b1),
-      .dmem_wdata  (dmem_wdata),
-      .dmem_wstrb  (dmem_wstrb),
-      .dmem_wvalid (dmem_wvalid),
-      .dmem_wready (1'b1),
-      .dmem_araddr (dmem_araddr),
-      .dmem_arvalid(dmem_arvalid),
-      .dmem_arready(1'b1),
-      .dmem_rdata  (dmem_rdata),
-      .dmem_rvalid (dmem_rvalid),
-      .dmem_rready (),
-      .ebreak      (ebreak)
+      .clk       (clk),
+      .rst_n     (rst_n),
+      .imem_addr (imem_addr),
+      .imem_data (imem_data),
+      .dmem_addr (dmem_addr),
+      .dmem_rdata(dmem_rdata),
+      .dmem_waddr(dmem_waddr),
+      .dmem_wdata(dmem_wdata),
+      .dmem_wstrb(dmem_wstrb),
+      .dmem_we   (dmem_we),
+      .ebreak    (ebreak)
   );
 
   //
@@ -96,16 +77,14 @@ module svc_rv_soc_sram #(
       .AW       (IMEM_AW),
       .INIT_FILE(IMEM_INIT)
   ) imem (
-      .clk          (clk),
-      .rst_n        (rst_n),
-      .rd_addr      (imem_araddr),
-      .rd_valid     (imem_arvalid),
-      .rd_data      (imem_rdata),
-      .rd_data_valid(imem_rvalid),
-      .wr_addr      (32'h0),
-      .wr_data      (32'h0),
-      .wr_strb      (4'h0),
-      .wr_valid     (1'b0)
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .rd_addr(imem_addr),
+      .rd_data(imem_data),
+      .wr_addr(32'h0),
+      .wr_data(32'h0),
+      .wr_strb(4'h0),
+      .wr_en  (1'b0)
   );
 
   //
@@ -115,16 +94,14 @@ module svc_rv_soc_sram #(
       .DW(32),
       .AW(DMEM_AW)
   ) dmem (
-      .clk          (clk),
-      .rst_n        (rst_n),
-      .rd_addr      (dmem_araddr),
-      .rd_valid     (dmem_arvalid),
-      .rd_data      (dmem_rdata),
-      .rd_data_valid(dmem_rvalid),
-      .wr_addr      (dmem_awaddr),
-      .wr_data      (dmem_wdata),
-      .wr_strb      (dmem_wstrb),
-      .wr_valid     (dmem_wvalid)
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .rd_addr(dmem_addr),
+      .rd_data(dmem_rdata),
+      .wr_addr(dmem_waddr),
+      .wr_data(dmem_wdata),
+      .wr_strb(dmem_wstrb),
+      .wr_en  (dmem_we)
   );
 
 endmodule

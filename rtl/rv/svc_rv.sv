@@ -20,6 +20,10 @@
 `include "svc_rv_regfile.sv"
 `include "svc_rv_st_fmt.sv"
 
+// For combinational (SRAM-style) memories: Use with IF_ID_REG=0 or 1
+// For registered (BRAM-style) memories: Requires IF_ID_REG=1
+//
+// This is not fully handled yet, only sramc will currently work.
 module svc_rv #(
     parameter int XLEN        = 32,
     parameter int IMEM_AW     = 10,
@@ -36,30 +40,19 @@ module svc_rv #(
     //
     // Instruction memory interface (read-only)
     //
-    output logic [31:0] imem_araddr,
-    output logic        imem_arvalid,
-    input  logic        imem_arready,
-    input  logic [31:0] imem_rdata,
-    input  logic        imem_rvalid,
-    output logic        imem_rready,
+    output logic [31:0] imem_addr,
+    input  logic [31:0] imem_data,
 
     //
-    // Data memory interface (read/write)
-    //
-    output logic [31:0] dmem_awaddr,
-    output logic        dmem_awvalid,
-    input  logic        dmem_awready,
+    // Data memory read interface
+    output logic [31:0] dmem_addr,
+    input  logic [31:0] dmem_rdata,
+
+    // Data memory write interface
+    output logic [31:0] dmem_waddr,
     output logic [31:0] dmem_wdata,
     output logic [ 3:0] dmem_wstrb,
-    output logic        dmem_wvalid,
-    input  logic        dmem_wready,
-
-    output logic [31:0] dmem_araddr,
-    output logic        dmem_arvalid,
-    input  logic        dmem_arready,
-    input  logic [31:0] dmem_rdata,
-    input  logic        dmem_rvalid,
-    output logic        dmem_rready,
+    output logic        dmem_we,
 
     output logic ebreak
 );
@@ -237,13 +230,8 @@ module svc_rv #(
   //
   // Instruction memory interface
   //
-  // No hazard unit yet, so always ready to accept instruction
-  //
-  assign imem_araddr  = pc;
-  assign imem_arvalid = 1'b1;
-  assign imem_rready  = 1'b1;
-
-  assign instr        = imem_rdata;
+  assign imem_addr = pc;
+  assign instr     = imem_data;
 
   //----------------------------------------------------------------------------
   // IF/ID Pipeline Boundary
@@ -640,18 +628,9 @@ module svc_rv #(
   //
   // Data memory interface
   //
-  // Write address/data channels
-  //
-  assign dmem_awaddr  = alu_result_mem;
-  assign dmem_awvalid = mem_write_mem;
-  assign dmem_wvalid  = mem_write_mem;
-
-  //
-  // Read address channel
-  //
-  assign dmem_araddr  = alu_result_mem;
-  assign dmem_arvalid = !mem_write_mem;
-  assign dmem_rready  = 1'b1;
+  assign dmem_addr  = alu_result_mem;
+  assign dmem_waddr = alu_result_mem;
+  assign dmem_we    = mem_write_mem;
 
   //
   // Load data extension
@@ -720,10 +699,9 @@ module svc_rv #(
   assign ebreak = (rst_n && instr_wb == I_EBREAK);
 
   `SVC_UNUSED({IMEM_AW, DMEM_AW, IF_ID_REG, ID_EX_REG, EX_MEM_REG, MEM_WB_REG,
-               imem_arready, imem_rvalid, dmem_awready, dmem_wready,
-               dmem_arready, dmem_rvalid, pc, pc_plus4, pc_id[1:0], pc_ex[1:0],
-               funct7_id[6], funct7_id[4:0], funct7_ex[6], funct7_ex[4:0],
-               rs1_ex, rs2_ex, instr_ex, alu_result_mem[1:0]});
+               pc, pc_plus4, pc_id[1:0], pc_ex[1:0], funct7_id[6],
+               funct7_id[4:0], funct7_ex[6], funct7_ex[4:0], rs1_ex, rs2_ex,
+               instr_ex, alu_result_mem[1:0]});
 
 endmodule
 
