@@ -38,10 +38,11 @@ module svc_rv_soc_sram #(
 
   logic [31:0] dmem_addr;
   logic [31:0] dmem_rdata;
+
+  logic        dmem_we;
   logic [31:0] dmem_waddr;
   logic [31:0] dmem_wdata;
   logic [ 3:0] dmem_wstrb;
-  logic        dmem_we;
 
   //
   // RISC-V core
@@ -56,17 +57,20 @@ module svc_rv_soc_sram #(
       .MEM_WB_REG (MEM_WB_REG),
       .REGFILE_FWD(REGFILE_FWD)
   ) cpu (
-      .clk       (clk),
-      .rst_n     (rst_n),
+      .clk  (clk),
+      .rst_n(rst_n),
+
       .imem_addr (imem_addr),
       .imem_data (imem_data),
       .dmem_addr (dmem_addr),
       .dmem_rdata(dmem_rdata),
+
+      .dmem_we   (dmem_we),
       .dmem_waddr(dmem_waddr),
       .dmem_wdata(dmem_wdata),
       .dmem_wstrb(dmem_wstrb),
-      .dmem_we   (dmem_we),
-      .ebreak    (ebreak)
+
+      .ebreak(ebreak)
   );
 
   //
@@ -77,14 +81,16 @@ module svc_rv_soc_sram #(
       .AW       (IMEM_AW),
       .INIT_FILE(IMEM_INIT)
   ) imem (
-      .clk    (clk),
-      .rst_n  (rst_n),
+      .clk  (clk),
+      .rst_n(rst_n),
+
       .rd_addr(imem_addr),
       .rd_data(imem_data),
+
+      .wr_en  (1'b0),
       .wr_addr(32'h0),
       .wr_data(32'h0),
-      .wr_strb(4'h0),
-      .wr_en  (1'b0)
+      .wr_strb(4'h0)
   );
 
   //
@@ -94,14 +100,16 @@ module svc_rv_soc_sram #(
       .DW(32),
       .AW(DMEM_AW)
   ) dmem (
-      .clk    (clk),
-      .rst_n  (rst_n),
+      .clk  (clk),
+      .rst_n(rst_n),
+
       .rd_addr(dmem_addr),
       .rd_data(dmem_rdata),
+
+      .wr_en  (dmem_we),
       .wr_addr(dmem_waddr),
       .wr_data(dmem_wdata),
-      .wr_strb(dmem_wstrb),
-      .wr_en  (dmem_we)
+      .wr_strb(dmem_wstrb)
   );
 
 endmodule

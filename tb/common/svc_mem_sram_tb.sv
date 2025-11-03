@@ -12,10 +12,10 @@ module svc_mem_sram_tb;
   logic [31:0] rd_addr;
   logic [31:0] rd_data;
 
+  logic        wr_en;
   logic [31:0] wr_addr;
   logic [31:0] wr_data;
   logic [ 3:0] wr_strb;
-  logic        wr_en;
 
   svc_mem_sram #(
       .DW(DW),
@@ -25,10 +25,10 @@ module svc_mem_sram_tb;
       .rst_n  (rst_n),
       .rd_addr(rd_addr),
       .rd_data(rd_data),
+      .wr_en  (wr_en),
       .wr_addr(wr_addr),
       .wr_data(wr_data),
-      .wr_strb(wr_strb),
-      .wr_en  (wr_en)
+      .wr_strb(wr_strb)
   );
 
   task automatic test_reset;

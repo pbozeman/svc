@@ -35,10 +35,10 @@ module svc_mem_sram #(
     output logic [DW-1:0] rd_data,
 
     // Write interface
+    input logic            wr_en,
     input logic [    31:0] wr_addr,
     input logic [  DW-1:0] wr_data,
-    input logic [DW/8-1:0] wr_strb,
-    input logic            wr_en
+    input logic [DW/8-1:0] wr_strb
 );
   logic [DW-1:0] mem          [2**AW];
 
