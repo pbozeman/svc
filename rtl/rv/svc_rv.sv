@@ -11,6 +11,8 @@
 `include "svc_rv_csr.sv"
 `include "svc_rv_hazard.sv"
 `include "svc_rv_idec.sv"
+`include "svc_rv_if_bram.sv"
+`include "svc_rv_if_sram.sv"
 `include "svc_rv_ld_fmt.sv"
 `include "svc_rv_pc.sv"
 `include "svc_rv_reg_ex_mem.sv"
@@ -58,6 +60,15 @@ module svc_rv #(
 );
 
   `include "svc_rv_defs.svh"
+
+  //
+  // Parameter validation
+  //
+  initial begin
+    if ((MEM_TYPE == MEM_TYPE_BRAM) && (PIPELINED == 0)) begin
+      $fatal(1, "BRAM memory type requires PIPELINED=1");
+    end
+  end
 
   logic [XLEN-1:0] pc;
   logic [XLEN-1:0] pc_plus4;
@@ -160,11 +171,6 @@ module svc_rv #(
   logic [XLEN-1:0] csr_rdata_mem;
 
   //
-  // MEM stage signals
-  //
-  logic [XLEN-1:0] dmem_rdata_ext;
-
-  //
   // MEM/WB pipeline register signals
   //
   logic            reg_write_wb;
@@ -172,7 +178,6 @@ module svc_rv #(
   logic [    31:0] instr_wb;
   logic [     4:0] rd_wb;
   logic [XLEN-1:0] alu_result_wb;
-  logic [XLEN-1:0] dmem_rdata_ext_wb;
   logic [XLEN-1:0] pc_plus4_wb;
   logic [XLEN-1:0] jb_target_wb;
   logic [XLEN-1:0] csr_rdata_wb;
@@ -234,28 +239,76 @@ module svc_rv #(
   //
   // Instruction memory interface
   //
-  assign imem_ren   = 1'b1;
   assign imem_raddr = pc;
   assign instr      = imem_rdata;
 
   //
+  // Memory read enables
+  //
+  // For BRAM: Instruction memory gated with PC stall to hold output
+  // For BRAM: Data memory always enabled (address pipelined via EX_MEM_REG)
+  // For SRAM: Always enabled
+  //
+  assign imem_ren   = (MEM_TYPE == MEM_TYPE_BRAM) ? !pc_stall : 1'b1;
+  assign dmem_ren   = 1'b1;
+
+  //
+  // PC values for IF/ID register
+  //
+  // For BRAM: Need extra buffering to match 2-cycle instruction latency
+  // For SRAM: Use PC directly
+  //
+  logic [XLEN-1:0] pc_to_if_id;
+  logic [XLEN-1:0] pc_plus4_to_if_id;
+
+  //
   // Instruction register (IF to ID)
   //
-  // For SRAM with PIPELINED=1: register the combinational instruction data
+  // For SRAM with PIPELINED=1: register with if_id_stall/flush support
   // For SRAM with PIPELINED=0: pass through
-  // For BRAM: pass through (BRAM already registers it)
+  // For BRAM: Two-stage pipeline - always capture BRAM output, then conditionally advance
   //
-  if ((MEM_TYPE == MEM_TYPE_SRAM) &&
-      (PIPELINED != 0)) begin : g_instr_registered
-    always_ff @(posedge clk) begin
-      if (!rst_n || if_id_flush) begin
-        instr_id <= I_NOP;
-      end else if (!if_id_stall) begin
-        instr_id <= instr;
-      end
-    end
-  end else begin : g_instr_passthrough
-    assign instr_id = instr;
+  if (MEM_TYPE == MEM_TYPE_SRAM) begin : g_sram
+    //
+    // SRAM instruction fetch adapter
+    //
+    // Handles optional instruction registration for SRAM's 0-cycle latency
+    //
+    svc_rv_if_sram #(
+        .XLEN     (XLEN),
+        .PIPELINED(PIPELINED)
+    ) if_sram (
+        .clk              (clk),
+        .rst_n            (rst_n),
+        .if_id_stall      (if_id_stall),
+        .if_id_flush      (if_id_flush),
+        .pc               (pc),
+        .pc_plus4         (pc_plus4),
+        .instr_sram       (instr),
+        .pc_to_if_id      (pc_to_if_id),
+        .pc_plus4_to_if_id(pc_plus4_to_if_id),
+        .instr_id         (instr_id)
+    );
+  end else begin : g_bram
+    //
+    // BRAM instruction fetch adapter
+    //
+    // Handles PC buffering and extended flush for BRAM's 1-cycle latency
+    //
+    svc_rv_if_bram #(
+        .XLEN(XLEN)
+    ) if_bram (
+        .clk              (clk),
+        .rst_n            (rst_n),
+        .if_id_stall      (if_id_stall),
+        .if_id_flush      (if_id_flush),
+        .pc               (pc),
+        .pc_plus4         (pc_plus4),
+        .instr_bram       (instr),
+        .pc_to_if_id      (pc_to_if_id),
+        .pc_plus4_to_if_id(pc_plus4_to_if_id),
+        .instr_id         (instr_id)
+    );
   end
 
   //----------------------------------------------------------------------------
@@ -274,8 +327,8 @@ module svc_rv #(
       .flush(if_id_flush),
 
       // IF signals
-      .pc_if      (pc),
-      .pc_plus4_if(pc_plus4),
+      .pc_if      (pc_to_if_id),
+      .pc_plus4_if(pc_plus4_to_if_id),
 
       // ID signals
       .pc_id      (pc_id),
@@ -652,7 +705,6 @@ module svc_rv #(
   //
   // Data memory interface
   //
-  assign dmem_ren   = 1'b1;
   assign dmem_raddr = alu_result_mem;
   assign dmem_waddr = alu_result_mem;
   assign dmem_we    = mem_write_mem;
@@ -660,13 +712,36 @@ module svc_rv #(
   //
   // Load data extension
   //
+  // For SRAM: Format in MEM stage (combinational memory)
+  // For BRAM: Format in WB stage (registered memory)
+  //
+  logic [XLEN-1:0] dmem_rdata_ext_mem;
+  // verilator lint_off UNDRIVEN
+  logic [XLEN-1:0] dmem_rdata_ext_wb_direct;
+  // verilator lint_on UNDRIVEN
+
+  logic [     1:0] ld_fmt_addr;
+  logic [     2:0] ld_fmt_funct3;
+  logic [XLEN-1:0] ld_fmt_out;
+
+  if (MEM_TYPE == MEM_TYPE_SRAM) begin : g_ld_fmt_signals_sram
+    assign ld_fmt_addr        = alu_result_mem[1:0];
+    assign ld_fmt_funct3      = funct3_mem;
+    assign dmem_rdata_ext_mem = ld_fmt_out;
+  end else begin : g_ld_fmt_signals_bram
+    assign ld_fmt_addr              = alu_result_wb[1:0];
+    assign ld_fmt_funct3            = funct3_wb;
+    assign dmem_rdata_ext_wb_direct = ld_fmt_out;
+    assign dmem_rdata_ext_mem       = '0;
+  end
+
   svc_rv_ld_fmt #(
       .XLEN(XLEN)
   ) ld_fmt (
       .data_in (dmem_rdata),
-      .addr    (alu_result_mem[1:0]),
-      .funct3  (funct3_mem),
-      .data_out(dmem_rdata_ext)
+      .addr    (ld_fmt_addr),
+      .funct3  (ld_fmt_funct3),
+      .data_out(ld_fmt_out)
   );
 
   //----------------------------------------------------------------------------
@@ -687,7 +762,7 @@ module svc_rv #(
       .instr_mem         (instr_mem),
       .rd_mem            (rd_mem),
       .alu_result_mem    (alu_result_mem),
-      .dmem_rdata_ext_mem(dmem_rdata_ext),
+      .dmem_rdata_ext_mem(dmem_rdata_ext_mem),
       .pc_plus4_mem      (pc_plus4_mem),
       .jb_target_mem     (jb_target_mem),
       .csr_rdata_mem     (csr_rdata_mem),
@@ -699,11 +774,27 @@ module svc_rv #(
       .instr_wb         (instr_wb),
       .rd_wb            (rd_wb),
       .alu_result_wb    (alu_result_wb),
-      .dmem_rdata_ext_wb(dmem_rdata_ext_wb),
+      .dmem_rdata_ext_wb(dmem_rdata_ext_wb_piped),
       .pc_plus4_wb      (pc_plus4_wb),
       .jb_target_wb     (jb_target_wb),
       .csr_rdata_wb     (csr_rdata_wb)
   );
+
+  //----------------------------------------------------------------------------
+  // WB Stage
+  //----------------------------------------------------------------------------
+
+  //
+  // Select formatted load data based on memory type
+  //
+  // For SRAM: Use pipelined data from MEM stage formatter
+  // For BRAM: Use direct data from WB stage formatter
+  //
+  logic [XLEN-1:0] dmem_rdata_ext_wb;
+  logic [XLEN-1:0] dmem_rdata_ext_wb_piped;
+
+  assign dmem_rdata_ext_wb = (MEM_TYPE == MEM_TYPE_BRAM) ?
+      dmem_rdata_ext_wb_direct : dmem_rdata_ext_wb_piped;
 
   //
   // Result mux
