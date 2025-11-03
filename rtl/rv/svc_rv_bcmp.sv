@@ -33,6 +33,8 @@ module svc_rv_bcmp #(
     output logic            rs_eq_lo_id,
     output logic            rs_lt_u_lo_id,
     output logic            rs_lt_s_lo_id,
+    output logic            rs_sign_a_id,
+    output logic            rs_sign_b_id,
 
     //
     // EX stage: complete comparison using upper 16 bits + registered partials
@@ -43,19 +45,21 @@ module svc_rv_bcmp #(
     input logic            rs_eq_lo_ex,
     input logic            rs_lt_u_lo_ex,
     input logic            rs_lt_s_lo_ex,
+    input logic            rs_sign_a_ex,
+    input logic            rs_sign_b_ex,
 
     output logic branch_taken_ex
 );
   `include "svc_rv_defs.svh"
 
   //
-  // ID stage: Lower 16-bit partial comparisons
-  //
-  // Upper bits of a_id/b_id are unused here - they're used in EX stage via a_ex/b_ex
+  // ID stage: Lower 16-bit partial comparisons and sign extraction
   //
   assign rs_eq_lo_id   = (a_id[15:0] == b_id[15:0]);
   assign rs_lt_u_lo_id = (a_id[15:0] < b_id[15:0]);
   assign rs_lt_s_lo_id = (a_id[14:0] < b_id[14:0]);
+  assign rs_sign_a_id  = a_id[XLEN-1];
+  assign rs_sign_b_id  = b_id[XLEN-1];
 
   //
   // EX stage: Upper 16-bit comparisons
@@ -92,12 +96,9 @@ module svc_rv_bcmp #(
   // - If sign bits differ: negative < positive
   // - If sign bits same: compare magnitudes (upper 15 + lower 16 bits)
   //
-  logic rs_sign_a;
-  logic rs_sign_b;
+  // Sign bits come from ID stage (registered in EX stage)
+  //
   logic rs_mag_lt;
-
-  assign rs_sign_a = a_ex[XLEN-1];
-  assign rs_sign_b = b_ex[XLEN-1];
 
   //
   // Magnitude less than: upper bits less, OR upper bits equal and lower partial
@@ -105,8 +106,8 @@ module svc_rv_bcmp #(
   //
   assign rs_mag_lt = rs_lt_s_hi | (rs_eq_hi & rs_lt_s_lo_ex);
 
-  assign rs_lt_s = ((rs_sign_a & ~rs_sign_b) |
-                    ((rs_sign_a ~^ rs_sign_b) & rs_mag_lt));
+  assign rs_lt_s = ((rs_sign_a_ex & ~rs_sign_b_ex) |
+                    ((rs_sign_a_ex ~^ rs_sign_b_ex) & rs_mag_lt));
 
   //
   // Branch decision based on funct3
@@ -123,7 +124,8 @@ module svc_rv_bcmp #(
     endcase
   end
 
-  `SVC_UNUSED({a_id[XLEN-1:16], b_id[XLEN-1:16]});
+  `SVC_UNUSED(a_id[XLEN-2:16]);
+  `SVC_UNUSED(b_id[XLEN-2:16]);
 
 endmodule
 

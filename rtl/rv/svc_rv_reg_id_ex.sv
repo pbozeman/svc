@@ -61,6 +61,8 @@ module svc_rv_reg_id_ex #(
     input logic rs_eq_lo_id,
     input logic rs_lt_u_lo_id,
     input logic rs_lt_s_lo_id,
+    input logic rs_sign_a_id,
+    input logic rs_sign_b_id,
 
     //
     // EX stage outputs (control signals)
@@ -95,7 +97,9 @@ module svc_rv_reg_id_ex #(
     //
     output logic rs_eq_lo_ex,
     output logic rs_lt_u_lo_ex,
-    output logic rs_lt_s_lo_ex
+    output logic rs_lt_s_lo_ex,
+    output logic rs_sign_a_ex,
+    output logic rs_sign_b_ex
 );
   `include "svc_rv_defs.svh"
 
@@ -125,6 +129,8 @@ module svc_rv_reg_id_ex #(
         rs_eq_lo_ex      <= '0;
         rs_lt_u_lo_ex    <= '0;
         rs_lt_s_lo_ex    <= '0;
+        rs_sign_a_ex     <= '0;
+        rs_sign_b_ex     <= '0;
       end else begin
         reg_write_ex     <= reg_write_id;
         mem_write_ex     <= mem_write_id;
@@ -149,6 +155,8 @@ module svc_rv_reg_id_ex #(
         rs_eq_lo_ex      <= rs_eq_lo_id;
         rs_lt_u_lo_ex    <= rs_lt_u_lo_id;
         rs_lt_s_lo_ex    <= rs_lt_s_lo_id;
+        rs_sign_a_ex     <= rs_sign_a_id;
+        rs_sign_b_ex     <= rs_sign_b_id;
       end
     end
   end else begin : g_passthrough
@@ -175,6 +183,8 @@ module svc_rv_reg_id_ex #(
     assign rs_eq_lo_ex      = rs_eq_lo_id;
     assign rs_lt_u_lo_ex    = rs_lt_u_lo_id;
     assign rs_lt_s_lo_ex    = rs_lt_s_lo_id;
+    assign rs_sign_a_ex     = rs_sign_a_id;
+    assign rs_sign_b_ex     = rs_sign_b_id;
 
     `SVC_UNUSED({clk, rst_n, flush});
   end
