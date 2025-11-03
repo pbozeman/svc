@@ -13,6 +13,7 @@ Modules are organized functionally under `rtl/`:
 - **rtl/fifo/** - Synchronous FIFOs
 - **rtl/gfx/** - Graphics and VGA
 - **rtl/ice40/** - iCE40 FPGA-specific
+- **rtl/rv/** - RISC-V processor
 - **rtl/stats/** - Statistics collection
 - **rtl/uart/** - Serial communication
 
@@ -176,6 +177,8 @@ When writing or modifying code:
 - **Basic FIFO**: rtl/fifo/svc_sync_fifo.sv
 - **AXI arbiter**: rtl/axi/svc_axi_arbiter.sv
 - **Graphics**: rtl/gfx/svc_gfx_vga.sv
+- **RISC-V processor**: rtl/rv/svc_rv.sv
+- **RISC-V SoC**: rtl/rv/svc_rv_soc_bram.sv
 - **Testbench example**: tb/common/svc_arbiter_tb.sv
 
 ## Key Principles
