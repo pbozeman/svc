@@ -19,6 +19,9 @@ module svc_rv_hazard_tb;
   logic       pc_stall;
   logic       if_id_stall;
   logic       if_id_flush;
+  // verilator lint_off UNUSEDSIGNAL
+  logic       id_ex_stall;
+  // verilator lint_on UNUSEDSIGNAL
   logic       id_ex_flush;
 
   svc_rv_hazard #(
@@ -38,6 +41,7 @@ module svc_rv_hazard_tb;
       .pc_stall     (pc_stall),
       .if_id_stall  (if_id_stall),
       .if_id_flush  (if_id_flush),
+      .id_ex_stall  (id_ex_stall),
       .id_ex_flush  (id_ex_flush)
   );
 

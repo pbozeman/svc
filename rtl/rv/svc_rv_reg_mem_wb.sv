@@ -27,6 +27,7 @@ module svc_rv_reg_mem_wb #(
     //
     input logic       reg_write_mem,
     input logic [2:0] res_src_mem,
+    input logic [2:0] funct3_mem,
 
     //
     // MEM stage inputs (data)
@@ -44,6 +45,7 @@ module svc_rv_reg_mem_wb #(
     //
     output logic       reg_write_wb,
     output logic [2:0] res_src_wb,
+    output logic [2:0] funct3_wb,
 
     //
     // WB stage outputs (data)
@@ -64,8 +66,21 @@ module svc_rv_reg_mem_wb #(
     always_ff @(posedge clk) begin
       if (!rst_n) begin
         reg_write_wb <= '0;
+        funct3_wb    <= '0;
       end else begin
         reg_write_wb <= reg_write_mem;
+        funct3_wb    <= funct3_mem;
+      end
+    end
+
+    //
+    // Instruction with reset to NOP (ADDI x0, x0, 0)
+    //
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        instr_wb <= 32'h00000013;
+      end else begin
+        instr_wb <= instr_mem;
       end
     end
 
@@ -74,7 +89,6 @@ module svc_rv_reg_mem_wb #(
     //
     always_ff @(posedge clk) begin
       res_src_wb        <= res_src_mem;
-      instr_wb          <= instr_mem;
       rd_wb             <= rd_mem;
       alu_result_wb     <= alu_result_mem;
       dmem_rdata_ext_wb <= dmem_rdata_ext_mem;
@@ -85,6 +99,7 @@ module svc_rv_reg_mem_wb #(
   end else begin : g_passthrough
     assign reg_write_wb      = reg_write_mem;
     assign res_src_wb        = res_src_mem;
+    assign funct3_wb         = funct3_mem;
     assign instr_wb          = instr_mem;
     assign rd_wb             = rd_mem;
     assign alu_result_wb     = alu_result_mem;
