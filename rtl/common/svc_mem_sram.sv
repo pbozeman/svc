@@ -9,12 +9,12 @@
 //
 // Read behavior:
 // - Combinational reads (0-cycle latency)
-// - rd_valid → rd_data_valid & rd_data in SAME cycle
-// - Caller must be ready to accept response when asserting rd_valid
+// - rd_data available same cycle as rd_addr
+// - Always ready to accept new address
 //
 // Write behavior:
 // - Synchronous writes with byte strobes
-// - Always accepts write requests
+// - wr_en must be asserted for write to occur
 // - Writes complete immediately (no write response)
 //
 // Read-during-write:
@@ -30,19 +30,15 @@ module svc_mem_sram #(
     input logic clk,
     input logic rst_n,
 
-    // Read request
-    input logic [31:0] rd_addr,
-    input logic        rd_valid,
-
-    // Read response
+    // Read interface
+    input  logic [  31:0] rd_addr,
     output logic [DW-1:0] rd_data,
-    output logic          rd_data_valid,
 
-    // Write request
+    // Write interface
     input logic [    31:0] wr_addr,
     input logic [  DW-1:0] wr_data,
     input logic [DW/8-1:0] wr_strb,
-    input logic            wr_valid
+    input logic            wr_en
 );
   logic [DW-1:0] mem          [2**AW];
 
@@ -67,8 +63,7 @@ module svc_mem_sram #(
   end
 
   // Combinational read (0-cycle latency)
-  assign rd_data       = mem[word_addr_rd];
-  assign rd_data_valid = rd_valid;
+  assign rd_data = mem[word_addr_rd];
 
   // Synchronous write with byte strobes
   always_ff @(posedge clk) begin
@@ -80,7 +75,7 @@ module svc_mem_sram #(
         end
       end
 `endif
-    end else if (wr_valid) begin
+    end else if (wr_en) begin
       for (int i = 0; i < DW / 8; i++) begin
         if (wr_strb[i]) begin
           mem[word_addr_wr][i*8+:8] <= wr_data[i*8+:8];

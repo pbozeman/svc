@@ -10,106 +10,82 @@ module svc_mem_sram_tb;
   `TEST_RST_N(clk, rst_n);
 
   logic [31:0] rd_addr;
-  logic        rd_valid;
   logic [31:0] rd_data;
-  logic        rd_data_valid;
 
   logic [31:0] wr_addr;
   logic [31:0] wr_data;
   logic [ 3:0] wr_strb;
-  logic        wr_valid;
+  logic        wr_en;
 
   svc_mem_sram #(
       .DW(DW),
       .AW(AW)
   ) uut (
-      .clk          (clk),
-      .rst_n        (rst_n),
-      .rd_addr      (rd_addr),
-      .rd_valid     (rd_valid),
-      .rd_data      (rd_data),
-      .rd_data_valid(rd_data_valid),
-      .wr_addr      (wr_addr),
-      .wr_data      (wr_data),
-      .wr_strb      (wr_strb),
-      .wr_valid     (wr_valid)
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .rd_addr(rd_addr),
+      .rd_data(rd_data),
+      .wr_addr(wr_addr),
+      .wr_data(wr_data),
+      .wr_strb(wr_strb),
+      .wr_en  (wr_en)
   );
 
   task automatic test_reset;
-    rd_valid = 1'b0;
-    wr_valid = 1'b0;
-    rd_addr  = '0;
-    wr_addr  = '0;
-    wr_data  = '0;
-    wr_strb  = '0;
+    wr_en   = 1'b0;
+    rd_addr = '0;
+    wr_addr = '0;
+    wr_data = '0;
+    wr_strb = '0;
 
     `TICK(clk);
-
-    `CHECK_FALSE(rd_data_valid);
   endtask
 
   task automatic test_init_zero;
-    rd_addr  = 32'h0000;
-    rd_valid = 1'b1;
+    rd_addr = 32'h0000;
 
-    `TICK(clk);
-    `CHECK_TRUE(rd_data_valid);
     `CHECK_EQ(rd_data, 32'h0000_0000);
 
-    rd_addr  = 32'h0004;
-    rd_valid = 1'b1;
+    rd_addr = 32'h0004;
 
-    `TICK(clk);
-    `CHECK_TRUE(rd_data_valid);
     `CHECK_EQ(rd_data, 32'h0000_0000);
-
-    rd_valid = 1'b0;
   endtask
 
   task automatic test_write_read_word;
-    wr_addr  = 32'h0000;
-    wr_data  = 32'hDEAD_BEEF;
-    wr_strb  = 4'b1111;
-    wr_valid = 1'b1;
+    wr_addr = 32'h0000;
+    wr_data = 32'hDEAD_BEEF;
+    wr_strb = 4'b1111;
+    wr_en   = 1'b1;
 
     `TICK(clk);
 
-    wr_valid = 1'b0;
+    wr_en   = 1'b0;
 
-    rd_addr  = 32'h0000;
-    rd_valid = 1'b1;
+    rd_addr = 32'h0000;
 
-    `TICK(clk);
-    `CHECK_TRUE(rd_data_valid);
     `CHECK_EQ(rd_data, 32'hDEAD_BEEF);
-
-    rd_valid = 1'b0;
   endtask
 
   task automatic test_zero_cycle_read_latency;
-    wr_addr  = 32'h0008;
-    wr_data  = 32'hCAFE_BABE;
-    wr_strb  = 4'b1111;
-    wr_valid = 1'b1;
+    wr_addr = 32'h0008;
+    wr_data = 32'hCAFE_BABE;
+    wr_strb = 4'b1111;
+    wr_en   = 1'b1;
 
     `TICK(clk);
 
-    wr_valid = 1'b0;
+    wr_en   = 1'b0;
 
-    rd_addr  = 32'h0008;
-    rd_valid = 1'b1;
+    rd_addr = 32'h0008;
 
-    `CHECK_TRUE(rd_data_valid);
     `CHECK_EQ(rd_data, 32'hCAFE_BABE);
-
-    rd_valid = 1'b0;
   endtask
 
   task automatic test_byte_write_strobes;
-    wr_addr  = 32'h0010;
-    wr_data  = 32'hAA00_0000;
-    wr_strb  = 4'b1000;
-    wr_valid = 1'b1;
+    wr_addr = 32'h0010;
+    wr_data = 32'hAA00_0000;
+    wr_strb = 4'b1000;
+    wr_en   = 1'b1;
 
     `TICK(clk);
 
@@ -131,23 +107,18 @@ module svc_mem_sram_tb;
 
     `TICK(clk);
 
-    wr_valid = 1'b0;
+    wr_en   = 1'b0;
 
-    rd_addr  = 32'h0010;
-    rd_valid = 1'b1;
+    rd_addr = 32'h0010;
 
-    `TICK(clk);
-    `CHECK_TRUE(rd_data_valid);
     `CHECK_EQ(rd_data, 32'hAABB_CCDD);
-
-    rd_valid = 1'b0;
   endtask
 
   task automatic test_halfword_writes;
-    wr_addr  = 32'h0020;
-    wr_data  = 32'h1234_0000;
-    wr_strb  = 4'b1100;
-    wr_valid = 1'b1;
+    wr_addr = 32'h0020;
+    wr_data = 32'h1234_0000;
+    wr_strb = 4'b1100;
+    wr_en   = 1'b1;
 
     `TICK(clk);
 
@@ -157,51 +128,41 @@ module svc_mem_sram_tb;
 
     `TICK(clk);
 
-    wr_valid = 1'b0;
+    wr_en   = 1'b0;
 
-    rd_addr  = 32'h0020;
-    rd_valid = 1'b1;
+    rd_addr = 32'h0020;
 
-    `TICK(clk);
-    `CHECK_TRUE(rd_data_valid);
     `CHECK_EQ(rd_data, 32'h1234_5678);
-
-    rd_valid = 1'b0;
   endtask
 
   task automatic test_read_during_write;
-    wr_addr  = 32'h0030;
-    wr_data  = 32'h0000_0001;
-    wr_strb  = 4'b1111;
-    wr_valid = 1'b1;
+    wr_addr = 32'h0030;
+    wr_data = 32'h0000_0001;
+    wr_strb = 4'b1111;
+    wr_en   = 1'b1;
 
     `TICK(clk);
 
-    rd_addr  = 32'h0030;
-    rd_valid = 1'b1;
-    wr_addr  = 32'h0030;
-    wr_data  = 32'h0000_0002;
-    wr_strb  = 4'b1111;
-    wr_valid = 1'b1;
+    rd_addr = 32'h0030;
+    wr_addr = 32'h0030;
+    wr_data = 32'h0000_0002;
+    wr_strb = 4'b1111;
+    wr_en   = 1'b1;
 
-    `CHECK_TRUE(rd_data_valid);
     `CHECK_EQ(rd_data, 32'h0000_0001);
 
     `TICK(clk);
 
-    wr_valid = 1'b0;
+    wr_en = 1'b0;
 
-    `CHECK_TRUE(rd_data_valid);
     `CHECK_EQ(rd_data, 32'h0000_0002);
-
-    rd_valid = 1'b0;
   endtask
 
   task automatic test_multiple_addresses;
-    wr_addr  = 32'h0040;
-    wr_data  = 32'hAAAA_AAAA;
-    wr_strb  = 4'b1111;
-    wr_valid = 1'b1;
+    wr_addr = 32'h0040;
+    wr_data = 32'hAAAA_AAAA;
+    wr_strb = 4'b1111;
+    wr_en   = 1'b1;
 
     `TICK(clk);
 
@@ -215,32 +176,26 @@ module svc_mem_sram_tb;
 
     `TICK(clk);
 
-    wr_valid = 1'b0;
+    wr_en   = 1'b0;
 
-    rd_addr  = 32'h0040;
-    rd_valid = 1'b1;
+    rd_addr = 32'h0040;
 
-    `TICK(clk);
     `CHECK_EQ(rd_data, 32'hAAAA_AAAA);
 
     rd_addr = 32'h0044;
 
-    `TICK(clk);
     `CHECK_EQ(rd_data, 32'hBBBB_BBBB);
 
     rd_addr = 32'h0048;
 
-    `TICK(clk);
     `CHECK_EQ(rd_data, 32'hCCCC_CCCC);
-
-    rd_valid = 1'b0;
   endtask
 
   task automatic test_word_addressing;
-    wr_addr  = 32'h0000;
-    wr_data  = 32'h1111_1111;
-    wr_strb  = 4'b1111;
-    wr_valid = 1'b1;
+    wr_addr = 32'h0000;
+    wr_data = 32'h1111_1111;
+    wr_strb = 4'b1111;
+    wr_en   = 1'b1;
 
     `TICK(clk);
 
@@ -249,20 +204,15 @@ module svc_mem_sram_tb;
 
     `TICK(clk);
 
-    wr_valid = 1'b0;
+    wr_en   = 1'b0;
 
-    rd_addr  = 32'h0001;
-    rd_valid = 1'b1;
+    rd_addr = 32'h0001;
 
-    `TICK(clk);
     `CHECK_EQ(rd_data, 32'h1111_1111);
 
     rd_addr = 32'h0005;
 
-    `TICK(clk);
     `CHECK_EQ(rd_data, 32'h2222_2222);
-
-    rd_valid = 1'b0;
   endtask
 
   `TEST_SUITE_BEGIN(svc_mem_sram_tb);
