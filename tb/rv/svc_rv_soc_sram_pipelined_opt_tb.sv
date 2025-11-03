@@ -15,7 +15,7 @@ module svc_rv_soc_sram_pipelined_opt_tb;
   // With forwarding, WB hazards are handled in the regfile, reducing CPI.
   // Based on actual benchmark results, tightened expectations.
   //
-  localparam real alu_indep_max_cpi = 1.8;
+  localparam real alu_indep_max_cpi = 1.35;
   localparam real alu_chain_max_cpi = 2.8;
   localparam real br_taken_max_cpi = 3.0;
   localparam real br_not_taken_max_cpi = 2.5;
