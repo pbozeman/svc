@@ -30,7 +30,7 @@ module svc_rv #(
     parameter int IMEM_AW     = 10,
     parameter int DMEM_AW     = 10,
     parameter int PIPELINED   = 0,
-    parameter int REGFILE_FWD = 1,
+    parameter int REGFILE_FWD = PIPELINED,
     parameter int MEM_TYPE    = 0
 ) (
     input logic clk,
@@ -67,6 +67,9 @@ module svc_rv #(
   initial begin
     if ((MEM_TYPE == MEM_TYPE_BRAM) && (PIPELINED == 0)) begin
       $fatal(1, "BRAM memory type requires PIPELINED=1");
+    end
+    if ((REGFILE_FWD == 1) && (PIPELINED == 0)) begin
+      $fatal(1, "REGFILE_FWD=1 requires PIPELINED=1");
     end
   end
 
