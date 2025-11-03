@@ -111,6 +111,8 @@ module svc_rv #(
   logic            rs_eq_lo_id;
   logic            rs_lt_u_lo_id;
   logic            rs_lt_s_lo_id;
+  logic            rs_sign_a_id;
+  logic            rs_sign_b_id;
 
   //
   // ID/EX pipeline register signals
@@ -138,6 +140,8 @@ module svc_rv #(
   logic            rs_eq_lo_ex;
   logic            rs_lt_u_lo_ex;
   logic            rs_lt_s_lo_ex;
+  logic            rs_sign_a_ex;
+  logic            rs_sign_b_ex;
 
   //
   // EX stage signals
@@ -412,6 +416,8 @@ module svc_rv #(
       .rs_eq_lo_id     (rs_eq_lo_id),
       .rs_lt_u_lo_id   (rs_lt_u_lo_id),
       .rs_lt_s_lo_id   (rs_lt_s_lo_id),
+      .rs_sign_a_id    (rs_sign_a_id),
+      .rs_sign_b_id    (rs_sign_b_id),
 
       // EX stage outputs
       .reg_write_ex    (reg_write_ex),
@@ -436,7 +442,9 @@ module svc_rv #(
       .pc_plus4_ex     (pc_plus4_ex),
       .rs_eq_lo_ex     (rs_eq_lo_ex),
       .rs_lt_u_lo_ex   (rs_lt_u_lo_ex),
-      .rs_lt_s_lo_ex   (rs_lt_s_lo_ex)
+      .rs_lt_s_lo_ex   (rs_lt_s_lo_ex),
+      .rs_sign_a_ex    (rs_sign_a_ex),
+      .rs_sign_b_ex    (rs_sign_b_ex)
   );
 
   //
@@ -544,6 +552,8 @@ module svc_rv #(
       .rs_eq_lo_id  (rs_eq_lo_id),
       .rs_lt_u_lo_id(rs_lt_u_lo_id),
       .rs_lt_s_lo_id(rs_lt_s_lo_id),
+      .rs_sign_a_id (rs_sign_a_id),
+      .rs_sign_b_id (rs_sign_b_id),
 
       // EX input
       .a_ex         (rs1_data_ex),
@@ -552,6 +562,8 @@ module svc_rv #(
       .rs_eq_lo_ex  (rs_eq_lo_ex),
       .rs_lt_u_lo_ex(rs_lt_u_lo_ex),
       .rs_lt_s_lo_ex(rs_lt_s_lo_ex),
+      .rs_sign_a_ex (rs_sign_a_ex),
+      .rs_sign_b_ex (rs_sign_b_ex),
 
       // EX output
       .branch_taken_ex(branch_taken_ex)
