@@ -14,12 +14,12 @@
 // NOTE: The instruction itself is NOT registered here. It's handled separately
 // in svc_rv.sv to accommodate different memory types (SRAM vs BRAM).
 //
-// When IF_ID_REG=0, signals are passed through combinationally instead
+// When PIPELINED=0, signals are passed through combinationally instead
 // of being registered, effectively disabling the pipeline stage.
 //
 module svc_rv_reg_if_id #(
     parameter int XLEN      = 32,
-    parameter int IF_ID_REG = 1
+    parameter int PIPELINED = 1
 ) (
     input logic clk,
     input logic rst_n,
@@ -44,7 +44,7 @@ module svc_rv_reg_if_id #(
 );
   `include "svc_rv_defs.svh"
 
-  if (IF_ID_REG != 0) begin : g_registered
+  if (PIPELINED != 0) begin : g_registered
     //
     // PC values without reset
     //

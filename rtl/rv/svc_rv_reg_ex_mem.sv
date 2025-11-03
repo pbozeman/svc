@@ -12,12 +12,12 @@
 // store data, and other execution results and presents them to the
 // memory stage on the next cycle.
 //
-// When EX_MEM_REG=0, signals are passed through combinationally instead
+// When PIPELINED=0, signals are passed through combinationally instead
 // of being registered, effectively disabling the pipeline stage.
 //
 module svc_rv_reg_ex_mem #(
-    parameter int XLEN       = 32,
-    parameter int EX_MEM_REG = 1
+    parameter int XLEN      = 32,
+    parameter int PIPELINED = 1
 ) (
     input logic clk,
     input logic rst_n,
@@ -61,7 +61,7 @@ module svc_rv_reg_ex_mem #(
     output logic [XLEN-1:0] csr_rdata_mem
 );
 
-  if (EX_MEM_REG != 0) begin : g_registered
+  if (PIPELINED != 0) begin : g_registered
     //
     // Control signals with reset
     //

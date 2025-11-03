@@ -27,10 +27,7 @@ module svc_rv #(
     parameter int XLEN        = 32,
     parameter int IMEM_AW     = 10,
     parameter int DMEM_AW     = 10,
-    parameter int IF_ID_REG   = 0,
-    parameter int ID_EX_REG   = 0,
-    parameter int EX_MEM_REG  = 0,
-    parameter int MEM_WB_REG  = 0,
+    parameter int PIPELINED   = 0,
     parameter int REGFILE_FWD = 1,
     parameter int MEM_TYPE    = 0
 ) (
@@ -59,7 +56,6 @@ module svc_rv #(
 
     output logic ebreak
 );
-  localparam int PIPELINED = IF_ID_REG | ID_EX_REG | EX_MEM_REG | MEM_WB_REG;
 
   `include "svc_rv_defs.svh"
 
@@ -245,12 +241,12 @@ module svc_rv #(
   //
   // Instruction register (IF to ID)
   //
-  // For SRAM with IF_ID_REG=1: register the combinational instruction data
-  // For SRAM with IF_ID_REG=0: pass through
+  // For SRAM with PIPELINED=1: register the combinational instruction data
+  // For SRAM with PIPELINED=0: pass through
   // For BRAM: pass through (BRAM already registers it)
   //
   if ((MEM_TYPE == MEM_TYPE_SRAM) &&
-      (IF_ID_REG != 0)) begin : g_instr_registered
+      (PIPELINED != 0)) begin : g_instr_registered
     always_ff @(posedge clk) begin
       if (!rst_n || if_id_flush) begin
         instr_id <= I_NOP;
@@ -268,7 +264,7 @@ module svc_rv #(
 
   svc_rv_reg_if_id #(
       .XLEN     (XLEN),
-      .IF_ID_REG(IF_ID_REG)
+      .PIPELINED(PIPELINED)
   ) reg_if_id (
       .clk  (clk),
       .rst_n(rst_n),
@@ -355,8 +351,7 @@ module svc_rv #(
   //
   if (PIPELINED == 1) begin : g_hazard
     svc_rv_hazard #(
-        .REGFILE_FWD(REGFILE_FWD),
-        .MEM_TYPE   (MEM_TYPE)
+        .REGFILE_FWD(REGFILE_FWD)
     ) hazard (
         // ID stage register addresses
         .rs1_id  (rs1_id),
@@ -400,7 +395,7 @@ module svc_rv #(
 
   svc_rv_reg_id_ex #(
       .XLEN     (XLEN),
-      .ID_EX_REG(ID_EX_REG)
+      .PIPELINED(PIPELINED)
   ) reg_id_ex (
       .clk  (clk),
       .rst_n(rst_n),
@@ -607,8 +602,8 @@ module svc_rv #(
   //----------------------------------------------------------------------------
 
   svc_rv_reg_ex_mem #(
-      .XLEN      (XLEN),
-      .EX_MEM_REG(EX_MEM_REG)
+      .XLEN     (XLEN),
+      .PIPELINED(PIPELINED)
   ) reg_ex_mem (
       .clk  (clk),
       .rst_n(rst_n),
@@ -679,8 +674,8 @@ module svc_rv #(
   //----------------------------------------------------------------------------
 
   svc_rv_reg_mem_wb #(
-      .XLEN      (XLEN),
-      .MEM_WB_REG(MEM_WB_REG)
+      .XLEN     (XLEN),
+      .PIPELINED(PIPELINED)
   ) reg_mem_wb (
       .clk  (clk),
       .rst_n(rst_n),
@@ -730,10 +725,10 @@ module svc_rv #(
 
   assign ebreak = (rst_n && instr_wb == I_EBREAK);
 
-  `SVC_UNUSED({IMEM_AW, DMEM_AW, IF_ID_REG, ID_EX_REG, EX_MEM_REG, MEM_WB_REG,
-               pc, pc_plus4, pc_id[1:0], pc_ex[1:0], funct7_id[6],
-               funct7_id[4:0], funct7_ex[6], funct7_ex[4:0], rs1_ex, rs2_ex,
-               instr_ex, alu_result_mem[1:0], rs1_used_id, rs2_used_id});
+  `SVC_UNUSED({IMEM_AW, DMEM_AW, pc, pc_plus4, pc_id[1:0], pc_ex[1:0],
+               funct7_id[6], funct7_id[4:0], funct7_ex[6], funct7_ex[4:0],
+               rs1_ex, rs2_ex, instr_ex, alu_result_mem[1:0], rs1_used_id,
+               rs2_used_id});
 
 endmodule
 
