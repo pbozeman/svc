@@ -18,6 +18,7 @@ Modules are organized functionally:
 - **fifo/** - Synchronous FIFOs (FWFT and zero-latency variants)
 - **gfx/** - Graphics and VGA (framebuffers, line drawing, VGA timing)
 - **ice40/** - iCE40 FPGA-specific implementations (PLLs, SRAM interfaces)
+- **rv/** - RISC-V processor (RV32I, single or 5-stage pipeline, configurable)
 - **stats/** - Statistics collection (counters, min/max trackers)
 - **uart/** - Serial communication (TX/RX, formatted printing)
 

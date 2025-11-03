@@ -66,7 +66,7 @@ module svc_example #(
 - **Testbench suffix**: Use `_tb` suffix for testbenches
 - **Formal verification suffix**: Use `_f` suffix for formal verification
 - **RTL files**: Place in appropriate `rtl/` subdirectory (axi, cdc, common,
-  fifo, gfx, ice40, stats, uart)
+  fifo, gfx, ice40, rv, stats, uart)
 - **Testbench files**: Place in corresponding `tb/` subdirectory mirroring RTL
   organization
 - **Formal verification files**: Place formal verification in `tb/formal/`

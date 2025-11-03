@@ -9,7 +9,6 @@ the repo.
 
 - **[style.md](style.md)** - Coding standards and style conventions
 - **[tb.md](tb.md)** - Testbench development guide
-- **[modules.md](modules.md)** - Module reference and usage documentation
 
 ## Repository Structure
 
@@ -23,5 +22,6 @@ Each RTL module directory contains its own README with module-specific details:
 - [rtl/fifo/README.md](../rtl/fifo/README.md)
 - [rtl/gfx/README.md](../rtl/gfx/README.md)
 - [rtl/ice40/README.md](../rtl/ice40/README.md)
+- [rtl/rv/README.md](../rtl/rv/README.md)
 - [rtl/stats/README.md](../rtl/stats/README.md)
 - [rtl/uart/README.md](../rtl/uart/README.md)
