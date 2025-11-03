@@ -17,6 +17,12 @@
 // verilog_format: off
 // verilator lint_off UNUSEDPARAM
 
+//
+// Memory type values
+//
+localparam int MEM_TYPE_SRAM = 0;
+localparam int MEM_TYPE_BRAM = 1;
+
 // ALU operation constants
 //
 // alu_op values

@@ -23,7 +23,6 @@
 // For combinational (SRAM-style) memories: Use with IF_ID_REG=0 or 1
 // For registered (BRAM-style) memories: Requires IF_ID_REG=1
 //
-// This is not fully handled yet, only sramc will currently work.
 module svc_rv #(
     parameter int XLEN        = 32,
     parameter int IMEM_AW     = 10,
@@ -32,7 +31,8 @@ module svc_rv #(
     parameter int ID_EX_REG   = 0,
     parameter int EX_MEM_REG  = 0,
     parameter int MEM_WB_REG  = 0,
-    parameter int REGFILE_FWD = 1
+    parameter int REGFILE_FWD = 1,
+    parameter int MEM_TYPE    = 0
 ) (
     input logic clk,
     input logic rst_n,
@@ -233,6 +233,26 @@ module svc_rv #(
   assign imem_addr = pc;
   assign instr     = imem_data;
 
+  //
+  // Instruction register (IF to ID)
+  //
+  // For SRAM with IF_ID_REG=1: register the combinational instruction data
+  // For SRAM with IF_ID_REG=0: pass through
+  // For BRAM: pass through (BRAM already registers it)
+  //
+  if ((MEM_TYPE == MEM_TYPE_SRAM) &&
+      (IF_ID_REG != 0)) begin : g_instr_registered
+    always_ff @(posedge clk) begin
+      if (!rst_n || if_id_flush) begin
+        instr_id <= I_NOP;
+      end else if (!if_id_stall) begin
+        instr_id <= instr;
+      end
+    end
+  end else begin : g_instr_passthrough
+    assign instr_id = instr;
+  end
+
   //----------------------------------------------------------------------------
   // IF/ID Pipeline Boundary
   //----------------------------------------------------------------------------
@@ -249,12 +269,10 @@ module svc_rv #(
       .flush(if_id_flush),
 
       // IF signals
-      .instr_if   (instr),
       .pc_if      (pc),
       .pc_plus4_if(pc_plus4),
 
       // ID signals
-      .instr_id   (instr_id),
       .pc_id      (pc_id),
       .pc_plus4_id(pc_plus4_id)
   );
@@ -362,8 +380,6 @@ module svc_rv #(
     assign if_id_stall = 1'b0;
     assign if_id_flush = 1'b0;
     assign id_ex_flush = 1'b0;
-
-    `SVC_UNUSED({rs1_used_id, rs2_used_id});
   end
 
   //----------------------------------------------------------------------------
@@ -701,7 +717,7 @@ module svc_rv #(
   `SVC_UNUSED({IMEM_AW, DMEM_AW, IF_ID_REG, ID_EX_REG, EX_MEM_REG, MEM_WB_REG,
                pc, pc_plus4, pc_id[1:0], pc_ex[1:0], funct7_id[6],
                funct7_id[4:0], funct7_ex[6], funct7_ex[4:0], rs1_ex, rs2_ex,
-               instr_ex, alu_result_mem[1:0]});
+               instr_ex, alu_result_mem[1:0], rs1_used_id, rs2_used_id});
 
 endmodule
 
