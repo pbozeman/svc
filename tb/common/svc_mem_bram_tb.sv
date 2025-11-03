@@ -3,19 +3,20 @@
 `include "svc_mem_bram.sv"
 
 module svc_mem_bram_tb;
-  localparam DW = 32;
-  localparam AW = 10;
+  localparam int DW = 32;
+  localparam int AW = 10;
 
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
+  logic        rd_en;
   logic [31:0] rd_addr;
   logic [31:0] rd_data;
 
+  logic        wr_en;
   logic [31:0] wr_addr;
   logic [31:0] wr_data;
   logic [ 3:0] wr_strb;
-  logic        wr_en;
 
   svc_mem_bram #(
       .DW(DW),
@@ -23,15 +24,17 @@ module svc_mem_bram_tb;
   ) uut (
       .clk    (clk),
       .rst_n  (rst_n),
+      .rd_en  (rd_en),
       .rd_addr(rd_addr),
       .rd_data(rd_data),
+      .wr_en  (wr_en),
       .wr_addr(wr_addr),
       .wr_data(wr_data),
-      .wr_strb(wr_strb),
-      .wr_en  (wr_en)
+      .wr_strb(wr_strb)
   );
 
   task automatic test_reset;
+    rd_en   = 1'b1;
     wr_en   = 1'b0;
     rd_addr = '0;
     wr_addr = '0;
@@ -228,6 +231,135 @@ module svc_mem_bram_tb;
     `CHECK_EQ(rd_data, 32'h2222_2222);
   endtask
 
+  task automatic test_rd_en_holds_data;
+    wr_addr = 32'h0050;
+    wr_data = 32'hFEED_FACE;
+    wr_strb = 4'b1111;
+    wr_en   = 1'b1;
+
+    `TICK(clk);
+
+    wr_addr = 32'h0054;
+    wr_data = 32'h1234_5678;
+
+    `TICK(clk);
+
+    wr_en   = 1'b0;
+
+    rd_addr = 32'h0050;
+    rd_en   = 1'b1;
+
+    `TICK(clk);
+    `CHECK_EQ(rd_data, 32'hFEED_FACE);
+
+    rd_addr = 32'h0054;
+    rd_en   = 1'b0;
+
+    `TICK(clk);
+    `CHECK_EQ(rd_data, 32'hFEED_FACE);
+
+    `TICK(clk);
+    `CHECK_EQ(rd_data, 32'hFEED_FACE);
+
+    rd_en = 1'b1;
+
+    `TICK(clk);
+    `CHECK_EQ(rd_data, 32'h1234_5678);
+  endtask
+
+  task automatic test_rd_en_with_changing_address;
+    wr_addr = 32'h0060;
+    wr_data = 32'hAAAA_AAAA;
+    wr_strb = 4'b1111;
+    wr_en   = 1'b1;
+
+    `TICK(clk);
+
+    wr_addr = 32'h0064;
+    wr_data = 32'hBBBB_BBBB;
+
+    `TICK(clk);
+
+    wr_addr = 32'h0068;
+    wr_data = 32'hCCCC_CCCC;
+
+    `TICK(clk);
+
+    wr_en   = 1'b0;
+
+    rd_addr = 32'h0060;
+    rd_en   = 1'b1;
+
+    `TICK(clk);
+    `CHECK_EQ(rd_data, 32'hAAAA_AAAA);
+
+    rd_addr = 32'h0064;
+    rd_en   = 1'b0;
+
+    `TICK(clk);
+    `CHECK_EQ(rd_data, 32'hAAAA_AAAA);
+
+    rd_addr = 32'h0068;
+
+    `TICK(clk);
+    `CHECK_EQ(rd_data, 32'hAAAA_AAAA);
+
+    rd_en = 1'b1;
+
+    `TICK(clk);
+    `CHECK_EQ(rd_data, 32'hCCCC_CCCC);
+  endtask
+
+  task automatic test_rd_en_back_to_back_reads;
+    wr_addr = 32'h0070;
+    wr_data = 32'h1111_1111;
+    wr_strb = 4'b1111;
+    wr_en   = 1'b1;
+
+    `TICK(clk);
+
+    wr_addr = 32'h0074;
+    wr_data = 32'h2222_2222;
+
+    `TICK(clk);
+
+    wr_addr = 32'h0078;
+    wr_data = 32'h3333_3333;
+
+    `TICK(clk);
+
+    wr_addr = 32'h007C;
+    wr_data = 32'h4444_4444;
+
+    `TICK(clk);
+
+    wr_en   = 1'b0;
+
+    rd_addr = 32'h0070;
+    rd_en   = 1'b1;
+
+    `TICK(clk);
+    `CHECK_EQ(rd_data, 32'h1111_1111);
+
+    rd_addr = 32'h0074;
+    rd_en   = 1'b1;
+
+    `TICK(clk);
+    `CHECK_EQ(rd_data, 32'h2222_2222);
+
+    rd_addr = 32'h0078;
+    rd_en   = 1'b0;
+
+    `TICK(clk);
+    `CHECK_EQ(rd_data, 32'h2222_2222);
+
+    rd_addr = 32'h007C;
+    rd_en   = 1'b1;
+
+    `TICK(clk);
+    `CHECK_EQ(rd_data, 32'h4444_4444);
+  endtask
+
   `TEST_SUITE_BEGIN(svc_mem_bram_tb);
   `TEST_CASE(test_reset);
   `TEST_CASE(test_init_zero);
@@ -238,6 +370,9 @@ module svc_mem_bram_tb;
   `TEST_CASE(test_read_during_write);
   `TEST_CASE(test_multiple_addresses);
   `TEST_CASE(test_word_addressing);
+  `TEST_CASE(test_rd_en_holds_data);
+  `TEST_CASE(test_rd_en_with_changing_address);
+  `TEST_CASE(test_rd_en_back_to_back_reads);
   `TEST_SUITE_END();
 
 endmodule

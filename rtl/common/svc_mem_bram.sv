@@ -31,14 +31,15 @@ module svc_mem_bram #(
     input logic rst_n,
 
     // Read interface
+    input  logic          rd_en,
     input  logic [  31:0] rd_addr,
     output logic [DW-1:0] rd_data,
 
     // Write interface
+    input logic            wr_en,
     input logic [    31:0] wr_addr,
     input logic [  DW-1:0] wr_data,
-    input logic [DW/8-1:0] wr_strb,
-    input logic            wr_en
+    input logic [DW/8-1:0] wr_strb
 );
   // Block RAM inference
   (* ramstyle = "block" *)
@@ -65,11 +66,15 @@ module svc_mem_bram #(
     end
   end
 
+  //
   // Registered read (1-cycle latency)
+  //
+  // Enable signal allows holding output during stalls
+  //
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       rd_data <= {DW{1'b0}};
-    end else begin
+    end else if (rd_en) begin
       rd_data <= mem[word_addr_rd];
     end
   end
