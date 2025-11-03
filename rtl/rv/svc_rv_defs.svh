@@ -128,6 +128,7 @@ localparam logic [6:0] OP_RESET  = 7'b0000000;
 //
 // Specific instruction encodings
 //
+localparam logic [31:0] I_NOP    = 32'h00000013;
 localparam logic [31:0] I_ECALL  = 32'h00000073;
 localparam logic [31:0] I_EBREAK = 32'h00100073;
 

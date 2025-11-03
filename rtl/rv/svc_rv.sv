@@ -202,9 +202,9 @@ module svc_rv #(
   //
   // An instruction retires when it reaches WB and is not a bubble.
   // Bubbles are injected as 0 on reset. Flushed instructions become NOPs
-  // (0x00000013) which also should not count as retired.
+  // which also should not count as retired.
   //
-  assign instr_retired = (instr_wb != 32'h0) && (instr_wb != 32'h00000013);
+  assign instr_retired = (instr_wb != 32'h0) && (instr_wb != I_NOP);
 
   //
   // PC

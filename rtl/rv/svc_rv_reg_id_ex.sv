@@ -129,7 +129,7 @@ module svc_rv_reg_id_ex #(
         is_branch_ex     <= '0;
         is_jump_ex       <= '0;
         jb_target_src_ex <= '0;
-        instr_ex         <= 32'h00000013;
+        instr_ex         <= I_NOP;
         rd_ex            <= '0;
         rs1_ex           <= '0;
         rs2_ex           <= '0;
