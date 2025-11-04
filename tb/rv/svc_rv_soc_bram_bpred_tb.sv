@@ -12,17 +12,18 @@ module svc_rv_soc_bram_bpred_tb;
   //
   // CPI expectations with BRAM memories and branch prediction
   //
-  // With predictor enabled, expect improved CPI on branch-heavy workloads
+  // With JAL early resolution and BTFNT prediction, improved CPI
+  // BRAM latency still adds overhead compared to SRAM
   //
-  localparam real alu_indep_max_cpi = 1.5;
-  localparam real alu_chain_max_cpi = 2.9;
-  localparam real br_taken_max_cpi = 3.5;
-  localparam real br_not_taken_max_cpi = 2.8;
-  localparam real load_use_max_cpi = 2.8;
-  localparam real mixed_alu_max_cpi = 2.7;
-  localparam real fib12_max_cpi = 1.7;
-  localparam real fib100_max_cpi = 1.7;
-  localparam real bubble_max_cpi = 2.2;
+  localparam real alu_indep_max_cpi = 1.34;
+  localparam real alu_chain_max_cpi = 2.75;
+  localparam real br_taken_max_cpi = 3.0;
+  localparam real br_not_taken_max_cpi = 2.5;
+  localparam real load_use_max_cpi = 2.5;
+  localparam real mixed_alu_max_cpi = 2.56;
+  localparam real fib12_max_cpi = 1.54;
+  localparam real fib100_max_cpi = 1.51;
+  localparam real bubble_max_cpi = 2.08;
   logic ebreak;
 
   svc_rv_soc_bram #(
