@@ -18,6 +18,7 @@ module svc_rv_soc_sram #(
     parameter int DMEM_AW     = 10,
     parameter int PIPELINED   = 0,
     parameter int FWD_REGFILE = PIPELINED,
+    parameter int FWD         = 0,
 
     // verilog_lint: waive explicit-parameter-storage-type
     parameter IMEM_INIT = ""
@@ -49,7 +50,8 @@ module svc_rv_soc_sram #(
       .IMEM_AW    (IMEM_AW),
       .DMEM_AW    (DMEM_AW),
       .PIPELINED  (PIPELINED),
-      .FWD_REGFILE(FWD_REGFILE)
+      .FWD_REGFILE(FWD_REGFILE),
+      .FWD        (FWD)
   ) cpu (
       .clk  (clk),
       .rst_n(rst_n),

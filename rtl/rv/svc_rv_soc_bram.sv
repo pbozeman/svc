@@ -23,6 +23,7 @@ module svc_rv_soc_bram #(
     parameter int DMEM_AW     = 10,
     parameter int PIPELINED   = 1,
     parameter int FWD_REGFILE = 1,
+    parameter int FWD         = 0,
 
     // verilog_lint: waive explicit-parameter-storage-type
     parameter IMEM_INIT = ""
@@ -58,6 +59,7 @@ module svc_rv_soc_bram #(
       .DMEM_AW    (DMEM_AW),
       .PIPELINED  (PIPELINED),
       .FWD_REGFILE(FWD_REGFILE),
+      .FWD        (FWD),
       .MEM_TYPE   (MEM_TYPE_BRAM)
   ) cpu (
       .clk       (clk),

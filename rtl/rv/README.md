@@ -101,12 +101,17 @@ Memory-specific instruction fetch adapters handle timing differences:
 - **svc_rv_st_fmt.sv** - Store data formatter
   - Generates proper wdata and wstrb for SB, SH, SW
 
-### Hazard Detection
+### Hazard Detection and Forwarding
 
-- **svc_rv_hazard.sv** - Pipeline hazard detection and forwarding
-  - Detects data hazards between pipeline stages
-  - Implements forwarding paths from EX and MEM stages
-  - Generates stall signals when forwarding is not possible
+- **svc_rv_hazard.sv** - Pipeline hazard detection unit
+  - Detects data hazards between pipeline stages (RAW hazards)
+  - Detects load-use hazards and branch hazards
+  - Generates stall and flush signals for hazard resolution
+  - Configurable forwarding mode (FWD parameter)
+- **svc_rv_forward.sv** - Data forwarding unit
+  - MEM→EX forwarding (EX hazard resolution)
+  - WB→EX forwarding (MEM hazard resolution)
+  - Forwarding priority: MEM > WB > regfile
 
 ### Header Files
 
@@ -332,6 +337,6 @@ See tb/rv/ for testbench implementations.
 
 ## References
 
-- RISC-V Instruction Set Manual: https://github.com/riscv/riscv-isa-manual
+- RISC-V Instruction Set Manual: <https://github.com/riscv/riscv-isa-manual>
 - RV32I Base Integer Instruction Set
 - Zicntr Standard Extension for Base Counters and Timers

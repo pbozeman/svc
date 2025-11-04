@@ -9,6 +9,7 @@
 `include "svc_rv_alu_dec.sv"
 `include "svc_rv_bcmp.sv"
 `include "svc_rv_csr.sv"
+`include "svc_rv_forward.sv"
 `include "svc_rv_hazard.sv"
 `include "svc_rv_idec.sv"
 `include "svc_rv_if_bram.sv"
@@ -31,6 +32,7 @@ module svc_rv #(
     parameter int DMEM_AW     = 10,
     parameter int PIPELINED   = 0,
     parameter int FWD_REGFILE = PIPELINED,
+    parameter int FWD         = 0,
     parameter int MEM_TYPE    = 0
 ) (
     input logic clk,
@@ -70,6 +72,9 @@ module svc_rv #(
     end
     if ((FWD_REGFILE == 1) && (PIPELINED == 0)) begin
       $fatal(1, "FWD_REGFILE=1 requires PIPELINED=1");
+    end
+    if ((FWD == 1) && (PIPELINED == 0)) begin
+      $fatal(1, "FWD=1 requires PIPELINED=1");
     end
   end
 
@@ -189,10 +194,7 @@ module svc_rv #(
   logic [XLEN-1:0] pc_plus4_wb;
   logic [XLEN-1:0] jb_target_wb;
   logic [XLEN-1:0] csr_rdata_wb;
-
-  // verilator lint_off UNUSEDSIGNAL
   logic [     2:0] funct3_wb;
-  // verilator lint_on UNUSEDSIGNAL
 
   //
   // WB stage signals
@@ -405,6 +407,21 @@ module svc_rv #(
   );
 
   //
+  // Decode result sources for hazard detection and forwarding
+  //
+  // These signals are shared by both the hazard unit and forwarding logic
+  //
+  logic is_load_ex;
+  logic is_csr_ex;
+  logic is_load_mem;
+  logic is_csr_mem;
+
+  assign is_load_ex  = (res_src_ex == RES_MEM);
+  assign is_csr_ex   = (res_src_ex == RES_CSR);
+  assign is_load_mem = (res_src_mem == RES_MEM);
+  assign is_csr_mem  = (res_src_mem == RES_CSR);
+
+  //
   // Hazard Detection Unit
   //
   // Only instantiate when pipeline registers are enabled.
@@ -412,21 +429,28 @@ module svc_rv #(
   //
   if (PIPELINED == 1) begin : g_hazard
     svc_rv_hazard #(
-        .FWD_REGFILE(FWD_REGFILE)
+        .FWD_REGFILE(FWD_REGFILE),
+        .FWD        (FWD),
+        .MEM_TYPE   (MEM_TYPE)
     ) hazard (
         // ID stage register addresses
-        .rs1_id  (rs1_id),
-        .rs2_id  (rs2_id),
-        .rs1_used(rs1_used_id),
-        .rs2_used(rs2_used_id),
+        .rs1_id      (rs1_id),
+        .rs2_id      (rs2_id),
+        .rs1_used    (rs1_used_id),
+        .rs2_used    (rs2_used_id),
+        .is_branch_id(is_branch_id),
 
         // EX stage
         .rd_ex       (rd_ex),
         .reg_write_ex(reg_write_ex),
+        .is_load_ex  (is_load_ex),
+        .is_csr_ex   (is_csr_ex),
 
         // MEM stage
         .rd_mem       (rd_mem),
         .reg_write_mem(reg_write_mem),
+        .is_load_mem  (is_load_mem),
+        .is_csr_mem   (is_csr_mem),
 
         // WB stage
         .rd_wb       (rd_wb),
@@ -448,6 +472,8 @@ module svc_rv #(
     assign if_id_flush = 1'b0;
     assign id_ex_stall = 1'b0;
     assign id_ex_flush = 1'b0;
+
+    `SVC_UNUSED({is_load_ex, is_csr_ex, is_load_mem, is_csr_mem});
   end
 
   //----------------------------------------------------------------------------
@@ -536,6 +562,41 @@ module svc_rv #(
   );
 
   //
+  // Data forwarding unit
+  //
+  logic [XLEN-1:0] rs1_fwd_ex;
+  logic [XLEN-1:0] rs2_fwd_ex;
+
+  svc_rv_forward #(
+      .XLEN(XLEN),
+      .FWD ((PIPELINED != 0 && FWD != 0) ? 1 : 0)
+  ) forward (
+      // EX stage inputs
+      .rs1_ex     (rs1_ex),
+      .rs2_ex     (rs2_ex),
+      .rs1_used_ex(rs1_used_ex),
+      .rs2_used_ex(rs2_used_ex),
+      .rs1_data_ex(rs1_data_ex),
+      .rs2_data_ex(rs2_data_ex),
+
+      // MEM stage inputs
+      .rd_mem        (rd_mem),
+      .reg_write_mem (reg_write_mem),
+      .is_load_mem   (is_load_mem),
+      .is_csr_mem    (is_csr_mem),
+      .alu_result_mem(alu_result_mem),
+
+      // WB stage inputs
+      .rd_wb       (rd_wb),
+      .reg_write_wb(reg_write_wb),
+      .rd_data     (rd_data),
+
+      // Forwarded outputs
+      .rs1_fwd_ex(rs1_fwd_ex),
+      .rs2_fwd_ex(rs2_fwd_ex)
+  );
+
+  //
   // ALU A input mux
   //
   svc_muxn #(
@@ -543,7 +604,7 @@ module svc_rv #(
       .N    (3)
   ) mux_alu_a (
       .sel (alu_a_src_ex),
-      .data({pc_ex, {XLEN{1'b0}}, rs1_data_ex}),
+      .data({pc_ex, {XLEN{1'b0}}, rs1_fwd_ex}),
       .out (alu_a_ex)
   );
 
@@ -555,7 +616,7 @@ module svc_rv #(
       .N    (2)
   ) mux_alu_b (
       .sel (alu_b_src_ex),
-      .data({imm_ex, rs2_data_ex}),
+      .data({imm_ex, rs2_fwd_ex}),
       .out (alu_b_ex)
   );
 
@@ -633,8 +694,8 @@ module svc_rv #(
       .rs_sign_b_id (rs_sign_b_id),
 
       // EX input
-      .a_ex         (rs1_data_ex),
-      .b_ex         (rs2_data_ex),
+      .a_ex         (rs1_fwd_ex),
+      .b_ex         (rs2_fwd_ex),
       .funct3       (funct3_ex),
       .rs_eq_lo_ex  (rs_eq_lo_ex),
       .rs_lt_u_lo_ex(rs_lt_u_lo_ex),
@@ -683,7 +744,7 @@ module svc_rv #(
       .rs2_used_ex  (rs2_used_ex),
       .funct3_ex    (funct3_ex),
       .alu_result_ex(alu_result_ex),
-      .rs2_data_ex  (rs2_data_ex),
+      .rs2_data_ex  (rs2_fwd_ex),
       .pc_plus4_ex  (pc_plus4_ex),
       .jb_target_ex (jb_target_ex),
       .csr_rdata_ex (csr_rdata_ex),
@@ -706,6 +767,9 @@ module svc_rv #(
 
   //
   // Data memory (store formatting)
+  //
+  // Stores use rs2_data_mem, which comes from rs2_fwd_ex pipelined through
+  // the EX/MEM register. This means stores automatically get forwarded values.
   //
   svc_rv_st_fmt #(
       .XLEN(XLEN)
@@ -744,6 +808,8 @@ module svc_rv #(
     assign ld_fmt_addr        = alu_result_mem[1:0];
     assign ld_fmt_funct3      = funct3_mem;
     assign dmem_rdata_ext_mem = ld_fmt_out;
+
+    `SVC_UNUSED({funct3_wb});
   end else begin : g_ld_fmt_signals_bram
     assign ld_fmt_addr              = alu_result_wb[1:0];
     assign ld_fmt_funct3            = funct3_wb;
