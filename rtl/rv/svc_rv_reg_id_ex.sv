@@ -66,6 +66,11 @@ module svc_rv_reg_id_ex #(
     input logic rs_sign_b_id,
 
     //
+    // ID stage inputs (branch prediction)
+    //
+    input logic bpred_taken_id,
+
+    //
     // EX stage outputs (control signals)
     //
     output logic       reg_write_ex,
@@ -100,7 +105,12 @@ module svc_rv_reg_id_ex #(
     output logic rs_lt_u_lo_ex,
     output logic rs_lt_s_lo_ex,
     output logic rs_sign_a_ex,
-    output logic rs_sign_b_ex
+    output logic rs_sign_b_ex,
+
+    //
+    // EX stage outputs (branch prediction)
+    //
+    output logic bpred_taken_ex
 );
   `include "svc_rv_defs.svh"
 
@@ -158,16 +168,17 @@ module svc_rv_reg_id_ex #(
     //
     always_ff @(posedge clk) begin
       if (!stall) begin
-        rs1_data_ex   <= rs1_data_id;
-        rs2_data_ex   <= rs2_data_id;
-        imm_ex        <= imm_id;
-        pc_ex         <= pc_id;
-        pc_plus4_ex   <= pc_plus4_id;
-        rs_eq_lo_ex   <= rs_eq_lo_id;
-        rs_lt_u_lo_ex <= rs_lt_u_lo_id;
-        rs_lt_s_lo_ex <= rs_lt_s_lo_id;
-        rs_sign_a_ex  <= rs_sign_a_id;
-        rs_sign_b_ex  <= rs_sign_b_id;
+        rs1_data_ex    <= rs1_data_id;
+        rs2_data_ex    <= rs2_data_id;
+        imm_ex         <= imm_id;
+        pc_ex          <= pc_id;
+        pc_plus4_ex    <= pc_plus4_id;
+        rs_eq_lo_ex    <= rs_eq_lo_id;
+        rs_lt_u_lo_ex  <= rs_lt_u_lo_id;
+        rs_lt_s_lo_ex  <= rs_lt_s_lo_id;
+        rs_sign_a_ex   <= rs_sign_a_id;
+        rs_sign_b_ex   <= rs_sign_b_id;
+        bpred_taken_ex <= bpred_taken_id;
       end
     end
   end else begin : g_passthrough
@@ -196,6 +207,7 @@ module svc_rv_reg_id_ex #(
     assign rs_lt_s_lo_ex    = rs_lt_s_lo_id;
     assign rs_sign_a_ex     = rs_sign_a_id;
     assign rs_sign_b_ex     = rs_sign_b_id;
+    assign bpred_taken_ex   = bpred_taken_id;
 
     `SVC_UNUSED({clk, rst_n, stall, flush});
   end

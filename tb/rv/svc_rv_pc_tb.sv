@@ -9,23 +9,29 @@ module svc_rv_pc_tb;
   logic        stall;
   logic        pc_sel;
   logic [31:0] jb_target;
+  logic        pred_taken;
+  logic [31:0] pred_target;
   logic [31:0] pc;
   logic [31:0] pc_plus4;
 
   svc_rv_pc uut (
-      .clk      (clk),
-      .rst_n    (rst_n),
-      .stall    (stall),
-      .pc_sel   (pc_sel),
-      .jb_target(jb_target),
-      .pc       (pc),
-      .pc_plus4 (pc_plus4)
+      .clk        (clk),
+      .rst_n      (rst_n),
+      .stall      (stall),
+      .pc_sel     (pc_sel),
+      .jb_target  (jb_target),
+      .pred_taken (pred_taken),
+      .pred_target(pred_target),
+      .pc         (pc),
+      .pc_plus4   (pc_plus4)
   );
 
   initial begin
-    stall     = 0;
-    pc_sel    = 0;
-    jb_target = 0;
+    stall       = 0;
+    pc_sel      = 0;
+    jb_target   = 0;
+    pred_taken  = 0;
+    pred_target = 0;
   end
 
   task automatic test_reset;
