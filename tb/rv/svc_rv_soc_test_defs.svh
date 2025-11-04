@@ -39,6 +39,11 @@ logic [31:0] fib12_cpi_instrs;
 real         fib12_cpi_real;
 bit          fib12_cpi_valid;
 
+logic [31:0] fib100_cpi_cycles;
+logic [31:0] fib100_cpi_instrs;
+real         fib100_cpi_real;
+bit          fib100_cpi_valid;
+
 logic [31:0] bubble_cpi_cycles;
 logic [31:0] bubble_cpi_instrs;
 real         bubble_cpi_real;
@@ -128,6 +133,12 @@ final begin
       $display("    Instructions: %0d", fib12_cpi_instrs);
       $display("    CPI:          %f\n", fib12_cpi_real);
     end
+    if (fib100_cpi_valid) begin
+      $display("  %s.Fib100:", svc_tb_module_name);
+      $display("    Cycles:       %0d", fib100_cpi_cycles);
+      $display("    Instructions: %0d", fib100_cpi_instrs);
+      $display("    CPI:          %f\n", fib100_cpi_real);
+    end
     if (bubble_cpi_valid) begin
       $display("  %s.BubbleSort:", svc_tb_module_name);
       $display("    Cycles:       %0d", bubble_cpi_cycles);
@@ -172,6 +183,11 @@ function automatic real calc_cpi;
       fib12_cpi_instrs = instrs;
       fib12_cpi_real   = cpi_real;
       fib12_cpi_valid  = 1;
+    end else if (name == "fib100") begin
+      fib100_cpi_cycles = cycles;
+      fib100_cpi_instrs = instrs;
+      fib100_cpi_real   = cpi_real;
+      fib100_cpi_valid  = 1;
     end else if (name == "bubble") begin
       bubble_cpi_cycles = cycles;
       bubble_cpi_instrs = instrs;
@@ -2107,6 +2123,40 @@ task automatic test_fib12;
   cycles = uut.cpu.regfile.regs[24];
   instrs = uut.cpu.regfile.regs[25];
   `CHECK_CPI("fib12", fib12_max_cpi, cycles, instrs);
+endtask
+
+//
+// Test: Fibonacci with 100 iterations (performance benchmark)
+//
+task automatic test_fib100;
+  logic [31:0] cycles;
+  logic [31:0] instrs;
+
+  RDCYCLE(x20);
+  RDINSTRET(x21);
+  ADDI(x10, x0, 100);
+  ADDI(x11, x0, 0);
+  ADDI(x12, x0, 1);
+  ADDI(x13, x0, 0);
+  BEQ(x13, x10, 24);
+  ADD(x14, x11, x12);
+  ADD(x11, x12, x0);
+  ADD(x12, x14, x0);
+  ADDI(x13, x13, 1);
+  JAL(x0, -20);
+  SLLI(x30, x11, 1);
+  RDCYCLE(x22);
+  RDINSTRET(x23);
+  SUB(x24, x22, x20);
+  SUB(x25, x23, x21);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR(clk, ebreak, 2048);
+  cycles = uut.cpu.regfile.regs[24];
+  instrs = uut.cpu.regfile.regs[25];
+  `CHECK_CPI("fib100", fib100_max_cpi, cycles, instrs);
 endtask
 
 //

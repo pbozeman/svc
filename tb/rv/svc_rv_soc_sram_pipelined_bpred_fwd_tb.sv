@@ -21,6 +21,7 @@ module svc_rv_soc_sram_pipelined_bpred_fwd_tb;
   localparam real load_use_max_cpi = 2.5;
   localparam real mixed_alu_max_cpi = 1.5;
   localparam real fib12_max_cpi = 1.4;
+  localparam real fib100_max_cpi = 1.4;
   localparam real bubble_max_cpi = 1.5;
   logic ebreak;
 
