@@ -29,6 +29,7 @@
 //
 module svc_rv_hazard #(
     parameter int FWD_REGFILE = 1,
+    parameter int FWD         = 0,
     parameter int MEM_TYPE    = 0
 ) (
     // ID stage input registers
@@ -36,14 +37,19 @@ module svc_rv_hazard #(
     input logic [4:0] rs2_id,
     input logic       rs1_used,
     input logic       rs2_used,
+    input logic       is_branch_id,
 
     // EX stage control signals and destination
     input logic [4:0] rd_ex,
     input logic       reg_write_ex,
+    input logic       is_load_ex,
+    input logic       is_csr_ex,
 
     // MEM stage control signals and destination
     input logic [4:0] rd_mem,
     input logic       reg_write_mem,
+    input logic       is_load_mem,
+    input logic       is_csr_mem,
 
     // WB stage control signals and destination
     input logic [4:0] rd_wb,
@@ -130,7 +136,44 @@ module svc_rv_hazard #(
 
   logic data_hazard;
 
-  assign data_hazard = ex_hazard || mem_hazard || wb_hazard;
+  if (FWD != 0) begin : g_forwarding
+    //
+    // Load-use hazard detection
+    //
+    // Load instructions produce result in MEM stage, but consumer
+    // needs it in EX stage. This cannot be resolved by forwarding,
+    // so we must stall.
+    //
+    // CSR instructions produce result in WB stage, so we also cannot
+    // forward from MEM→EX for CSR hazards. Stall for CSR-use too.
+    //
+    logic load_use_hazard;
+
+    assign load_use_hazard = ((is_load_ex || is_csr_ex) &&
+                              (ex_hazard_rs1 || ex_hazard_rs2));
+
+    //
+    // With forwarding enabled: only stall on unavoidable hazards
+    //
+    // - load_use_hazard: Load/CSR in EX can't forward to consumer in ID
+    // - wb_hazard: Only if regfile doesn't have internal forwarding
+    // - branch_hazard: Branches read operands in ID for partial comparison,
+    //   so they can't use forwarding (which only helps EX stage)
+    //
+    // EX and MEM hazards for non-branch ALU ops are resolved by forwarding
+    //
+    logic branch_hazard;
+    assign branch_hazard = is_branch_id && (ex_hazard || mem_hazard);
+    assign data_hazard   = load_use_hazard || wb_hazard || branch_hazard;
+
+    `SVC_UNUSED({is_load_mem, is_csr_mem});
+  end else begin : g_no_forwarding
+    //
+    // Non-forwarding: stall on all hazards
+    //
+    assign data_hazard = ex_hazard || mem_hazard || wb_hazard;
+    `SVC_UNUSED({is_load_ex, is_csr_ex, is_load_mem, is_csr_mem, is_branch_id});
+  end
 
   assign pc_stall    = data_hazard;
   assign if_id_stall = data_hazard;
