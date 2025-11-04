@@ -13,7 +13,7 @@
 
 module svc_rv_regfile #(
     parameter int XLEN        = 32,
-    parameter int REGFILE_FWD = 1
+    parameter int FWD_REGFILE = 1
 ) (
     input logic clk,
     input logic rst_n,
@@ -49,7 +49,7 @@ module svc_rv_regfile #(
   // In single-cycle designs, this creates a combinational loop, so it must
   // be disabled.
   //
-  if (REGFILE_FWD != 0) begin : g_forward
+  if (FWD_REGFILE != 0) begin : g_forward
     assign rs1_data = ((rd_en && (rd_addr != 0) && (rd_addr == rs1_addr)) ?
                        wdata : rs1_data_raw);
     assign rs2_data = ((rd_en && (rd_addr != 0) && (rd_addr == rs2_addr)) ?

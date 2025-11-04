@@ -15,14 +15,14 @@
 // Pipeline configuration:
 // - MEM_TYPE=MEM_TYPE_BRAM: Use BRAM timing (1-cycle latency)
 // - All pipeline registers enabled for fully-pipelined operation
-// - REGFILE_FWD=1: Enabled to reduce hazards
+// - FWD_REGFILE=1: Enabled to reduce hazards
 //
 module svc_rv_soc_bram #(
     parameter int XLEN        = 32,
     parameter int IMEM_AW     = 10,
     parameter int DMEM_AW     = 10,
     parameter int PIPELINED   = 1,
-    parameter int REGFILE_FWD = 1,
+    parameter int FWD_REGFILE = 1,
 
     // verilog_lint: waive explicit-parameter-storage-type
     parameter IMEM_INIT = ""
@@ -57,7 +57,7 @@ module svc_rv_soc_bram #(
       .IMEM_AW    (IMEM_AW),
       .DMEM_AW    (DMEM_AW),
       .PIPELINED  (PIPELINED),
-      .REGFILE_FWD(REGFILE_FWD),
+      .FWD_REGFILE(FWD_REGFILE),
       .MEM_TYPE   (MEM_TYPE_BRAM)
   ) cpu (
       .clk       (clk),

@@ -30,7 +30,7 @@ module svc_rv #(
     parameter int IMEM_AW     = 10,
     parameter int DMEM_AW     = 10,
     parameter int PIPELINED   = 0,
-    parameter int REGFILE_FWD = PIPELINED,
+    parameter int FWD_REGFILE = PIPELINED,
     parameter int MEM_TYPE    = 0
 ) (
     input logic clk,
@@ -68,8 +68,8 @@ module svc_rv #(
     if ((MEM_TYPE == MEM_TYPE_BRAM) && (PIPELINED == 0)) begin
       $fatal(1, "BRAM memory type requires PIPELINED=1");
     end
-    if ((REGFILE_FWD == 1) && (PIPELINED == 0)) begin
-      $fatal(1, "REGFILE_FWD=1 requires PIPELINED=1");
+    if ((FWD_REGFILE == 1) && (PIPELINED == 0)) begin
+      $fatal(1, "FWD_REGFILE=1 requires PIPELINED=1");
     end
   end
 
@@ -386,7 +386,7 @@ module svc_rv #(
   //
   svc_rv_regfile #(
       .XLEN       (XLEN),
-      .REGFILE_FWD(REGFILE_FWD)
+      .FWD_REGFILE(FWD_REGFILE)
   ) regfile (
       .clk     (clk),
       .rst_n   (rst_n),
@@ -407,7 +407,7 @@ module svc_rv #(
   //
   if (PIPELINED == 1) begin : g_hazard
     svc_rv_hazard #(
-        .REGFILE_FWD(REGFILE_FWD)
+        .FWD_REGFILE(FWD_REGFILE)
     ) hazard (
         // ID stage register addresses
         .rs1_id  (rs1_id),

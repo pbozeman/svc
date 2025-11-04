@@ -28,7 +28,7 @@
 // - Stall logic based on memory ready signals
 //
 module svc_rv_hazard #(
-    parameter int REGFILE_FWD = 1,
+    parameter int FWD_REGFILE = 1,
     parameter int MEM_TYPE    = 0
 ) (
     // ID stage input registers
@@ -96,7 +96,7 @@ module svc_rv_hazard #(
   logic wb_hazard_rs2;
   logic wb_hazard;
 
-  if (REGFILE_FWD != 0) begin : g_wb_no_hazard
+  if (FWD_REGFILE != 0) begin : g_wb_no_hazard
     assign wb_hazard_rs1 = 1'b0;
     assign wb_hazard_rs2 = 1'b0;
     assign wb_hazard     = 1'b0;

@@ -43,7 +43,7 @@ parameter:
 ### Top-Level Processor
 
 - **svc_rv.sv** - Complete RISC-V core with configurable pipeline
-  - Parameters: XLEN, IMEM_AW, DMEM_AW, PIPELINED, REGFILE_FWD, MEM_TYPE
+  - Parameters: XLEN, IMEM_AW, DMEM_AW, PIPELINED, FWD_REGFILE, MEM_TYPE
   - Interfaces: instruction memory (read-only), data memory (read/write)
 
 ### SoC Integration
@@ -79,7 +79,7 @@ Pipeline register modules inserted between stages when PIPELINED=1:
 - **svc_rv_idec.sv** - Instruction decoder
   - Generates all control signals from instruction encoding
 - **svc_rv_regfile.sv** - 32-entry register file
-  - Configurable forwarding (REGFILE_FWD parameter)
+  - Configurable forwarding (FWD_REGFILE parameter)
   - x0 hardwired to zero
 - **svc_rv_csr.sv** - Control and Status Register file
   - Implements CYCLE, CYCLEH, INSTRET, INSTRETH counters
@@ -131,7 +131,7 @@ Memory-specific instruction fetch adapters handle timing differences:
   - 0: Combinational mode (minimal registers)
   - 1: Pipelined mode (full pipeline registers)
 
-- **REGFILE_FWD** (default: PIPELINED) - Register file forwarding
+- **FWD_REGFILE** (default: PIPELINED) - Register file forwarding
 
   - 0: No forwarding (simpler, more hazards)
   - 1: Forwarding enabled (reduces hazards)
@@ -203,7 +203,7 @@ svc_rv_soc_bram #(
     .IMEM_AW     (10),              // 1KB instruction memory
     .DMEM_AW     (10),              // 1KB data memory
     .PIPELINED   (1),               // Fully pipelined
-    .REGFILE_FWD (1),               // Enable forwarding
+    .FWD_REGFILE (1),               // Enable forwarding
     .IMEM_INIT   ("program.hex")    // Initialize instruction memory
 ) soc (
     .clk    (clk),
@@ -220,7 +220,7 @@ svc_rv #(
     .IMEM_AW     (14),              // 16KB instruction memory
     .DMEM_AW     (14),              // 16KB data memory
     .PIPELINED   (1),               // Full pipeline
-    .REGFILE_FWD (1),               // Forwarding enabled
+    .FWD_REGFILE (1),               // Forwarding enabled
     .MEM_TYPE    (MEM_TYPE_BRAM)    // BRAM timing
 ) cpu (
     // ... port connections
@@ -296,13 +296,13 @@ Choose memory type based on your target platform:
 
 ### Forwarding Configuration
 
-- **No forwarding (REGFILE_FWD=0)**:
+- **No forwarding (FWD_REGFILE=0)**:
 
   - Simpler regfile design
   - More pipeline stalls on data hazards
   - Use when area is critical and performance is less important
 
-- **Forwarding (REGFILE_FWD=1)**:
+- **Forwarding (FWD_REGFILE=1)**:
   - Reduces stalls by forwarding ALU results
   - Better performance on data-dependent code
   - Requires PIPELINED=1
