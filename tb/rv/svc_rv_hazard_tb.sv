@@ -25,7 +25,7 @@ module svc_rv_hazard_tb;
   logic       id_ex_flush;
 
   svc_rv_hazard #(
-      .REGFILE_FWD(1)
+      .FWD_REGFILE(1)
   ) uut (
       .rs1_id       (rs1_id),
       .rs2_id       (rs2_id),

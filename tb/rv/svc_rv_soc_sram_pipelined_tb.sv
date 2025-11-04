@@ -29,7 +29,7 @@ module svc_rv_soc_sram_pipelined_tb;
       .IMEM_AW    (IMEM_AW),
       .DMEM_AW    (DMEM_AW),
       .PIPELINED  (1),
-      .REGFILE_FWD(0)
+      .FWD_REGFILE(0)
   ) uut (
       .clk   (clk),
       .rst_n (rst_n),
