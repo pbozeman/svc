@@ -21,6 +21,7 @@ module svc_rv_hazard_tb;
   logic [4:0] rd_wb;
   logic       reg_write_wb;
   logic       pc_sel;
+  logic       pred_taken_id;
   logic       mispredicted_ex;
   logic       pc_stall;
   logic       if_id_stall;
@@ -50,6 +51,7 @@ module svc_rv_hazard_tb;
       .rd_wb          (rd_wb),
       .reg_write_wb   (reg_write_wb),
       .pc_sel         (pc_sel),
+      .pred_taken_id  (pred_taken_id),
       .mispredicted_ex(mispredicted_ex),
       .pc_stall       (pc_stall),
       .if_id_stall    (if_id_stall),
@@ -75,6 +77,7 @@ module svc_rv_hazard_tb;
     rd_wb           = 5'd0;
     reg_write_wb    = 1'b0;
     pc_sel          = 1'b0;
+    pred_taken_id   = 1'b0;
     mispredicted_ex = 1'b0;
 
     `TICK(clk);
@@ -101,6 +104,7 @@ module svc_rv_hazard_tb;
     rd_wb           = 5'd5;
     reg_write_wb    = 1'b1;
     pc_sel          = 1'b0;
+    pred_taken_id   = 1'b0;
     mispredicted_ex = 1'b0;
 
     `TICK(clk);
@@ -127,6 +131,7 @@ module svc_rv_hazard_tb;
     rd_wb           = 5'd0;
     reg_write_wb    = 1'b0;
     pc_sel          = 1'b0;
+    pred_taken_id   = 1'b0;
     mispredicted_ex = 1'b0;
 
     `TICK(clk);
@@ -153,6 +158,7 @@ module svc_rv_hazard_tb;
     rd_wb           = 5'd0;
     reg_write_wb    = 1'b0;
     pc_sel          = 1'b0;
+    pred_taken_id   = 1'b0;
     mispredicted_ex = 1'b0;
 
     `TICK(clk);
@@ -179,6 +185,7 @@ module svc_rv_hazard_tb;
     rd_wb           = 5'd0;
     reg_write_wb    = 1'b0;
     pc_sel          = 1'b0;
+    pred_taken_id   = 1'b0;
     mispredicted_ex = 1'b0;
 
     `TICK(clk);
@@ -205,6 +212,7 @@ module svc_rv_hazard_tb;
     rd_wb           = 5'd0;
     reg_write_wb    = 1'b0;
     pc_sel          = 1'b0;
+    pred_taken_id   = 1'b0;
     mispredicted_ex = 1'b0;
 
     `TICK(clk);
@@ -231,6 +239,7 @@ module svc_rv_hazard_tb;
     rd_wb           = 5'd0;
     reg_write_wb    = 1'b1;
     pc_sel          = 1'b0;
+    pred_taken_id   = 1'b0;
     mispredicted_ex = 1'b0;
 
     `TICK(clk);
@@ -257,6 +266,7 @@ module svc_rv_hazard_tb;
     rd_wb           = 5'd10;
     reg_write_wb    = 1'b0;
     pc_sel          = 1'b0;
+    pred_taken_id   = 1'b0;
     mispredicted_ex = 1'b0;
 
     `TICK(clk);
@@ -283,6 +293,7 @@ module svc_rv_hazard_tb;
     rd_wb           = 5'd0;
     reg_write_wb    = 1'b0;
     pc_sel          = 1'b1;
+    pred_taken_id   = 1'b0;
     mispredicted_ex = 1'b0;
 
     `TICK(clk);
@@ -312,6 +323,7 @@ module svc_rv_hazard_tb;
     rd_wb           = 5'd0;
     reg_write_wb    = 1'b0;
     pc_sel          = 1'b0;
+    pred_taken_id   = 1'b0;
     mispredicted_ex = 1'b0;
 
     `TICK(clk);
@@ -338,6 +350,7 @@ module svc_rv_hazard_tb;
     rd_wb           = 5'd0;
     reg_write_wb    = 1'b0;
     pc_sel          = 1'b0;
+    pred_taken_id   = 1'b0;
     mispredicted_ex = 1'b0;
 
     `TICK(clk);
@@ -364,6 +377,7 @@ module svc_rv_hazard_tb;
     rd_wb           = 5'd0;
     reg_write_wb    = 1'b0;
     pc_sel          = 1'b0;
+    pred_taken_id   = 1'b0;
     mispredicted_ex = 1'b0;
 
     `TICK(clk);

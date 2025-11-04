@@ -509,6 +509,9 @@ module svc_rv #(
         // Control flow changes
         .pc_sel(pc_sel),
 
+        // Branch prediction
+        .pred_taken_id(bpred_taken_id),
+
         // Branch misprediction
         .mispredicted_ex(mispredicted_ex),
 
@@ -765,18 +768,22 @@ module svc_rv #(
   // Static BTFNT (Backward Taken/Forward Not-Taken) prediction:
   // - Backward branches (negative immediate): predict taken
   // - Forward branches (positive immediate): predict not-taken
+  // - JAL (unconditional PC-relative jump): predict taken
   //
   if (BPRED != 0) begin : g_bpred
     //
-    // Prediction based on immediate sign (only for branches)
+    // Prediction based on immediate sign (only for branches) and JAL
     //
     // Backward branches (negative displacement, imm[31]=1): predict taken
     // Forward branches (positive displacement, imm[31]=0): predict not-taken
+    // JAL (PC-relative jump): predict taken
+    // JALR (register-indirect): not predicted (wait for ALU)
     //
-    assign bpred_taken_id = is_branch_id && imm_id[XLEN-1];
+    assign bpred_taken_id = (is_branch_id && imm_id[XLEN-1]) ||
+        (is_jump_id && !jb_target_src_id);
 
     //
-    // Predicted target calculation (PC-relative for branches)
+    // Predicted target calculation (PC-relative for branches and JAL)
     //
     assign bpred_target_id = pc_id + imm_id;
 
@@ -797,11 +804,42 @@ module svc_rv #(
   // PC muxing and misprediction recovery
   //
   // pc_sel triggers PC redirection for:
-  // - Actual taken branches/jumps
+  // - Actual taken branches (only if not correctly predicted)
+  // - Jumps (JALR always, JAL only if not predicted)
   // - Branch mispredictions (need to redirect to correct target)
   //
-  assign
-      pc_sel = (is_branch_ex & branch_taken_ex) | is_jump_ex | mispredicted_ex;
+  // When BPRED is enabled:
+  //   - JAL is handled by predictor in ID stage, so don't redirect in EX
+  //   - JALR still needs EX stage redirect (requires ALU result)
+  //   - Branches handled by predictor, only redirect on misprediction
+  //   - Mispredictions trigger recovery
+  //
+  logic pc_sel_jump;
+  logic pc_sel_branch;
+
+  if (BPRED != 0) begin : g_pc_sel_jump
+    //
+    // Only JALR triggers pc_sel (JAL is predicted in ID)
+    //
+    assign pc_sel_jump   = is_jump_ex && jb_target_src_ex;
+
+    //
+    // Branches don't trigger pc_sel (handled by predictor or misprediction)
+    //
+    assign pc_sel_branch = 1'b0;
+  end else begin : g_no_pc_sel_jump
+    //
+    // All jumps trigger pc_sel
+    //
+    assign pc_sel_jump   = is_jump_ex;
+
+    //
+    // Taken branches trigger pc_sel
+    //
+    assign pc_sel_branch = is_branch_ex & branch_taken_ex;
+  end
+
+  assign pc_sel = pc_sel_branch | pc_sel_jump | mispredicted_ex;
 
   //
   // CSR (Control and Status Registers) - Zicntr

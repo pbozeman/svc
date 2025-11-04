@@ -59,6 +59,9 @@ module svc_rv_hazard #(
     // Control flow changes (branches/jumps taken in EX stage)
     input logic pc_sel,
 
+    // Branch prediction taken (ID stage)
+    input logic pred_taken_id,
+
     // Branch misprediction (EX stage)
     input logic mispredicted_ex,
 
@@ -197,10 +200,11 @@ module svc_rv_hazard #(
     `SVC_UNUSED({is_load_ex, is_csr_ex, is_load_mem, is_csr_mem, is_branch_id});
   end
 
-  assign pc_stall    = data_hazard;
+  assign pc_stall = data_hazard;
   assign if_id_stall = data_hazard;
   assign id_ex_stall = 1'b0;
-  assign if_id_flush = pc_sel || mispredicted_ex;
+  assign if_id_flush = pc_sel || mispredicted_ex ||
+      (pred_taken_id && !data_hazard);
   assign id_ex_flush = data_hazard || pc_sel || mispredicted_ex;
 
   `SVC_UNUSED({MEM_TYPE, BPRED});
