@@ -55,19 +55,44 @@ module svc_rv_idec #(
 
   logic [6:0] opcode;
 
+  //
   // Extract instruction fields
+  //
   assign opcode = instr[6:0];
-  assign rd     = instr[11:7];
-  assign rs1    = instr[19:15];
-  assign rs2    = instr[24:20];
+  assign rd = instr[11:7];
   assign funct3 = instr[14:12];
   assign funct7 = instr[31:25];
+
+  //
+  // Extract rs1/rs2 directly from instruction
+  //
+  // Note: These may contain garbage when not used, but that's okay:
+  // - Forwarding: Harmless to forward to unused registers (value ignored)
+  // - Hazards: We check rs1_used/rs2_used to avoid false stalls
+  //
+  assign rs1 = instr[19:15];
+  assign rs2 = instr[24:20];
+
+  //
+  // Fast decode of register usage from opcode
+  //
+  // Used by hazard unit to avoid stalling on false dependencies.
+  // Not needed for forwarding since forwarding to unused registers is harmless.
+  //
+  // rs1 NOT used: JAL, AUIPC, LUI, RESET
+  // rs2 NOT used: everything except STORE, RTYPE, BRANCH
+  //
+  assign rs1_used = !(opcode == OP_JAL || opcode == OP_AUIPC ||
+                      opcode == OP_LUI || opcode == OP_RESET);
+
+  assign rs2_used = (opcode == OP_STORE || opcode == OP_RTYPE ||
+                     opcode == OP_BRANCH);
 
   //
   // Control signal decoder
   //
   always_comb begin
-    logic [17:0] c;
+    logic [15:0] c;
 
     //
     // Short aliases for decode table
@@ -116,26 +141,25 @@ module svc_rv_idec #(
     // Control signal decode
     //
     case (opcode)
-      //              r  m   alu  alu  alu  res    imm  b  j    jb rs rs
-      //                       a    b   op                          1  2
-      OP_LOAD:   c = {y, n,  RS1, IMM, ADD, MEM,     I, n, n,    x, y, n};
-      OP_STORE:  c = {n, y,  RS1, IMM, ADD, xxx,     S, n, n,    x, y, y};
-      OP_RTYPE:  c = {y, n,  RS1, RS2, FN3, ALU,   xxx, n, n,    x, y, y};
-      OP_BRANCH: c = {n, n,   xx,   x,  xx, xxx,     B, y, n,   PC, y, y};
-      OP_ITYPE:  c = {y, n,  RS1, IMM, FN3, ALU,     I, n, n,    x, y, n};
-      OP_JAL:    c = {y, n,   xx,   x,  xx, PC4,     J, n, y,   PC, n, n};
-      OP_AUIPC:  c = {y, n,   xx,   x,  xx, TGT,     U, n, n,   PC, n, n};
-      OP_LUI:    c = {y, n, ZERO, IMM, ADD, ALU,     U, n, n,    x, n, n};
-      OP_JALR:   c = {y, n,  RS1, IMM, ADD, PC4,     I, n, y, ALUR, y, n};
-      OP_SYSTEM: c = {y, n,   xx,   x,  xx, CSR,     I, n, n,    x, y, n};
-      OP_RESET:  c = {n, n,   xx,   x,  xx, xxx,   xxx, n, n,    x, n, n};
-      default:   c = {x, x,   xx,   x,  xx, xxx,   xxx, x, x,    x, x, x};
+      //              r  m   alu  alu  alu  res    imm  b  j    jb
+      //                       a    b   op
+      OP_LOAD:   c = {y, n,  RS1, IMM, ADD, MEM,     I, n, n,    x};
+      OP_STORE:  c = {n, y,  RS1, IMM, ADD, xxx,     S, n, n,    x};
+      OP_RTYPE:  c = {y, n,  RS1, RS2, FN3, ALU,   xxx, n, n,    x};
+      OP_BRANCH: c = {n, n,   xx,   x,  xx, xxx,     B, y, n,   PC};
+      OP_ITYPE:  c = {y, n,  RS1, IMM, FN3, ALU,     I, n, n,    x};
+      OP_JAL:    c = {y, n,   xx,   x,  xx, PC4,     J, n, y,   PC};
+      OP_AUIPC:  c = {y, n,   xx,   x,  xx, TGT,     U, n, n,   PC};
+      OP_LUI:    c = {y, n, ZERO, IMM, ADD, ALU,     U, n, n,    x};
+      OP_JALR:   c = {y, n,  RS1, IMM, ADD, PC4,     I, n, y, ALUR};
+      OP_SYSTEM: c = {y, n,   xx,   x,  xx, CSR,     I, n, n,    x};
+      OP_RESET:  c = {n, n,   xx,   x,  xx, xxx,   xxx, n, n,    x};
+      default:   c = {x, x,   xx,   x,  xx, xxx,   xxx, x, x,    x};
     endcase
 
     { reg_write, mem_write,
       alu_a_src, alu_b_src, alu_instr,
-      res_src, imm_type, is_branch, is_jump, jb_target_src,
-      rs1_used, rs2_used } = c;
+      res_src, imm_type, is_branch, is_jump, jb_target_src } = c;
 
   end
 

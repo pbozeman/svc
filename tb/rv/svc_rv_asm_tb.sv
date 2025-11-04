@@ -186,7 +186,8 @@ module svc_rv_asm_tb;
     `CHECK_EQ(instr[6:0], OP_ITYPE);
     `CHECK_EQ(rd, 1);
     `CHECK_EQ(rs1, 2);
-    `CHECK_EQ(rs2, 5);
+    // rs2 not checked - contains instruction bits when not used
+    `CHECK_EQ(instr[24:20], 5);  // shift amount in immediate field
     `CHECK_EQ(funct3, 3'b001);
     `CHECK_EQ(funct7, 7'b0000000);
 
@@ -196,7 +197,8 @@ module svc_rv_asm_tb;
     `CHECK_EQ(instr[6:0], OP_ITYPE);
     `CHECK_EQ(rd, 5);
     `CHECK_EQ(rs1, 6);
-    `CHECK_EQ(rs2, 15);
+    // rs2 not checked - contains instruction bits when not used
+    `CHECK_EQ(instr[24:20], 15);  // shift amount in immediate field
     `CHECK_EQ(funct3, 3'b101);
     `CHECK_EQ(funct7, 7'b0100000);
   endtask

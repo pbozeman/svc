@@ -9,8 +9,6 @@ module svc_rv_forward_tb;
 
   logic [     4:0] rs1_ex;
   logic [     4:0] rs2_ex;
-  logic            rs1_used_ex;
-  logic            rs2_used_ex;
   logic [XLEN-1:0] rs1_data_ex;
   logic [XLEN-1:0] rs2_data_ex;
   logic [     4:0] rd_mem;
@@ -30,8 +28,6 @@ module svc_rv_forward_tb;
   ) uut (
       .rs1_ex        (rs1_ex),
       .rs2_ex        (rs2_ex),
-      .rs1_used_ex   (rs1_used_ex),
-      .rs2_used_ex   (rs2_used_ex),
       .rs1_data_ex   (rs1_data_ex),
       .rs2_data_ex   (rs2_data_ex),
       .rd_mem        (rd_mem),
@@ -49,8 +45,7 @@ module svc_rv_forward_tb;
   task automatic reset_inputs;
     rs1_ex         = 5'd0;
     rs2_ex         = 5'd0;
-    rs1_used_ex    = 1'b0;
-    rs2_used_ex    = 1'b0;
+    // rs1_ex/rs2_ex already set to 0 to indicate not used
     rs1_data_ex    = 32'h0;
     rs2_data_ex    = 32'h0;
     rd_mem         = 5'd0;
@@ -70,8 +65,7 @@ module svc_rv_forward_tb;
     reset_inputs();
     rs1_ex         = 5'd1;
     rs2_ex         = 5'd2;
-    rs1_used_ex    = 1'b1;
-    rs2_used_ex    = 1'b1;
+    // rs1_ex/rs2_ex non-zero indicates used
     rs1_data_ex    = 32'hAAAAAAAA;
     rs2_data_ex    = 32'hBBBBBBBB;
 
@@ -96,8 +90,7 @@ module svc_rv_forward_tb;
     reset_inputs();
     rs1_ex         = 5'd10;
     rs2_ex         = 5'd2;
-    rs1_used_ex    = 1'b1;
-    rs2_used_ex    = 1'b1;
+    // rs1_ex/rs2_ex non-zero indicates used
     rs1_data_ex    = 32'hAAAAAAAA;
     rs2_data_ex    = 32'hBBBBBBBB;
 
@@ -120,8 +113,7 @@ module svc_rv_forward_tb;
     reset_inputs();
     rs1_ex         = 5'd1;
     rs2_ex         = 5'd10;
-    rs1_used_ex    = 1'b1;
-    rs2_used_ex    = 1'b1;
+    // rs1_ex/rs2_ex non-zero indicates used
     rs1_data_ex    = 32'hAAAAAAAA;
     rs2_data_ex    = 32'hBBBBBBBB;
 
@@ -144,8 +136,7 @@ module svc_rv_forward_tb;
     reset_inputs();
     rs1_ex         = 5'd10;
     rs2_ex         = 5'd10;
-    rs1_used_ex    = 1'b1;
-    rs2_used_ex    = 1'b1;
+    // rs1_ex/rs2_ex non-zero indicates used
     rs1_data_ex    = 32'hAAAAAAAA;
     rs2_data_ex    = 32'hBBBBBBBB;
 
@@ -168,8 +159,7 @@ module svc_rv_forward_tb;
     reset_inputs();
     rs1_ex         = 5'd10;
     rs2_ex         = 5'd2;
-    rs1_used_ex    = 1'b1;
-    rs2_used_ex    = 1'b1;
+    // rs1_ex/rs2_ex non-zero indicates used
     rs1_data_ex    = 32'hAAAAAAAA;
     rs2_data_ex    = 32'hBBBBBBBB;
 
@@ -194,8 +184,7 @@ module svc_rv_forward_tb;
     reset_inputs();
     rs1_ex         = 5'd1;
     rs2_ex         = 5'd10;
-    rs1_used_ex    = 1'b1;
-    rs2_used_ex    = 1'b1;
+    // rs1_ex/rs2_ex non-zero indicates used
     rs1_data_ex    = 32'hAAAAAAAA;
     rs2_data_ex    = 32'hBBBBBBBB;
 
@@ -220,8 +209,7 @@ module svc_rv_forward_tb;
     reset_inputs();
     rs1_ex         = 5'd10;
     rs2_ex         = 5'd2;
-    rs1_used_ex    = 1'b1;
-    rs2_used_ex    = 1'b1;
+    // rs1_ex/rs2_ex non-zero indicates used
     rs1_data_ex    = 32'hAAAAAAAA;
     rs2_data_ex    = 32'hBBBBBBBB;
 
@@ -248,8 +236,7 @@ module svc_rv_forward_tb;
     reset_inputs();
     rs1_ex         = 5'd10;
     rs2_ex         = 5'd2;
-    rs1_used_ex    = 1'b1;
-    rs2_used_ex    = 1'b1;
+    // rs1_ex/rs2_ex non-zero indicates used
     rs1_data_ex    = 32'hAAAAAAAA;
     rs2_data_ex    = 32'hBBBBBBBB;
 
@@ -276,8 +263,7 @@ module svc_rv_forward_tb;
     reset_inputs();
     rs1_ex         = 5'd10;
     rs2_ex         = 5'd2;
-    rs1_used_ex    = 1'b1;
-    rs2_used_ex    = 1'b1;
+    // rs1_ex/rs2_ex non-zero indicates used
     rs1_data_ex    = 32'hAAAAAAAA;
     rs2_data_ex    = 32'hBBBBBBBB;
 
@@ -304,8 +290,7 @@ module svc_rv_forward_tb;
     reset_inputs();
     rs1_ex         = 5'd0;
     rs2_ex         = 5'd0;
-    rs1_used_ex    = 1'b1;
-    rs2_used_ex    = 1'b1;
+    // rs1_ex/rs2_ex non-zero indicates used
     rs1_data_ex    = 32'h0;
     rs2_data_ex    = 32'h0;
 
@@ -330,10 +315,7 @@ module svc_rv_forward_tb;
   //
   task automatic test_no_fwd_if_not_used;
     reset_inputs();
-    rs1_ex         = 5'd10;
-    rs2_ex         = 5'd10;
-    rs1_used_ex    = 1'b0;
-    rs2_used_ex    = 1'b0;
+    // rs1_ex/rs2_ex already set to 0 to indicate not used (from reset_inputs)
     rs1_data_ex    = 32'hAAAAAAAA;
     rs2_data_ex    = 32'hBBBBBBBB;
 
@@ -360,8 +342,7 @@ module svc_rv_forward_tb;
     reset_inputs();
     rs1_ex         = 5'd10;
     rs2_ex         = 5'd2;
-    rs1_used_ex    = 1'b1;
-    rs2_used_ex    = 1'b1;
+    // rs1_ex/rs2_ex non-zero indicates used
     rs1_data_ex    = 32'hAAAAAAAA;
     rs2_data_ex    = 32'hBBBBBBBB;
 
