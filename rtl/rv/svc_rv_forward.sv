@@ -29,8 +29,6 @@ module svc_rv_forward #(
     //
     input logic [     4:0] rs1_ex,
     input logic [     4:0] rs2_ex,
-    input logic            rs1_used_ex,
-    input logic            rs2_used_ex,
     input logic [XLEN-1:0] rs1_data_ex,
     input logic [XLEN-1:0] rs2_data_ex,
 
@@ -72,13 +70,15 @@ module svc_rv_forward #(
     //
     // Don't forward if producer is a load or CSR (data not ready)
     //
-    assign mem_to_ex_fwd_a = (reg_write_mem && (rd_mem != 5'd0) &&
-                              (rd_mem == rs1_ex) && rs1_used_ex &&
-                              !is_load_mem && !is_csr_mem);
+    always_comb begin
+      mem_to_ex_fwd_a = 1'b0;
+      mem_to_ex_fwd_b = 1'b0;
 
-    assign mem_to_ex_fwd_b = (reg_write_mem && (rd_mem != 5'd0) &&
-                              (rd_mem == rs2_ex) && rs2_used_ex &&
-                              !is_load_mem && !is_csr_mem);
+      if (reg_write_mem && rd_mem != 5'd0 && !is_load_mem && !is_csr_mem) begin
+        mem_to_ex_fwd_a = (rd_mem == rs1_ex);
+        mem_to_ex_fwd_b = (rd_mem == rs2_ex);
+      end
+    end
 
     //
     // MEM Hazard: Forward from WB stage
@@ -94,11 +94,15 @@ module svc_rv_forward #(
     logic wb_to_ex_fwd_a;
     logic wb_to_ex_fwd_b;
 
-    assign wb_to_ex_fwd_a = (reg_write_wb && (rd_wb != 5'd0) &&
-                             (rd_wb == rs1_ex) && rs1_used_ex);
+    always_comb begin
+      wb_to_ex_fwd_a = 1'b0;
+      wb_to_ex_fwd_b = 1'b0;
 
-    assign wb_to_ex_fwd_b = (reg_write_wb && (rd_wb != 5'd0) &&
-                             (rd_wb == rs2_ex) && rs2_used_ex);
+      if (reg_write_wb && rd_wb != 5'd0) begin
+        wb_to_ex_fwd_a = (rd_wb == rs1_ex);
+        wb_to_ex_fwd_b = (rd_wb == rs2_ex);
+      end
+    end
 
     //
     // Forwarding muxes with priority: MEM > WB > regfile
@@ -119,9 +123,8 @@ module svc_rv_forward #(
     assign rs2_fwd_ex = rs2_data_ex;
 
     // verilog_format: off
-    `SVC_UNUSED({rs1_ex, rs2_ex, rs1_used_ex, rs2_used_ex, rd_mem,
-                 reg_write_mem, is_load_mem, is_csr_mem,
-                 alu_result_mem, rd_wb, reg_write_wb, rd_data });
+    `SVC_UNUSED({rs1_ex, rs2_ex, rd_mem, reg_write_mem, is_load_mem,
+                 is_csr_mem, alu_result_mem, rd_wb, reg_write_wb, rd_data });
     // verilog_format: on
   end
 

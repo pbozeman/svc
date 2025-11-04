@@ -48,8 +48,6 @@ module svc_rv_reg_id_ex #(
     input logic [     4:0] rd_id,
     input logic [     4:0] rs1_id,
     input logic [     4:0] rs2_id,
-    input logic            rs1_used_id,
-    input logic            rs2_used_id,
     input logic [     2:0] funct3_id,
     input logic [     6:0] funct7_id,
     input logic [XLEN-1:0] rs1_data_id,
@@ -87,8 +85,6 @@ module svc_rv_reg_id_ex #(
     output logic [     4:0] rd_ex,
     output logic [     4:0] rs1_ex,
     output logic [     4:0] rs2_ex,
-    output logic            rs1_used_ex,
-    output logic            rs2_used_ex,
     output logic [     2:0] funct3_ex,
     output logic [     6:0] funct7_ex,
     output logic [XLEN-1:0] rs1_data_ex,
@@ -138,8 +134,6 @@ module svc_rv_reg_id_ex #(
         rd_ex            <= '0;
         rs1_ex           <= '0;
         rs2_ex           <= '0;
-        rs1_used_ex      <= '0;
-        rs2_used_ex      <= '0;
         funct3_ex        <= '0;
         funct7_ex        <= '0;
       end else if (!stall) begin
@@ -154,8 +148,6 @@ module svc_rv_reg_id_ex #(
         rd_ex            <= rd_id;
         rs1_ex           <= rs1_id;
         rs2_ex           <= rs2_id;
-        rs1_used_ex      <= rs1_used_id;
-        rs2_used_ex      <= rs2_used_id;
         funct3_ex        <= funct3_id;
         funct7_ex        <= funct7_id;
       end
@@ -192,8 +184,6 @@ module svc_rv_reg_id_ex #(
     assign rd_ex            = rd_id;
     assign rs1_ex           = rs1_id;
     assign rs2_ex           = rs2_id;
-    assign rs1_used_ex      = rs1_used_id;
-    assign rs2_used_ex      = rs2_used_id;
     assign funct3_ex        = funct3_id;
     assign funct7_ex        = funct7_id;
     assign rs1_data_ex      = rs1_data_id;
