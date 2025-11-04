@@ -2160,7 +2160,7 @@ task automatic test_fib100;
 endtask
 
 //
-// Test: Bubble sort (requires dmem - not yet implemented)
+// Test: Bubble sort
 //
 // Implements bubble sort algorithm on an array of 8 elements.
 // This comprehensive smoke test validates:
