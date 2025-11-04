@@ -136,6 +136,8 @@ module svc_rv #(
   logic [     4:0] rd_ex;
   logic [     4:0] rs1_ex;
   logic [     4:0] rs2_ex;
+  logic            rs1_used_ex;
+  logic            rs2_used_ex;
   logic [     2:0] funct3_ex;
   logic [     6:0] funct7_ex;
   logic [XLEN-1:0] rs1_data_ex;
@@ -166,12 +168,15 @@ module svc_rv #(
   logic [     2:0] res_src_mem;
   logic [    31:0] instr_mem;
   logic [     4:0] rd_mem;
+  logic [     4:0] rs2_mem;
+  logic            rs2_used_mem;
   logic [     2:0] funct3_mem;
   logic [XLEN-1:0] alu_result_mem;
   logic [XLEN-1:0] rs2_data_mem;
   logic [XLEN-1:0] pc_plus4_mem;
   logic [XLEN-1:0] jb_target_mem;
   logic [XLEN-1:0] csr_rdata_mem;
+
 
   //
   // MEM/WB pipeline register signals
@@ -474,6 +479,8 @@ module svc_rv #(
       .rd_id           (rd_id),
       .rs1_id          (rs1_id),
       .rs2_id          (rs2_id),
+      .rs1_used_id     (rs1_used_id),
+      .rs2_used_id     (rs2_used_id),
       .funct3_id       (funct3_id),
       .funct7_id       (funct7_id),
       .rs1_data_id     (rs1_data_id),
@@ -501,6 +508,8 @@ module svc_rv #(
       .rd_ex           (rd_ex),
       .rs1_ex          (rs1_ex),
       .rs2_ex          (rs2_ex),
+      .rs1_used_ex     (rs1_used_ex),
+      .rs2_used_ex     (rs2_used_ex),
       .funct3_ex       (funct3_ex),
       .funct7_ex       (funct7_ex),
       .rs1_data_ex     (rs1_data_ex),
@@ -670,6 +679,8 @@ module svc_rv #(
       .res_src_ex   (res_src_ex),
       .instr_ex     (instr_ex),
       .rd_ex        (rd_ex),
+      .rs2_ex       (rs2_ex),
+      .rs2_used_ex  (rs2_used_ex),
       .funct3_ex    (funct3_ex),
       .alu_result_ex(alu_result_ex),
       .rs2_data_ex  (rs2_data_ex),
@@ -683,6 +694,8 @@ module svc_rv #(
       .res_src_mem   (res_src_mem),
       .instr_mem     (instr_mem),
       .rd_mem        (rd_mem),
+      .rs2_mem       (rs2_mem),
+      .rs2_used_mem  (rs2_used_mem),
       .funct3_mem    (funct3_mem),
       .alu_result_mem(alu_result_mem),
       .rs2_data_mem  (rs2_data_mem),
@@ -822,7 +835,7 @@ module svc_rv #(
   `SVC_UNUSED({IMEM_AW, DMEM_AW, pc, pc_plus4, pc_id[1:0], pc_ex[1:0],
                funct7_id[6], funct7_id[4:0], funct7_ex[6], funct7_ex[4:0],
                rs1_ex, rs2_ex, instr_ex, alu_result_mem[1:0], rs1_used_id,
-               rs2_used_id});
+               rs2_used_id, rs1_used_ex, rs2_used_ex, rs2_mem, rs2_used_mem});
 
 endmodule
 

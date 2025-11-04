@@ -34,6 +34,8 @@ module svc_rv_reg_ex_mem #(
     //
     input logic [    31:0] instr_ex,
     input logic [     4:0] rd_ex,
+    input logic [     4:0] rs2_ex,
+    input logic            rs2_used_ex,
     input logic [     2:0] funct3_ex,
     input logic [XLEN-1:0] alu_result_ex,
     input logic [XLEN-1:0] rs2_data_ex,
@@ -53,6 +55,8 @@ module svc_rv_reg_ex_mem #(
     //
     output logic [    31:0] instr_mem,
     output logic [     4:0] rd_mem,
+    output logic [     4:0] rs2_mem,
+    output logic            rs2_used_mem,
     output logic [     2:0] funct3_mem,
     output logic [XLEN-1:0] alu_result_mem,
     output logic [XLEN-1:0] rs2_data_mem,
@@ -82,6 +86,8 @@ module svc_rv_reg_ex_mem #(
       res_src_mem    <= res_src_ex;
       instr_mem      <= instr_ex;
       rd_mem         <= rd_ex;
+      rs2_mem        <= rs2_ex;
+      rs2_used_mem   <= rs2_used_ex;
       funct3_mem     <= funct3_ex;
       alu_result_mem <= alu_result_ex;
       rs2_data_mem   <= rs2_data_ex;
@@ -95,6 +101,8 @@ module svc_rv_reg_ex_mem #(
     assign res_src_mem    = res_src_ex;
     assign instr_mem      = instr_ex;
     assign rd_mem         = rd_ex;
+    assign rs2_mem        = rs2_ex;
+    assign rs2_used_mem   = rs2_used_ex;
     assign funct3_mem     = funct3_ex;
     assign alu_result_mem = alu_result_ex;
     assign rs2_data_mem   = rs2_data_ex;
