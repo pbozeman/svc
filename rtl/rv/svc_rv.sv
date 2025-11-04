@@ -33,7 +33,8 @@ module svc_rv #(
     parameter int PIPELINED   = 0,
     parameter int FWD_REGFILE = PIPELINED,
     parameter int FWD         = 0,
-    parameter int MEM_TYPE    = 0
+    parameter int MEM_TYPE    = 0,
+    parameter int BPRED       = 0
 ) (
     input logic clk,
     input logic rst_n,
@@ -75,6 +76,9 @@ module svc_rv #(
     end
     if ((FWD == 1) && (PIPELINED == 0)) begin
       $fatal(1, "FWD=1 requires PIPELINED=1");
+    end
+    if ((BPRED == 1) && (PIPELINED == 0)) begin
+      $fatal(1, "BPRED=1 requires PIPELINED=1");
     end
   end
 
@@ -126,6 +130,12 @@ module svc_rv #(
   logic            rs_sign_b_id;
 
   //
+  // Branch prediction signals
+  //
+  logic            bpred_taken_id;
+  logic [XLEN-1:0] bpred_target_id;
+
+  //
   // ID/EX pipeline register signals
   //
   logic            reg_write_ex;
@@ -153,6 +163,7 @@ module svc_rv #(
   logic            rs_lt_s_lo_ex;
   logic            rs_sign_a_ex;
   logic            rs_sign_b_ex;
+  logic            bpred_taken_ex;
 
   //
   // EX stage signals
@@ -162,6 +173,7 @@ module svc_rv #(
   logic [XLEN-1:0] alu_b_ex;
   logic [XLEN-1:0] alu_result_ex;
   logic [XLEN-1:0] jb_target_ex;
+  logic            mispredicted_ex;
 
   //
   // EX/MEM pipeline register signals
@@ -223,6 +235,44 @@ module svc_rv #(
   assign instr_retired = (instr_wb != 32'h0) && (instr_wb != I_NOP);
 
   //
+  // PC redirect target calculation
+  //
+  // On misprediction, redirect to:
+  // - pc_ex + 4 if predicted taken but actually not-taken
+  // - jb_target_ex if predicted not-taken but actually taken
+  // On actual taken branch/jump: jb_target_ex
+  //
+  logic [XLEN-1:0] pc_redirect_target;
+
+  if (BPRED != 0) begin : g_pc_redirect
+    always_comb begin
+      if (mispredicted_ex) begin
+        //
+        // Misprediction recovery
+        //
+        if (branch_taken_ex) begin
+          //
+          // Predicted not-taken, actually taken: go to branch target
+          //
+          pc_redirect_target = jb_target_ex;
+        end else begin
+          //
+          // Predicted taken, actually not-taken: go to sequential
+          //
+          pc_redirect_target = pc_ex + 4;
+        end
+      end else begin
+        //
+        // Normal branch/jump
+        //
+        pc_redirect_target = jb_target_ex;
+      end
+    end
+  end else begin : g_no_pc_redirect
+    assign pc_redirect_target = jb_target_ex;
+  end
+
+  //
   // PC
   //
   svc_rv_pc #(
@@ -235,8 +285,10 @@ module svc_rv #(
       .stall(pc_stall),
 
       // pc sources
-      .pc_sel   (pc_sel),
-      .jb_target(jb_target_ex),
+      .pc_sel     (pc_sel),
+      .jb_target  (pc_redirect_target),
+      .pred_taken (bpred_taken_id),
+      .pred_target(bpred_target_id),
 
       // pc output
       .pc      (pc),
@@ -428,7 +480,8 @@ module svc_rv #(
     svc_rv_hazard #(
         .FWD_REGFILE(FWD_REGFILE),
         .FWD        (FWD),
-        .MEM_TYPE   (MEM_TYPE)
+        .MEM_TYPE   (MEM_TYPE),
+        .BPRED      (BPRED)
     ) hazard (
         // ID stage register addresses
         .rs1_id      (rs1_id),
@@ -455,6 +508,9 @@ module svc_rv #(
 
         // Control flow changes
         .pc_sel(pc_sel),
+
+        // Branch misprediction
+        .mispredicted_ex(mispredicted_ex),
 
         // hazard control outputs
         .pc_stall   (pc_stall),
@@ -517,6 +573,7 @@ module svc_rv #(
       .rs_lt_s_lo_id   (rs_lt_s_lo_id),
       .rs_sign_a_id    (rs_sign_a_id),
       .rs_sign_b_id    (rs_sign_b_id),
+      .bpred_taken_id  (bpred_taken_id),
 
       // EX stage outputs
       .reg_write_ex    (reg_write_ex),
@@ -543,7 +600,8 @@ module svc_rv #(
       .rs_lt_u_lo_ex   (rs_lt_u_lo_ex),
       .rs_lt_s_lo_ex   (rs_lt_s_lo_ex),
       .rs_sign_a_ex    (rs_sign_a_ex),
-      .rs_sign_b_ex    (rs_sign_b_ex)
+      .rs_sign_b_ex    (rs_sign_b_ex),
+      .bpred_taken_ex  (bpred_taken_ex)
   );
 
   //
@@ -702,9 +760,48 @@ module svc_rv #(
   );
 
   //
-  // PC muxing
+  // Branch Prediction
   //
-  assign pc_sel = is_branch_ex & branch_taken_ex | is_jump_ex;
+  // Static BTFNT (Backward Taken/Forward Not-Taken) prediction:
+  // - Backward branches (negative immediate): predict taken
+  // - Forward branches (positive immediate): predict not-taken
+  //
+  if (BPRED != 0) begin : g_bpred
+    //
+    // Prediction based on immediate sign (only for branches)
+    //
+    // Backward branches (negative displacement, imm[31]=1): predict taken
+    // Forward branches (positive displacement, imm[31]=0): predict not-taken
+    //
+    assign bpred_taken_id = is_branch_id && imm_id[XLEN-1];
+
+    //
+    // Predicted target calculation (PC-relative for branches)
+    //
+    assign bpred_target_id = pc_id + imm_id;
+
+    //
+    // Misprediction detection (actual outcome vs prediction)
+    //
+    assign
+        mispredicted_ex = is_branch_ex && (bpred_taken_ex != branch_taken_ex);
+  end else begin : g_no_bpred
+    assign bpred_taken_id  = 1'b0;
+    assign bpred_target_id = '0;
+    assign mispredicted_ex = 1'b0;
+
+    `SVC_UNUSED(bpred_taken_ex);
+  end
+
+  //
+  // PC muxing and misprediction recovery
+  //
+  // pc_sel triggers PC redirection for:
+  // - Actual taken branches/jumps
+  // - Branch mispredictions (need to redirect to correct target)
+  //
+  assign
+      pc_sel = (is_branch_ex & branch_taken_ex) | is_jump_ex | mispredicted_ex;
 
   //
   // CSR (Control and Status Registers) - Zicntr

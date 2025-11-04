@@ -30,7 +30,8 @@
 module svc_rv_hazard #(
     parameter int FWD_REGFILE = 1,
     parameter int FWD         = 0,
-    parameter int MEM_TYPE    = 0
+    parameter int MEM_TYPE    = 0,
+    parameter int BPRED       = 0
 ) (
     // ID stage input registers
     input logic [4:0] rs1_id,
@@ -57,6 +58,9 @@ module svc_rv_hazard #(
 
     // Control flow changes (branches/jumps taken in EX stage)
     input logic pc_sel,
+
+    // Branch misprediction (EX stage)
+    input logic mispredicted_ex,
 
     // Hazard control outputs
     output logic pc_stall,
@@ -196,10 +200,10 @@ module svc_rv_hazard #(
   assign pc_stall    = data_hazard;
   assign if_id_stall = data_hazard;
   assign id_ex_stall = 1'b0;
-  assign if_id_flush = pc_sel;
-  assign id_ex_flush = data_hazard || pc_sel;
+  assign if_id_flush = pc_sel || mispredicted_ex;
+  assign id_ex_flush = data_hazard || pc_sel || mispredicted_ex;
 
-  `SVC_UNUSED({MEM_TYPE});
+  `SVC_UNUSED({MEM_TYPE, BPRED});
 
 endmodule
 

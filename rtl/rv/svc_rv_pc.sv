@@ -12,6 +12,8 @@ module svc_rv_pc #(
     input logic            stall,
     input logic            pc_sel,
     input logic [XLEN-1:0] jb_target,
+    input logic            pred_taken,
+    input logic [XLEN-1:0] pred_target,
 
     output logic [XLEN-1:0] pc,
     output logic [XLEN-1:0] pc_plus4
@@ -19,7 +21,22 @@ module svc_rv_pc #(
   logic [XLEN-1:0] pc_next;
 
   assign pc_plus4 = pc + 4;
-  assign pc_next  = pc_sel ? jb_target : pc_plus4;
+
+  //
+  // PC next calculation with 3-way priority:
+  // 1. Actual branch/jump taken (pc_sel) - highest priority
+  // 2. Predicted branch taken (pred_taken) - speculative fetch
+  // 3. Sequential (pc_plus4) - default
+  //
+  always_comb begin
+    if (pc_sel) begin
+      pc_next = jb_target;
+    end else if (pred_taken) begin
+      pc_next = pred_target;
+    end else begin
+      pc_next = pc_plus4;
+    end
+  end
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin

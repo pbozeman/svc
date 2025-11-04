@@ -21,6 +21,7 @@ module svc_rv_hazard_tb;
   logic [4:0] rd_wb;
   logic       reg_write_wb;
   logic       pc_sel;
+  logic       mispredicted_ex;
   logic       pc_stall;
   logic       if_id_stall;
   logic       if_id_flush;
@@ -33,46 +34,48 @@ module svc_rv_hazard_tb;
       .FWD_REGFILE(1),
       .FWD        (0)
   ) uut (
-      .rs1_id       (rs1_id),
-      .rs2_id       (rs2_id),
-      .rs1_used     (rs1_used),
-      .rs2_used     (rs2_used),
-      .is_branch_id (is_branch_id),
-      .rd_ex        (rd_ex),
-      .reg_write_ex (reg_write_ex),
-      .is_load_ex   (is_load_ex),
-      .is_csr_ex    (is_csr_ex),
-      .rd_mem       (rd_mem),
-      .reg_write_mem(reg_write_mem),
-      .is_load_mem  (is_load_mem),
-      .is_csr_mem   (is_csr_mem),
-      .rd_wb        (rd_wb),
-      .reg_write_wb (reg_write_wb),
-      .pc_sel       (pc_sel),
-      .pc_stall     (pc_stall),
-      .if_id_stall  (if_id_stall),
-      .if_id_flush  (if_id_flush),
-      .id_ex_stall  (id_ex_stall),
-      .id_ex_flush  (id_ex_flush)
+      .rs1_id         (rs1_id),
+      .rs2_id         (rs2_id),
+      .rs1_used       (rs1_used),
+      .rs2_used       (rs2_used),
+      .is_branch_id   (is_branch_id),
+      .rd_ex          (rd_ex),
+      .reg_write_ex   (reg_write_ex),
+      .is_load_ex     (is_load_ex),
+      .is_csr_ex      (is_csr_ex),
+      .rd_mem         (rd_mem),
+      .reg_write_mem  (reg_write_mem),
+      .is_load_mem    (is_load_mem),
+      .is_csr_mem     (is_csr_mem),
+      .rd_wb          (rd_wb),
+      .reg_write_wb   (reg_write_wb),
+      .pc_sel         (pc_sel),
+      .mispredicted_ex(mispredicted_ex),
+      .pc_stall       (pc_stall),
+      .if_id_stall    (if_id_stall),
+      .if_id_flush    (if_id_flush),
+      .id_ex_stall    (id_ex_stall),
+      .id_ex_flush    (id_ex_flush)
   );
 
   task automatic test_reset;
-    rs1_id        = 5'd0;
-    rs2_id        = 5'd0;
-    rs1_used      = 1'b0;
-    rs2_used      = 1'b0;
-    is_branch_id  = 1'b0;
-    rd_ex         = 5'd0;
-    reg_write_ex  = 1'b0;
-    is_load_ex    = 1'b0;
-    is_csr_ex     = 1'b0;
-    rd_mem        = 5'd0;
-    reg_write_mem = 1'b0;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b0;
-    rd_wb         = 5'd0;
-    reg_write_wb  = 1'b0;
-    pc_sel        = 1'b0;
+    rs1_id          = 5'd0;
+    rs2_id          = 5'd0;
+    rs1_used        = 1'b0;
+    rs2_used        = 1'b0;
+    is_branch_id    = 1'b0;
+    rd_ex           = 5'd0;
+    reg_write_ex    = 1'b0;
+    is_load_ex      = 1'b0;
+    is_csr_ex       = 1'b0;
+    rd_mem          = 5'd0;
+    reg_write_mem   = 1'b0;
+    is_load_mem     = 1'b0;
+    is_csr_mem      = 1'b0;
+    rd_wb           = 5'd0;
+    reg_write_wb    = 1'b0;
+    pc_sel          = 1'b0;
+    mispredicted_ex = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
@@ -82,22 +85,23 @@ module svc_rv_hazard_tb;
   endtask
 
   task automatic test_no_hazard;
-    rs1_id        = 5'd1;
-    rs2_id        = 5'd2;
-    rs1_used      = 1'b1;
-    rs2_used      = 1'b1;
-    is_branch_id  = 1'b0;
-    rd_ex         = 5'd3;
-    reg_write_ex  = 1'b1;
-    is_load_ex    = 1'b0;
-    is_csr_ex     = 1'b0;
-    rd_mem        = 5'd4;
-    reg_write_mem = 1'b1;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b0;
-    rd_wb         = 5'd5;
-    reg_write_wb  = 1'b1;
-    pc_sel        = 1'b0;
+    rs1_id          = 5'd1;
+    rs2_id          = 5'd2;
+    rs1_used        = 1'b1;
+    rs2_used        = 1'b1;
+    is_branch_id    = 1'b0;
+    rd_ex           = 5'd3;
+    reg_write_ex    = 1'b1;
+    is_load_ex      = 1'b0;
+    is_csr_ex       = 1'b0;
+    rd_mem          = 5'd4;
+    reg_write_mem   = 1'b1;
+    is_load_mem     = 1'b0;
+    is_csr_mem      = 1'b0;
+    rd_wb           = 5'd5;
+    reg_write_wb    = 1'b1;
+    pc_sel          = 1'b0;
+    mispredicted_ex = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
@@ -107,22 +111,23 @@ module svc_rv_hazard_tb;
   endtask
 
   task automatic test_ex_hazard_rs1;
-    rs1_id        = 5'd10;
-    rs2_id        = 5'd2;
-    rs1_used      = 1'b1;
-    rs2_used      = 1'b1;
-    is_branch_id  = 1'b0;
-    rd_ex         = 5'd10;
-    reg_write_ex  = 1'b1;
-    is_load_ex    = 1'b0;
-    is_csr_ex     = 1'b0;
-    rd_mem        = 5'd0;
-    reg_write_mem = 1'b0;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b0;
-    rd_wb         = 5'd0;
-    reg_write_wb  = 1'b0;
-    pc_sel        = 1'b0;
+    rs1_id          = 5'd10;
+    rs2_id          = 5'd2;
+    rs1_used        = 1'b1;
+    rs2_used        = 1'b1;
+    is_branch_id    = 1'b0;
+    rd_ex           = 5'd10;
+    reg_write_ex    = 1'b1;
+    is_load_ex      = 1'b0;
+    is_csr_ex       = 1'b0;
+    rd_mem          = 5'd0;
+    reg_write_mem   = 1'b0;
+    is_load_mem     = 1'b0;
+    is_csr_mem      = 1'b0;
+    rd_wb           = 5'd0;
+    reg_write_wb    = 1'b0;
+    pc_sel          = 1'b0;
+    mispredicted_ex = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b1);
@@ -132,22 +137,23 @@ module svc_rv_hazard_tb;
   endtask
 
   task automatic test_ex_hazard_rs2;
-    rs1_id        = 5'd1;
-    rs2_id        = 5'd10;
-    rs1_used      = 1'b1;
-    rs2_used      = 1'b1;
-    is_branch_id  = 1'b0;
-    rd_ex         = 5'd10;
-    reg_write_ex  = 1'b1;
-    is_load_ex    = 1'b0;
-    is_csr_ex     = 1'b0;
-    rd_mem        = 5'd0;
-    reg_write_mem = 1'b0;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b0;
-    rd_wb         = 5'd0;
-    reg_write_wb  = 1'b0;
-    pc_sel        = 1'b0;
+    rs1_id          = 5'd1;
+    rs2_id          = 5'd10;
+    rs1_used        = 1'b1;
+    rs2_used        = 1'b1;
+    is_branch_id    = 1'b0;
+    rd_ex           = 5'd10;
+    reg_write_ex    = 1'b1;
+    is_load_ex      = 1'b0;
+    is_csr_ex       = 1'b0;
+    rd_mem          = 5'd0;
+    reg_write_mem   = 1'b0;
+    is_load_mem     = 1'b0;
+    is_csr_mem      = 1'b0;
+    rd_wb           = 5'd0;
+    reg_write_wb    = 1'b0;
+    pc_sel          = 1'b0;
+    mispredicted_ex = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b1);
@@ -157,22 +163,23 @@ module svc_rv_hazard_tb;
   endtask
 
   task automatic test_mem_hazard_rs1;
-    rs1_id        = 5'd10;
-    rs2_id        = 5'd2;
-    rs1_used      = 1'b1;
-    rs2_used      = 1'b1;
-    is_branch_id  = 1'b0;
-    rd_ex         = 5'd0;
-    reg_write_ex  = 1'b0;
-    is_load_ex    = 1'b0;
-    is_csr_ex     = 1'b0;
-    rd_mem        = 5'd10;
-    reg_write_mem = 1'b1;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b0;
-    rd_wb         = 5'd0;
-    reg_write_wb  = 1'b0;
-    pc_sel        = 1'b0;
+    rs1_id          = 5'd10;
+    rs2_id          = 5'd2;
+    rs1_used        = 1'b1;
+    rs2_used        = 1'b1;
+    is_branch_id    = 1'b0;
+    rd_ex           = 5'd0;
+    reg_write_ex    = 1'b0;
+    is_load_ex      = 1'b0;
+    is_csr_ex       = 1'b0;
+    rd_mem          = 5'd10;
+    reg_write_mem   = 1'b1;
+    is_load_mem     = 1'b0;
+    is_csr_mem      = 1'b0;
+    rd_wb           = 5'd0;
+    reg_write_wb    = 1'b0;
+    pc_sel          = 1'b0;
+    mispredicted_ex = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b1);
@@ -182,22 +189,23 @@ module svc_rv_hazard_tb;
   endtask
 
   task automatic test_mem_hazard_rs2;
-    rs1_id        = 5'd1;
-    rs2_id        = 5'd10;
-    rs1_used      = 1'b1;
-    rs2_used      = 1'b1;
-    is_branch_id  = 1'b0;
-    rd_ex         = 5'd0;
-    reg_write_ex  = 1'b0;
-    is_load_ex    = 1'b0;
-    is_csr_ex     = 1'b0;
-    rd_mem        = 5'd10;
-    reg_write_mem = 1'b1;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b0;
-    rd_wb         = 5'd0;
-    reg_write_wb  = 1'b0;
-    pc_sel        = 1'b0;
+    rs1_id          = 5'd1;
+    rs2_id          = 5'd10;
+    rs1_used        = 1'b1;
+    rs2_used        = 1'b1;
+    is_branch_id    = 1'b0;
+    rd_ex           = 5'd0;
+    reg_write_ex    = 1'b0;
+    is_load_ex      = 1'b0;
+    is_csr_ex       = 1'b0;
+    rd_mem          = 5'd10;
+    reg_write_mem   = 1'b1;
+    is_load_mem     = 1'b0;
+    is_csr_mem      = 1'b0;
+    rd_wb           = 5'd0;
+    reg_write_wb    = 1'b0;
+    pc_sel          = 1'b0;
+    mispredicted_ex = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b1);
@@ -207,22 +215,23 @@ module svc_rv_hazard_tb;
   endtask
 
   task automatic test_x0_no_hazard;
-    rs1_id        = 5'd0;
-    rs2_id        = 5'd0;
-    rs1_used      = 1'b1;
-    rs2_used      = 1'b1;
-    is_branch_id  = 1'b0;
-    rd_ex         = 5'd0;
-    reg_write_ex  = 1'b1;
-    is_load_ex    = 1'b0;
-    is_csr_ex     = 1'b0;
-    rd_mem        = 5'd0;
-    reg_write_mem = 1'b1;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b0;
-    rd_wb         = 5'd0;
-    reg_write_wb  = 1'b1;
-    pc_sel        = 1'b0;
+    rs1_id          = 5'd0;
+    rs2_id          = 5'd0;
+    rs1_used        = 1'b1;
+    rs2_used        = 1'b1;
+    is_branch_id    = 1'b0;
+    rd_ex           = 5'd0;
+    reg_write_ex    = 1'b1;
+    is_load_ex      = 1'b0;
+    is_csr_ex       = 1'b0;
+    rd_mem          = 5'd0;
+    reg_write_mem   = 1'b1;
+    is_load_mem     = 1'b0;
+    is_csr_mem      = 1'b0;
+    rd_wb           = 5'd0;
+    reg_write_wb    = 1'b1;
+    pc_sel          = 1'b0;
+    mispredicted_ex = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
@@ -232,22 +241,23 @@ module svc_rv_hazard_tb;
   endtask
 
   task automatic test_no_write_no_hazard;
-    rs1_id        = 5'd10;
-    rs2_id        = 5'd10;
-    rs1_used      = 1'b1;
-    rs2_used      = 1'b1;
-    is_branch_id  = 1'b0;
-    rd_ex         = 5'd10;
-    reg_write_ex  = 1'b0;
-    is_load_ex    = 1'b0;
-    is_csr_ex     = 1'b0;
-    rd_mem        = 5'd10;
-    reg_write_mem = 1'b0;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b0;
-    rd_wb         = 5'd10;
-    reg_write_wb  = 1'b0;
-    pc_sel        = 1'b0;
+    rs1_id          = 5'd10;
+    rs2_id          = 5'd10;
+    rs1_used        = 1'b1;
+    rs2_used        = 1'b1;
+    is_branch_id    = 1'b0;
+    rd_ex           = 5'd10;
+    reg_write_ex    = 1'b0;
+    is_load_ex      = 1'b0;
+    is_csr_ex       = 1'b0;
+    rd_mem          = 5'd10;
+    reg_write_mem   = 1'b0;
+    is_load_mem     = 1'b0;
+    is_csr_mem      = 1'b0;
+    rd_wb           = 5'd10;
+    reg_write_wb    = 1'b0;
+    pc_sel          = 1'b0;
+    mispredicted_ex = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
@@ -257,22 +267,23 @@ module svc_rv_hazard_tb;
   endtask
 
   task automatic test_control_hazard;
-    rs1_id        = 5'd1;
-    rs2_id        = 5'd2;
-    rs1_used      = 1'b1;
-    rs2_used      = 1'b1;
-    is_branch_id  = 1'b0;
-    rd_ex         = 5'd0;
-    reg_write_ex  = 1'b0;
-    is_load_ex    = 1'b0;
-    is_csr_ex     = 1'b0;
-    rd_mem        = 5'd0;
-    reg_write_mem = 1'b0;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b0;
-    rd_wb         = 5'd0;
-    reg_write_wb  = 1'b0;
-    pc_sel        = 1'b1;
+    rs1_id          = 5'd1;
+    rs2_id          = 5'd2;
+    rs1_used        = 1'b1;
+    rs2_used        = 1'b1;
+    is_branch_id    = 1'b0;
+    rd_ex           = 5'd0;
+    reg_write_ex    = 1'b0;
+    is_load_ex      = 1'b0;
+    is_csr_ex       = 1'b0;
+    rd_mem          = 5'd0;
+    reg_write_mem   = 1'b0;
+    is_load_mem     = 1'b0;
+    is_csr_mem      = 1'b0;
+    rd_wb           = 5'd0;
+    reg_write_wb    = 1'b0;
+    pc_sel          = 1'b1;
+    mispredicted_ex = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
@@ -285,22 +296,23 @@ module svc_rv_hazard_tb;
   // Test that hazards are NOT detected when registers are not used
   //
   task automatic test_rs1_not_used_no_hazard;
-    rs1_id        = 5'd10;
-    rs2_id        = 5'd2;
-    rs1_used      = 1'b0;
-    rs2_used      = 1'b1;
-    is_branch_id  = 1'b0;
-    rd_ex         = 5'd10;
-    reg_write_ex  = 1'b1;
-    is_load_ex    = 1'b0;
-    is_csr_ex     = 1'b0;
-    rd_mem        = 5'd0;
-    reg_write_mem = 1'b0;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b0;
-    rd_wb         = 5'd0;
-    reg_write_wb  = 1'b0;
-    pc_sel        = 1'b0;
+    rs1_id          = 5'd10;
+    rs2_id          = 5'd2;
+    rs1_used        = 1'b0;
+    rs2_used        = 1'b1;
+    is_branch_id    = 1'b0;
+    rd_ex           = 5'd10;
+    reg_write_ex    = 1'b1;
+    is_load_ex      = 1'b0;
+    is_csr_ex       = 1'b0;
+    rd_mem          = 5'd0;
+    reg_write_mem   = 1'b0;
+    is_load_mem     = 1'b0;
+    is_csr_mem      = 1'b0;
+    rd_wb           = 5'd0;
+    reg_write_wb    = 1'b0;
+    pc_sel          = 1'b0;
+    mispredicted_ex = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
@@ -310,22 +322,23 @@ module svc_rv_hazard_tb;
   endtask
 
   task automatic test_rs2_not_used_no_hazard;
-    rs1_id        = 5'd1;
-    rs2_id        = 5'd10;
-    rs1_used      = 1'b1;
-    rs2_used      = 1'b0;
-    is_branch_id  = 1'b0;
-    rd_ex         = 5'd10;
-    reg_write_ex  = 1'b1;
-    is_load_ex    = 1'b0;
-    is_csr_ex     = 1'b0;
-    rd_mem        = 5'd0;
-    reg_write_mem = 1'b0;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b0;
-    rd_wb         = 5'd0;
-    reg_write_wb  = 1'b0;
-    pc_sel        = 1'b0;
+    rs1_id          = 5'd1;
+    rs2_id          = 5'd10;
+    rs1_used        = 1'b1;
+    rs2_used        = 1'b0;
+    is_branch_id    = 1'b0;
+    rd_ex           = 5'd10;
+    reg_write_ex    = 1'b1;
+    is_load_ex      = 1'b0;
+    is_csr_ex       = 1'b0;
+    rd_mem          = 5'd0;
+    reg_write_mem   = 1'b0;
+    is_load_mem     = 1'b0;
+    is_csr_mem      = 1'b0;
+    rd_wb           = 5'd0;
+    reg_write_wb    = 1'b0;
+    pc_sel          = 1'b0;
+    mispredicted_ex = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
@@ -335,22 +348,23 @@ module svc_rv_hazard_tb;
   endtask
 
   task automatic test_neither_used_no_hazard;
-    rs1_id        = 5'd10;
-    rs2_id        = 5'd10;
-    rs1_used      = 1'b0;
-    rs2_used      = 1'b0;
-    is_branch_id  = 1'b0;
-    rd_ex         = 5'd10;
-    reg_write_ex  = 1'b1;
-    is_load_ex    = 1'b0;
-    is_csr_ex     = 1'b0;
-    rd_mem        = 5'd10;
-    reg_write_mem = 1'b1;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b0;
-    rd_wb         = 5'd0;
-    reg_write_wb  = 1'b0;
-    pc_sel        = 1'b0;
+    rs1_id          = 5'd10;
+    rs2_id          = 5'd10;
+    rs1_used        = 1'b0;
+    rs2_used        = 1'b0;
+    is_branch_id    = 1'b0;
+    rd_ex           = 5'd10;
+    reg_write_ex    = 1'b1;
+    is_load_ex      = 1'b0;
+    is_csr_ex       = 1'b0;
+    rd_mem          = 5'd10;
+    reg_write_mem   = 1'b1;
+    is_load_mem     = 1'b0;
+    is_csr_mem      = 1'b0;
+    rd_wb           = 5'd0;
+    reg_write_wb    = 1'b0;
+    pc_sel          = 1'b0;
+    mispredicted_ex = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
