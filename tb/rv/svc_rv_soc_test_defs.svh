@@ -2076,6 +2076,147 @@ endtask
 
 //
 //--------------------------------------------------------------------
+// Memory-mapped I/O tests
+//--------------------------------------------------------------------
+//
+
+//
+// Test: Basic MMIO write
+//
+// Tests writing to memory-mapped I/O region (address 0x80000000+).
+// Writes a value to MMIO and verifies it's stored in the I/O memory.
+//
+task automatic test_mmio_write_basic;
+  LI(x1, 32'h80000000);
+  LI(x2, 32'h12345678);
+  SW(x2, x1, 0);
+  LI(x3, 32'hABCDEF00);
+  SW(x3, x1, 4);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk);
+  `CHECK_EQ(uut.cpu.regfile.regs[2], 32'h12345678);
+  `CHECK_EQ(uut.cpu.regfile.regs[3], 32'hABCDEF00);
+  `TICK(clk);
+  `CHECK_EQ(io_mem.mem[0], 32'h12345678);
+  `CHECK_EQ(io_mem.mem[1], 32'hABCDEF00);
+endtask
+
+//
+// Test: Basic MMIO read
+//
+// Tests reading from memory-mapped I/O region.
+// Preloads MMIO memory and verifies the CPU can read the values.
+//
+task automatic test_mmio_read_basic;
+  io_mem.mem[0] = 32'hDEADBEEF;
+  io_mem.mem[1] = 32'hCAFEBABE;
+
+  LI(x1, 32'h80000000);
+  LW(x2, x1, 0);
+  LW(x3, x1, 4);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk);
+  `CHECK_EQ(uut.cpu.regfile.regs[2], 32'hDEADBEEF);
+  `CHECK_EQ(uut.cpu.regfile.regs[3], 32'hCAFEBABE);
+endtask
+
+//
+// Test: MMIO read-write sequence
+//
+// Tests a sequence of writes followed by reads to verify MMIO operates
+// correctly for both directions with the same address.
+//
+task automatic test_mmio_read_write_sequence;
+  LI(x1, 32'h80000000);
+  LI(x2, 32'h11111111);
+  SW(x2, x1, 0);
+  LI(x3, 32'h22222222);
+  SW(x3, x1, 4);
+  LW(x4, x1, 0);
+  LW(x5, x1, 4);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk);
+  `CHECK_EQ(uut.cpu.regfile.regs[4], 32'h11111111);
+  `CHECK_EQ(uut.cpu.regfile.regs[5], 32'h22222222);
+  `TICK(clk);
+  `CHECK_EQ(io_mem.mem[0], 32'h11111111);
+  `CHECK_EQ(io_mem.mem[1], 32'h22222222);
+endtask
+
+//
+// Test: MMIO byte operations
+//
+// Tests byte-level MMIO operations (SB/LB/LBU) to verify byte strobes work
+// correctly for memory-mapped I/O.
+//
+task automatic test_mmio_byte_ops;
+  io_mem.mem[0] = 32'h00000000;
+
+  LI(x1, 32'h80000000);
+  LI(x2, 32'h12);
+  SB(x2, x1, 0);
+  LI(x3, 32'h34);
+  SB(x3, x1, 1);
+  LI(x4, 32'h56);
+  SB(x4, x1, 2);
+  LI(x5, 32'h78);
+  SB(x5, x1, 3);
+  LW(x6, x1, 0);
+  LBU(x7, x1, 0);
+  LBU(x8, x1, 3);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk);
+  `CHECK_EQ(uut.cpu.regfile.regs[6], 32'h78563412);
+  `CHECK_EQ(uut.cpu.regfile.regs[7], 32'h00000012);
+  `CHECK_EQ(uut.cpu.regfile.regs[8], 32'h00000078);
+  `TICK(clk);
+  `CHECK_EQ(io_mem.mem[0], 32'h78563412);
+endtask
+
+//
+// Test: MMIO vs normal memory isolation
+//
+// Verifies that MMIO region (0x80000000+) and normal data memory (0x00000000+)
+// are properly isolated and don't interfere with each other.
+//
+task automatic test_mmio_isolation;
+  uut.dmem.mem[0] = 32'hAAAAAAAA;
+  io_mem.mem[0]   = 32'hBBBBBBBB;
+
+  LI(x1, 32'h00000000);
+  LI(x2, 32'h80000000);
+  LW(x3, x1, 0);
+  LW(x4, x2, 0);
+  LI(x5, 32'hCCCCCCCC);
+  SW(x5, x1, 4);
+  LI(x6, 32'hDDDDDDDD);
+  SW(x6, x2, 4);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk);
+  `CHECK_EQ(uut.cpu.regfile.regs[3], 32'hAAAAAAAA);
+  `CHECK_EQ(uut.cpu.regfile.regs[4], 32'hBBBBBBBB);
+  `TICK(clk);
+  `CHECK_EQ(uut.dmem.mem[1], 32'hCCCCCCCC);
+  `CHECK_EQ(io_mem.mem[1], 32'hDDDDDDDD);
+endtask
+
+//
+//--------------------------------------------------------------------
 // Smoke tests
 //--------------------------------------------------------------------
 //
