@@ -32,6 +32,18 @@ module svc_rv_soc_bram #(
     input logic clk,
     input logic rst_n,
 
+    //
+    // Memory-mapped I/O interface
+    //
+    output logic        io_ren,
+    output logic [31:0] io_raddr,
+    input  logic [31:0] io_rdata,
+
+    output logic        io_wen,
+    output logic [31:0] io_waddr,
+    output logic [31:0] io_wdata,
+    output logic [ 3:0] io_wstrb,
+
     output logic ebreak
 );
   //
@@ -41,15 +53,64 @@ module svc_rv_soc_bram #(
   logic [31:0] imem_data;
   logic        imem_en;
 
-  logic [31:0] dmem_addr;
+  logic        dmem_ren;
+  logic [31:0] dmem_raddr;
   logic [31:0] dmem_rdata;
-  logic        dmem_en;
+
+  logic        dmem_wen;
   logic [31:0] dmem_waddr;
   logic [31:0] dmem_wdata;
   logic [ 3:0] dmem_wstrb;
-  logic        dmem_we;
+
+  //
+  // BRAM interface signals
+  //
+  logic        bram_ren;
+  logic [31:0] bram_rdata;
+  logic        bram_wen;
+
+  //
+  // Address decode signals
+  //
+  logic        io_sel_rd;
+  logic        io_sel_rd_p1;
+  logic        io_sel_wr;
 
   `include "svc_rv_defs.svh"
+
+  //
+  // Address decode
+  //
+  assign io_sel_rd = dmem_raddr[31];
+  assign io_sel_wr = dmem_waddr[31];
+
+  //
+  // Register read select since we need to use it for the response mux
+  //
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      io_sel_rd_p1 <= 1'b0;
+    end else if (dmem_ren) begin
+      io_sel_rd_p1 <= io_sel_rd;
+    end
+  end
+
+  //
+  // Read path routing
+  //
+  assign bram_ren   = dmem_ren && !io_sel_rd;
+  assign io_ren     = dmem_ren && io_sel_rd;
+  assign io_raddr   = dmem_raddr;
+  assign dmem_rdata = io_sel_rd_p1 ? io_rdata : bram_rdata;
+
+  //
+  // Write path routing
+  //
+  assign bram_wen   = dmem_wen && !io_sel_wr;
+  assign io_wen     = dmem_wen && io_sel_wr;
+  assign io_waddr   = dmem_waddr;
+  assign io_wdata   = dmem_wdata;
+  assign io_wstrb   = dmem_wstrb;
 
   //
   // RISC-V core
@@ -64,19 +125,23 @@ module svc_rv_soc_bram #(
       .MEM_TYPE   (MEM_TYPE_BRAM),
       .BPRED      (BPRED)
   ) cpu (
-      .clk       (clk),
-      .rst_n     (rst_n),
+      .clk  (clk),
+      .rst_n(rst_n),
+
       .imem_ren  (imem_en),
       .imem_raddr(imem_addr),
       .imem_rdata(imem_data),
-      .dmem_ren  (dmem_en),
-      .dmem_raddr(dmem_addr),
+
+      .dmem_ren  (dmem_ren),
+      .dmem_raddr(dmem_raddr),
       .dmem_rdata(dmem_rdata),
+
+      .dmem_we   (dmem_wen),
       .dmem_waddr(dmem_waddr),
       .dmem_wdata(dmem_wdata),
       .dmem_wstrb(dmem_wstrb),
-      .dmem_we   (dmem_we),
-      .ebreak    (ebreak)
+
+      .ebreak(ebreak)
   );
 
   //
@@ -105,15 +170,17 @@ module svc_rv_soc_bram #(
       .DW(32),
       .AW(DMEM_AW)
   ) dmem (
-      .clk    (clk),
-      .rst_n  (rst_n),
-      .rd_en  (dmem_en),
-      .rd_addr(dmem_addr),
-      .rd_data(dmem_rdata),
+      .clk  (clk),
+      .rst_n(rst_n),
+
+      .rd_en  (bram_ren),
+      .rd_addr(dmem_raddr),
+      .rd_data(bram_rdata),
+
+      .wr_en  (bram_wen),
       .wr_addr(dmem_waddr),
       .wr_data(dmem_wdata),
-      .wr_strb(dmem_wstrb),
-      .wr_en  (dmem_we)
+      .wr_strb(dmem_wstrb)
   );
 
 endmodule

@@ -33,8 +33,18 @@ module svc_rv_soc_bram_bpred_tb;
       .FWD_REGFILE(1),
       .BPRED      (1)
   ) uut (
-      .clk   (clk),
-      .rst_n (rst_n),
+      .clk  (clk),
+      .rst_n(rst_n),
+
+      .io_ren  (),
+      .io_raddr(),
+      .io_rdata(),
+
+      .io_wen  (),
+      .io_waddr(),
+      .io_wdata(),
+      .io_wstrb(),
+
       .ebreak(ebreak)
   );
 
