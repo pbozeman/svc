@@ -27,6 +27,17 @@ module svc_rv_soc_sram #(
     input logic clk,
     input logic rst_n,
 
+    //
+    // Memory-mapped I/O interface
+    //
+    output logic [31:0] io_raddr,
+    input  logic [31:0] io_rdata,
+
+    output logic        io_wen,
+    output logic [31:0] io_waddr,
+    output logic [31:0] io_wdata,
+    output logic [ 3:0] io_wstrb,
+
     output logic ebreak
 );
   //
@@ -38,10 +49,45 @@ module svc_rv_soc_sram #(
   logic [31:0] dmem_raddr;
   logic [31:0] dmem_rdata;
 
-  logic        dmem_we;
+  logic        dmem_wen;
   logic [31:0] dmem_waddr;
   logic [31:0] dmem_wdata;
   logic [ 3:0] dmem_wstrb;
+
+  //
+  // SRAM interface signals
+  //
+  logic [31:0] sram_rdata;
+  logic        sram_wen;
+
+  //
+  // Address decode signals
+  //
+  logic        io_sel_rd;
+  logic        io_sel_wr;
+
+  `include "svc_rv_defs.svh"
+
+  //
+  // Address decode
+  //
+  assign io_sel_rd  = dmem_raddr[31];
+  assign io_sel_wr  = dmem_waddr[31];
+
+  //
+  // Read path routing
+  //
+  assign io_raddr   = dmem_raddr;
+  assign dmem_rdata = io_sel_rd ? io_rdata : sram_rdata;
+
+  //
+  // Write path routing
+  //
+  assign sram_wen   = dmem_wen && !io_sel_wr;
+  assign io_wen     = dmem_wen && io_sel_wr;
+  assign io_waddr   = dmem_waddr;
+  assign io_wdata   = dmem_wdata;
+  assign io_wstrb   = dmem_wstrb;
 
   //
   // RISC-V core
@@ -66,7 +112,7 @@ module svc_rv_soc_sram #(
       .dmem_raddr(dmem_raddr),
       .dmem_rdata(dmem_rdata),
 
-      .dmem_we   (dmem_we),
+      .dmem_we   (dmem_wen),
       .dmem_waddr(dmem_waddr),
       .dmem_wdata(dmem_wdata),
       .dmem_wstrb(dmem_wstrb),
@@ -105,9 +151,9 @@ module svc_rv_soc_sram #(
       .rst_n(rst_n),
 
       .rd_addr(dmem_raddr),
-      .rd_data(dmem_rdata),
+      .rd_data(sram_rdata),
 
-      .wr_en  (dmem_we),
+      .wr_en  (sram_wen),
       .wr_addr(dmem_waddr),
       .wr_data(dmem_wdata),
       .wr_strb(dmem_wstrb)
