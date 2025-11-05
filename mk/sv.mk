@@ -10,6 +10,7 @@ include mk/format.mk
 include mk/iverilog.mk
 include mk/md.mk
 include mk/rtl.mk
+include mk/sim.mk
 include mk/tb.mk
 include mk/top.mk
 
@@ -80,8 +81,8 @@ clean_logs: $(BUILD_DIR)
 # Help
 #
 ##############################################################################
-.PHONY: list_tb list_f list_prog
+.PHONY: list_tb list_f list_prog list_sim
 
 .PHONY: list
-list: list_tb .WAIT list_f .WAIT list_prog
+list: list_tb .WAIT list_sim .WAIT list_f .WAIT list_prog
 endif
