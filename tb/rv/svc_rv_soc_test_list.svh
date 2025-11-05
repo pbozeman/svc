@@ -111,6 +111,13 @@
 `TEST_CASE(test_cpi_load_use);
 `TEST_CASE(test_cpi_mixed_alu);
 
+// Memory-mapped I/O tests
+`TEST_CASE(test_mmio_write_basic);
+`TEST_CASE(test_mmio_read_basic);
+`TEST_CASE(test_mmio_read_write_sequence);
+`TEST_CASE(test_mmio_byte_ops);
+`TEST_CASE(test_mmio_isolation);
+
 // Smoke tests
 `TEST_CASE(test_fib12);
 `TEST_CASE(test_fib100);

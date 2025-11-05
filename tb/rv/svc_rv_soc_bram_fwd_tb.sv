@@ -1,5 +1,6 @@
 `include "svc_unit.sv"
 
+`include "svc_mem_bram.sv"
 `include "svc_rv_soc_bram.sv"
 
 module svc_rv_soc_bram_fwd_tb;
@@ -8,6 +9,7 @@ module svc_rv_soc_bram_fwd_tb;
 
   localparam int IMEM_AW = 10;
   localparam int DMEM_AW = 10;
+  localparam int IO_AW = 10;
 
   //
   // CPI expectations with MEM->EX forwarding enabled
@@ -33,8 +35,22 @@ module svc_rv_soc_bram_fwd_tb;
   localparam real fib12_max_cpi = 1.6;
   localparam real fib100_max_cpi = 1.6;
   localparam real bubble_max_cpi = 1.8;
-  logic ebreak;
+  logic        ebreak;
 
+  //
+  // MMIO interface signals
+  //
+  logic        io_ren;
+  logic [31:0] io_raddr;
+  logic [31:0] io_rdata;
+  logic        io_wen;
+  logic [31:0] io_waddr;
+  logic [31:0] io_wdata;
+  logic [ 3:0] io_wstrb;
+
+  //
+  // System under test
+  //
   svc_rv_soc_bram #(
       .IMEM_AW    (IMEM_AW),
       .DMEM_AW    (DMEM_AW),
@@ -45,16 +61,36 @@ module svc_rv_soc_bram_fwd_tb;
       .clk  (clk),
       .rst_n(rst_n),
 
-      .io_ren  (),
-      .io_raddr(),
-      .io_rdata(),
+      .io_ren  (io_ren),
+      .io_raddr(io_raddr),
+      .io_rdata(io_rdata),
 
-      .io_wen  (),
-      .io_waddr(),
-      .io_wdata(),
-      .io_wstrb(),
+      .io_wen  (io_wen),
+      .io_waddr(io_waddr),
+      .io_wdata(io_wdata),
+      .io_wstrb(io_wstrb),
 
       .ebreak(ebreak)
+  );
+
+  //
+  // Memory-mapped I/O memory
+  //
+  svc_mem_bram #(
+      .DW(32),
+      .AW(IO_AW)
+  ) io_mem (
+      .clk  (clk),
+      .rst_n(rst_n),
+
+      .rd_en  (io_ren),
+      .rd_addr(io_raddr),
+      .rd_data(io_rdata),
+
+      .wr_en  (io_wen),
+      .wr_addr(io_waddr),
+      .wr_data(io_wdata),
+      .wr_strb(io_wstrb)
   );
 
   `include "svc_rv_soc_test_defs.svh"
