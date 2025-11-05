@@ -44,8 +44,10 @@ make format   # Format all code
 ```bash
 make <module>_tb       # Run specific testbench (e.g., make svc_arbiter_tb)
 make <module>_f        # Run formal verification (e.g., make svc_arbiter_f)
+make <module>_sim      # Run standalone simulation (e.g., make uart_demo_sim)
 make list_tb           # List available testbench targets
 make list_f            # List available formal targets
+make list_sim          # List available standalone simulations
 ```
 
 ## Verification
@@ -55,7 +57,12 @@ Modules use multiple verification approaches:
 - Unit testing with simulation testbenches
 - Formal verification with bounded model checking
 - Static analysis with Verilator linting
+- Standalone simulations for interactive development and SOC-level integration
 
 AXI modules can optionally use ZipCPU formal verification IP (Patreon-only).
 Place ZipCPU formal files in `tb/formal/private/` directory. (It is excluded by
 .gitignore)
+
+Standalone simulations (targets ending in `_sim`) are intended for use in
+projects that include SVC as a submodule. See
+[svc-example](https://github.com/pbozeman/svc-example) for examples.
