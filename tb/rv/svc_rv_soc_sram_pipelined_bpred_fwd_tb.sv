@@ -15,13 +15,14 @@ module svc_rv_soc_sram_pipelined_bpred_fwd_tb;
   // CPI expectations with SRAM, pipelined mode, forwarding, and branch prediction
   //
   // This is the most aggressive configuration with best expected CPI.
-  // With JAL early resolution in ID stage, we achieve near-optimal performance.
+  // With JAL early resolution in ID stage and MEM->EX load forwarding,
+  // we achieve near-optimal performance.
   //
   localparam real alu_indep_max_cpi = 1.17;
   localparam real alu_chain_max_cpi = 1.38;
   localparam real br_taken_max_cpi = 2.5;
   localparam real br_not_taken_max_cpi = 2.25;
-  localparam real load_use_max_cpi = 2.0;
+  localparam real load_use_max_cpi = 1.75;
   localparam real mixed_alu_max_cpi = 1.34;
   localparam real fib12_max_cpi = 1.22;
   localparam real fib100_max_cpi = 1.18;

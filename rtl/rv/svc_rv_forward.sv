@@ -17,12 +17,14 @@
 // Priority: MEM > WB > regfile (MEM is more recent)
 //
 // Cannot forward:
-// - Load results in MEM stage (data not ready until WB)
+// - Load results in MEM stage for BRAM (data not ready until WB)
 // - CSR results in MEM stage (data not ready until WB)
+// - Load results for SRAM are available in MEM stage and CAN be forwarded
 //
 module svc_rv_forward #(
-    parameter int XLEN = 32,
-    parameter int FWD  = 0
+    parameter int XLEN     = 32,
+    parameter int FWD      = 0,
+    parameter int MEM_TYPE = 0
 ) (
     //
     // EX stage inputs (consumers)
@@ -40,6 +42,7 @@ module svc_rv_forward #(
     input logic            is_load_mem,
     input logic            is_csr_mem,
     input logic [XLEN-1:0] alu_result_mem,
+    input logic [XLEN-1:0] load_data_mem,
 
     //
     // WB stage inputs (producer)
@@ -55,21 +58,17 @@ module svc_rv_forward #(
     output logic [XLEN-1:0] rs2_fwd_ex
 );
 
+  `include "svc_rv_defs.svh"
+
   if (FWD != 0) begin : g_forwarding
     //
-    // EX Hazard: Forward from MEM stage
+    // MEM→EX ALU forwarding (common to both SRAM and BRAM)
     //
-    // When instruction in MEM stage writes to a register that
-    // instruction in EX stage reads, forward from MEM.
+    // Forward ALU results from MEM stage (not loads or CSRs)
     //
     logic mem_to_ex_fwd_a;
     logic mem_to_ex_fwd_b;
 
-    //
-    // MEM→EX forwarding: Forward ALU result from MEM stage
-    //
-    // Don't forward if producer is a load or CSR (data not ready)
-    //
     always_comb begin
       mem_to_ex_fwd_a = 1'b0;
       mem_to_ex_fwd_b = 1'b0;
@@ -81,15 +80,10 @@ module svc_rv_forward #(
     end
 
     //
-    // MEM Hazard: Forward from WB stage
+    // WB→EX forwarding (common to both SRAM and BRAM)
     //
-    // When instruction in WB stage writes to a register that
-    // instruction in EX stage reads, forward from WB.
-    //
-    // This handles:
-    // - Cycle after load-use stall (load result now in WB)
-    // - CSR reads (only available in WB)
-    // - Cases where MEM stage doesn't have the value
+    // Forward from WB stage when MEM doesn't have the value
+    // Handles load results after stall, CSR reads, and older hazards
     //
     logic wb_to_ex_fwd_a;
     logic wb_to_ex_fwd_b;
@@ -104,16 +98,51 @@ module svc_rv_forward #(
       end
     end
 
-    //
-    // Forwarding muxes with priority: MEM > WB > regfile
-    //
-    // MEM stage is more recent (closer to EX) so it takes priority
-    //
-    assign rs1_fwd_ex = (mem_to_ex_fwd_a ? alu_result_mem :
-                         wb_to_ex_fwd_a ? rd_data : rs1_data_ex);
+    if (MEM_TYPE == MEM_TYPE_SRAM) begin : g_sram_load_fwd
+      //
+      // SRAM: Load data is ready in MEM stage, can forward
+      //
+      logic mem_to_ex_fwd_load_a;
+      logic mem_to_ex_fwd_load_b;
 
-    assign rs2_fwd_ex = (mem_to_ex_fwd_b ? alu_result_mem :
-                         wb_to_ex_fwd_b ? rd_data : rs2_data_ex);
+      //
+      // MEM→EX load forwarding (SRAM only)
+      //
+      always_comb begin
+        mem_to_ex_fwd_load_a = 1'b0;
+        mem_to_ex_fwd_load_b = 1'b0;
+
+        if (reg_write_mem && rd_mem != 5'd0 && is_load_mem) begin
+          mem_to_ex_fwd_load_a = (rd_mem == rs1_ex);
+          mem_to_ex_fwd_load_b = (rd_mem == rs2_ex);
+        end
+      end
+
+      //
+      // Forwarding muxes with priority: MEM load > MEM ALU > WB > regfile
+      //
+      assign rs1_fwd_ex = (mem_to_ex_fwd_load_a ?
+                           load_data_mem : mem_to_ex_fwd_a ? alu_result_mem :
+                           wb_to_ex_fwd_a ? rd_data : rs1_data_ex);
+
+      assign rs2_fwd_ex = (mem_to_ex_fwd_load_b ?
+                           load_data_mem : mem_to_ex_fwd_b ? alu_result_mem :
+                           wb_to_ex_fwd_b ? rd_data : rs2_data_ex);
+
+    end else begin : g_bram_no_load_fwd
+      //
+      // BRAM: Load data not ready in MEM stage, cannot forward
+      //
+      // Forwarding muxes with priority: MEM ALU > WB > regfile
+      //
+      assign rs1_fwd_ex = (mem_to_ex_fwd_a ? alu_result_mem :
+                           wb_to_ex_fwd_a ? rd_data : rs1_data_ex);
+
+      assign rs2_fwd_ex = (mem_to_ex_fwd_b ? alu_result_mem :
+                           wb_to_ex_fwd_b ? rd_data : rs2_data_ex);
+
+      `SVC_UNUSED({load_data_mem});
+    end
 
   end else begin : g_no_forwarding
     //
@@ -124,7 +153,8 @@ module svc_rv_forward #(
 
     // verilog_format: off
     `SVC_UNUSED({rs1_ex, rs2_ex, rd_mem, reg_write_mem, is_load_mem,
-                 is_csr_mem, alu_result_mem, rd_wb, reg_write_wb, rd_data });
+                 is_csr_mem, alu_result_mem, load_data_mem, rd_wb,
+                 reg_write_wb, rd_data, MEM_TYPE});
     // verilog_format: on
   end
 

@@ -166,16 +166,29 @@ module svc_rv_hazard #(
     // Load-use hazard detection
     //
     // Load instructions produce result in MEM stage, but consumer
-    // needs it in EX stage. This cannot be resolved by forwarding,
-    // so we must stall.
+    // needs it in EX stage.
+    //
+    // For BRAM: Cannot forward (data not ready), must stall
+    // For SRAM: Can forward (data ready in MEM), no stall needed
     //
     // CSR instructions produce result in WB stage, so we also cannot
     // forward from MEM→EX for CSR hazards. Stall for CSR-use too.
     //
     logic load_use_hazard;
 
-    assign load_use_hazard = ((is_load_ex || is_csr_ex) &&
-                              (ex_hazard_rs1 || ex_hazard_rs2));
+    if (MEM_TYPE == MEM_TYPE_BRAM) begin : g_bram_stall
+      //
+      // BRAM: Must stall on load-use hazards
+      //
+      assign load_use_hazard = ((is_load_ex || is_csr_ex) &&
+                                (ex_hazard_rs1 || ex_hazard_rs2));
+    end else begin : g_sram_no_stall
+      //
+      // SRAM: Load data forwarded, only stall on CSR-use
+      //
+      assign load_use_hazard = (is_csr_ex && (ex_hazard_rs1 || ex_hazard_rs2));
+      `SVC_UNUSED({is_load_ex});
+    end
 
     //
     // With forwarding enabled: only stall on unavoidable hazards
@@ -207,7 +220,7 @@ module svc_rv_hazard #(
       (pred_taken_id && !data_hazard);
   assign id_ex_flush = data_hazard || pc_sel || mispredicted_ex;
 
-  `SVC_UNUSED({MEM_TYPE, BPRED});
+  `SVC_UNUSED({BPRED});
 
 endmodule
 
