@@ -63,8 +63,10 @@ SIM_PRJ_INC = $(PRJ_RTL_DIR)/$(patsubst %_sim,%, $(notdir $(*)))
 .PRECIOUS: $(SIM_BUILD_DIR)/%
 $(SIM_BUILD_DIR)/%: %.sv Makefile | $(SIM_BUILD_DIR)
 	@echo "Building simulation: $(notdir $@)"
-	@$(IVERILOG) $(I_RTL) -I$(PRJ_TB_DIR) -I$(SIM_PRJ_INC) -o $@ $< 2>&1 | \
-		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2 || true
+	@$(IVERILOG) -M $(@).dep $(I_RTL) -I$(PRJ_TB_DIR) -I$(SIM_PRJ_INC) -o $@ $< 2>&1 | \
+		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
+		exit $${PIPESTATUS[0]}
+	@echo "$@: $$(tr '\n' ' ' < $(@).dep)" > $(@).d
 
 ##############################################################################
 #
