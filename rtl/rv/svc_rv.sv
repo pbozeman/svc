@@ -625,8 +625,9 @@ module svc_rv #(
   logic [XLEN-1:0] rs2_fwd_ex;
 
   svc_rv_forward #(
-      .XLEN(XLEN),
-      .FWD ((PIPELINED != 0 && FWD != 0) ? 1 : 0)
+      .XLEN    (XLEN),
+      .FWD     ((PIPELINED != 0 && FWD != 0) ? 1 : 0),
+      .MEM_TYPE(MEM_TYPE)
   ) forward (
       // EX stage inputs
       .rs1_ex     (rs1_ex),
@@ -640,6 +641,7 @@ module svc_rv #(
       .is_load_mem   (is_load_mem),
       .is_csr_mem    (is_csr_mem),
       .alu_result_mem(alu_result_mem),
+      .load_data_mem (dmem_rdata_ext_mem),
 
       // WB stage inputs
       .rd_wb       (rd_wb),

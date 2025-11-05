@@ -2,6 +2,14 @@
 
 `include "svc_rv_forward.sv"
 
+//
+// Forward unit testbench
+//
+// Tests forwarding logic with MEM_TYPE=0 (SRAM)
+// BRAM behavior (no load forwarding) is tested in integration tests:
+// - svc_rv_soc_bram_fwd_tb
+// - svc_rv_soc_bram_bpred_tb
+//
 module svc_rv_forward_tb;
   `TEST_CLK_NS(clk, 10);
 
@@ -16,6 +24,7 @@ module svc_rv_forward_tb;
   logic            is_load_mem;
   logic            is_csr_mem;
   logic [XLEN-1:0] alu_result_mem;
+  logic [XLEN-1:0] load_data_mem;
   logic [     4:0] rd_wb;
   logic            reg_write_wb;
   logic [XLEN-1:0] rd_data;
@@ -23,8 +32,9 @@ module svc_rv_forward_tb;
   logic [XLEN-1:0] rs2_fwd_ex;
 
   svc_rv_forward #(
-      .XLEN(XLEN),
-      .FWD (1)
+      .XLEN    (XLEN),
+      .FWD     (1),
+      .MEM_TYPE(0)
   ) uut (
       .rs1_ex        (rs1_ex),
       .rs2_ex        (rs2_ex),
@@ -35,6 +45,7 @@ module svc_rv_forward_tb;
       .is_load_mem   (is_load_mem),
       .is_csr_mem    (is_csr_mem),
       .alu_result_mem(alu_result_mem),
+      .load_data_mem (load_data_mem),
       .rd_wb         (rd_wb),
       .reg_write_wb  (reg_write_wb),
       .rd_data       (rd_data),
@@ -53,6 +64,7 @@ module svc_rv_forward_tb;
     is_load_mem    = 1'b0;
     is_csr_mem     = 1'b0;
     alu_result_mem = 32'h0;
+    load_data_mem  = 32'h0;
     rd_wb          = 5'd0;
     reg_write_wb   = 1'b0;
     rd_data        = 32'h0;
@@ -230,9 +242,12 @@ module svc_rv_forward_tb;
   endtask
 
   //
-  // Test: No forwarding from MEM if it's a load (data not ready)
+  // Test: Load forwarding for SRAM (data ready in MEM stage)
   //
-  task automatic test_no_fwd_from_load;
+  // This testbench uses MEM_TYPE=0 (SRAM), so load data can be forwarded
+  // from MEM stage via load_data_mem signal
+  //
+  task automatic test_sram_load_fwd;
     reset_inputs();
     rs1_ex         = 5'd10;
     rs2_ex         = 5'd2;
@@ -245,6 +260,7 @@ module svc_rv_forward_tb;
     is_load_mem    = 1'b1;
     is_csr_mem     = 1'b0;
     alu_result_mem = 32'h99990000;
+    load_data_mem  = 32'h12340000;
 
     rd_wb          = 5'd11;
     reg_write_wb   = 1'b0;
@@ -252,7 +268,36 @@ module svc_rv_forward_tb;
 
     `TICK(clk);
 
-    `CHECK_EQ(rs1_fwd_ex, 32'hAAAAAAAA);
+    `CHECK_EQ(rs1_fwd_ex, 32'h12340000);
+    `CHECK_EQ(rs2_fwd_ex, 32'hBBBBBBBB);
+  endtask
+
+  //
+  // Test: Load priority over ALU for SRAM
+  //
+  // When both load and ALU forwarding are possible, load takes priority
+  //
+  task automatic test_sram_load_priority;
+    reset_inputs();
+    rs1_ex         = 5'd10;
+    rs2_ex         = 5'd2;
+    rs1_data_ex    = 32'hAAAAAAAA;
+    rs2_data_ex    = 32'hBBBBBBBB;
+
+    rd_mem         = 5'd10;
+    reg_write_mem  = 1'b1;
+    is_load_mem    = 1'b1;
+    is_csr_mem     = 1'b0;
+    alu_result_mem = 32'h99990000;
+    load_data_mem  = 32'hFEEDBEEF;
+
+    rd_wb          = 5'd10;
+    reg_write_wb   = 1'b1;
+    rd_data        = 32'h88880000;
+
+    `TICK(clk);
+
+    `CHECK_EQ(rs1_fwd_ex, 32'hFEEDBEEF);
     `CHECK_EQ(rs2_fwd_ex, 32'hBBBBBBBB);
   endtask
 
@@ -370,7 +415,8 @@ module svc_rv_forward_tb;
   `TEST_CASE(test_wb_to_ex_fwd_rs1);
   `TEST_CASE(test_wb_to_ex_fwd_rs2);
   `TEST_CASE(test_mem_priority_over_wb);
-  `TEST_CASE(test_no_fwd_from_load);
+  `TEST_CASE(test_sram_load_fwd);
+  `TEST_CASE(test_sram_load_priority);
   `TEST_CASE(test_no_fwd_from_csr);
   `TEST_CASE(test_no_fwd_to_x0);
   `TEST_CASE(test_no_fwd_if_not_used);
