@@ -30,6 +30,22 @@ format_sim:
 
 ##############################################################################
 #
+# Sim Linting
+#
+##############################################################################
+.PHONY: lint_sim
+lint: lint_sim
+
+define lint_sim_rule
+lint_sim: lint_$(1)
+lint_$(1):
+	@$$(LINTER) $(I_RTL) -I$(PRJ_TB_DIR) -I$(PRJ_RTL_DIR)/$(patsubst %_sim,%, $(notdir $1)) $(1).sv
+endef
+
+$(foreach sim, $(SIM_MODULES), $(eval $(call lint_sim_rule,$(sim))))
+
+##############################################################################
+#
 # Sim Compilation and Execution
 #
 ##############################################################################
