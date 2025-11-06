@@ -4,7 +4,7 @@
 
 module svc_mem_bram_tb;
   localparam int DW = 32;
-  localparam int AW = 10;
+  localparam int DEPTH = 1024;
 
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
@@ -19,8 +19,8 @@ module svc_mem_bram_tb;
   logic [ 3:0] wr_strb;
 
   svc_mem_bram #(
-      .DW(DW),
-      .AW(AW)
+      .DW   (DW),
+      .DEPTH(DEPTH)
   ) uut (
       .clk    (clk),
       .rst_n  (rst_n),
