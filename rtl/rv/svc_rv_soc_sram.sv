@@ -14,8 +14,8 @@
 //
 module svc_rv_soc_sram #(
     parameter int XLEN        = 32,
-    parameter int IMEM_AW     = 10,
-    parameter int DMEM_AW     = 10,
+    parameter int IMEM_DEPTH  = 1024,
+    parameter int DMEM_DEPTH  = 1024,
     parameter int PIPELINED   = 0,
     parameter int FWD_REGFILE = PIPELINED,
     parameter int FWD         = 0,
@@ -40,6 +40,9 @@ module svc_rv_soc_sram #(
 
     output logic ebreak
 );
+  localparam int IMEM_AW = $clog2(IMEM_DEPTH);
+  localparam int DMEM_AW = $clog2(DMEM_DEPTH);
+
   //
   // Memory interface signals
   //
@@ -125,7 +128,7 @@ module svc_rv_soc_sram #(
   //
   svc_mem_sram #(
       .DW       (32),
-      .AW       (IMEM_AW),
+      .DEPTH    (IMEM_DEPTH),
       .INIT_FILE(IMEM_INIT)
   ) imem (
       .clk  (clk),
@@ -144,8 +147,8 @@ module svc_rv_soc_sram #(
   // Data memory (SRAM)
   //
   svc_mem_sram #(
-      .DW(32),
-      .AW(DMEM_AW)
+      .DW   (32),
+      .DEPTH(DMEM_DEPTH)
   ) dmem (
       .clk  (clk),
       .rst_n(rst_n),

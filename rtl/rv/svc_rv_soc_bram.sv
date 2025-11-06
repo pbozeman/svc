@@ -19,8 +19,8 @@
 //
 module svc_rv_soc_bram #(
     parameter int XLEN        = 32,
-    parameter int IMEM_AW     = 10,
-    parameter int DMEM_AW     = 10,
+    parameter int IMEM_DEPTH  = 1024,
+    parameter int DMEM_DEPTH  = 1024,
     parameter int PIPELINED   = 1,
     parameter int FWD_REGFILE = 1,
     parameter int FWD         = 0,
@@ -47,6 +47,9 @@ module svc_rv_soc_bram #(
 
     output logic ebreak
 );
+  localparam int IMEM_AW = $clog2(IMEM_DEPTH);
+  localparam int DMEM_AW = $clog2(DMEM_DEPTH);
+
   //
   // Memory interface signals
   //
@@ -150,7 +153,7 @@ module svc_rv_soc_bram #(
   //
   svc_mem_bram #(
       .DW       (32),
-      .AW       (IMEM_AW),
+      .DEPTH    (IMEM_DEPTH),
       .INIT_FILE(IMEM_INIT)
   ) imem (
       .clk    (clk),
@@ -169,7 +172,7 @@ module svc_rv_soc_bram #(
   //
   svc_mem_bram #(
       .DW       (32),
-      .AW       (DMEM_AW),
+      .DEPTH    (DMEM_DEPTH),
       .INIT_FILE(DMEM_INIT)
   ) dmem (
       .clk  (clk),

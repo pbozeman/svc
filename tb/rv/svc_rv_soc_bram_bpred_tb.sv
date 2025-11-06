@@ -7,8 +7,8 @@ module svc_rv_soc_bram_bpred_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
-  localparam int IMEM_AW = 10;
-  localparam int DMEM_AW = 10;
+  localparam int IMEM_DEPTH = 2 ** 10;
+  localparam int DMEM_DEPTH = 2 ** 10;
   localparam int IO_AW = 10;
 
   //
@@ -43,8 +43,8 @@ module svc_rv_soc_bram_bpred_tb;
   // System under test
   //
   svc_rv_soc_bram #(
-      .IMEM_AW    (IMEM_AW),
-      .DMEM_AW    (DMEM_AW),
+      .IMEM_DEPTH (IMEM_DEPTH),
+      .DMEM_DEPTH (DMEM_DEPTH),
       .PIPELINED  (1),
       .FWD_REGFILE(1),
       .BPRED      (1)
@@ -68,8 +68,8 @@ module svc_rv_soc_bram_bpred_tb;
   // Memory-mapped I/O memory
   //
   svc_mem_bram #(
-      .DW(32),
-      .AW(IO_AW)
+      .DW   (32),
+      .DEPTH(2 ** IO_AW)
   ) io_mem (
       .clk  (clk),
       .rst_n(rst_n),

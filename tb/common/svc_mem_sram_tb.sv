@@ -4,7 +4,7 @@
 
 module svc_mem_sram_tb;
   localparam DW = 32;
-  localparam AW = 10;
+  localparam DEPTH = 1024;
 
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
@@ -18,8 +18,8 @@ module svc_mem_sram_tb;
   logic [ 3:0] wr_strb;
 
   svc_mem_sram #(
-      .DW(DW),
-      .AW(AW)
+      .DW   (DW),
+      .DEPTH(DEPTH)
   ) uut (
       .clk    (clk),
       .rst_n  (rst_n),
