@@ -54,7 +54,7 @@ $(foreach sim, $(SIM_MODULES), $(eval $(call lint_sim_rule,$(sim))))
 .PHONY: $(SIM_MODULES)
 $(SIM_MODULES): % : $(SIM_BUILD_DIR)/%
 	@echo "Running standalone simulation: $@"
-	@$(VVP) $<
+	@$(VVP) $< $(if $(filter 1,$(SVC_CPU_DBG)),+SVC_CPU_DBG)
 
 # Determine the source subdirectory for each sim
 SIM_PRJ_INC = $(PRJ_RTL_DIR)/$(patsubst %_sim,%, $(notdir $(*)))
