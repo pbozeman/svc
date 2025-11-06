@@ -66,58 +66,58 @@ function automatic string dasm_inst(input logic [31:0] instr);
       case (funct3)
         3'b000: begin
           if (funct7 == 7'b0000000) begin
-            return $sformatf("add %s, %s, %s", reg_name(rd), reg_name(rs1),
+            return $sformatf("%6s %3s, %3s, %3s", "add", reg_name(rd), reg_name(rs1),
                              reg_name(rs2));
           end else if (funct7 == 7'b0100000) begin
-            return $sformatf("sub %s, %s, %s", reg_name(rd), reg_name(rs1),
+            return $sformatf("%6s %3s, %3s, %3s", "sub", reg_name(rd), reg_name(rs1),
                              reg_name(rs2));
           end else if (funct7 == 7'b0000001) begin
-            return $sformatf("mul %s, %s, %s", reg_name(rd), reg_name(rs1),
+            return $sformatf("%6s %3s, %3s, %3s", "mul", reg_name(rd), reg_name(rs1),
                              reg_name(rs2));
           end
         end
         3'b001: begin
           if (funct7 == 7'b0000000) begin
-            return $sformatf("sll %s, %s, %s", reg_name(rd), reg_name(rs1),
+            return $sformatf("%6s %3s, %3s, %3s", "sll", reg_name(rd), reg_name(rs1),
                              reg_name(rs2));
           end
         end
         3'b010: begin
           if (funct7 == 7'b0000000) begin
-            return $sformatf("slt %s, %s, %s", reg_name(rd), reg_name(rs1),
+            return $sformatf("%6s %3s, %3s, %3s", "slt", reg_name(rd), reg_name(rs1),
                              reg_name(rs2));
           end
         end
         3'b011: begin
           if (funct7 == 7'b0000000) begin
-            return $sformatf("sltu %s, %s, %s", reg_name(rd), reg_name(rs1),
+            return $sformatf("%6s %3s, %3s, %3s", "sltu", reg_name(rd), reg_name(rs1),
                              reg_name(rs2));
           end
         end
         3'b100: begin
           if (funct7 == 7'b0000000) begin
-            return $sformatf("xor %s, %s, %s", reg_name(rd), reg_name(rs1),
+            return $sformatf("%6s %3s, %3s, %3s", "xor", reg_name(rd), reg_name(rs1),
                              reg_name(rs2));
           end
         end
         3'b101: begin
           if (funct7 == 7'b0000000) begin
-            return $sformatf("srl %s, %s, %s", reg_name(rd), reg_name(rs1),
+            return $sformatf("%6s %3s, %3s, %3s", "srl", reg_name(rd), reg_name(rs1),
                              reg_name(rs2));
           end else if (funct7 == 7'b0100000) begin
-            return $sformatf("sra %s, %s, %s", reg_name(rd), reg_name(rs1),
+            return $sformatf("%6s %3s, %3s, %3s", "sra", reg_name(rd), reg_name(rs1),
                              reg_name(rs2));
           end
         end
         3'b110: begin
           if (funct7 == 7'b0000000) begin
-            return $sformatf("or %s, %s, %s", reg_name(rd), reg_name(rs1),
+            return $sformatf("%6s %3s, %3s, %3s", "or", reg_name(rd), reg_name(rs1),
                              reg_name(rs2));
           end
         end
         3'b111: begin
           if (funct7 == 7'b0000000) begin
-            return $sformatf("and %s, %s, %s", reg_name(rd), reg_name(rs1),
+            return $sformatf("%6s %3s, %3s, %3s", "and", reg_name(rd), reg_name(rs1),
                              reg_name(rs2));
           end
         end
@@ -129,38 +129,38 @@ function automatic string dasm_inst(input logic [31:0] instr);
       case (funct3)
         3'b000:
         return $sformatf(
-            "addi %s, %s, %0d", reg_name(rd), reg_name(rs1), imm_i
+            "%6s %3s, %3s, %0d", "addi", reg_name(rd), reg_name(rs1), imm_i
         );
         3'b010:
         return $sformatf(
-            "slti %s, %s, %0d", reg_name(rd), reg_name(rs1), imm_i
+            "%6s %3s, %3s, %0d", "slti", reg_name(rd), reg_name(rs1), imm_i
         );
         3'b011:
         return $sformatf(
-            "sltiu %s, %s, %0d", reg_name(rd), reg_name(rs1), imm_i
+            "%6s %3s, %3s, %0d", "sltiu", reg_name(rd), reg_name(rs1), imm_i
         );
         3'b100:
         return $sformatf(
-            "xori %s, %s, %0d", reg_name(rd), reg_name(rs1), imm_i
+            "%6s %3s, %3s, %0d", "xori", reg_name(rd), reg_name(rs1), imm_i
         );
         3'b110:
-        return $sformatf("ori %s, %s, %0d", reg_name(rd), reg_name(rs1), imm_i);
+        return $sformatf("%6s %3s, %3s, %0d", "ori", reg_name(rd), reg_name(rs1), imm_i);
         3'b111:
         return $sformatf(
-            "andi %s, %s, %0d", reg_name(rd), reg_name(rs1), imm_i
+            "%6s %3s, %3s, %0d", "andi", reg_name(rd), reg_name(rs1), imm_i
         );
         3'b001: begin
           if (funct7 == 7'b0000000) begin
-            return $sformatf("slli %s, %s, %0d", reg_name(rd), reg_name(rs1),
+            return $sformatf("%6s %3s, %3s, %0d", "slli", reg_name(rd), reg_name(rs1),
                              shamt);
           end
         end
         3'b101: begin
           if (funct7 == 7'b0000000) begin
-            return $sformatf("srli %s, %s, %0d", reg_name(rd), reg_name(rs1),
+            return $sformatf("%6s %3s, %3s, %0d", "srli", reg_name(rd), reg_name(rs1),
                              shamt);
           end else if (funct7 == 7'b0100000) begin
-            return $sformatf("srai %s, %s, %0d", reg_name(rd), reg_name(rs1),
+            return $sformatf("%6s %3s, %3s, %0d", "srai", reg_name(rd), reg_name(rs1),
                              shamt);
           end
         end
@@ -171,15 +171,15 @@ function automatic string dasm_inst(input logic [31:0] instr);
     7'b0000011: begin
       case (funct3)
         3'b000:
-        return $sformatf("lb %s, %0d(%s)", reg_name(rd), imm_i, reg_name(rs1));
+        return $sformatf("%6s %3s, %0d(%s)", "lb", reg_name(rd), imm_i, reg_name(rs1));
         3'b001:
-        return $sformatf("lh %s, %0d(%s)", reg_name(rd), imm_i, reg_name(rs1));
+        return $sformatf("%6s %3s, %0d(%s)", "lh", reg_name(rd), imm_i, reg_name(rs1));
         3'b010:
-        return $sformatf("lw %s, %0d(%s)", reg_name(rd), imm_i, reg_name(rs1));
+        return $sformatf("%6s %3s, %0d(%s)", "lw", reg_name(rd), imm_i, reg_name(rs1));
         3'b100:
-        return $sformatf("lbu %s, %0d(%s)", reg_name(rd), imm_i, reg_name(rs1));
+        return $sformatf("%6s %3s, %0d(%s)", "lbu", reg_name(rd), imm_i, reg_name(rs1));
         3'b101:
-        return $sformatf("lhu %s, %0d(%s)", reg_name(rd), imm_i, reg_name(rs1));
+        return $sformatf("%6s %3s, %0d(%s)", "lhu", reg_name(rd), imm_i, reg_name(rs1));
         default: ;
       endcase
     end
@@ -187,11 +187,11 @@ function automatic string dasm_inst(input logic [31:0] instr);
     7'b0100011: begin
       case (funct3)
         3'b000:
-        return $sformatf("sb %s, %0d(%s)", reg_name(rs2), imm_s, reg_name(rs1));
+        return $sformatf("%6s %3s, %0d(%s)", "sb", reg_name(rs2), imm_s, reg_name(rs1));
         3'b001:
-        return $sformatf("sh %s, %0d(%s)", reg_name(rs2), imm_s, reg_name(rs1));
+        return $sformatf("%6s %3s, %0d(%s)", "sh", reg_name(rs2), imm_s, reg_name(rs1));
         3'b010:
-        return $sformatf("sw %s, %0d(%s)", reg_name(rs2), imm_s, reg_name(rs1));
+        return $sformatf("%6s %3s, %0d(%s)", "sw", reg_name(rs2), imm_s, reg_name(rs1));
         default: ;
       endcase
     end
@@ -200,42 +200,42 @@ function automatic string dasm_inst(input logic [31:0] instr);
       case (funct3)
         3'b000:
         return $sformatf(
-            "beq %s, %s, %0d", reg_name(rs1), reg_name(rs2), imm_b
+            "%6s %3s, %3s, %0d", "beq", reg_name(rs1), reg_name(rs2), imm_b
         );
         3'b001:
         return $sformatf(
-            "bne %s, %s, %0d", reg_name(rs1), reg_name(rs2), imm_b
+            "%6s %3s, %3s, %0d", "bne", reg_name(rs1), reg_name(rs2), imm_b
         );
         3'b100:
         return $sformatf(
-            "blt %s, %s, %0d", reg_name(rs1), reg_name(rs2), imm_b
+            "%6s %3s, %3s, %0d", "blt", reg_name(rs1), reg_name(rs2), imm_b
         );
         3'b101:
         return $sformatf(
-            "bge %s, %s, %0d", reg_name(rs1), reg_name(rs2), imm_b
+            "%6s %3s, %3s, %0d", "bge", reg_name(rs1), reg_name(rs2), imm_b
         );
         3'b110:
         return $sformatf(
-            "bltu %s, %s, %0d", reg_name(rs1), reg_name(rs2), imm_b
+            "%6s %3s, %3s, %0d", "bltu", reg_name(rs1), reg_name(rs2), imm_b
         );
         3'b111:
         return $sformatf(
-            "bgeu %s, %s, %0d", reg_name(rs1), reg_name(rs2), imm_b
+            "%6s %3s, %3s, %0d", "bgeu", reg_name(rs1), reg_name(rs2), imm_b
         );
         default: ;
       endcase
     end
 
-    7'b0110111: return $sformatf("lui %s, 0x%05x", reg_name(rd), instr[31:12]);
+    7'b0110111: return $sformatf("%6s %3s, 0x%05x", "lui", reg_name(rd), instr[31:12]);
 
-    7'b0010111: return $sformatf("auipc %s, 0x%05x", reg_name(rd), instr[31:12]);
+    7'b0010111: return $sformatf("%6s %3s, 0x%05x", "auipc", reg_name(rd), instr[31:12]);
 
-    7'b1101111: return $sformatf("jal %s, %0d", reg_name(rd), imm_j);
+    7'b1101111: return $sformatf("%6s %3s, %0d", "jal", reg_name(rd), imm_j);
 
     7'b1100111: begin
       if (funct3 == 3'b000) begin
         return
-            $sformatf("jalr %s, %s, %0d", reg_name(rd), reg_name(rs1), imm_i);
+            $sformatf("%6s %3s, %3s, %0d", "jalr", reg_name(rd), reg_name(rs1), imm_i);
       end
     end
 
@@ -255,27 +255,27 @@ function automatic string dasm_inst(input logic [31:0] instr);
         end
         3'b001:
         return $sformatf(
-            "csrrw %s, %s, %s", reg_name(rd), csr_name(csr), reg_name(rs1)
+            "%6s %3s, %8s, %3s", "csrrw", reg_name(rd), csr_name(csr), reg_name(rs1)
         );
         3'b010:
         return $sformatf(
-            "csrrs %s, %s, %s", reg_name(rd), csr_name(csr), reg_name(rs1)
+            "%6s %3s, %8s, %3s", "csrrs", reg_name(rd), csr_name(csr), reg_name(rs1)
         );
         3'b011:
         return $sformatf(
-            "csrrc %s, %s, %s", reg_name(rd), csr_name(csr), reg_name(rs1)
+            "%6s %3s, %8s, %3s", "csrrc", reg_name(rd), csr_name(csr), reg_name(rs1)
         );
         3'b101:
         return $sformatf(
-            "csrrwi %s, %s, %0d", reg_name(rd), csr_name(csr), rs1
+            "%6s %3s, %8s, %3d", "csrrwi", reg_name(rd), csr_name(csr), rs1
         );
         3'b110:
         return $sformatf(
-            "csrrsi %s, %s, %0d", reg_name(rd), csr_name(csr), rs1
+            "%6s %3s, %8s, %3d", "csrrsi", reg_name(rd), csr_name(csr), rs1
         );
         3'b111:
         return $sformatf(
-            "csrrci %s, %s, %0d", reg_name(rd), csr_name(csr), rs1
+            "%6s %3s, %8s, %3d", "csrrci", reg_name(rd), csr_name(csr), rs1
         );
         default: ;
       endcase
