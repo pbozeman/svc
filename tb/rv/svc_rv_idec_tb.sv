@@ -10,6 +10,7 @@ module svc_rv_idec_tb;
   logic [31:0] instr;
 
   logic        reg_write;
+  logic        mem_read;
   logic        mem_write;
   logic [ 1:0] alu_a_src;
   logic        alu_b_src;
@@ -40,6 +41,7 @@ module svc_rv_idec_tb;
       .instr(instr),
 
       .reg_write    (reg_write),
+      .mem_read     (mem_read),
       .mem_write    (mem_write),
       .alu_a_src    (alu_a_src),
       .alu_b_src    (alu_b_src),
@@ -68,6 +70,7 @@ module svc_rv_idec_tb;
   task automatic test_reset;
     instr = 32'h00000000;
     `CHECK_FALSE(reg_write);
+    `CHECK_FALSE(mem_read);
     `CHECK_FALSE(mem_write);
     `CHECK_FALSE(is_branch);
     `CHECK_FALSE(is_jump);
@@ -83,6 +86,7 @@ module svc_rv_idec_tb;
     //
     instr = {12'hC00, 5'h00, 3'b010, 5'd1, 7'b1110011};
     `CHECK_TRUE(reg_write);
+    `CHECK_FALSE(mem_read);
     `CHECK_FALSE(mem_write);
     `CHECK_EQ(res_src, RES_CSR);
     `CHECK_EQ(imm_type, IMM_I);
@@ -98,6 +102,7 @@ module svc_rv_idec_tb;
   task automatic test_lw_decode;
     instr = 32'b000000000100_00001_010_00010_0000011;
     `CHECK_TRUE(reg_write);
+    `CHECK_TRUE(mem_read);
     `CHECK_FALSE(mem_write);
     `CHECK_EQ(alu_a_src, ALU_A_RS1);
     `CHECK_EQ(alu_b_src, ALU_B_IMM);
@@ -118,6 +123,7 @@ module svc_rv_idec_tb;
   task automatic test_sw_decode;
     instr = 32'b0000000_00011_00010_010_01000_0100011;
     `CHECK_FALSE(reg_write);
+    `CHECK_FALSE(mem_read);
     `CHECK_TRUE(mem_write);
     `CHECK_EQ(alu_a_src, ALU_A_RS1);
     `CHECK_EQ(alu_b_src, ALU_B_IMM);
@@ -139,6 +145,7 @@ module svc_rv_idec_tb;
   task automatic test_add_decode;
     instr = 32'b0000000_00011_00010_000_00100_0110011;
     `CHECK_TRUE(reg_write);
+    `CHECK_FALSE(mem_read);
     `CHECK_FALSE(mem_write);
     `CHECK_EQ(alu_a_src, ALU_A_RS1);
     `CHECK_EQ(alu_b_src, ALU_B_RS2);
@@ -159,6 +166,7 @@ module svc_rv_idec_tb;
   task automatic test_beq_decode;
     instr = 32'b0_000001_00011_00010_000_0000_0_1100011;
     `CHECK_FALSE(reg_write);
+    `CHECK_FALSE(mem_read);
     `CHECK_FALSE(mem_write);
     //
     // ALU control signals are don't-care for branches (use bcmp instead)
@@ -179,6 +187,7 @@ module svc_rv_idec_tb;
   task automatic test_addi_decode;
     instr = 32'b000000001000_00001_000_00010_0010011;
     `CHECK_TRUE(reg_write);
+    `CHECK_FALSE(mem_read);
     `CHECK_FALSE(mem_write);
     `CHECK_EQ(alu_a_src, ALU_A_RS1);
     `CHECK_EQ(alu_b_src, ALU_B_IMM);
@@ -199,6 +208,7 @@ module svc_rv_idec_tb;
   task automatic test_jal_decode;
     instr = 32'b0_0000000001_0_00000000_00001_1101111;
     `CHECK_TRUE(reg_write);
+    `CHECK_FALSE(mem_read);
     `CHECK_FALSE(mem_write);
     `CHECK_EQ(res_src, RES_PC4);
     `CHECK_EQ(imm_type, IMM_J);
@@ -214,6 +224,7 @@ module svc_rv_idec_tb;
   task automatic test_auipc_decode;
     instr = 32'b00000000000000000001_00001_0010111;
     `CHECK_TRUE(reg_write);
+    `CHECK_FALSE(mem_read);
     `CHECK_FALSE(mem_write);
     `CHECK_EQ(res_src, RES_TGT);
     `CHECK_EQ(imm_type, IMM_U);
@@ -229,6 +240,7 @@ module svc_rv_idec_tb;
   task automatic test_lui_decode;
     instr = 32'b00000000000000000001_00001_0110111;
     `CHECK_TRUE(reg_write);
+    `CHECK_FALSE(mem_read);
     `CHECK_FALSE(mem_write);
     `CHECK_EQ(alu_a_src, ALU_A_ZERO);
     `CHECK_EQ(alu_b_src, ALU_B_IMM);
@@ -246,6 +258,7 @@ module svc_rv_idec_tb;
   task automatic test_jalr_decode;
     instr = 32'b000000000100_00001_000_00010_1100111;
     `CHECK_TRUE(reg_write);
+    `CHECK_FALSE(mem_read);
     `CHECK_FALSE(mem_write);
     `CHECK_EQ(alu_a_src, ALU_A_RS1);
     `CHECK_EQ(alu_b_src, ALU_B_IMM);

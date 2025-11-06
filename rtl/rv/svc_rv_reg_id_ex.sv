@@ -32,6 +32,7 @@ module svc_rv_reg_id_ex #(
     // ID stage inputs (control signals)
     //
     input logic       reg_write_id,
+    input logic       mem_read_id,
     input logic       mem_write_id,
     input logic [1:0] alu_a_src_id,
     input logic       alu_b_src_id,
@@ -74,6 +75,7 @@ module svc_rv_reg_id_ex #(
     // EX stage outputs (control signals)
     //
     output logic       reg_write_ex,
+    output logic       mem_read_ex,
     output logic       mem_write_ex,
     output logic [1:0] alu_a_src_ex,
     output logic       alu_b_src_ex,
@@ -121,9 +123,11 @@ module svc_rv_reg_id_ex #(
     always_ff @(posedge clk) begin
       if (!rst_n || flush) begin
         reg_write_ex <= '0;
+        mem_read_ex  <= '0;
         mem_write_ex <= '0;
       end else if (!stall) begin
         reg_write_ex <= reg_write_id;
+        mem_read_ex  <= mem_read_id;
         mem_write_ex <= mem_write_id;
       end
     end
@@ -183,6 +187,7 @@ module svc_rv_reg_id_ex #(
     end
   end else begin : g_passthrough
     assign reg_write_ex     = reg_write_id;
+    assign mem_read_ex      = mem_read_id;
     assign mem_write_ex     = mem_write_id;
     assign alu_a_src_ex     = alu_a_src_id;
     assign alu_b_src_ex     = alu_b_src_id;
