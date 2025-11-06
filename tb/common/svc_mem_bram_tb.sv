@@ -360,8 +360,16 @@ module svc_mem_bram_tb;
     `CHECK_EQ(rd_data, 32'h4444_4444);
   endtask
 
+  task automatic test_reset_value;
+    rd_en   = 1'b1;
+    rd_addr = 32'h0000;
+
+    `CHECK_EQ(rd_data, 32'h00000000);
+  endtask
+
   `TEST_SUITE_BEGIN(svc_mem_bram_tb);
   `TEST_CASE(test_reset);
+  `TEST_CASE(test_reset_value);
   `TEST_CASE(test_init_zero);
   `TEST_CASE(test_write_read_word);
   `TEST_CASE(test_one_cycle_read_latency);
