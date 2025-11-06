@@ -53,8 +53,7 @@ $(foreach sim, $(SIM_MODULES), $(eval $(call lint_sim_rule,$(sim))))
 # Pattern rule to build and run a standalone sim
 .PHONY: $(SIM_MODULES)
 $(SIM_MODULES): % : $(SIM_BUILD_DIR)/%
-	@echo "Running standalone simulation: $@"
-	@$(VVP) $< $(if $(filter 1,$(SVC_CPU_DBG)),+SVC_CPU_DBG)
+	@$(VVP) $< $(if $(filter 1,$(SVC_CPU_DBG)),+SVC_CPU_DBG) $(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX,)
 
 # Determine the source subdirectory for each sim
 SIM_PRJ_INC = $(PRJ_RTL_DIR)/$(patsubst %_sim,%, $(notdir $(*)))
@@ -62,7 +61,6 @@ SIM_PRJ_INC = $(PRJ_RTL_DIR)/$(patsubst %_sim,%, $(notdir $(*)))
 # Pattern rule to compile a sim
 .PRECIOUS: $(SIM_BUILD_DIR)/%
 $(SIM_BUILD_DIR)/%: %.sv Makefile | $(SIM_BUILD_DIR)
-	@echo "Building simulation: $(notdir $@)"
 	@$(IVERILOG) -M $(@).dep $(I_RTL) -I$(PRJ_TB_DIR) -I$(SIM_PRJ_INC) -o $@ $< 2>&1 | \
 		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
 		exit $${PIPESTATUS[0]}
@@ -88,7 +86,8 @@ clean: clean_sim
 #
 ##############################################################################
 .PHONY: sim
-sim: $(SIM_MODULES)
+sim:
+	@$(MAKE) $(SIM_MODULES) SVC_SIM_PREFIX=1
 
 ##############################################################################
 #
