@@ -26,7 +26,8 @@ module svc_mem_bram #(
     parameter integer DEPTH = 1024,
 
     // verilog_lint: waive explicit-parameter-storage-type
-    parameter INIT_FILE = ""
+    parameter INIT_FILE   = "",
+    parameter RESET_VALUE = {DW{1'b0}}
 ) (
     input logic clk,
     input logic rst_n,
@@ -89,7 +90,7 @@ module svc_mem_bram #(
   //
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      rd_data <= {DW{1'b0}};
+      rd_data <= RESET_VALUE;
     end else if (rd_en) begin
       rd_data <= mem[word_addr_rd];
     end

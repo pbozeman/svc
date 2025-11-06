@@ -152,9 +152,10 @@ module svc_rv_soc_bram #(
   // Instruction memory (BRAM)
   //
   svc_mem_bram #(
-      .DW       (32),
-      .DEPTH    (IMEM_DEPTH),
-      .INIT_FILE(IMEM_INIT)
+      .DW         (32),
+      .DEPTH      (IMEM_DEPTH),
+      .INIT_FILE  (IMEM_INIT),
+      .RESET_VALUE(32'h00000013)
   ) imem (
       .clk    (clk),
       .rst_n  (rst_n),

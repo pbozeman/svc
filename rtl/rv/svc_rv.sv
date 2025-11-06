@@ -752,8 +752,8 @@ module svc_rv #(
     // JAL (PC-relative jump): predict taken
     // JALR (register-indirect): not predicted (wait for ALU)
     //
-    assign bpred_taken_id = (is_branch_id && imm_id[XLEN-1]) ||
-        (is_jump_id && !jb_target_src_id);
+    assign bpred_taken_id = ((is_branch_id && imm_id[XLEN-1]) ||
+                             (is_jump_id && !jb_target_src_id));
 
     //
     // Predicted target calculation (PC-relative for branches and JAL)
