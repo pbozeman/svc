@@ -195,16 +195,12 @@ module svc_rv_hazard #(
     //
     // - load_use_hazard: Load/CSR in EX can't forward to consumer in ID
     // - wb_hazard: Only if regfile doesn't have internal forwarding
-    // - branch_hazard: Branches read operands in ID for partial comparison,
-    //   so they can't use forwarding (which only helps EX stage)
     //
-    // EX and MEM hazards for non-branch ALU ops are resolved by forwarding
+    // EX and MEM hazards (including branches) are resolved by forwarding
     //
-    logic branch_hazard;
-    assign branch_hazard = is_branch_id && (ex_hazard || mem_hazard);
-    assign data_hazard   = load_use_hazard || wb_hazard || branch_hazard;
+    assign data_hazard = load_use_hazard || wb_hazard;
 
-    `SVC_UNUSED({is_load_mem, is_csr_mem});
+    `SVC_UNUSED({is_load_mem, is_csr_mem, is_branch_id, ex_hazard, mem_hazard});
   end else begin : g_no_forwarding
     //
     // Non-forwarding: stall on all hazards

@@ -58,15 +58,6 @@ module svc_rv_reg_id_ex #(
     input logic [XLEN-1:0] pc_plus4_id,
 
     //
-    // ID stage inputs (branch partial comparisons)
-    //
-    input logic rs_eq_lo_id,
-    input logic rs_lt_u_lo_id,
-    input logic rs_lt_s_lo_id,
-    input logic rs_sign_a_id,
-    input logic rs_sign_b_id,
-
-    //
     // ID stage inputs (branch prediction)
     //
     input logic bpred_taken_id,
@@ -99,15 +90,6 @@ module svc_rv_reg_id_ex #(
     output logic [XLEN-1:0] imm_ex,
     output logic [XLEN-1:0] pc_ex,
     output logic [XLEN-1:0] pc_plus4_ex,
-
-    //
-    // EX stage outputs (branch partial comparisons)
-    //
-    output logic rs_eq_lo_ex,
-    output logic rs_lt_u_lo_ex,
-    output logic rs_lt_s_lo_ex,
-    output logic rs_sign_a_ex,
-    output logic rs_sign_b_ex,
 
     //
     // EX stage outputs (branch prediction)
@@ -177,11 +159,6 @@ module svc_rv_reg_id_ex #(
         imm_ex         <= imm_id;
         pc_ex          <= pc_id;
         pc_plus4_ex    <= pc_plus4_id;
-        rs_eq_lo_ex    <= rs_eq_lo_id;
-        rs_lt_u_lo_ex  <= rs_lt_u_lo_id;
-        rs_lt_s_lo_ex  <= rs_lt_s_lo_id;
-        rs_sign_a_ex   <= rs_sign_a_id;
-        rs_sign_b_ex   <= rs_sign_b_id;
         bpred_taken_ex <= bpred_taken_id;
       end
     end
@@ -207,11 +184,6 @@ module svc_rv_reg_id_ex #(
     assign imm_ex           = imm_id;
     assign pc_ex            = pc_id;
     assign pc_plus4_ex      = pc_plus4_id;
-    assign rs_eq_lo_ex      = rs_eq_lo_id;
-    assign rs_lt_u_lo_ex    = rs_lt_u_lo_id;
-    assign rs_lt_s_lo_ex    = rs_lt_s_lo_id;
-    assign rs_sign_a_ex     = rs_sign_a_id;
-    assign rs_sign_b_ex     = rs_sign_b_id;
     assign bpred_taken_ex   = bpred_taken_id;
 
     `SVC_UNUSED({clk, rst_n, stall, flush});
