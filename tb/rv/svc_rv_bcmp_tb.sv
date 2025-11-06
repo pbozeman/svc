@@ -11,33 +11,13 @@ module svc_rv_bcmp_tb;
   logic [XLEN-1:0] b;
   logic [     2:0] funct3;
   logic            branch_taken_ex;
-  logic            rs_eq_lo;
-  logic            rs_lt_u_lo;
-  logic            rs_lt_s_lo;
-  logic            rs_sign_a;
-  logic            rs_sign_b;
 
   svc_rv_bcmp #(
       .XLEN(XLEN)
   ) uut (
-      // ID stage partial comparisons
-      .a_id         (a),
-      .b_id         (b),
-      .rs_eq_lo_id  (rs_eq_lo),
-      .rs_lt_u_lo_id(rs_lt_u_lo),
-      .rs_lt_s_lo_id(rs_lt_s_lo),
-      .rs_sign_a_id (rs_sign_a),
-      .rs_sign_b_id (rs_sign_b),
-
-      // EX stage final comparison (using same values as ID for testbench)
       .a_ex           (a),
       .b_ex           (b),
       .funct3         (funct3),
-      .rs_eq_lo_ex    (rs_eq_lo),
-      .rs_lt_u_lo_ex  (rs_lt_u_lo),
-      .rs_lt_s_lo_ex  (rs_lt_s_lo),
-      .rs_sign_a_ex   (rs_sign_a),
-      .rs_sign_b_ex   (rs_sign_b),
       .branch_taken_ex(branch_taken_ex)
   );
 
