@@ -537,10 +537,10 @@ module svc_rv #(
     assign id_ex_stall = 1'b0;
     assign id_ex_flush = 1'b0;
 
-    `SVC_UNUSED(
-        {
-        is_load_ex, is_csr_ex, is_load_mem, is_csr_mem, rs1_used_id, rs2_used_id
-        });
+    // verilog_format: off
+    `SVC_UNUSED({is_load_ex, is_csr_ex, is_load_mem, is_csr_mem, 
+                 rs1_used_id, rs2_used_id });
+    // verilog_format: on
   end
 
   //----------------------------------------------------------------------------
