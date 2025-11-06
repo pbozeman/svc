@@ -21,6 +21,7 @@ module svc_rv_asm_tb;
   // Decoder signals
   logic [31:0] instr;
   logic        reg_write;
+  logic        mem_read;
   logic        mem_write;
   logic [ 1:0] alu_a_src;
   logic        alu_b_src;
@@ -48,6 +49,7 @@ module svc_rv_asm_tb;
   ) decoder (
       .instr        (instr),
       .reg_write    (reg_write),
+      .mem_read     (mem_read),
       .mem_write    (mem_write),
       .alu_a_src    (alu_a_src),
       .alu_b_src    (alu_b_src),

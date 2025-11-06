@@ -26,6 +26,7 @@ module svc_rv_reg_ex_mem #(
     // EX stage inputs (control signals)
     //
     input logic       reg_write_ex,
+    input logic       mem_read_ex,
     input logic       mem_write_ex,
     input logic [2:0] res_src_ex,
 
@@ -46,6 +47,7 @@ module svc_rv_reg_ex_mem #(
     // MEM stage outputs (control signals)
     //
     output logic       reg_write_mem,
+    output logic       mem_read_mem,
     output logic       mem_write_mem,
     output logic [2:0] res_src_mem,
 
@@ -70,9 +72,11 @@ module svc_rv_reg_ex_mem #(
     always_ff @(posedge clk) begin
       if (!rst_n) begin
         reg_write_mem <= '0;
+        mem_read_mem  <= '0;
         mem_write_mem <= '0;
       end else begin
         reg_write_mem <= reg_write_ex;
+        mem_read_mem  <= mem_read_ex;
         mem_write_mem <= mem_write_ex;
       end
     end
@@ -94,6 +98,7 @@ module svc_rv_reg_ex_mem #(
     end
   end else begin : g_passthrough
     assign reg_write_mem  = reg_write_ex;
+    assign mem_read_mem   = mem_read_ex;
     assign mem_write_mem  = mem_write_ex;
     assign res_src_mem    = res_src_ex;
     assign instr_mem      = instr_ex;

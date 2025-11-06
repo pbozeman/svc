@@ -99,6 +99,7 @@ module svc_rv #(
   // ID stage signals
   //
   logic            reg_write_id;
+  logic            mem_read_id;
   logic            mem_write_id;
   logic [     1:0] alu_a_src_id;
   logic            alu_b_src_id;
@@ -139,6 +140,7 @@ module svc_rv #(
   // ID/EX pipeline register signals
   //
   logic            reg_write_ex;
+  logic            mem_read_ex;
   logic            mem_write_ex;
   logic [     1:0] alu_a_src_ex;
   logic            alu_b_src_ex;
@@ -179,6 +181,7 @@ module svc_rv #(
   // EX/MEM pipeline register signals
   //
   logic            reg_write_mem;
+  logic            mem_read_mem;
   logic            mem_write_mem;
   logic [     2:0] res_src_mem;
   logic [    31:0] instr_mem;
@@ -308,8 +311,12 @@ module svc_rv #(
   // For BRAM: Data memory always enabled (address pipelined via EX_MEM_REG)
   // For SRAM: Always enabled
   //
-  assign imem_ren   = (MEM_TYPE == MEM_TYPE_BRAM) ? !pc_stall : 1'b1;
-  assign dmem_ren   = 1'b1;
+
+  if (MEM_TYPE == MEM_TYPE_BRAM) begin : g_bram_imem_ren
+    assign imem_ren = !pc_stall;
+  end else begin : g_sram_imem_ren
+    assign imem_ren = 1'b1;
+  end
 
   //
   // PC values for IF/ID register
@@ -402,6 +409,7 @@ module svc_rv #(
   ) idec (
       .instr        (instr_id),
       .reg_write    (reg_write_id),
+      .mem_read     (mem_read_id),
       .mem_write    (mem_write_id),
       .alu_a_src    (alu_a_src_id),
       .alu_b_src    (alu_b_src_id),
@@ -552,6 +560,7 @@ module svc_rv #(
 
       // ID stage inputs
       .reg_write_id    (reg_write_id),
+      .mem_read_id     (mem_read_id),
       .mem_write_id    (mem_write_id),
       .alu_a_src_id    (alu_a_src_id),
       .alu_b_src_id    (alu_b_src_id),
@@ -580,6 +589,7 @@ module svc_rv #(
 
       // EX stage outputs
       .reg_write_ex    (reg_write_ex),
+      .mem_read_ex     (mem_read_ex),
       .mem_write_ex    (mem_write_ex),
       .alu_a_src_ex    (alu_a_src_ex),
       .alu_b_src_ex    (alu_b_src_ex),
@@ -867,6 +877,7 @@ module svc_rv #(
 
       // EX stage inputs
       .reg_write_ex (reg_write_ex),
+      .mem_read_ex  (mem_read_ex),
       .mem_write_ex (mem_write_ex),
       .res_src_ex   (res_src_ex),
       .instr_ex     (instr_ex),
@@ -881,6 +892,7 @@ module svc_rv #(
 
       // MEM stage outputs
       .reg_write_mem (reg_write_mem),
+      .mem_read_mem  (mem_read_mem),
       .mem_write_mem (mem_write_mem),
       .res_src_mem   (res_src_mem),
       .instr_mem     (instr_mem),
@@ -914,9 +926,11 @@ module svc_rv #(
   //
   // Data memory interface
   //
+  assign dmem_ren   = mem_read_mem;
   assign dmem_raddr = alu_result_mem;
-  assign dmem_waddr = alu_result_mem;
+
   assign dmem_we    = mem_write_mem;
+  assign dmem_waddr = alu_result_mem;
 
   //
   // Load data extension
@@ -1029,7 +1043,7 @@ module svc_rv #(
 
   `SVC_UNUSED({IMEM_AW, DMEM_AW, pc, pc_plus4, pc_id[1:0], pc_ex[1:0],
                funct7_id[6], funct7_id[4:0], funct7_ex[6], funct7_ex[4:0],
-               rs1_ex, rs2_ex, instr_ex, alu_result_mem[1:0], rs2_mem});
+               rs1_ex, rs2_ex, instr_ex, rs2_mem});
 
 endmodule
 
