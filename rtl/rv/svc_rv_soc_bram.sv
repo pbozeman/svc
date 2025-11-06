@@ -27,7 +27,8 @@ module svc_rv_soc_bram #(
     parameter int BPRED       = 0,
 
     // verilog_lint: waive explicit-parameter-storage-type
-    parameter IMEM_INIT = ""
+    parameter IMEM_INIT = "",
+    parameter DMEM_INIT = ""
 ) (
     input logic clk,
     input logic rst_n,
@@ -167,8 +168,9 @@ module svc_rv_soc_bram #(
   // Data memory (BRAM)
   //
   svc_mem_bram #(
-      .DW(32),
-      .AW(DMEM_AW)
+      .DW       (32),
+      .AW       (DMEM_AW),
+      .INIT_FILE(DMEM_INIT)
   ) dmem (
       .clk  (clk),
       .rst_n(rst_n),
