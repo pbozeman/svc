@@ -39,6 +39,7 @@ module svc_rv_reg_mem_wb #(
     input logic [XLEN-1:0] pc_plus4_mem,
     input logic [XLEN-1:0] jb_target_mem,
     input logic [XLEN-1:0] csr_rdata_mem,
+    input logic [XLEN-1:0] zmmul_result_mem,
 
     //
     // WB stage outputs (control signals)
@@ -56,7 +57,8 @@ module svc_rv_reg_mem_wb #(
     output logic [XLEN-1:0] dmem_rdata_ext_wb,
     output logic [XLEN-1:0] pc_plus4_wb,
     output logic [XLEN-1:0] jb_target_wb,
-    output logic [XLEN-1:0] csr_rdata_wb
+    output logic [XLEN-1:0] csr_rdata_wb,
+    output logic [XLEN-1:0] zmmul_result_wb
 );
 
   if (PIPELINED != 0) begin : g_registered
@@ -95,6 +97,7 @@ module svc_rv_reg_mem_wb #(
       pc_plus4_wb       <= pc_plus4_mem;
       jb_target_wb      <= jb_target_mem;
       csr_rdata_wb      <= csr_rdata_mem;
+      zmmul_result_wb   <= zmmul_result_mem;
     end
   end else begin : g_passthrough
     assign reg_write_wb      = reg_write_mem;
@@ -107,6 +110,7 @@ module svc_rv_reg_mem_wb #(
     assign pc_plus4_wb       = pc_plus4_mem;
     assign jb_target_wb      = jb_target_mem;
     assign csr_rdata_wb      = csr_rdata_mem;
+    assign zmmul_result_wb   = zmmul_result_mem;
 
     `SVC_UNUSED({clk, rst_n});
   end
