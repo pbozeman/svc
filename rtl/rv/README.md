@@ -333,6 +333,35 @@ make svc_rv_hazard_tb
 make svc_rv_asm_tb
 ```
 
+### SoC Test Strategy
+
+SoC integration tests use **selective coverage** to prevent combinatorial
+explosion while maintaining quality:
+
+**Tier 1 - Baseline:**
+
+- `svc_rv_soc_bram_tb` - Base configuration (smoke test)
+
+**Tier 2 - Individual Features:**
+
+- `svc_rv_soc_bram_fwd_tb` - Data forwarding
+- `svc_rv_soc_bram_bpred_tb` - Branch prediction
+- `svc_rv_soc_bram_zmmul_tb` - Zmmul multiply extension
+
+**Tier 3 - Critical Interactions:**
+
+- `svc_rv_soc_bram_zmmul_fwd_tb` - Zmmul + forwarding
+
+This strategy tests:
+
+- Base configuration for regression
+- Each feature individually for isolation
+- Most important interaction (Zmmul+forwarding for multiply result reuse)
+
+**Policy:** Resist adding more combinations unless there is evidence of a
+feature interaction bug. Most bugs are found in baseline or individual feature
+tests.
+
 See tb/rv/ for testbench implementations.
 
 ## References
