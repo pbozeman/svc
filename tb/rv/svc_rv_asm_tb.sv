@@ -128,10 +128,13 @@ module svc_rv_asm_tb;
     integer addr;
     asm_pc = 0;
 
-    // Generate M-extension multiply instruction
+    // Generate M-extension multiply instructions
     MUL(x1, x2, x3);
+    MULH(x4, x5, x6);
+    MULHSU(x7, x8, x9);
+    MULHU(x10, x11, x12);
 
-    // Verify MUL instruction
+    // Verify MUL instruction (funct3=000)
     addr  = 0;
     instr = MEM[addr];
     `CHECK_EQ(instr[6:0], OP_RTYPE);
@@ -139,6 +142,36 @@ module svc_rv_asm_tb;
     `CHECK_EQ(rs1, 2);
     `CHECK_EQ(rs2, 3);
     `CHECK_EQ(funct3, 3'b000);
+    `CHECK_EQ(funct7, 7'b0000001);
+
+    // Verify MULH instruction (funct3=001)
+    addr  = 1;
+    instr = MEM[addr];
+    `CHECK_EQ(instr[6:0], OP_RTYPE);
+    `CHECK_EQ(rd, 4);
+    `CHECK_EQ(rs1, 5);
+    `CHECK_EQ(rs2, 6);
+    `CHECK_EQ(funct3, 3'b001);
+    `CHECK_EQ(funct7, 7'b0000001);
+
+    // Verify MULHSU instruction (funct3=010)
+    addr  = 2;
+    instr = MEM[addr];
+    `CHECK_EQ(instr[6:0], OP_RTYPE);
+    `CHECK_EQ(rd, 7);
+    `CHECK_EQ(rs1, 8);
+    `CHECK_EQ(rs2, 9);
+    `CHECK_EQ(funct3, 3'b010);
+    `CHECK_EQ(funct7, 7'b0000001);
+
+    // Verify MULHU instruction (funct3=011)
+    addr  = 3;
+    instr = MEM[addr];
+    `CHECK_EQ(instr[6:0], OP_RTYPE);
+    `CHECK_EQ(rd, 10);
+    `CHECK_EQ(rs1, 11);
+    `CHECK_EQ(rs2, 12);
+    `CHECK_EQ(funct3, 3'b011);
     `CHECK_EQ(funct7, 7'b0000001);
   endtask
 
