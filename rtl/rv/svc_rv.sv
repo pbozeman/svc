@@ -195,6 +195,7 @@ module svc_rv #(
   logic [XLEN-1:0] jb_target_mem;
   logic [XLEN-1:0] csr_rdata_mem;
   logic [XLEN-1:0] zmmul_result_mem;
+  logic [XLEN-1:0] result_mem;
 
 
   //
@@ -617,6 +618,14 @@ module svc_rv #(
   logic [XLEN-1:0] rs1_fwd_ex;
   logic [XLEN-1:0] rs2_fwd_ex;
 
+  //
+  // MEM stage result mux
+  //
+  // Select the actual result in MEM stage based on res_src_mem.
+  // This unified result is forwarded to resolve data hazards.
+  //
+  assign result_mem = is_zmmul_mem ? zmmul_result_mem : alu_result_mem;
+
   svc_rv_forward #(
       .XLEN    (XLEN),
       .FWD     ((PIPELINED != 0 && FWD != 0) ? 1 : 0),
@@ -629,14 +638,12 @@ module svc_rv #(
       .rs2_data_ex(rs2_data_ex),
 
       // MEM stage inputs
-      .rd_mem          (rd_mem),
-      .reg_write_mem   (reg_write_mem),
-      .is_load_mem     (is_load_mem),
-      .is_csr_mem      (is_csr_mem),
-      .is_zmmul_mem    (is_zmmul_mem),
-      .alu_result_mem  (alu_result_mem),
-      .zmmul_result_mem(zmmul_result_mem),
-      .load_data_mem   (dmem_rdata_ext_mem),
+      .rd_mem       (rd_mem),
+      .reg_write_mem(reg_write_mem),
+      .is_load_mem  (is_load_mem),
+      .is_csr_mem   (is_csr_mem),
+      .result_mem   (result_mem),
+      .load_data_mem(dmem_rdata_ext_mem),
 
       // WB stage inputs
       .rd_wb       (rd_wb),

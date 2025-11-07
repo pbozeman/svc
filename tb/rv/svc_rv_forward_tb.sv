@@ -23,9 +23,7 @@ module svc_rv_forward_tb;
   logic            reg_write_mem;
   logic            is_load_mem;
   logic            is_csr_mem;
-  logic            is_zmmul_mem;
-  logic [XLEN-1:0] alu_result_mem;
-  logic [XLEN-1:0] zmmul_result_mem;
+  logic [XLEN-1:0] result_mem;
   logic [XLEN-1:0] load_data_mem;
   logic [     4:0] rd_wb;
   logic            reg_write_wb;
@@ -38,42 +36,38 @@ module svc_rv_forward_tb;
       .FWD     (1),
       .MEM_TYPE(0)
   ) uut (
-      .rs1_ex          (rs1_ex),
-      .rs2_ex          (rs2_ex),
-      .rs1_data_ex     (rs1_data_ex),
-      .rs2_data_ex     (rs2_data_ex),
-      .rd_mem          (rd_mem),
-      .reg_write_mem   (reg_write_mem),
-      .is_load_mem     (is_load_mem),
-      .is_csr_mem      (is_csr_mem),
-      .is_zmmul_mem    (is_zmmul_mem),
-      .alu_result_mem  (alu_result_mem),
-      .zmmul_result_mem(zmmul_result_mem),
-      .load_data_mem   (load_data_mem),
-      .rd_wb           (rd_wb),
-      .reg_write_wb    (reg_write_wb),
-      .rd_data         (rd_data),
-      .rs1_fwd_ex      (rs1_fwd_ex),
-      .rs2_fwd_ex      (rs2_fwd_ex)
+      .rs1_ex       (rs1_ex),
+      .rs2_ex       (rs2_ex),
+      .rs1_data_ex  (rs1_data_ex),
+      .rs2_data_ex  (rs2_data_ex),
+      .rd_mem       (rd_mem),
+      .reg_write_mem(reg_write_mem),
+      .is_load_mem  (is_load_mem),
+      .is_csr_mem   (is_csr_mem),
+      .result_mem   (result_mem),
+      .load_data_mem(load_data_mem),
+      .rd_wb        (rd_wb),
+      .reg_write_wb (reg_write_wb),
+      .rd_data      (rd_data),
+      .rs1_fwd_ex   (rs1_fwd_ex),
+      .rs2_fwd_ex   (rs2_fwd_ex)
   );
 
   task automatic reset_inputs;
-    rs1_ex           = 5'd0;
-    rs2_ex           = 5'd0;
+    rs1_ex        = 5'd0;
+    rs2_ex        = 5'd0;
     // rs1_ex/rs2_ex already set to 0 to indicate not used
-    rs1_data_ex      = 32'h0;
-    rs2_data_ex      = 32'h0;
-    rd_mem           = 5'd0;
-    reg_write_mem    = 1'b0;
-    is_load_mem      = 1'b0;
-    is_csr_mem       = 1'b0;
-    is_zmmul_mem     = 1'b0;
-    alu_result_mem   = 32'h0;
-    zmmul_result_mem = 32'h0;
-    load_data_mem    = 32'h0;
-    rd_wb            = 5'd0;
-    reg_write_wb     = 1'b0;
-    rd_data          = 32'h0;
+    rs1_data_ex   = 32'h0;
+    rs2_data_ex   = 32'h0;
+    rd_mem        = 5'd0;
+    reg_write_mem = 1'b0;
+    is_load_mem   = 1'b0;
+    is_csr_mem    = 1'b0;
+    result_mem    = 32'h0;
+    load_data_mem = 32'h0;
+    rd_wb         = 5'd0;
+    reg_write_wb  = 1'b0;
+    rd_data       = 32'h0;
   endtask
 
   //
@@ -81,19 +75,19 @@ module svc_rv_forward_tb;
   //
   task automatic test_no_forwarding;
     reset_inputs();
-    rs1_ex         = 5'd1;
-    rs2_ex         = 5'd2;
+    rs1_ex        = 5'd1;
+    rs2_ex        = 5'd2;
     // rs1_ex/rs2_ex non-zero indicates used
-    rs1_data_ex    = 32'hAAAAAAAA;
-    rs2_data_ex    = 32'hBBBBBBBB;
+    rs1_data_ex   = 32'hAAAAAAAA;
+    rs2_data_ex   = 32'hBBBBBBBB;
 
-    rd_mem         = 5'd3;
-    reg_write_mem  = 1'b1;
-    alu_result_mem = 32'hCCCCCCCC;
+    rd_mem        = 5'd3;
+    reg_write_mem = 1'b1;
+    result_mem    = 32'hCCCCCCCC;
 
-    rd_wb          = 5'd4;
-    reg_write_wb   = 1'b1;
-    rd_data        = 32'hDDDDDDDD;
+    rd_wb         = 5'd4;
+    reg_write_wb  = 1'b1;
+    rd_data       = 32'hDDDDDDDD;
 
     `TICK(clk);
 
@@ -106,17 +100,17 @@ module svc_rv_forward_tb;
   //
   task automatic test_mem_to_ex_fwd_rs1;
     reset_inputs();
-    rs1_ex         = 5'd10;
-    rs2_ex         = 5'd2;
+    rs1_ex        = 5'd10;
+    rs2_ex        = 5'd2;
     // rs1_ex/rs2_ex non-zero indicates used
-    rs1_data_ex    = 32'hAAAAAAAA;
-    rs2_data_ex    = 32'hBBBBBBBB;
+    rs1_data_ex   = 32'hAAAAAAAA;
+    rs2_data_ex   = 32'hBBBBBBBB;
 
-    rd_mem         = 5'd10;
-    reg_write_mem  = 1'b1;
-    is_load_mem    = 1'b0;
-    is_csr_mem     = 1'b0;
-    alu_result_mem = 32'hFEEDBEEF;
+    rd_mem        = 5'd10;
+    reg_write_mem = 1'b1;
+    is_load_mem   = 1'b0;
+    is_csr_mem    = 1'b0;
+    result_mem    = 32'hFEEDBEEF;
 
     `TICK(clk);
 
@@ -129,17 +123,17 @@ module svc_rv_forward_tb;
   //
   task automatic test_mem_to_ex_fwd_rs2;
     reset_inputs();
-    rs1_ex         = 5'd1;
-    rs2_ex         = 5'd10;
+    rs1_ex        = 5'd1;
+    rs2_ex        = 5'd10;
     // rs1_ex/rs2_ex non-zero indicates used
-    rs1_data_ex    = 32'hAAAAAAAA;
-    rs2_data_ex    = 32'hBBBBBBBB;
+    rs1_data_ex   = 32'hAAAAAAAA;
+    rs2_data_ex   = 32'hBBBBBBBB;
 
-    rd_mem         = 5'd10;
-    reg_write_mem  = 1'b1;
-    is_load_mem    = 1'b0;
-    is_csr_mem     = 1'b0;
-    alu_result_mem = 32'hDEADBEEF;
+    rd_mem        = 5'd10;
+    reg_write_mem = 1'b1;
+    is_load_mem   = 1'b0;
+    is_csr_mem    = 1'b0;
+    result_mem    = 32'hDEADBEEF;
 
     `TICK(clk);
 
@@ -152,17 +146,17 @@ module svc_rv_forward_tb;
   //
   task automatic test_mem_to_ex_fwd_both;
     reset_inputs();
-    rs1_ex         = 5'd10;
-    rs2_ex         = 5'd10;
+    rs1_ex        = 5'd10;
+    rs2_ex        = 5'd10;
     // rs1_ex/rs2_ex non-zero indicates used
-    rs1_data_ex    = 32'hAAAAAAAA;
-    rs2_data_ex    = 32'hBBBBBBBB;
+    rs1_data_ex   = 32'hAAAAAAAA;
+    rs2_data_ex   = 32'hBBBBBBBB;
 
-    rd_mem         = 5'd10;
-    reg_write_mem  = 1'b1;
-    is_load_mem    = 1'b0;
-    is_csr_mem     = 1'b0;
-    alu_result_mem = 32'hCAFEBABE;
+    rd_mem        = 5'd10;
+    reg_write_mem = 1'b1;
+    is_load_mem   = 1'b0;
+    is_csr_mem    = 1'b0;
+    result_mem    = 32'hCAFEBABE;
 
     `TICK(clk);
 
@@ -175,19 +169,19 @@ module svc_rv_forward_tb;
   //
   task automatic test_wb_to_ex_fwd_rs1;
     reset_inputs();
-    rs1_ex         = 5'd10;
-    rs2_ex         = 5'd2;
+    rs1_ex        = 5'd10;
+    rs2_ex        = 5'd2;
     // rs1_ex/rs2_ex non-zero indicates used
-    rs1_data_ex    = 32'hAAAAAAAA;
-    rs2_data_ex    = 32'hBBBBBBBB;
+    rs1_data_ex   = 32'hAAAAAAAA;
+    rs2_data_ex   = 32'hBBBBBBBB;
 
-    rd_mem         = 5'd3;
-    reg_write_mem  = 1'b0;
-    alu_result_mem = 32'hCCCCCCCC;
+    rd_mem        = 5'd3;
+    reg_write_mem = 1'b0;
+    result_mem    = 32'hCCCCCCCC;
 
-    rd_wb          = 5'd10;
-    reg_write_wb   = 1'b1;
-    rd_data        = 32'h12345678;
+    rd_wb         = 5'd10;
+    reg_write_wb  = 1'b1;
+    rd_data       = 32'h12345678;
 
     `TICK(clk);
 
@@ -200,19 +194,19 @@ module svc_rv_forward_tb;
   //
   task automatic test_wb_to_ex_fwd_rs2;
     reset_inputs();
-    rs1_ex         = 5'd1;
-    rs2_ex         = 5'd10;
+    rs1_ex        = 5'd1;
+    rs2_ex        = 5'd10;
     // rs1_ex/rs2_ex non-zero indicates used
-    rs1_data_ex    = 32'hAAAAAAAA;
-    rs2_data_ex    = 32'hBBBBBBBB;
+    rs1_data_ex   = 32'hAAAAAAAA;
+    rs2_data_ex   = 32'hBBBBBBBB;
 
-    rd_mem         = 5'd3;
-    reg_write_mem  = 1'b0;
-    alu_result_mem = 32'hCCCCCCCC;
+    rd_mem        = 5'd3;
+    reg_write_mem = 1'b0;
+    result_mem    = 32'hCCCCCCCC;
 
-    rd_wb          = 5'd10;
-    reg_write_wb   = 1'b1;
-    rd_data        = 32'h87654321;
+    rd_wb         = 5'd10;
+    reg_write_wb  = 1'b1;
+    rd_data       = 32'h87654321;
 
     `TICK(clk);
 
@@ -225,21 +219,21 @@ module svc_rv_forward_tb;
   //
   task automatic test_mem_priority_over_wb;
     reset_inputs();
-    rs1_ex         = 5'd10;
-    rs2_ex         = 5'd2;
+    rs1_ex        = 5'd10;
+    rs2_ex        = 5'd2;
     // rs1_ex/rs2_ex non-zero indicates used
-    rs1_data_ex    = 32'hAAAAAAAA;
-    rs2_data_ex    = 32'hBBBBBBBB;
+    rs1_data_ex   = 32'hAAAAAAAA;
+    rs2_data_ex   = 32'hBBBBBBBB;
 
-    rd_mem         = 5'd10;
-    reg_write_mem  = 1'b1;
-    is_load_mem    = 1'b0;
-    is_csr_mem     = 1'b0;
-    alu_result_mem = 32'h11110000;
+    rd_mem        = 5'd10;
+    reg_write_mem = 1'b1;
+    is_load_mem   = 1'b0;
+    is_csr_mem    = 1'b0;
+    result_mem    = 32'h11110000;
 
-    rd_wb          = 5'd10;
-    reg_write_wb   = 1'b1;
-    rd_data        = 32'h22220000;
+    rd_wb         = 5'd10;
+    reg_write_wb  = 1'b1;
+    rd_data       = 32'h22220000;
 
     `TICK(clk);
 
@@ -255,22 +249,22 @@ module svc_rv_forward_tb;
   //
   task automatic test_sram_load_fwd;
     reset_inputs();
-    rs1_ex         = 5'd10;
-    rs2_ex         = 5'd2;
+    rs1_ex        = 5'd10;
+    rs2_ex        = 5'd2;
     // rs1_ex/rs2_ex non-zero indicates used
-    rs1_data_ex    = 32'hAAAAAAAA;
-    rs2_data_ex    = 32'hBBBBBBBB;
+    rs1_data_ex   = 32'hAAAAAAAA;
+    rs2_data_ex   = 32'hBBBBBBBB;
 
-    rd_mem         = 5'd10;
-    reg_write_mem  = 1'b1;
-    is_load_mem    = 1'b1;
-    is_csr_mem     = 1'b0;
-    alu_result_mem = 32'h99990000;
-    load_data_mem  = 32'h12340000;
+    rd_mem        = 5'd10;
+    reg_write_mem = 1'b1;
+    is_load_mem   = 1'b1;
+    is_csr_mem    = 1'b0;
+    result_mem    = 32'h99990000;
+    load_data_mem = 32'h12340000;
 
-    rd_wb          = 5'd11;
-    reg_write_wb   = 1'b0;
-    rd_data        = 32'h0;
+    rd_wb         = 5'd11;
+    reg_write_wb  = 1'b0;
+    rd_data       = 32'h0;
 
     `TICK(clk);
 
@@ -285,21 +279,21 @@ module svc_rv_forward_tb;
   //
   task automatic test_sram_load_priority;
     reset_inputs();
-    rs1_ex         = 5'd10;
-    rs2_ex         = 5'd2;
-    rs1_data_ex    = 32'hAAAAAAAA;
-    rs2_data_ex    = 32'hBBBBBBBB;
+    rs1_ex        = 5'd10;
+    rs2_ex        = 5'd2;
+    rs1_data_ex   = 32'hAAAAAAAA;
+    rs2_data_ex   = 32'hBBBBBBBB;
 
-    rd_mem         = 5'd10;
-    reg_write_mem  = 1'b1;
-    is_load_mem    = 1'b1;
-    is_csr_mem     = 1'b0;
-    alu_result_mem = 32'h99990000;
-    load_data_mem  = 32'hFEEDBEEF;
+    rd_mem        = 5'd10;
+    reg_write_mem = 1'b1;
+    is_load_mem   = 1'b1;
+    is_csr_mem    = 1'b0;
+    result_mem    = 32'h99990000;
+    load_data_mem = 32'hFEEDBEEF;
 
-    rd_wb          = 5'd10;
-    reg_write_wb   = 1'b1;
-    rd_data        = 32'h88880000;
+    rd_wb         = 5'd10;
+    reg_write_wb  = 1'b1;
+    rd_data       = 32'h88880000;
 
     `TICK(clk);
 
@@ -312,21 +306,21 @@ module svc_rv_forward_tb;
   //
   task automatic test_no_fwd_from_csr;
     reset_inputs();
-    rs1_ex         = 5'd10;
-    rs2_ex         = 5'd2;
+    rs1_ex        = 5'd10;
+    rs2_ex        = 5'd2;
     // rs1_ex/rs2_ex non-zero indicates used
-    rs1_data_ex    = 32'hAAAAAAAA;
-    rs2_data_ex    = 32'hBBBBBBBB;
+    rs1_data_ex   = 32'hAAAAAAAA;
+    rs2_data_ex   = 32'hBBBBBBBB;
 
-    rd_mem         = 5'd10;
-    reg_write_mem  = 1'b1;
-    is_load_mem    = 1'b0;
-    is_csr_mem     = 1'b1;
-    alu_result_mem = 32'h99990000;
+    rd_mem        = 5'd10;
+    reg_write_mem = 1'b1;
+    is_load_mem   = 1'b0;
+    is_csr_mem    = 1'b1;
+    result_mem    = 32'h99990000;
 
-    rd_wb          = 5'd11;
-    reg_write_wb   = 1'b0;
-    rd_data        = 32'h0;
+    rd_wb         = 5'd11;
+    reg_write_wb  = 1'b0;
+    rd_data       = 32'h0;
 
     `TICK(clk);
 
@@ -339,21 +333,21 @@ module svc_rv_forward_tb;
   //
   task automatic test_no_fwd_to_x0;
     reset_inputs();
-    rs1_ex         = 5'd0;
-    rs2_ex         = 5'd0;
+    rs1_ex        = 5'd0;
+    rs2_ex        = 5'd0;
     // rs1_ex/rs2_ex non-zero indicates used
-    rs1_data_ex    = 32'h0;
-    rs2_data_ex    = 32'h0;
+    rs1_data_ex   = 32'h0;
+    rs2_data_ex   = 32'h0;
 
-    rd_mem         = 5'd0;
-    reg_write_mem  = 1'b1;
-    is_load_mem    = 1'b0;
-    is_csr_mem     = 1'b0;
-    alu_result_mem = 32'h99990000;
+    rd_mem        = 5'd0;
+    reg_write_mem = 1'b1;
+    is_load_mem   = 1'b0;
+    is_csr_mem    = 1'b0;
+    result_mem    = 32'h99990000;
 
-    rd_wb          = 5'd0;
-    reg_write_wb   = 1'b1;
-    rd_data        = 32'h99990000;
+    rd_wb         = 5'd0;
+    reg_write_wb  = 1'b1;
+    rd_data       = 32'h99990000;
 
     `TICK(clk);
 
@@ -367,18 +361,18 @@ module svc_rv_forward_tb;
   task automatic test_no_fwd_if_not_used;
     reset_inputs();
     // rs1_ex/rs2_ex already set to 0 to indicate not used (from reset_inputs)
-    rs1_data_ex    = 32'hAAAAAAAA;
-    rs2_data_ex    = 32'hBBBBBBBB;
+    rs1_data_ex   = 32'hAAAAAAAA;
+    rs2_data_ex   = 32'hBBBBBBBB;
 
-    rd_mem         = 5'd10;
-    reg_write_mem  = 1'b1;
-    is_load_mem    = 1'b0;
-    is_csr_mem     = 1'b0;
-    alu_result_mem = 32'h99990000;
+    rd_mem        = 5'd10;
+    reg_write_mem = 1'b1;
+    is_load_mem   = 1'b0;
+    is_csr_mem    = 1'b0;
+    result_mem    = 32'h99990000;
 
-    rd_wb          = 5'd10;
-    reg_write_wb   = 1'b1;
-    rd_data        = 32'h99990000;
+    rd_wb         = 5'd10;
+    reg_write_wb  = 1'b1;
+    rd_data       = 32'h99990000;
 
     `TICK(clk);
 
@@ -391,21 +385,21 @@ module svc_rv_forward_tb;
   //
   task automatic test_load_use_wb_forward;
     reset_inputs();
-    rs1_ex         = 5'd10;
-    rs2_ex         = 5'd2;
+    rs1_ex        = 5'd10;
+    rs2_ex        = 5'd2;
     // rs1_ex/rs2_ex non-zero indicates used
-    rs1_data_ex    = 32'hAAAAAAAA;
-    rs2_data_ex    = 32'hBBBBBBBB;
+    rs1_data_ex   = 32'hAAAAAAAA;
+    rs2_data_ex   = 32'hBBBBBBBB;
 
-    rd_mem         = 5'd11;
-    reg_write_mem  = 1'b0;
-    is_load_mem    = 1'b0;
-    is_csr_mem     = 1'b0;
-    alu_result_mem = 32'hCCCCCCCC;
+    rd_mem        = 5'd11;
+    reg_write_mem = 1'b0;
+    is_load_mem   = 1'b0;
+    is_csr_mem    = 1'b0;
+    result_mem    = 32'hCCCCCCCC;
 
-    rd_wb          = 5'd10;
-    reg_write_wb   = 1'b1;
-    rd_data        = 32'h99990000;
+    rd_wb         = 5'd10;
+    reg_write_wb  = 1'b1;
+    rd_data       = 32'h99990000;
 
     `TICK(clk);
 

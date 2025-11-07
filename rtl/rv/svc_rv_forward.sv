@@ -41,9 +41,7 @@ module svc_rv_forward #(
     input logic            reg_write_mem,
     input logic            is_load_mem,
     input logic            is_csr_mem,
-    input logic            is_zmmul_mem,
-    input logic [XLEN-1:0] alu_result_mem,
-    input logic [XLEN-1:0] zmmul_result_mem,
+    input logic [XLEN-1:0] result_mem,
     input logic [XLEN-1:0] load_data_mem,
 
     //
@@ -64,39 +62,20 @@ module svc_rv_forward #(
 
   if (FWD != 0) begin : g_forwarding
     //
-    // MEM→EX ALU forwarding (common to both SRAM and BRAM)
+    // MEM→EX result forwarding (common to both SRAM and BRAM)
     //
-    // Forward ALU results from MEM stage (not loads or CSRs)
+    // Forward results from MEM stage (ALU, Zmmul, etc - not loads or CSRs)
     //
-    logic mem_to_ex_fwd_alu_a;
-    logic mem_to_ex_fwd_alu_b;
+    logic mem_to_ex_fwd_a;
+    logic mem_to_ex_fwd_b;
 
     always_comb begin
-      mem_to_ex_fwd_alu_a = 1'b0;
-      mem_to_ex_fwd_alu_b = 1'b0;
+      mem_to_ex_fwd_a = 1'b0;
+      mem_to_ex_fwd_b = 1'b0;
 
-      if (reg_write_mem && rd_mem != 5'd0 && !is_load_mem && !is_csr_mem &&
-          !is_zmmul_mem) begin
-        mem_to_ex_fwd_alu_a = (rd_mem == rs1_ex);
-        mem_to_ex_fwd_alu_b = (rd_mem == rs2_ex);
-      end
-    end
-
-    //
-    // MEM→EX Zmmul forwarding (common to both SRAM and BRAM)
-    //
-    // Forward Zmmul results from MEM stage
-    //
-    logic mem_to_ex_fwd_zmmul_a;
-    logic mem_to_ex_fwd_zmmul_b;
-
-    always_comb begin
-      mem_to_ex_fwd_zmmul_a = 1'b0;
-      mem_to_ex_fwd_zmmul_b = 1'b0;
-
-      if (reg_write_mem && rd_mem != 5'd0 && is_zmmul_mem) begin
-        mem_to_ex_fwd_zmmul_a = (rd_mem == rs1_ex);
-        mem_to_ex_fwd_zmmul_b = (rd_mem == rs2_ex);
+      if (reg_write_mem && rd_mem != 5'd0 && !is_load_mem && !is_csr_mem) begin
+        mem_to_ex_fwd_a = (rd_mem == rs1_ex);
+        mem_to_ex_fwd_b = (rd_mem == rs2_ex);
       end
     end
 
@@ -140,31 +119,47 @@ module svc_rv_forward #(
       end
 
       //
-      // Forwarding muxes with priority: MEM load > MEM Zmmul > MEM ALU > WB > regfile
+      // Forwarding muxes with priority: MEM load > MEM result > WB > regfile
       //
-      assign rs1_fwd_ex = (
-          mem_to_ex_fwd_load_a ? load_data_mem :
-              mem_to_ex_fwd_zmmul_a ? zmmul_result_mem : mem_to_ex_fwd_alu_a ?
-              alu_result_mem : wb_to_ex_fwd_a ? rd_data : rs1_data_ex);
+      always_comb begin
+        case (1'b1)
+          mem_to_ex_fwd_load_a: rs1_fwd_ex = load_data_mem;
+          mem_to_ex_fwd_a:      rs1_fwd_ex = result_mem;
+          wb_to_ex_fwd_a:       rs1_fwd_ex = rd_data;
+          default:              rs1_fwd_ex = rs1_data_ex;
+        endcase
+      end
 
-      assign rs2_fwd_ex = (
-          mem_to_ex_fwd_load_b ? load_data_mem :
-              mem_to_ex_fwd_zmmul_b ? zmmul_result_mem : mem_to_ex_fwd_alu_b ?
-              alu_result_mem : wb_to_ex_fwd_b ? rd_data : rs2_data_ex);
+      always_comb begin
+        case (1'b1)
+          mem_to_ex_fwd_load_b: rs2_fwd_ex = load_data_mem;
+          mem_to_ex_fwd_b:      rs2_fwd_ex = result_mem;
+          wb_to_ex_fwd_b:       rs2_fwd_ex = rd_data;
+          default:              rs2_fwd_ex = rs2_data_ex;
+        endcase
+      end
 
     end else begin : g_bram_no_load_fwd
       //
       // BRAM: Load data not ready in MEM stage, cannot forward
       //
-      // Forwarding muxes with priority: MEM Zmmul > MEM ALU > WB > regfile
+      // Forwarding muxes with priority: MEM result > WB > regfile
       //
-      assign rs1_fwd_ex = (mem_to_ex_fwd_zmmul_a ? zmmul_result_mem :
-                           mem_to_ex_fwd_alu_a ? alu_result_mem :
-                           wb_to_ex_fwd_a ? rd_data : rs1_data_ex);
+      always_comb begin
+        case (1'b1)
+          mem_to_ex_fwd_a: rs1_fwd_ex = result_mem;
+          wb_to_ex_fwd_a:  rs1_fwd_ex = rd_data;
+          default:         rs1_fwd_ex = rs1_data_ex;
+        endcase
+      end
 
-      assign rs2_fwd_ex = (mem_to_ex_fwd_zmmul_b ? zmmul_result_mem :
-                           mem_to_ex_fwd_alu_b ? alu_result_mem :
-                           wb_to_ex_fwd_b ? rd_data : rs2_data_ex);
+      always_comb begin
+        case (1'b1)
+          mem_to_ex_fwd_b: rs2_fwd_ex = result_mem;
+          wb_to_ex_fwd_b:  rs2_fwd_ex = rd_data;
+          default:         rs2_fwd_ex = rs2_data_ex;
+        endcase
+      end
 
       `SVC_UNUSED({load_data_mem});
     end
@@ -178,8 +173,8 @@ module svc_rv_forward #(
 
     // verilog_format: off
     `SVC_UNUSED({rs1_ex, rs2_ex, rd_mem, reg_write_mem, is_load_mem,
-                 is_csr_mem, is_zmmul_mem, alu_result_mem, zmmul_result_mem,
-                 load_data_mem, rd_wb, reg_write_wb, rd_data, MEM_TYPE});
+                 is_csr_mem, result_mem, load_data_mem, rd_wb, reg_write_wb,
+                 rd_data, MEM_TYPE});
     // verilog_format: on
   end
 
