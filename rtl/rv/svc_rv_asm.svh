@@ -198,6 +198,27 @@ task automatic MUL;
   asm_r_type(7'b0110011, rd, rs1, rs2, 3'b000, 7'b0000001);
 endtask
 
+task automatic MULH;
+  input [4:0] rd;
+  input [4:0] rs1;
+  input [4:0] rs2;
+  asm_r_type(7'b0110011, rd, rs1, rs2, 3'b001, 7'b0000001);
+endtask
+
+task automatic MULHSU;
+  input [4:0] rd;
+  input [4:0] rs1;
+  input [4:0] rs2;
+  asm_r_type(7'b0110011, rd, rs1, rs2, 3'b010, 7'b0000001);
+endtask
+
+task automatic MULHU;
+  input [4:0] rd;
+  input [4:0] rs1;
+  input [4:0] rs2;
+  asm_r_type(7'b0110011, rd, rs1, rs2, 3'b011, 7'b0000001);
+endtask
+
 //-----------------------------------------------------------------------------
 // I-Type instructions: rd <- rs1 OP imm
 //-----------------------------------------------------------------------------
