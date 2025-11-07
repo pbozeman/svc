@@ -477,11 +477,13 @@ module svc_rv #(
   logic is_csr_ex;
   logic is_load_mem;
   logic is_csr_mem;
+  logic is_zmmul_mem;
 
-  assign is_load_ex  = (res_src_ex == RES_MEM);
-  assign is_csr_ex   = (res_src_ex == RES_CSR);
-  assign is_load_mem = (res_src_mem == RES_MEM);
-  assign is_csr_mem  = (res_src_mem == RES_CSR);
+  assign is_load_ex   = (res_src_ex == RES_MEM);
+  assign is_csr_ex    = (res_src_ex == RES_CSR);
+  assign is_load_mem  = (res_src_mem == RES_MEM);
+  assign is_csr_mem   = (res_src_mem == RES_CSR);
+  assign is_zmmul_mem = (res_src_mem == RES_ZMMUL);
 
   //
   // Hazard Detection Unit
@@ -643,12 +645,14 @@ module svc_rv #(
       .rs2_data_ex(rs2_data_ex),
 
       // MEM stage inputs
-      .rd_mem        (rd_mem),
-      .reg_write_mem (reg_write_mem),
-      .is_load_mem   (is_load_mem),
-      .is_csr_mem    (is_csr_mem),
-      .alu_result_mem(alu_result_mem),
-      .load_data_mem (dmem_rdata_ext_mem),
+      .rd_mem          (rd_mem),
+      .reg_write_mem   (reg_write_mem),
+      .is_load_mem     (is_load_mem),
+      .is_csr_mem      (is_csr_mem),
+      .is_zmmul_mem    (is_zmmul_mem),
+      .alu_result_mem  (alu_result_mem),
+      .zmmul_result_mem(zmmul_result_mem),
+      .load_data_mem   (dmem_rdata_ext_mem),
 
       // WB stage inputs
       .rd_wb       (rd_wb),

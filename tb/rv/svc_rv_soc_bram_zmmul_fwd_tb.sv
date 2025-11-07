@@ -90,12 +90,14 @@ module svc_rv_soc_bram_zmmul_fwd_tb;
 
   `include "svc_rv_soc_cpu_dbg.svh"
   `include "svc_rv_soc_test_defs.svh"
+  `include "svc_rv_soc_test_zmmul.svh"
 
   //
   // Test suite
   //
   `TEST_SUITE_BEGIN(svc_rv_soc_bram_zmmul_fwd_tb, 100000);
   `include "svc_rv_soc_test_list.svh"
+  `include "svc_rv_soc_test_list_zmmul.svh"
   `TEST_SUITE_END();
 
 endmodule

@@ -23,7 +23,9 @@ module svc_rv_forward_tb;
   logic            reg_write_mem;
   logic            is_load_mem;
   logic            is_csr_mem;
+  logic            is_zmmul_mem;
   logic [XLEN-1:0] alu_result_mem;
+  logic [XLEN-1:0] zmmul_result_mem;
   logic [XLEN-1:0] load_data_mem;
   logic [     4:0] rd_wb;
   logic            reg_write_wb;
@@ -36,38 +38,42 @@ module svc_rv_forward_tb;
       .FWD     (1),
       .MEM_TYPE(0)
   ) uut (
-      .rs1_ex        (rs1_ex),
-      .rs2_ex        (rs2_ex),
-      .rs1_data_ex   (rs1_data_ex),
-      .rs2_data_ex   (rs2_data_ex),
-      .rd_mem        (rd_mem),
-      .reg_write_mem (reg_write_mem),
-      .is_load_mem   (is_load_mem),
-      .is_csr_mem    (is_csr_mem),
-      .alu_result_mem(alu_result_mem),
-      .load_data_mem (load_data_mem),
-      .rd_wb         (rd_wb),
-      .reg_write_wb  (reg_write_wb),
-      .rd_data       (rd_data),
-      .rs1_fwd_ex    (rs1_fwd_ex),
-      .rs2_fwd_ex    (rs2_fwd_ex)
+      .rs1_ex          (rs1_ex),
+      .rs2_ex          (rs2_ex),
+      .rs1_data_ex     (rs1_data_ex),
+      .rs2_data_ex     (rs2_data_ex),
+      .rd_mem          (rd_mem),
+      .reg_write_mem   (reg_write_mem),
+      .is_load_mem     (is_load_mem),
+      .is_csr_mem      (is_csr_mem),
+      .is_zmmul_mem    (is_zmmul_mem),
+      .alu_result_mem  (alu_result_mem),
+      .zmmul_result_mem(zmmul_result_mem),
+      .load_data_mem   (load_data_mem),
+      .rd_wb           (rd_wb),
+      .reg_write_wb    (reg_write_wb),
+      .rd_data         (rd_data),
+      .rs1_fwd_ex      (rs1_fwd_ex),
+      .rs2_fwd_ex      (rs2_fwd_ex)
   );
 
   task automatic reset_inputs;
-    rs1_ex         = 5'd0;
-    rs2_ex         = 5'd0;
+    rs1_ex           = 5'd0;
+    rs2_ex           = 5'd0;
     // rs1_ex/rs2_ex already set to 0 to indicate not used
-    rs1_data_ex    = 32'h0;
-    rs2_data_ex    = 32'h0;
-    rd_mem         = 5'd0;
-    reg_write_mem  = 1'b0;
-    is_load_mem    = 1'b0;
-    is_csr_mem     = 1'b0;
-    alu_result_mem = 32'h0;
-    load_data_mem  = 32'h0;
-    rd_wb          = 5'd0;
-    reg_write_wb   = 1'b0;
-    rd_data        = 32'h0;
+    rs1_data_ex      = 32'h0;
+    rs2_data_ex      = 32'h0;
+    rd_mem           = 5'd0;
+    reg_write_mem    = 1'b0;
+    is_load_mem      = 1'b0;
+    is_csr_mem       = 1'b0;
+    is_zmmul_mem     = 1'b0;
+    alu_result_mem   = 32'h0;
+    zmmul_result_mem = 32'h0;
+    load_data_mem    = 32'h0;
+    rd_wb            = 5'd0;
+    reg_write_wb     = 1'b0;
+    rd_data          = 32'h0;
   endtask
 
   //
