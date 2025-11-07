@@ -223,18 +223,20 @@ module svc_axil_router_wr #(
 
   // demux b channel from subs
   always_comb begin
-    sb_s_bvalid = 1'b0;
-    sb_s_bresp  = 2'b0;
-
-    if (active) begin
-      if (bus_err) begin
+    case (1'b1)
+      !active: begin
+        sb_s_bvalid = 1'b0;
+        sb_s_bresp  = 2'b0;
+      end
+      active && bus_err: begin
         sb_s_bvalid = 1'b1;
         sb_s_bresp  = 2'b11;
-      end else begin
+      end
+      default: begin
         sb_s_bvalid = sb_m_bvalid[sel];
         sb_s_bresp  = sb_m_bresp[sel];
       end
-    end
+    endcase
   end
 
   always_ff @(posedge clk) begin

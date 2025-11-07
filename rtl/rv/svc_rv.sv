@@ -252,27 +252,11 @@ module svc_rv #(
 
   if (BPRED != 0) begin : g_pc_redirect
     always_comb begin
-      if (mispredicted_ex) begin
-        //
-        // Misprediction recovery
-        //
-        if (branch_taken_ex) begin
-          //
-          // Predicted not-taken, actually taken: go to branch target
-          //
-          pc_redirect_target = jb_target_ex;
-        end else begin
-          //
-          // Predicted taken, actually not-taken: go to sequential
-          //
-          pc_redirect_target = pc_ex + 4;
-        end
-      end else begin
-        //
-        // Normal branch/jump
-        //
-        pc_redirect_target = jb_target_ex;
-      end
+      case (1'b1)
+        mispredicted_ex && branch_taken_ex:  pc_redirect_target = jb_target_ex;
+        mispredicted_ex && !branch_taken_ex: pc_redirect_target = pc_ex + 4;
+        default:                             pc_redirect_target = jb_target_ex;
+      endcase
     end
   end else begin : g_no_pc_redirect
     assign pc_redirect_target = jb_target_ex;

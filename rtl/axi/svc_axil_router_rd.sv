@@ -183,21 +183,23 @@ module svc_axil_router_rd #(
 
   // demux r channel from subs
   always_comb begin
-    sb_s_rvalid = 1'b0;
-    sb_s_rdata  = 0;
-    sb_s_rresp  = 2'b0;
-
-    if (active) begin
-      if (bus_err) begin
+    case (1'b1)
+      !active: begin
+        sb_s_rvalid = 1'b0;
+        sb_s_rdata  = 0;
+        sb_s_rresp  = 2'b0;
+      end
+      active && bus_err: begin
         sb_s_rvalid = 1'b1;
         sb_s_rdata  = S_DW'(32'hADD1EBAD);
         sb_s_rresp  = 2'b11;
-      end else begin
+      end
+      default: begin
         sb_s_rvalid = sb_m_rvalid[sel];
         sb_s_rdata  = S_DW'(sb_m_rdata[sel]);
         sb_s_rresp  = sb_m_rresp[sel];
       end
-    end
+    endcase
   end
 
   always_ff @(posedge clk) begin

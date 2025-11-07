@@ -29,13 +29,11 @@ module svc_rv_pc #(
   // 3. Sequential (pc_plus4) - default
   //
   always_comb begin
-    if (pc_sel) begin
-      pc_next = jb_target;
-    end else if (pred_taken) begin
-      pc_next = pred_target;
-    end else begin
-      pc_next = pc_plus4;
-    end
+    case (1'b1)
+      pc_sel:     pc_next = jb_target;
+      pred_taken: pc_next = pred_target;
+      default:    pc_next = pc_plus4;
+    endcase
   end
 
   always_ff @(posedge clk) begin
