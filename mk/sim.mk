@@ -57,7 +57,7 @@ $(SIM_BUILD_DIR)/rv_%_i_zmmul_sim: $(BUILD_DIR)/sw/rv32i_zmmul/%/%.hex
 define rv_arch_sim_rule
 .PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_$(2)_sim
 $(SIM_BUILD_DIR)/rv_$(1)_$(2)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv Makefile | $(SIM_BUILD_DIR)
-	@$$(IVERILOG) -M $$(@).dep -DRV_$(shell echo $(1) | tr 'a-z' 'A-Z')_HEX='"$(3)/$(1)/$(1).hex"' $$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
+	@$$(IVERILOG) -M $$(@).dep -DRV_$(shell echo $(1) | tr 'a-z' 'A-Z')_HEX='"$(3)/$(1)/$(1).hex"' $(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) $$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
 		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
 		exit $$$${PIPESTATUS[0]}
 	@echo "$$@: $$$$(tr '\n' ' ' < $$(@).dep)" > $$(@).d
