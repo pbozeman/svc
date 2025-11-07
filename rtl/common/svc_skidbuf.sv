@@ -55,13 +55,11 @@ module svc_skidbuf #(
     assign o_valid = rst_n && (i_valid || skid_i_valid);
 
     always_comb begin
-      if (skid_i_valid) begin
-        o_data = skid_i_data;
-      end else if (i_valid) begin
-        o_data = i_data;
-      end else begin
-        o_data = 0;
-      end
+      case (1'b1)
+        skid_i_valid: o_data = skid_i_data;
+        i_valid:      o_data = i_data;
+        default:      o_data = 0;
+      endcase
     end
 
   end else begin : gen_reg_output
