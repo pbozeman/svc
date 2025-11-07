@@ -42,6 +42,7 @@ module svc_rv_reg_ex_mem #(
     input logic [XLEN-1:0] pc_plus4_ex,
     input logic [XLEN-1:0] jb_target_ex,
     input logic [XLEN-1:0] csr_rdata_ex,
+    input logic [XLEN-1:0] zmmul_result_ex,
 
     //
     // MEM stage outputs (control signals)
@@ -62,7 +63,8 @@ module svc_rv_reg_ex_mem #(
     output logic [XLEN-1:0] rs2_data_mem,
     output logic [XLEN-1:0] pc_plus4_mem,
     output logic [XLEN-1:0] jb_target_mem,
-    output logic [XLEN-1:0] csr_rdata_mem
+    output logic [XLEN-1:0] csr_rdata_mem,
+    output logic [XLEN-1:0] zmmul_result_mem
 );
 
   if (PIPELINED != 0) begin : g_registered
@@ -85,31 +87,33 @@ module svc_rv_reg_ex_mem #(
     // Datapath signals without reset
     //
     always_ff @(posedge clk) begin
-      res_src_mem    <= res_src_ex;
-      instr_mem      <= instr_ex;
-      rd_mem         <= rd_ex;
-      rs2_mem        <= rs2_ex;
-      funct3_mem     <= funct3_ex;
-      alu_result_mem <= alu_result_ex;
-      rs2_data_mem   <= rs2_data_ex;
-      pc_plus4_mem   <= pc_plus4_ex;
-      jb_target_mem  <= jb_target_ex;
-      csr_rdata_mem  <= csr_rdata_ex;
+      res_src_mem      <= res_src_ex;
+      instr_mem        <= instr_ex;
+      rd_mem           <= rd_ex;
+      rs2_mem          <= rs2_ex;
+      funct3_mem       <= funct3_ex;
+      alu_result_mem   <= alu_result_ex;
+      rs2_data_mem     <= rs2_data_ex;
+      pc_plus4_mem     <= pc_plus4_ex;
+      jb_target_mem    <= jb_target_ex;
+      csr_rdata_mem    <= csr_rdata_ex;
+      zmmul_result_mem <= zmmul_result_ex;
     end
   end else begin : g_passthrough
-    assign reg_write_mem  = reg_write_ex;
-    assign mem_read_mem   = mem_read_ex;
-    assign mem_write_mem  = mem_write_ex;
-    assign res_src_mem    = res_src_ex;
-    assign instr_mem      = instr_ex;
-    assign rd_mem         = rd_ex;
-    assign rs2_mem        = rs2_ex;
-    assign funct3_mem     = funct3_ex;
-    assign alu_result_mem = alu_result_ex;
-    assign rs2_data_mem   = rs2_data_ex;
-    assign pc_plus4_mem   = pc_plus4_ex;
-    assign jb_target_mem  = jb_target_ex;
-    assign csr_rdata_mem  = csr_rdata_ex;
+    assign reg_write_mem    = reg_write_ex;
+    assign mem_read_mem     = mem_read_ex;
+    assign mem_write_mem    = mem_write_ex;
+    assign res_src_mem      = res_src_ex;
+    assign instr_mem        = instr_ex;
+    assign rd_mem           = rd_ex;
+    assign rs2_mem          = rs2_ex;
+    assign funct3_mem       = funct3_ex;
+    assign alu_result_mem   = alu_result_ex;
+    assign rs2_data_mem     = rs2_data_ex;
+    assign pc_plus4_mem     = pc_plus4_ex;
+    assign jb_target_mem    = jb_target_ex;
+    assign csr_rdata_mem    = csr_rdata_ex;
+    assign zmmul_result_mem = zmmul_result_ex;
 
     `SVC_UNUSED({clk, rst_n});
   end

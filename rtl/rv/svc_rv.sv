@@ -9,6 +9,7 @@
 `include "svc_rv_alu_dec.sv"
 `include "svc_rv_bcmp.sv"
 `include "svc_rv_csr.sv"
+`include "svc_rv_ext_zmmul.sv"
 `include "svc_rv_forward.sv"
 `include "svc_rv_hazard.sv"
 `include "svc_rv_idec.sv"
@@ -34,7 +35,8 @@ module svc_rv #(
     parameter int FWD_REGFILE = PIPELINED,
     parameter int FWD         = 0,
     parameter int MEM_TYPE    = 0,
-    parameter int BPRED       = 0
+    parameter int BPRED       = 0,
+    parameter int EXT_ZMMUL   = 0
 ) (
     input logic clk,
     input logic rst_n,
@@ -109,6 +111,7 @@ module svc_rv #(
   logic            is_branch_id;
   logic            is_jump_id;
   logic            jb_target_src_id;
+  logic            is_zmmul_id;
   logic [     4:0] rd_id;
   logic [     4:0] rs1_id;
   logic [     4:0] rs2_id;
@@ -144,6 +147,7 @@ module svc_rv #(
   logic            is_branch_ex;
   logic            is_jump_ex;
   logic            jb_target_src_ex;
+  logic            is_zmmul_ex;
   logic [    31:0] instr_ex;
   logic [     4:0] rd_ex;
   logic [     4:0] rs1_ex;
@@ -168,6 +172,13 @@ module svc_rv #(
   logic            mispredicted_ex;
 
   //
+  // Zmmul extension signals
+  //
+  logic [XLEN-1:0] zmmul_result_ex;
+  logic            zmmul_result_valid_ex;
+  logic            zmmul_busy_ex;
+
+  //
   // EX/MEM pipeline register signals
   //
   logic            reg_write_mem;
@@ -183,6 +194,7 @@ module svc_rv #(
   logic [XLEN-1:0] pc_plus4_mem;
   logic [XLEN-1:0] jb_target_mem;
   logic [XLEN-1:0] csr_rdata_mem;
+  logic [XLEN-1:0] zmmul_result_mem;
 
 
   //
@@ -197,6 +209,7 @@ module svc_rv #(
   logic [XLEN-1:0] jb_target_wb;
   logic [XLEN-1:0] csr_rdata_wb;
   logic [     2:0] funct3_wb;
+  logic [XLEN-1:0] zmmul_result_wb;
 
   //
   // WB stage signals
@@ -395,7 +408,8 @@ module svc_rv #(
   // Instruction Decode
   //
   svc_rv_idec #(
-      .XLEN(XLEN)
+      .XLEN     (XLEN),
+      .EXT_ZMMUL(EXT_ZMMUL)
   ) idec (
       .instr        (instr_id),
       .reg_write    (reg_write_id),
@@ -409,6 +423,7 @@ module svc_rv #(
       .is_branch    (is_branch_id),
       .is_jump      (is_jump_id),
       .jb_target_src(jb_target_src_id),
+      .is_zmmul     (is_zmmul_id),
       .rd           (rd_id),
       .rs1          (rs1_id),
       .rs2          (rs2_id),
@@ -559,6 +574,7 @@ module svc_rv #(
       .is_branch_id    (is_branch_id),
       .is_jump_id      (is_jump_id),
       .jb_target_src_id(jb_target_src_id),
+      .is_zmmul_id     (is_zmmul_id),
       .instr_id        (instr_id),
       .rd_id           (rd_id),
       .rs1_id          (rs1_id),
@@ -583,6 +599,7 @@ module svc_rv #(
       .is_branch_ex    (is_branch_ex),
       .is_jump_ex      (is_jump_ex),
       .jb_target_src_ex(jb_target_src_ex),
+      .is_zmmul_ex     (is_zmmul_ex),
       .instr_ex        (instr_ex),
       .rd_ex           (rd_ex),
       .rs1_ex          (rs1_ex),
@@ -678,6 +695,29 @@ module svc_rv #(
       .alu_op(alu_op_ex),
       .result(alu_result_ex)
   );
+
+  //
+  // Zmmul Extension Unit
+  //
+  generate
+    if (EXT_ZMMUL != 0) begin : g_zmmul
+      svc_rv_ext_zmmul ext_zmmul (
+          .clk         (clk),
+          .rst_n       (rst_n),
+          .en          (is_zmmul_ex),
+          .rs1         (rs1_fwd_ex),
+          .rs2         (rs2_fwd_ex),
+          .op          (funct3_ex),
+          .busy        (zmmul_busy_ex),
+          .result      (zmmul_result_ex),
+          .result_valid(zmmul_result_valid_ex)
+      );
+    end else begin : g_no_zmmul
+      assign zmmul_result_ex       = '0;
+      assign zmmul_result_valid_ex = 1'b0;
+      assign zmmul_busy_ex         = 1'b0;
+    end
+  endgenerate
 
   //
   // Jump/Branch target calculation
@@ -837,34 +877,36 @@ module svc_rv #(
       .rst_n(rst_n),
 
       // EX stage inputs
-      .reg_write_ex (reg_write_ex),
-      .mem_read_ex  (mem_read_ex),
-      .mem_write_ex (mem_write_ex),
-      .res_src_ex   (res_src_ex),
-      .instr_ex     (instr_ex),
-      .rd_ex        (rd_ex),
-      .rs2_ex       (rs2_ex),
-      .funct3_ex    (funct3_ex),
-      .alu_result_ex(alu_result_ex),
-      .rs2_data_ex  (rs2_fwd_ex),
-      .pc_plus4_ex  (pc_plus4_ex),
-      .jb_target_ex (jb_target_ex),
-      .csr_rdata_ex (csr_rdata_ex),
+      .reg_write_ex   (reg_write_ex),
+      .mem_read_ex    (mem_read_ex),
+      .mem_write_ex   (mem_write_ex),
+      .res_src_ex     (res_src_ex),
+      .instr_ex       (instr_ex),
+      .rd_ex          (rd_ex),
+      .rs2_ex         (rs2_ex),
+      .funct3_ex      (funct3_ex),
+      .alu_result_ex  (alu_result_ex),
+      .rs2_data_ex    (rs2_fwd_ex),
+      .pc_plus4_ex    (pc_plus4_ex),
+      .jb_target_ex   (jb_target_ex),
+      .csr_rdata_ex   (csr_rdata_ex),
+      .zmmul_result_ex(zmmul_result_ex),
 
       // MEM stage outputs
-      .reg_write_mem (reg_write_mem),
-      .mem_read_mem  (mem_read_mem),
-      .mem_write_mem (mem_write_mem),
-      .res_src_mem   (res_src_mem),
-      .instr_mem     (instr_mem),
-      .rd_mem        (rd_mem),
-      .rs2_mem       (rs2_mem),
-      .funct3_mem    (funct3_mem),
-      .alu_result_mem(alu_result_mem),
-      .rs2_data_mem  (rs2_data_mem),
-      .pc_plus4_mem  (pc_plus4_mem),
-      .jb_target_mem (jb_target_mem),
-      .csr_rdata_mem (csr_rdata_mem)
+      .reg_write_mem   (reg_write_mem),
+      .mem_read_mem    (mem_read_mem),
+      .mem_write_mem   (mem_write_mem),
+      .res_src_mem     (res_src_mem),
+      .instr_mem       (instr_mem),
+      .rd_mem          (rd_mem),
+      .rs2_mem         (rs2_mem),
+      .funct3_mem      (funct3_mem),
+      .alu_result_mem  (alu_result_mem),
+      .rs2_data_mem    (rs2_data_mem),
+      .pc_plus4_mem    (pc_plus4_mem),
+      .jb_target_mem   (jb_target_mem),
+      .csr_rdata_mem   (csr_rdata_mem),
+      .zmmul_result_mem(zmmul_result_mem)
   );
 
   //
@@ -952,6 +994,7 @@ module svc_rv #(
       .pc_plus4_mem      (pc_plus4_mem),
       .jb_target_mem     (jb_target_mem),
       .csr_rdata_mem     (csr_rdata_mem),
+      .zmmul_result_mem  (zmmul_result_mem),
 
       // WB stage outputs
       .reg_write_wb     (reg_write_wb),
@@ -963,7 +1006,8 @@ module svc_rv #(
       .dmem_rdata_ext_wb(dmem_rdata_ext_wb_piped),
       .pc_plus4_wb      (pc_plus4_wb),
       .jb_target_wb     (jb_target_wb),
-      .csr_rdata_wb     (csr_rdata_wb)
+      .csr_rdata_wb     (csr_rdata_wb),
+      .zmmul_result_wb  (zmmul_result_wb)
   );
 
   //----------------------------------------------------------------------------
@@ -987,10 +1031,11 @@ module svc_rv #(
   //
   svc_muxn #(
       .WIDTH(XLEN),
-      .N    (5)
+      .N    (6)
   ) mux_res (
       .sel(res_src_wb),
       .data({
+        zmmul_result_wb,
         csr_rdata_wb,
         jb_target_wb,
         pc_plus4_wb,
@@ -1002,9 +1047,15 @@ module svc_rv #(
 
   assign ebreak = (rst_n && instr_wb == I_EBREAK);
 
+  //
+  // TODO: Extension unit control signals (busy, result_valid) are currently
+  // ignored as Zmmul is single-cycle. Future work: integrate these signals
+  // into pipeline control to support multi-cycle extensions (e.g., divide).
+  //
   `SVC_UNUSED({IMEM_AW, DMEM_AW, pc, pc_plus4, pc_id[1:0], pc_ex[1:0],
                funct7_id[6], funct7_id[4:0], funct7_ex[6], funct7_ex[4:0],
-               rs1_ex, rs2_ex, instr_ex, rs2_mem});
+               rs1_ex, rs2_ex, instr_ex, rs2_mem, is_zmmul_ex,
+               zmmul_result_valid_ex, zmmul_busy_ex});
 
 endmodule
 
