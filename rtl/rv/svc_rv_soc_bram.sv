@@ -26,6 +26,7 @@ module svc_rv_soc_bram #(
     parameter int FWD         = 0,
     parameter int BPRED       = 0,
     parameter int EXT_ZMMUL   = 0,
+    parameter int EXT_M       = 0,
 
     // verilog_lint: waive explicit-parameter-storage-type
     parameter IMEM_INIT = "",
@@ -129,7 +130,8 @@ module svc_rv_soc_bram #(
       .FWD        (FWD),
       .MEM_TYPE   (MEM_TYPE_BRAM),
       .BPRED      (BPRED),
-      .EXT_ZMMUL  (EXT_ZMMUL)
+      .EXT_ZMMUL  (EXT_ZMMUL),
+      .EXT_M      (EXT_M)
   ) cpu (
       .clk  (clk),
       .rst_n(rst_n),
