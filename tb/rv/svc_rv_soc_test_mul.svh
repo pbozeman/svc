@@ -1,8 +1,8 @@
 //
-// Zmmul extension test tasks
+// Multiply instruction test tasks
 //
-// These tests verify Zmmul multiply instructions in SoC context.
-// Only included in testbenches with EXT_ZMMUL=1.
+// These tests verify multiply instructions (MUL, MULH, MULHSU, MULHU).
+// Used by both Zmmul (EXT_ZMMUL=1) and M extension (EXT_M=1) testbenches.
 //
 
 //
