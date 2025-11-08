@@ -212,8 +212,8 @@ module svc_rv_hazard #(
   assign pc_stall = data_hazard;
   assign if_id_stall = data_hazard;
   assign id_ex_stall = 1'b0;
-  assign if_id_flush = pc_sel || mispredicted_ex ||
-      (pred_taken_id && !data_hazard);
+  assign if_id_flush = (pc_sel || mispredicted_ex ||
+                        (pred_taken_id && !data_hazard));
   assign id_ex_flush = data_hazard || pc_sel || mispredicted_ex;
 
   `SVC_UNUSED({BPRED});
