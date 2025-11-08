@@ -191,13 +191,11 @@ module svc_rv_idec #(
   //
   // Zmmul instructions are R-type with funct7[0] = 1
   //
-  generate
-    if (EXT_ZMMUL != 0) begin : g_zmmul
-      assign is_zmmul = (opcode == OP_RTYPE) && (funct7[0] == 1'b1);
-    end else begin : g_no_zmmul
-      assign is_zmmul = 1'b0;
-    end
-  endgenerate
+  if (EXT_ZMMUL != 0) begin : g_zmmul
+    assign is_zmmul = (opcode == OP_RTYPE) && (funct7[0] == 1'b1);
+  end else begin : g_no_zmmul
+    assign is_zmmul = 1'b0;
+  end
 
 endmodule
 

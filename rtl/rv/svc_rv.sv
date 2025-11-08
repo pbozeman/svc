@@ -694,25 +694,23 @@ module svc_rv #(
   //
   // Zmmul Extension Unit
   //
-  generate
-    if (EXT_ZMMUL != 0) begin : g_zmmul
-      svc_rv_ext_zmmul ext_zmmul (
-          .clk         (clk),
-          .rst_n       (rst_n),
-          .en          (is_zmmul_ex),
-          .rs1         (rs1_fwd_ex),
-          .rs2         (rs2_fwd_ex),
-          .op          (funct3_ex),
-          .busy        (zmmul_busy_ex),
-          .result      (zmmul_result_ex),
-          .result_valid(zmmul_result_valid_ex)
-      );
-    end else begin : g_no_zmmul
-      assign zmmul_result_ex       = '0;
-      assign zmmul_result_valid_ex = 1'b0;
-      assign zmmul_busy_ex         = 1'b0;
-    end
-  endgenerate
+  if (EXT_ZMMUL != 0) begin : g_zmmul
+    svc_rv_ext_zmmul ext_zmmul (
+        .clk         (clk),
+        .rst_n       (rst_n),
+        .en          (is_zmmul_ex),
+        .rs1         (rs1_fwd_ex),
+        .rs2         (rs2_fwd_ex),
+        .op          (funct3_ex),
+        .busy        (zmmul_busy_ex),
+        .result      (zmmul_result_ex),
+        .result_valid(zmmul_result_valid_ex)
+    );
+  end else begin : g_no_zmmul
+    assign zmmul_result_ex       = '0;
+    assign zmmul_result_valid_ex = 1'b0;
+    assign zmmul_busy_ex         = 1'b0;
+  end
 
   //
   // Jump/Branch target calculation
