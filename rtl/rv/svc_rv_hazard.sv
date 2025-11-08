@@ -45,6 +45,7 @@ module svc_rv_hazard #(
     input logic       reg_write_ex,
     input logic       is_load_ex,
     input logic       is_csr_ex,
+    input logic       op_active_ex,
 
     // MEM stage control signals and destination
     input logic [4:0] rd_mem,
@@ -70,7 +71,9 @@ module svc_rv_hazard #(
     output logic if_id_stall,
     output logic if_id_flush,
     output logic id_ex_stall,
-    output logic id_ex_flush
+    output logic id_ex_flush,
+    output logic ex_mem_stall,
+    output logic mem_wb_stall
 );
 
   //
@@ -209,12 +212,25 @@ module svc_rv_hazard #(
     `SVC_UNUSED({is_load_ex, is_csr_ex, is_load_mem, is_csr_mem, is_branch_id});
   end
 
-  assign pc_stall = data_hazard;
-  assign if_id_stall = data_hazard;
-  assign id_ex_stall = 1'b0;
+  //
+  // Multi-cycle EX operation stall
+  //
+  // When op_active_ex is asserted, a multi-cycle operation (e.g., division)
+  // is executing in the EX stage. Freeze the entire pipeline:
+  // - Stall PC, IF/ID, ID/EX (prevent new instructions from entering EX)
+  // - Stall EX/MEM, MEM/WB (prevent incomplete result from advancing)
+  // - When operation completes (op_active_ex drops), all stalls release
+  //   and the completed result flows normally through MEM→WB→regfile
+  //
+  assign pc_stall = data_hazard || op_active_ex;
+  assign if_id_stall = data_hazard || op_active_ex;
+  assign id_ex_stall = op_active_ex;
+  assign ex_mem_stall = op_active_ex;
+  assign mem_wb_stall = op_active_ex;
   assign if_id_flush = (pc_sel || mispredicted_ex ||
-                        (pred_taken_id && !data_hazard));
-  assign id_ex_flush = data_hazard || pc_sel || mispredicted_ex;
+                        (pred_taken_id && !data_hazard && !op_active_ex));
+  assign id_ex_flush = ((data_hazard && !op_active_ex) || pc_sel ||
+                        mispredicted_ex);
 
   `SVC_UNUSED({BPRED});
 

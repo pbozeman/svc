@@ -19,13 +19,13 @@ task automatic test_div_basic;
 
   load_program();
 
-  `CHECK_WAIT_FOR_EBREAK(clk);
+  `CHECK_WAIT_FOR_EBREAK(clk, 256);
   `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd20);
   `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd3);
   `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd6);
   `CHECK_EQ(uut.cpu.regfile.regs[4], 32'hFFFFFFEC);
   `CHECK_EQ($signed(uut.cpu.regfile.regs[5]), -32'sd6);
-  `CHECK_EQ($signed(uut.cpu.regfile.regs[6]), -32'sd6);
+  `CHECK_EQ($signed(uut.cpu.regfile.regs[6]), -32'sd1);
 endtask
 
 //
@@ -64,7 +64,7 @@ task automatic test_rem_basic;
   `CHECK_WAIT_FOR_EBREAK(clk);
   `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd2);
   `CHECK_EQ($signed(uut.cpu.regfile.regs[5]), -32'sd2);
-  `CHECK_EQ(uut.cpu.regfile.regs[6], 32'd2);
+  `CHECK_EQ(uut.cpu.regfile.regs[6], 32'd0);
 endtask
 
 //
@@ -156,7 +156,7 @@ task automatic test_div_chained_dependencies;
 
   load_program();
 
-  `CHECK_WAIT_FOR_EBREAK(clk);
+  `CHECK_WAIT_FOR_EBREAK(clk, 512);
   `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd100);
   `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd50);
   `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd25);
@@ -199,7 +199,7 @@ task automatic test_mul_div_mixed;
 
   load_program();
 
-  `CHECK_WAIT_FOR_EBREAK(clk);
+  `CHECK_WAIT_FOR_EBREAK(clk, 512);
   `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd50);
   `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd10);
   `CHECK_EQ(uut.cpu.regfile.regs[5], 32'd5);

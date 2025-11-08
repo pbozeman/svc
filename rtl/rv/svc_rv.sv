@@ -117,6 +117,7 @@ module svc_rv #(
   logic            is_jump_id;
   logic            jb_target_src_id;
   logic            is_m_id;
+  logic            is_mc_id;
   logic [     4:0] rd_id;
   logic [     4:0] rs1_id;
   logic [     4:0] rs2_id;
@@ -153,6 +154,7 @@ module svc_rv #(
   logic            is_jump_ex;
   logic            jb_target_src_ex;
   logic            is_m_ex;
+  logic            is_mc_ex;
   logic [    31:0] instr_ex;
   logic [     4:0] rd_ex;
   logic [     4:0] rs1_ex;
@@ -175,6 +177,15 @@ module svc_rv #(
   logic [XLEN-1:0] alu_result_ex;
   logic [XLEN-1:0] jb_target_ex;
   logic            mispredicted_ex;
+
+  //
+  // Multi-cycle operation control
+  //
+  // Signals for managing multi-cycle M extension operations (DIV/REM).
+  // The FSM and signal definitions are located after the ALU section.
+  //
+  logic            op_active_ex;
+  logic            op_en_ex;
 
   //
   // Zmmul extension signals
@@ -236,6 +247,8 @@ module svc_rv #(
   logic            if_id_flush;
   logic            id_ex_stall;
   logic            id_ex_flush;
+  logic            ex_mem_stall;
+  logic            mem_wb_stall;
 
   //
   // Instruction retirement
@@ -441,6 +454,14 @@ module svc_rv #(
   );
 
   //
+  // Multi-cycle operation detection
+  //
+  // Identifies operations that require multiple cycles to complete.
+  // Currently: DIV/REM (funct3[2]=1) from M extension (not ZMMUL)
+  //
+  assign is_mc_id = (EXT_M != 0) && is_m_id && funct3_id[2];
+
+  //
   // Register File
   //
   svc_rv_regfile #(
@@ -500,6 +521,7 @@ module svc_rv #(
         .reg_write_ex(reg_write_ex),
         .is_load_ex  (is_load_ex),
         .is_csr_ex   (is_csr_ex),
+        .op_active_ex(op_active_ex),
 
         // MEM stage
         .rd_mem       (rd_mem),
@@ -521,18 +543,22 @@ module svc_rv #(
         .mispredicted_ex(mispredicted_ex),
 
         // hazard control outputs
-        .pc_stall   (pc_stall),
-        .if_id_stall(if_id_stall),
-        .if_id_flush(if_id_flush),
-        .id_ex_stall(id_ex_stall),
-        .id_ex_flush(id_ex_flush)
+        .pc_stall    (pc_stall),
+        .if_id_stall (if_id_stall),
+        .if_id_flush (if_id_flush),
+        .id_ex_stall (id_ex_stall),
+        .id_ex_flush (id_ex_flush),
+        .ex_mem_stall(ex_mem_stall),
+        .mem_wb_stall(mem_wb_stall)
     );
   end else begin : g_no_hazard
-    assign pc_stall    = 1'b0;
-    assign if_id_stall = 1'b0;
-    assign if_id_flush = 1'b0;
-    assign id_ex_stall = 1'b0;
-    assign id_ex_flush = 1'b0;
+    assign pc_stall     = 1'b0;
+    assign if_id_stall  = 1'b0;
+    assign if_id_flush  = 1'b0;
+    assign id_ex_stall  = 1'b0;
+    assign id_ex_flush  = 1'b0;
+    assign ex_mem_stall = 1'b0;
+    assign mem_wb_stall = 1'b0;
 
     // verilog_format: off
     `SVC_UNUSED({is_load_ex, is_csr_ex, is_load_mem, is_csr_mem, 
@@ -567,6 +593,7 @@ module svc_rv #(
       .is_jump_id      (is_jump_id),
       .jb_target_src_id(jb_target_src_id),
       .is_m_id         (is_m_id),
+      .is_mc_id        (is_mc_id),
       .instr_id        (instr_id),
       .rd_id           (rd_id),
       .rs1_id          (rs1_id),
@@ -592,6 +619,7 @@ module svc_rv #(
       .is_jump_ex      (is_jump_ex),
       .jb_target_src_ex(jb_target_src_ex),
       .is_m_ex         (is_m_ex),
+      .is_mc_ex        (is_mc_ex),
       .instr_ex        (instr_ex),
       .rd_ex           (rd_ex),
       .rs1_ex          (rs1_ex),
@@ -697,13 +725,75 @@ module svc_rv #(
   );
 
   //
+  // Multi-cycle operation control state machine
+  //
+  // Manages the lifecycle of multi-cycle operations (DIV/REM) in EX stage.
+  //
+  // States:
+  //   IDLE: No multi-cycle operation active
+  //   EXEC: Multi-cycle operation executing
+  //
+  // For single-cycle M ops (MUL): IDLE -> IDLE (never enter EXEC)
+  // For multi-cycle M ops (DIV/REM): IDLE -> EXEC -> IDLE
+  //
+  typedef enum logic {
+    MC_STATE_IDLE,
+    MC_STATE_EXEC
+  } mc_state_t;
+
+  mc_state_t mc_state;
+  mc_state_t mc_state_next;
+
+  //
+  // Next state and output logic
+  //
+  always_comb begin
+    mc_state_next = mc_state;
+    op_active_ex  = 1'b0;
+    op_en_ex      = 1'b0;
+
+    case (mc_state)
+      MC_STATE_IDLE: begin
+        if (is_mc_ex) begin
+          op_en_ex      = 1'b1;
+          op_active_ex  = 1'b1;
+          mc_state_next = MC_STATE_EXEC;
+        end
+      end
+
+      MC_STATE_EXEC: begin
+        if (!m_busy_ex) begin
+          mc_state_next = MC_STATE_IDLE;
+        end else begin
+          op_active_ex = 1'b1;
+        end
+      end
+
+      default: begin
+        mc_state_next = MC_STATE_IDLE;
+      end
+    endcase
+  end
+
+  //
+  // State registers
+  //
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      mc_state <= MC_STATE_IDLE;
+    end else begin
+      mc_state <= mc_state_next;
+    end
+  end
+
+  //
   // M Extension Unit
   //
   if (EXT_ZMMUL != 0) begin : g_m_ext
     svc_rv_ext_zmmul ext_zmmul (
         .clk         (clk),
         .rst_n       (rst_n),
-        .en          (is_m_ex),
+        .en          (op_en_ex),
         .rs1         (rs1_fwd_ex),
         .rs2         (rs2_fwd_ex),
         .op          (funct3_ex),
@@ -715,7 +805,7 @@ module svc_rv #(
     svc_rv_ext_m ext_m (
         .clk         (clk),
         .rst_n       (rst_n),
-        .en          (is_m_ex),
+        .en          (op_en_ex),
         .rs1         (rs1_fwd_ex),
         .rs2         (rs2_fwd_ex),
         .op          (funct3_ex),
@@ -727,6 +817,8 @@ module svc_rv #(
     assign m_result_ex       = '0;
     assign m_result_valid_ex = 1'b0;
     assign m_busy_ex         = 1'b0;
+
+    `SVC_UNUSED({op_en_ex, op_active_ex});
   end
 
   //
@@ -886,6 +978,9 @@ module svc_rv #(
       .clk  (clk),
       .rst_n(rst_n),
 
+      // Hazard control
+      .stall(ex_mem_stall),
+
       // EX stage inputs
       .reg_write_ex (reg_write_ex),
       .mem_read_ex  (mem_read_ex),
@@ -993,6 +1088,9 @@ module svc_rv #(
       .clk  (clk),
       .rst_n(rst_n),
 
+      // Hazard control
+      .stall(mem_wb_stall),
+
       // MEM stage inputs
       .reg_write_mem     (reg_write_mem),
       .res_src_mem       (res_src_mem),
@@ -1058,14 +1156,12 @@ module svc_rv #(
   assign ebreak = (rst_n && instr_wb == I_EBREAK);
 
   //
-  // TODO: Extension unit control signals (busy, result_valid) are currently
-  // ignored as Zmmul is single-cycle. Future work: integrate these signals
-  // into pipeline control to support multi-cycle extensions (e.g., divide).
+  // Note: m_result_valid_ex is currently unused but m_busy_ex is now
+  // integrated into pipeline stall control for multi-cycle operations.
   //
   `SVC_UNUSED({IMEM_AW, DMEM_AW, pc, pc_plus4, pc_id[1:0], pc_ex[1:0],
                funct7_id[6], funct7_id[4:0], funct7_ex[6], funct7_ex[4:0],
-               rs1_ex, rs2_ex, instr_ex, rs2_mem, is_m_ex, m_result_valid_ex,
-               m_busy_ex});
+               rs1_ex, rs2_ex, instr_ex, rs2_mem, is_m_ex, m_result_valid_ex});
 
 endmodule
 

@@ -12,7 +12,7 @@
 logic [31:0] MEM[1024];
 `include "svc_rv_asm.svh"
 
-`define CHECK_WAIT_FOR_EBREAK(clk) `CHECK_WAIT_FOR(clk, ebreak, 128)
+`define CHECK_WAIT_FOR_EBREAK(clk, n = 128) `CHECK_WAIT_FOR(clk, ebreak, n)
 
 // CHECK_XXX don't work on strings or reals, so we partially reimplement
 // the checks here. String/Real detection in the core macros would be nice.

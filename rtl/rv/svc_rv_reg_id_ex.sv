@@ -42,6 +42,7 @@ module svc_rv_reg_id_ex #(
     input logic       is_jump_id,
     input logic       jb_target_src_id,
     input logic       is_m_id,
+    input logic       is_mc_id,
 
     //
     // ID stage inputs (data)
@@ -77,6 +78,7 @@ module svc_rv_reg_id_ex #(
     output logic       is_jump_ex,
     output logic       jb_target_src_ex,
     output logic       is_m_ex,
+    output logic       is_mc_ex,
 
     //
     // EX stage outputs (data)
@@ -109,10 +111,12 @@ module svc_rv_reg_id_ex #(
         reg_write_ex <= '0;
         mem_read_ex  <= '0;
         mem_write_ex <= '0;
+        is_mc_ex     <= '0;
       end else if (!stall) begin
         reg_write_ex <= reg_write_id;
         mem_read_ex  <= mem_read_id;
         mem_write_ex <= mem_write_id;
+        is_mc_ex     <= is_mc_id;
       end
     end
 
@@ -178,6 +182,7 @@ module svc_rv_reg_id_ex #(
     assign is_jump_ex       = is_jump_id;
     assign jb_target_src_ex = jb_target_src_id;
     assign is_m_ex          = is_m_id;
+    assign is_mc_ex         = is_mc_id;
     assign instr_ex         = instr_id;
     assign rd_ex            = rd_id;
     assign rs1_ex           = rs1_id;
