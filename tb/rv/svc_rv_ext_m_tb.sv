@@ -34,8 +34,9 @@ module svc_rv_ext_m_tb;
   //
   // Test helper for multiplication (1 cycle)
   //
-  task test_mul(input logic [31:0] a, input logic [31:0] b,
-                input logic [2:0] operation, input logic [31:0] expected);
+  task automatic test_mul(input logic [31:0] a, input logic [31:0] b,
+                          input logic [2:0] operation,
+                          input logic [31:0] expected);
     rs1 = a;
     rs2 = b;
     op  = operation;
@@ -52,8 +53,9 @@ module svc_rv_ext_m_tb;
   //
   // Test helper for division (32+ cycles)
   //
-  task test_div(input logic [31:0] a, input logic [31:0] b,
-                input logic [2:0] operation, input logic [31:0] expected);
+  task automatic test_div(input logic [31:0] a, input logic [31:0] b,
+                          input logic [2:0] operation,
+                          input logic [31:0] expected);
     rs1 = a;
     rs2 = b;
     op  = operation;
@@ -71,7 +73,7 @@ module svc_rv_ext_m_tb;
   //
   // Reset test
   //
-  task test_reset();
+  task automatic test_reset();
     en = 1'b0;
     `TICK(clk);
 
@@ -81,7 +83,7 @@ module svc_rv_ext_m_tb;
   //
   // MUL tests
   //
-  task test_mul_basic();
+  task automatic test_mul_basic();
     logic [31:0] a;
     logic [31:0] b;
     logic [63:0] product_full;
@@ -110,7 +112,7 @@ module svc_rv_ext_m_tb;
   //
   // MULH tests
   //
-  task test_mulh();
+  task automatic test_mulh();
     logic        [31:0] a;
     logic        [31:0] b;
     logic signed [63:0] product_full;
@@ -140,7 +142,7 @@ module svc_rv_ext_m_tb;
   //
   // MULHSU tests
   //
-  task test_mulhsu();
+  task automatic test_mulhsu();
     logic signed [31:0] a;
     logic        [31:0] b;
     logic signed [63:0] product_full;
@@ -162,7 +164,7 @@ module svc_rv_ext_m_tb;
   //
   // MULHU tests
   //
-  task test_mulhu();
+  task automatic test_mulhu();
     logic [31:0] a;
     logic [31:0] b;
     logic [63:0] product_full;
@@ -184,7 +186,7 @@ module svc_rv_ext_m_tb;
   //
   // DIVU tests
   //
-  task test_divu();
+  task automatic test_divu();
     //
     // Basic unsigned division
     //
@@ -206,7 +208,7 @@ module svc_rv_ext_m_tb;
   //
   // DIV tests
   //
-  task test_div_signed();
+  task automatic test_div_signed();
     //
     // Basic signed division
     //
@@ -230,7 +232,7 @@ module svc_rv_ext_m_tb;
   //
   // REMU tests
   //
-  task test_remu();
+  task automatic test_remu();
     //
     // Basic unsigned remainder
     //
@@ -247,7 +249,7 @@ module svc_rv_ext_m_tb;
   //
   // REM tests
   //
-  task test_rem();
+  task automatic test_rem();
     //
     // Basic signed remainder
     //
@@ -267,7 +269,7 @@ module svc_rv_ext_m_tb;
   //
   // Back-to-back multiplication tests
   //
-  task test_back_to_back_mul();
+  task automatic test_back_to_back_mul();
     //
     // Multiple MUL operations in consecutive cycles
     //
@@ -279,7 +281,7 @@ module svc_rv_ext_m_tb;
   //
   // Division busy signal test
   //
-  task test_div_busy();
+  task automatic test_div_busy();
     int i;
 
     rs1 = 32'd100;

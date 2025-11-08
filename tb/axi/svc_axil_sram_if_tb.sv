@@ -151,7 +151,7 @@ module svc_axil_sram_if_tb;
     end
   end
 
-  task test_initial;
+  task automatic test_initial;
     `CHECK_FALSE(sram_cmd_valid);
     `CHECK_FALSE(m_axil_bvalid);
     `CHECK_FALSE(m_axil_rvalid);

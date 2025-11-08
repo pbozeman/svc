@@ -19,7 +19,7 @@ module svc_unit_check_tb;
   logic [2:0] bits_true = 1;
   logic [2:0] bits_false = 0;
 
-  task test_check_true();
+  task automatic test_check_true();
     test_msg_called = 1'b0;
     `CHECK_TRUE('bx);
     assert (test_msg_called)
@@ -69,7 +69,7 @@ module svc_unit_check_tb;
     end
   endtask
 
-  task test_check_false();
+  task automatic test_check_false();
     test_msg_called = 1'b0;
     `CHECK_FALSE('bx);
     assert (test_msg_called)
@@ -119,7 +119,7 @@ module svc_unit_check_tb;
     end
   endtask
 
-  task test_check_eq();
+  task automatic test_check_eq();
     int a;
     int b;
 
@@ -187,7 +187,7 @@ module svc_unit_check_tb;
     end
   endtask
 
-  task test_check_neq();
+  task automatic test_check_neq();
     int a;
     int b;
 
@@ -255,7 +255,7 @@ module svc_unit_check_tb;
     end
   endtask
 
-  task test_check_lt();
+  task automatic test_check_lt();
     int a;
     int b;
 
@@ -323,7 +323,7 @@ module svc_unit_check_tb;
     end
   endtask
 
-  task test_check_lte();
+  task automatic test_check_lte();
     int a;
     int b;
 
@@ -391,7 +391,7 @@ module svc_unit_check_tb;
     end
   endtask
 
-  task test_check_gt();
+  task automatic test_check_gt();
     int a;
     int b;
 
@@ -459,7 +459,7 @@ module svc_unit_check_tb;
     end
   endtask
 
-  task test_check_gte();
+  task automatic test_check_gte();
     int a;
     int b;
 

@@ -45,7 +45,7 @@ module svc_skidbuf_reg_tb;
   end
 
   // Test basic data flow
-  task test_basic_flow;
+  task automatic test_basic_flow;
     begin
       o_ready = 1;
       o_valid = 1;
@@ -61,7 +61,7 @@ module svc_skidbuf_reg_tb;
   endtask
 
   // Test back pressure handling
-  task test_backpressure;
+  task automatic test_backpressure;
     begin
       o_ready = 0;
       o_valid = 1;
@@ -84,7 +84,7 @@ module svc_skidbuf_reg_tb;
   endtask
 
   // Test continuous data flow
-  task test_continious_flow;
+  task automatic test_continious_flow;
     begin
       o_ready = 1;
 
@@ -98,7 +98,7 @@ module svc_skidbuf_reg_tb;
   endtask
 
   // Test reset behavior
-  task test_reset;
+  task automatic test_reset;
     begin
       o_ready = 0;
       o_valid = 1;
