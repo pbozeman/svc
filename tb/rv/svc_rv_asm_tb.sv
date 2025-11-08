@@ -123,7 +123,7 @@ module svc_rv_asm_tb;
     `CHECK_EQ(funct7, 7'b0100000);
   endtask
 
-  // Test M-extension instruction encoding
+  // Test M-extension multiply instruction encoding
   task automatic test_m_ext_encoding;
     integer addr;
     asm_pc = 0;
@@ -172,6 +172,58 @@ module svc_rv_asm_tb;
     `CHECK_EQ(rs1, 11);
     `CHECK_EQ(rs2, 12);
     `CHECK_EQ(funct3, 3'b011);
+    `CHECK_EQ(funct7, 7'b0000001);
+  endtask
+
+  // Test M-extension division/remainder instruction encoding
+  task automatic test_m_ext_div_encoding;
+    integer addr;
+    asm_pc = 0;
+
+    // Generate M-extension division/remainder instructions
+    DIV(x1, x2, x3);
+    DIVU(x4, x5, x6);
+    REM(x7, x8, x9);
+    REMU(x10, x11, x12);
+
+    // Verify DIV instruction (funct3=100)
+    addr  = 0;
+    instr = MEM[addr];
+    `CHECK_EQ(instr[6:0], OP_RTYPE);
+    `CHECK_EQ(rd, 1);
+    `CHECK_EQ(rs1, 2);
+    `CHECK_EQ(rs2, 3);
+    `CHECK_EQ(funct3, 3'b100);
+    `CHECK_EQ(funct7, 7'b0000001);
+
+    // Verify DIVU instruction (funct3=101)
+    addr  = 1;
+    instr = MEM[addr];
+    `CHECK_EQ(instr[6:0], OP_RTYPE);
+    `CHECK_EQ(rd, 4);
+    `CHECK_EQ(rs1, 5);
+    `CHECK_EQ(rs2, 6);
+    `CHECK_EQ(funct3, 3'b101);
+    `CHECK_EQ(funct7, 7'b0000001);
+
+    // Verify REM instruction (funct3=110)
+    addr  = 2;
+    instr = MEM[addr];
+    `CHECK_EQ(instr[6:0], OP_RTYPE);
+    `CHECK_EQ(rd, 7);
+    `CHECK_EQ(rs1, 8);
+    `CHECK_EQ(rs2, 9);
+    `CHECK_EQ(funct3, 3'b110);
+    `CHECK_EQ(funct7, 7'b0000001);
+
+    // Verify REMU instruction (funct3=111)
+    addr  = 3;
+    instr = MEM[addr];
+    `CHECK_EQ(instr[6:0], OP_RTYPE);
+    `CHECK_EQ(rd, 10);
+    `CHECK_EQ(rs1, 11);
+    `CHECK_EQ(rs2, 12);
+    `CHECK_EQ(funct3, 3'b111);
     `CHECK_EQ(funct7, 7'b0000001);
   endtask
 
@@ -590,6 +642,7 @@ module svc_rv_asm_tb;
   `TEST_SUITE_BEGIN(svc_rv_asm_tb);
   `TEST_CASE(test_r_type_encoding);
   `TEST_CASE(test_m_ext_encoding);
+  `TEST_CASE(test_m_ext_div_encoding);
   `TEST_CASE(test_i_type_encoding);
   `TEST_CASE(test_shift_imm_encoding);
   `TEST_CASE(test_load_encoding);

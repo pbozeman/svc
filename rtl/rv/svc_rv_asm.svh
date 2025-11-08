@@ -219,6 +219,34 @@ task automatic MULHU;
   asm_r_type(7'b0110011, rd, rs1, rs2, 3'b011, 7'b0000001);
 endtask
 
+task automatic DIV;
+  input [4:0] rd;
+  input [4:0] rs1;
+  input [4:0] rs2;
+  asm_r_type(7'b0110011, rd, rs1, rs2, 3'b100, 7'b0000001);
+endtask
+
+task automatic DIVU;
+  input [4:0] rd;
+  input [4:0] rs1;
+  input [4:0] rs2;
+  asm_r_type(7'b0110011, rd, rs1, rs2, 3'b101, 7'b0000001);
+endtask
+
+task automatic REM;
+  input [4:0] rd;
+  input [4:0] rs1;
+  input [4:0] rs2;
+  asm_r_type(7'b0110011, rd, rs1, rs2, 3'b110, 7'b0000001);
+endtask
+
+task automatic REMU;
+  input [4:0] rd;
+  input [4:0] rs1;
+  input [4:0] rs2;
+  asm_r_type(7'b0110011, rd, rs1, rs2, 3'b111, 7'b0000001);
+endtask
+
 //-----------------------------------------------------------------------------
 // I-Type instructions: rd <- rs1 OP imm
 //-----------------------------------------------------------------------------

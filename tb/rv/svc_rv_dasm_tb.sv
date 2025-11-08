@@ -87,13 +87,67 @@ module svc_rv_dasm_tb;
   endtask
 
   //
-  // Test M-extension
+  // Test M-extension multiply instructions
   //
   task automatic test_m_ext;
     inst   = 32'h023100b3;
     result = dasm_inst(inst);
     if (result != "   mul  x1,  x2,  x3") begin
       $display("FAIL: expected '   mul  x1,  x2,  x3', got '%s'", result);
+      `CHECK_TRUE(0);
+    end
+
+    inst   = 32'h023110b3;
+    result = dasm_inst(inst);
+    if (result != "  mulh  x1,  x2,  x3") begin
+      $display("FAIL: expected '  mulh  x1,  x2,  x3', got '%s'", result);
+      `CHECK_TRUE(0);
+    end
+
+    inst   = 32'h023120b3;
+    result = dasm_inst(inst);
+    if (result != "mulhsu  x1,  x2,  x3") begin
+      $display("FAIL: expected 'mulhsu  x1,  x2,  x3', got '%s'", result);
+      `CHECK_TRUE(0);
+    end
+
+    inst   = 32'h023130b3;
+    result = dasm_inst(inst);
+    if (result != " mulhu  x1,  x2,  x3") begin
+      $display("FAIL: expected ' mulhu  x1,  x2,  x3', got '%s'", result);
+      `CHECK_TRUE(0);
+    end
+  endtask
+
+  //
+  // Test M-extension division/remainder instructions
+  //
+  task automatic test_m_ext_div;
+    inst   = 32'h023140b3;
+    result = dasm_inst(inst);
+    if (result != "   div  x1,  x2,  x3") begin
+      $display("FAIL: expected '   div  x1,  x2,  x3', got '%s'", result);
+      `CHECK_TRUE(0);
+    end
+
+    inst   = 32'h023150b3;
+    result = dasm_inst(inst);
+    if (result != "  divu  x1,  x2,  x3") begin
+      $display("FAIL: expected '  divu  x1,  x2,  x3', got '%s'", result);
+      `CHECK_TRUE(0);
+    end
+
+    inst   = 32'h023160b3;
+    result = dasm_inst(inst);
+    if (result != "   rem  x1,  x2,  x3") begin
+      $display("FAIL: expected '   rem  x1,  x2,  x3', got '%s'", result);
+      `CHECK_TRUE(0);
+    end
+
+    inst   = 32'h023170b3;
+    result = dasm_inst(inst);
+    if (result != "  remu  x1,  x2,  x3") begin
+      $display("FAIL: expected '  remu  x1,  x2,  x3', got '%s'", result);
       `CHECK_TRUE(0);
     end
   endtask
@@ -575,6 +629,7 @@ module svc_rv_dasm_tb;
   `TEST_SUITE_BEGIN(svc_rv_dasm_tb);
   `TEST_CASE(test_r_type);
   `TEST_CASE(test_m_ext);
+  `TEST_CASE(test_m_ext_div);
   `TEST_CASE(test_i_type_alu);
   `TEST_CASE(test_shift_imm);
   `TEST_CASE(test_loads);
