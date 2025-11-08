@@ -41,7 +41,7 @@ module svc_rv_reg_id_ex #(
     input logic       is_branch_id,
     input logic       is_jump_id,
     input logic       jb_target_src_id,
-    input logic       is_zmmul_id,
+    input logic       is_m_id,
 
     //
     // ID stage inputs (data)
@@ -76,7 +76,7 @@ module svc_rv_reg_id_ex #(
     output logic       is_branch_ex,
     output logic       is_jump_ex,
     output logic       jb_target_src_ex,
-    output logic       is_zmmul_ex,
+    output logic       is_m_ex,
 
     //
     // EX stage outputs (data)
@@ -128,7 +128,7 @@ module svc_rv_reg_id_ex #(
         is_branch_ex     <= '0;
         is_jump_ex       <= '0;
         jb_target_src_ex <= '0;
-        is_zmmul_ex      <= '0;
+        is_m_ex          <= '0;
         instr_ex         <= I_NOP;
         rd_ex            <= '0;
         rs1_ex           <= '0;
@@ -143,7 +143,7 @@ module svc_rv_reg_id_ex #(
         is_branch_ex     <= is_branch_id;
         is_jump_ex       <= is_jump_id;
         jb_target_src_ex <= jb_target_src_id;
-        is_zmmul_ex      <= is_zmmul_id;
+        is_m_ex          <= is_m_id;
         instr_ex         <= instr_id;
         rd_ex            <= rd_id;
         rs1_ex           <= rs1_id;
@@ -177,7 +177,7 @@ module svc_rv_reg_id_ex #(
     assign is_branch_ex     = is_branch_id;
     assign is_jump_ex       = is_jump_id;
     assign jb_target_src_ex = jb_target_src_id;
-    assign is_zmmul_ex      = is_zmmul_id;
+    assign is_m_ex          = is_m_id;
     assign instr_ex         = instr_id;
     assign rd_ex            = rd_id;
     assign rs1_ex           = rs1_id;

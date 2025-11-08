@@ -29,7 +29,7 @@ module svc_rv_idec_tb;
   // verilator lint_off UNUSEDSIGNAL
   logic        rs1_used;
   logic        rs2_used;
-  logic        is_zmmul;
+  logic        is_m;
   // verilator lint_on UNUSEDSIGNAL
 
   logic [31:0] imm_i;
@@ -52,7 +52,7 @@ module svc_rv_idec_tb;
       .is_branch    (is_branch),
       .is_jump      (is_jump),
       .jb_target_src(jb_target_src),
-      .is_zmmul     (is_zmmul),
+      .is_m         (is_m),
 
       .rd      (rd),
       .rs1     (rs1),

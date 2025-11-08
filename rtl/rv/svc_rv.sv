@@ -111,7 +111,7 @@ module svc_rv #(
   logic            is_branch_id;
   logic            is_jump_id;
   logic            jb_target_src_id;
-  logic            is_zmmul_id;
+  logic            is_m_id;
   logic [     4:0] rd_id;
   logic [     4:0] rs1_id;
   logic [     4:0] rs2_id;
@@ -147,7 +147,7 @@ module svc_rv #(
   logic            is_branch_ex;
   logic            is_jump_ex;
   logic            jb_target_src_ex;
-  logic            is_zmmul_ex;
+  logic            is_m_ex;
   logic [    31:0] instr_ex;
   logic [     4:0] rd_ex;
   logic [     4:0] rs1_ex;
@@ -174,9 +174,9 @@ module svc_rv #(
   //
   // Zmmul extension signals
   //
-  logic [XLEN-1:0] zmmul_result_ex;
-  logic            zmmul_result_valid_ex;
-  logic            zmmul_busy_ex;
+  logic [XLEN-1:0] m_result_ex;
+  logic            m_result_valid_ex;
+  logic            m_busy_ex;
 
   //
   // EX/MEM pipeline register signals
@@ -194,7 +194,7 @@ module svc_rv #(
   logic [XLEN-1:0] pc_plus4_mem;
   logic [XLEN-1:0] jb_target_mem;
   logic [XLEN-1:0] csr_rdata_mem;
-  logic [XLEN-1:0] zmmul_result_mem;
+  logic [XLEN-1:0] m_result_mem;
   logic [XLEN-1:0] result_mem;
 
 
@@ -210,7 +210,7 @@ module svc_rv #(
   logic [XLEN-1:0] jb_target_wb;
   logic [XLEN-1:0] csr_rdata_wb;
   logic [     2:0] funct3_wb;
-  logic [XLEN-1:0] zmmul_result_wb;
+  logic [XLEN-1:0] m_result_wb;
 
   //
   // WB stage signals
@@ -393,8 +393,8 @@ module svc_rv #(
   // Instruction Decode
   //
   svc_rv_idec #(
-      .XLEN     (XLEN),
-      .EXT_ZMMUL(EXT_ZMMUL)
+      .XLEN (XLEN),
+      .EXT_M(EXT_ZMMUL)
   ) idec (
       .instr        (instr_id),
       .reg_write    (reg_write_id),
@@ -408,7 +408,7 @@ module svc_rv #(
       .is_branch    (is_branch_id),
       .is_jump      (is_jump_id),
       .jb_target_src(jb_target_src_id),
-      .is_zmmul     (is_zmmul_id),
+      .is_m         (is_m_id),
       .rd           (rd_id),
       .rs1          (rs1_id),
       .rs2          (rs2_id),
@@ -462,13 +462,13 @@ module svc_rv #(
   logic is_csr_ex;
   logic is_load_mem;
   logic is_csr_mem;
-  logic is_zmmul_mem;
+  logic is_m_mem;
 
-  assign is_load_ex   = (res_src_ex == RES_MEM);
-  assign is_csr_ex    = (res_src_ex == RES_CSR);
-  assign is_load_mem  = (res_src_mem == RES_MEM);
-  assign is_csr_mem   = (res_src_mem == RES_CSR);
-  assign is_zmmul_mem = (res_src_mem == RES_ZMMUL);
+  assign is_load_ex  = (res_src_ex == RES_MEM);
+  assign is_csr_ex   = (res_src_ex == RES_CSR);
+  assign is_load_mem = (res_src_mem == RES_MEM);
+  assign is_csr_mem  = (res_src_mem == RES_CSR);
+  assign is_m_mem    = (res_src_mem == RES_M);
 
   //
   // Hazard Detection Unit
@@ -561,7 +561,7 @@ module svc_rv #(
       .is_branch_id    (is_branch_id),
       .is_jump_id      (is_jump_id),
       .jb_target_src_id(jb_target_src_id),
-      .is_zmmul_id     (is_zmmul_id),
+      .is_m_id         (is_m_id),
       .instr_id        (instr_id),
       .rd_id           (rd_id),
       .rs1_id          (rs1_id),
@@ -586,7 +586,7 @@ module svc_rv #(
       .is_branch_ex    (is_branch_ex),
       .is_jump_ex      (is_jump_ex),
       .jb_target_src_ex(jb_target_src_ex),
-      .is_zmmul_ex     (is_zmmul_ex),
+      .is_m_ex         (is_m_ex),
       .instr_ex        (instr_ex),
       .rd_ex           (rd_ex),
       .rs1_ex          (rs1_ex),
@@ -624,7 +624,7 @@ module svc_rv #(
   // Select the actual result in MEM stage based on res_src_mem.
   // This unified result is forwarded to resolve data hazards.
   //
-  assign result_mem = is_zmmul_mem ? zmmul_result_mem : alu_result_mem;
+  assign result_mem = is_m_mem ? m_result_mem : alu_result_mem;
 
   svc_rv_forward #(
       .XLEN    (XLEN),
@@ -692,24 +692,24 @@ module svc_rv #(
   );
 
   //
-  // Zmmul Extension Unit
+  // M Extension Unit
   //
-  if (EXT_ZMMUL != 0) begin : g_zmmul
+  if (EXT_ZMMUL != 0) begin : g_m_ext
     svc_rv_ext_zmmul ext_zmmul (
         .clk         (clk),
         .rst_n       (rst_n),
-        .en          (is_zmmul_ex),
+        .en          (is_m_ex),
         .rs1         (rs1_fwd_ex),
         .rs2         (rs2_fwd_ex),
         .op          (funct3_ex),
-        .busy        (zmmul_busy_ex),
-        .result      (zmmul_result_ex),
-        .result_valid(zmmul_result_valid_ex)
+        .busy        (m_busy_ex),
+        .result      (m_result_ex),
+        .result_valid(m_result_valid_ex)
     );
-  end else begin : g_no_zmmul
-    assign zmmul_result_ex       = '0;
-    assign zmmul_result_valid_ex = 1'b0;
-    assign zmmul_busy_ex         = 1'b0;
+  end else begin : g_no_m_ext
+    assign m_result_ex       = '0;
+    assign m_result_valid_ex = 1'b0;
+    assign m_busy_ex         = 1'b0;
   end
 
   //
@@ -870,36 +870,36 @@ module svc_rv #(
       .rst_n(rst_n),
 
       // EX stage inputs
-      .reg_write_ex   (reg_write_ex),
-      .mem_read_ex    (mem_read_ex),
-      .mem_write_ex   (mem_write_ex),
-      .res_src_ex     (res_src_ex),
-      .instr_ex       (instr_ex),
-      .rd_ex          (rd_ex),
-      .rs2_ex         (rs2_ex),
-      .funct3_ex      (funct3_ex),
-      .alu_result_ex  (alu_result_ex),
-      .rs2_data_ex    (rs2_fwd_ex),
-      .pc_plus4_ex    (pc_plus4_ex),
-      .jb_target_ex   (jb_target_ex),
-      .csr_rdata_ex   (csr_rdata_ex),
-      .zmmul_result_ex(zmmul_result_ex),
+      .reg_write_ex (reg_write_ex),
+      .mem_read_ex  (mem_read_ex),
+      .mem_write_ex (mem_write_ex),
+      .res_src_ex   (res_src_ex),
+      .instr_ex     (instr_ex),
+      .rd_ex        (rd_ex),
+      .rs2_ex       (rs2_ex),
+      .funct3_ex    (funct3_ex),
+      .alu_result_ex(alu_result_ex),
+      .rs2_data_ex  (rs2_fwd_ex),
+      .pc_plus4_ex  (pc_plus4_ex),
+      .jb_target_ex (jb_target_ex),
+      .csr_rdata_ex (csr_rdata_ex),
+      .m_result_ex  (m_result_ex),
 
       // MEM stage outputs
-      .reg_write_mem   (reg_write_mem),
-      .mem_read_mem    (mem_read_mem),
-      .mem_write_mem   (mem_write_mem),
-      .res_src_mem     (res_src_mem),
-      .instr_mem       (instr_mem),
-      .rd_mem          (rd_mem),
-      .rs2_mem         (rs2_mem),
-      .funct3_mem      (funct3_mem),
-      .alu_result_mem  (alu_result_mem),
-      .rs2_data_mem    (rs2_data_mem),
-      .pc_plus4_mem    (pc_plus4_mem),
-      .jb_target_mem   (jb_target_mem),
-      .csr_rdata_mem   (csr_rdata_mem),
-      .zmmul_result_mem(zmmul_result_mem)
+      .reg_write_mem (reg_write_mem),
+      .mem_read_mem  (mem_read_mem),
+      .mem_write_mem (mem_write_mem),
+      .res_src_mem   (res_src_mem),
+      .instr_mem     (instr_mem),
+      .rd_mem        (rd_mem),
+      .rs2_mem       (rs2_mem),
+      .funct3_mem    (funct3_mem),
+      .alu_result_mem(alu_result_mem),
+      .rs2_data_mem  (rs2_data_mem),
+      .pc_plus4_mem  (pc_plus4_mem),
+      .jb_target_mem (jb_target_mem),
+      .csr_rdata_mem (csr_rdata_mem),
+      .m_result_mem  (m_result_mem)
   );
 
   //
@@ -987,7 +987,7 @@ module svc_rv #(
       .pc_plus4_mem      (pc_plus4_mem),
       .jb_target_mem     (jb_target_mem),
       .csr_rdata_mem     (csr_rdata_mem),
-      .zmmul_result_mem  (zmmul_result_mem),
+      .m_result_mem      (m_result_mem),
 
       // WB stage outputs
       .reg_write_wb     (reg_write_wb),
@@ -1000,7 +1000,7 @@ module svc_rv #(
       .pc_plus4_wb      (pc_plus4_wb),
       .jb_target_wb     (jb_target_wb),
       .csr_rdata_wb     (csr_rdata_wb),
-      .zmmul_result_wb  (zmmul_result_wb)
+      .m_result_wb      (m_result_wb)
   );
 
   //----------------------------------------------------------------------------
@@ -1028,7 +1028,7 @@ module svc_rv #(
   ) mux_res (
       .sel(res_src_wb),
       .data({
-        zmmul_result_wb,
+        m_result_wb,
         csr_rdata_wb,
         jb_target_wb,
         pc_plus4_wb,
@@ -1047,8 +1047,8 @@ module svc_rv #(
   //
   `SVC_UNUSED({IMEM_AW, DMEM_AW, pc, pc_plus4, pc_id[1:0], pc_ex[1:0],
                funct7_id[6], funct7_id[4:0], funct7_ex[6], funct7_ex[4:0],
-               rs1_ex, rs2_ex, instr_ex, rs2_mem, is_zmmul_ex,
-               zmmul_result_valid_ex, zmmul_busy_ex});
+               rs1_ex, rs2_ex, instr_ex, rs2_mem, is_m_ex, m_result_valid_ex,
+               m_busy_ex});
 
 endmodule
 
