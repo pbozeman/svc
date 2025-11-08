@@ -18,8 +18,8 @@
 // pipeline placement for timing closure.
 //
 module svc_rv_idec #(
-    parameter int XLEN      = 32,
-    parameter int EXT_ZMMUL = 0
+    parameter int XLEN  = 32,
+    parameter int EXT_M = 0
 ) (
     input logic [31:0] instr,
 
@@ -34,7 +34,7 @@ module svc_rv_idec #(
     output logic       is_branch,
     output logic       is_jump,
     output logic       jb_target_src,
-    output logic       is_zmmul,
+    output logic       is_m,
 
     output logic [4:0] rd,
     output logic [4:0] rs1,
@@ -162,10 +162,10 @@ module svc_rv_idec #(
       res_src, imm_type, is_branch, is_jump, jb_target_src } = c;
 
     //
-    // Override res_src for Zmmul instructions
+    // Override res_src for M extension instructions
     //
-    if (is_zmmul) begin
-      res_src = RES_ZMMUL;
+    if (is_m) begin
+      res_src = RES_M;
     end
 
   end
@@ -187,14 +187,14 @@ module svc_rv_idec #(
   // verilog_format: on
 
   //
-  // Zmmul extension detection
+  // M extension detection
   //
-  // Zmmul instructions are R-type with funct7[0] = 1
+  // M extension instructions are R-type with funct7[0] = 1
   //
-  if (EXT_ZMMUL != 0) begin : g_zmmul
-    assign is_zmmul = (opcode == OP_RTYPE) && (funct7[0] == 1'b1);
-  end else begin : g_no_zmmul
-    assign is_zmmul = 1'b0;
+  if (EXT_M != 0) begin : g_m_ext
+    assign is_m = (opcode == OP_RTYPE) && (funct7[0] == 1'b1);
+  end else begin : g_no_m_ext
+    assign is_m = 1'b0;
   end
 
 endmodule

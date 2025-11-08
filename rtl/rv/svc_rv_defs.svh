@@ -99,12 +99,12 @@ localparam logic [1:0] ALU_INSTR_SUB = 2'b01;
 localparam logic [1:0] ALU_INSTR_FN3 = 2'b10;
 
 // res_src values
-localparam logic [2:0] RES_ALU   = 3'b000;
-localparam logic [2:0] RES_MEM   = 3'b001;
-localparam logic [2:0] RES_PC4   = 3'b010;
-localparam logic [2:0] RES_TGT   = 3'b011;
-localparam logic [2:0] RES_CSR   = 3'b100;
-localparam logic [2:0] RES_ZMMUL = 3'b101;
+localparam logic [2:0] RES_ALU = 3'b000;
+localparam logic [2:0] RES_MEM = 3'b001;
+localparam logic [2:0] RES_PC4 = 3'b010;
+localparam logic [2:0] RES_TGT = 3'b011;
+localparam logic [2:0] RES_CSR = 3'b100;
+localparam logic [2:0] RES_M   = 3'b101;
 
 // imm_type values
 localparam logic [2:0] IMM_I = 3'b000;

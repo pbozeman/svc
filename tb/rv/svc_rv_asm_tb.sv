@@ -31,7 +31,7 @@ module svc_rv_asm_tb;
   logic        is_branch;
   logic        is_jump;
   logic        jb_target_src;
-  logic        is_zmmul;
+  logic        is_m;
   logic [ 4:0] rd;
   logic [ 4:0] rs1;
   logic [ 4:0] rs2;
@@ -60,7 +60,7 @@ module svc_rv_asm_tb;
       .is_branch    (is_branch),
       .is_jump      (is_jump),
       .jb_target_src(jb_target_src),
-      .is_zmmul     (is_zmmul),
+      .is_m         (is_m),
       .rd           (rd),
       .rs1          (rs1),
       .rs2          (rs2),
