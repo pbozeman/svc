@@ -14,11 +14,11 @@ module svc_unit_reset_tb;
   task setup();
   endtask
 
-  task test_no_setup();
+  task automatic test_no_setup();
     `CHECK_TRUE(reset_happened);
   endtask
 
-  task test_setup();
+  task automatic test_setup();
     `CHECK_TRUE(reset_happened);
   endtask
 

@@ -8,7 +8,7 @@ module svc_unit_tb;
     clk_cnt <= clk_cnt + 1;
   end
 
-  task test_clk();
+  task automatic test_clk();
     // This is dependent on being the first test case
     `CHECK_EQ(clk_cnt, 0);
     repeat (4) `TICK(clk);
@@ -20,15 +20,15 @@ module svc_unit_tb;
     setup_ran = 1'b1;
   endtask
 
-  task test_no_setup();
+  task automatic test_no_setup();
     `CHECK_FALSE(setup_ran);
   endtask
 
-  task test_setup();
+  task automatic test_setup();
     `CHECK_TRUE(setup_ran);
   endtask
 
-  task test_another();
+  task automatic test_another();
     `TICK(clk);
     `CHECK_EQ(1, 1);
   endtask
