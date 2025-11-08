@@ -14,6 +14,7 @@ module svc_rv_hazard_tb;
   logic       reg_write_ex;
   logic       is_load_ex;
   logic       is_csr_ex;
+  logic       op_active_ex;
   logic [4:0] rd_mem;
   logic       reg_write_mem;
   logic       is_load_mem;
@@ -28,6 +29,8 @@ module svc_rv_hazard_tb;
   logic       if_id_flush;
   // verilator lint_off UNUSEDSIGNAL
   logic       id_ex_stall;
+  logic       ex_mem_stall;
+  logic       mem_wb_stall;
   // verilator lint_on UNUSEDSIGNAL
   logic       id_ex_flush;
 
@@ -44,6 +47,7 @@ module svc_rv_hazard_tb;
       .reg_write_ex   (reg_write_ex),
       .is_load_ex     (is_load_ex),
       .is_csr_ex      (is_csr_ex),
+      .op_active_ex   (op_active_ex),
       .rd_mem         (rd_mem),
       .reg_write_mem  (reg_write_mem),
       .is_load_mem    (is_load_mem),
@@ -57,7 +61,9 @@ module svc_rv_hazard_tb;
       .if_id_stall    (if_id_stall),
       .if_id_flush    (if_id_flush),
       .id_ex_stall    (id_ex_stall),
-      .id_ex_flush    (id_ex_flush)
+      .id_ex_flush    (id_ex_flush),
+      .ex_mem_stall   (ex_mem_stall),
+      .mem_wb_stall   (mem_wb_stall)
   );
 
   task automatic test_reset;
@@ -70,6 +76,7 @@ module svc_rv_hazard_tb;
     reg_write_ex    = 1'b0;
     is_load_ex      = 1'b0;
     is_csr_ex       = 1'b0;
+    op_active_ex    = 1'b0;
     rd_mem          = 5'd0;
     reg_write_mem   = 1'b0;
     is_load_mem     = 1'b0;
@@ -124,6 +131,7 @@ module svc_rv_hazard_tb;
     reg_write_ex    = 1'b1;
     is_load_ex      = 1'b0;
     is_csr_ex       = 1'b0;
+    op_active_ex    = 1'b0;
     rd_mem          = 5'd0;
     reg_write_mem   = 1'b0;
     is_load_mem     = 1'b0;
@@ -151,6 +159,7 @@ module svc_rv_hazard_tb;
     reg_write_ex    = 1'b1;
     is_load_ex      = 1'b0;
     is_csr_ex       = 1'b0;
+    op_active_ex    = 1'b0;
     rd_mem          = 5'd0;
     reg_write_mem   = 1'b0;
     is_load_mem     = 1'b0;
@@ -286,6 +295,7 @@ module svc_rv_hazard_tb;
     reg_write_ex    = 1'b0;
     is_load_ex      = 1'b0;
     is_csr_ex       = 1'b0;
+    op_active_ex    = 1'b0;
     rd_mem          = 5'd0;
     reg_write_mem   = 1'b0;
     is_load_mem     = 1'b0;
@@ -316,6 +326,7 @@ module svc_rv_hazard_tb;
     reg_write_ex    = 1'b1;
     is_load_ex      = 1'b0;
     is_csr_ex       = 1'b0;
+    op_active_ex    = 1'b0;
     rd_mem          = 5'd0;
     reg_write_mem   = 1'b0;
     is_load_mem     = 1'b0;
@@ -343,6 +354,7 @@ module svc_rv_hazard_tb;
     reg_write_ex    = 1'b1;
     is_load_ex      = 1'b0;
     is_csr_ex       = 1'b0;
+    op_active_ex    = 1'b0;
     rd_mem          = 5'd0;
     reg_write_mem   = 1'b0;
     is_load_mem     = 1'b0;

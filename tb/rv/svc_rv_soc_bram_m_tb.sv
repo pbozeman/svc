@@ -83,6 +83,7 @@ module svc_rv_soc_bram_m_tb;
   `include "svc_rv_soc_cpu_dbg.svh"
   `include "svc_rv_soc_test_defs.svh"
   `include "svc_rv_soc_test_defs_m.svh"
+  `include "svc_rv_soc_test_defs_d.svh"
 
   //
   // Test suite
@@ -90,6 +91,7 @@ module svc_rv_soc_bram_m_tb;
   `TEST_SUITE_BEGIN(svc_rv_soc_bram_m_tb, 100000);
   `include "svc_rv_soc_test_list.svh"
   `include "svc_rv_soc_test_list_m.svh"
+  `include "svc_rv_soc_test_list_d.svh"
   `TEST_SUITE_END();
 
 endmodule

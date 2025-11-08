@@ -23,6 +23,11 @@ module svc_rv_reg_mem_wb #(
     input logic rst_n,
 
     //
+    // Hazard control
+    //
+    input logic stall,
+
+    //
     // MEM stage inputs (control signals)
     //
     input logic       reg_write_mem,
@@ -69,7 +74,7 @@ module svc_rv_reg_mem_wb #(
       if (!rst_n) begin
         reg_write_wb <= '0;
         funct3_wb    <= '0;
-      end else begin
+      end else if (!stall) begin
         reg_write_wb <= reg_write_mem;
         funct3_wb    <= funct3_mem;
       end
@@ -81,7 +86,7 @@ module svc_rv_reg_mem_wb #(
     always_ff @(posedge clk) begin
       if (!rst_n) begin
         instr_wb <= 32'h00000013;
-      end else begin
+      end else if (!stall) begin
         instr_wb <= instr_mem;
       end
     end
@@ -90,14 +95,16 @@ module svc_rv_reg_mem_wb #(
     // Datapath signals without reset
     //
     always_ff @(posedge clk) begin
-      res_src_wb        <= res_src_mem;
-      rd_wb             <= rd_mem;
-      alu_result_wb     <= alu_result_mem;
-      dmem_rdata_ext_wb <= dmem_rdata_ext_mem;
-      pc_plus4_wb       <= pc_plus4_mem;
-      jb_target_wb      <= jb_target_mem;
-      csr_rdata_wb      <= csr_rdata_mem;
-      m_result_wb       <= m_result_mem;
+      if (!stall) begin
+        res_src_wb        <= res_src_mem;
+        rd_wb             <= rd_mem;
+        alu_result_wb     <= alu_result_mem;
+        dmem_rdata_ext_wb <= dmem_rdata_ext_mem;
+        pc_plus4_wb       <= pc_plus4_mem;
+        jb_target_wb      <= jb_target_mem;
+        csr_rdata_wb      <= csr_rdata_mem;
+        m_result_wb       <= m_result_mem;
+      end
     end
   end else begin : g_passthrough
     assign reg_write_wb      = reg_write_mem;
@@ -112,7 +119,7 @@ module svc_rv_reg_mem_wb #(
     assign csr_rdata_wb      = csr_rdata_mem;
     assign m_result_wb       = m_result_mem;
 
-    `SVC_UNUSED({clk, rst_n});
+    `SVC_UNUSED({clk, rst_n, stall});
   end
 
 endmodule
