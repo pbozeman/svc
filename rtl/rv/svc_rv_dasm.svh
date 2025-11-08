@@ -80,11 +80,17 @@ function automatic string dasm_inst(input logic [31:0] instr);
           if (funct7 == 7'b0000000) begin
             return $sformatf("%6s %3s, %3s, %3s", "sll", reg_name(rd), reg_name(rs1),
                              reg_name(rs2));
+          end else if (funct7 == 7'b0000001) begin
+            return $sformatf("%6s %3s, %3s, %3s", "mulh", reg_name(rd), reg_name(rs1),
+                             reg_name(rs2));
           end
         end
         3'b010: begin
           if (funct7 == 7'b0000000) begin
             return $sformatf("%6s %3s, %3s, %3s", "slt", reg_name(rd), reg_name(rs1),
+                             reg_name(rs2));
+          end else if (funct7 == 7'b0000001) begin
+            return $sformatf("%6s %3s, %3s, %3s", "mulhsu", reg_name(rd), reg_name(rs1),
                              reg_name(rs2));
           end
         end
@@ -92,11 +98,17 @@ function automatic string dasm_inst(input logic [31:0] instr);
           if (funct7 == 7'b0000000) begin
             return $sformatf("%6s %3s, %3s, %3s", "sltu", reg_name(rd), reg_name(rs1),
                              reg_name(rs2));
+          end else if (funct7 == 7'b0000001) begin
+            return $sformatf("%6s %3s, %3s, %3s", "mulhu", reg_name(rd), reg_name(rs1),
+                             reg_name(rs2));
           end
         end
         3'b100: begin
           if (funct7 == 7'b0000000) begin
             return $sformatf("%6s %3s, %3s, %3s", "xor", reg_name(rd), reg_name(rs1),
+                             reg_name(rs2));
+          end else if (funct7 == 7'b0000001) begin
+            return $sformatf("%6s %3s, %3s, %3s", "div", reg_name(rd), reg_name(rs1),
                              reg_name(rs2));
           end
         end
@@ -107,17 +119,26 @@ function automatic string dasm_inst(input logic [31:0] instr);
           end else if (funct7 == 7'b0100000) begin
             return $sformatf("%6s %3s, %3s, %3s", "sra", reg_name(rd), reg_name(rs1),
                              reg_name(rs2));
+          end else if (funct7 == 7'b0000001) begin
+            return $sformatf("%6s %3s, %3s, %3s", "divu", reg_name(rd), reg_name(rs1),
+                             reg_name(rs2));
           end
         end
         3'b110: begin
           if (funct7 == 7'b0000000) begin
             return $sformatf("%6s %3s, %3s, %3s", "or", reg_name(rd), reg_name(rs1),
                              reg_name(rs2));
+          end else if (funct7 == 7'b0000001) begin
+            return $sformatf("%6s %3s, %3s, %3s", "rem", reg_name(rd), reg_name(rs1),
+                             reg_name(rs2));
           end
         end
         3'b111: begin
           if (funct7 == 7'b0000000) begin
             return $sformatf("%6s %3s, %3s, %3s", "and", reg_name(rd), reg_name(rs1),
+                             reg_name(rs2));
+          end else if (funct7 == 7'b0000001) begin
+            return $sformatf("%6s %3s, %3s, %3s", "remu", reg_name(rd), reg_name(rs1),
                              reg_name(rs2));
           end
         end
