@@ -10,6 +10,7 @@
 `include "svc_rv_bcmp.sv"
 `include "svc_rv_csr.sv"
 `include "svc_rv_ext_zmmul.sv"
+`include "svc_rv_ext_m.sv"
 `include "svc_rv_forward.sv"
 `include "svc_rv_hazard.sv"
 `include "svc_rv_idec.sv"
@@ -36,7 +37,8 @@ module svc_rv #(
     parameter int FWD         = 0,
     parameter int MEM_TYPE    = 0,
     parameter int BPRED       = 0,
-    parameter int EXT_ZMMUL   = 0
+    parameter int EXT_ZMMUL   = 0,
+    parameter int EXT_M       = 0
 ) (
     input logic clk,
     input logic rst_n,
@@ -81,6 +83,9 @@ module svc_rv #(
     end
     if ((BPRED == 1) && (PIPELINED == 0)) begin
       $fatal(1, "BPRED=1 requires PIPELINED=1");
+    end
+    if ((EXT_ZMMUL == 1) && (EXT_M == 1)) begin
+      $fatal(1, "EXT_ZMMUL and EXT_M are mutually exclusive");
     end
   end
 
@@ -394,7 +399,7 @@ module svc_rv #(
   //
   svc_rv_idec #(
       .XLEN (XLEN),
-      .EXT_M(EXT_ZMMUL)
+      .EXT_M(EXT_ZMMUL | EXT_M)
   ) idec (
       .instr        (instr_id),
       .reg_write    (reg_write_id),
@@ -696,6 +701,18 @@ module svc_rv #(
   //
   if (EXT_ZMMUL != 0) begin : g_m_ext
     svc_rv_ext_zmmul ext_zmmul (
+        .clk         (clk),
+        .rst_n       (rst_n),
+        .en          (is_m_ex),
+        .rs1         (rs1_fwd_ex),
+        .rs2         (rs2_fwd_ex),
+        .op          (funct3_ex),
+        .busy        (m_busy_ex),
+        .result      (m_result_ex),
+        .result_valid(m_result_valid_ex)
+    );
+  end else if (EXT_M != 0) begin : g_m_ext
+    svc_rv_ext_m ext_m (
         .clk         (clk),
         .rst_n       (rst_n),
         .en          (is_m_ex),
