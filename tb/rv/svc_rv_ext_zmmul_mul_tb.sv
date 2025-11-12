@@ -11,9 +11,9 @@ module svc_rv_ext_zmmul_mul_tb;
   logic [ 2:0] op;
   logic        busy;
   logic [31:0] result;
-  logic        result_valid;
 
   svc_rv_ext_zmmul dut (.*);
+
 
   //
   // Initialize inputs
@@ -32,7 +32,6 @@ module svc_rv_ext_zmmul_mul_tb;
     en = 1'b0;
     `TICK(clk);
     `CHECK_EQ(busy, 1'b0);
-    `CHECK_EQ(result_valid, 1'b0);
   endtask
 
   //
@@ -45,12 +44,10 @@ module svc_rv_ext_zmmul_mul_tb;
     op  = 3'b000;
     `TICK(clk);
     `CHECK_EQ(result, 32'd42);
-    `CHECK_EQ(result_valid, 1'b1);
     `CHECK_EQ(busy, 1'b0);
 
     en = 1'b0;
     `TICK(clk);
-    `CHECK_EQ(result_valid, 1'b0);
   endtask
 
   task automatic test_mul_negative;
@@ -60,7 +57,6 @@ module svc_rv_ext_zmmul_mul_tb;
     op  = 3'b000;
     `TICK(clk);
     `CHECK_EQ($signed(result), -32'sd42);
-    `CHECK_EQ(result_valid, 1'b1);
   endtask
 
   task automatic test_mul_overflow;
@@ -70,7 +66,6 @@ module svc_rv_ext_zmmul_mul_tb;
     op  = 3'b000;
     `TICK(clk);
     `CHECK_EQ(result, 32'h0000_0000);
-    `CHECK_EQ(result_valid, 1'b1);
   endtask
 
   //
@@ -83,7 +78,6 @@ module svc_rv_ext_zmmul_mul_tb;
     op  = 3'b001;
     `TICK(clk);
     `CHECK_EQ($signed(result), -32'sd1);
-    `CHECK_EQ(result_valid, 1'b1);
   endtask
 
   task automatic test_mulh_large;
@@ -93,7 +87,6 @@ module svc_rv_ext_zmmul_mul_tb;
     op  = 3'b001;
     `TICK(clk);
     `CHECK_EQ(result, 32'h3FFF_FFFF);
-    `CHECK_EQ(result_valid, 1'b1);
   endtask
 
   //
@@ -106,7 +99,6 @@ module svc_rv_ext_zmmul_mul_tb;
     op  = 3'b010;
     `TICK(clk);
     `CHECK_EQ(result, 32'd99);
-    `CHECK_EQ(result_valid, 1'b1);
   endtask
 
   task automatic test_mulhsu_negative_unsigned;
@@ -116,7 +108,6 @@ module svc_rv_ext_zmmul_mul_tb;
     op  = 3'b010;
     `TICK(clk);
     `CHECK_EQ($signed(result), -32'sd100);
-    `CHECK_EQ(result_valid, 1'b1);
   endtask
 
   //
@@ -129,7 +120,6 @@ module svc_rv_ext_zmmul_mul_tb;
     op  = 3'b011;
     `TICK(clk);
     `CHECK_EQ(result, 32'hFFFF_FFFE);
-    `CHECK_EQ(result_valid, 1'b1);
   endtask
 
   task automatic test_mulhu_half_max;
@@ -139,7 +129,6 @@ module svc_rv_ext_zmmul_mul_tb;
     op  = 3'b011;
     `TICK(clk);
     `CHECK_EQ(result, 32'h4000_0000);
-    `CHECK_EQ(result_valid, 1'b1);
   endtask
 
   //
@@ -152,7 +141,6 @@ module svc_rv_ext_zmmul_mul_tb;
     op  = 3'b000;
     `TICK(clk);
     `CHECK_EQ(result, 32'h0000_0000);
-    `CHECK_EQ(result_valid, 1'b1);
   endtask
 
   //
@@ -165,28 +153,18 @@ module svc_rv_ext_zmmul_mul_tb;
     op  = 3'b000;
     `TICK(clk);
     `CHECK_EQ(result, 32'hDEAD_BEEF);
-    `CHECK_EQ(result_valid, 1'b1);
   endtask
 
   //
-  // Test that result_valid follows en
+  // Test combinational multiply timing
   //
   task automatic test_valid_timing;
-    en  = 1'b0;
+    en  = 1'b1;
     rs1 = 32'd10;
     rs2 = 32'd20;
     op  = 3'b000;
     `TICK(clk);
-    `CHECK_EQ(result_valid, 1'b0);
-
-    en = 1'b1;
-    `TICK(clk);
-    `CHECK_EQ(result_valid, 1'b1);
     `CHECK_EQ(result, 32'd200);
-
-    en = 1'b0;
-    `TICK(clk);
-    `CHECK_EQ(result_valid, 1'b0);
   endtask
 
   `TEST_SUITE_BEGIN(svc_rv_ext_zmmul_mul_tb);

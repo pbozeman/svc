@@ -45,6 +45,8 @@ parameter:
 - **svc_rv.sv** - Complete RISC-V core with configurable pipeline
   - Parameters: XLEN, IMEM_AW, DMEM_AW, PIPELINED, FWD_REGFILE, MEM_TYPE
   - Interfaces: instruction memory (read-only), data memory (read/write)
+  - Architecture: Stage-based organization with dedicated modules per pipeline
+    stage
 
 ### SoC Integration
 
@@ -59,15 +61,49 @@ parameter:
   - Supports both combinational and pipelined modes
   - Zero-latency SRAM reads
 
-### Pipeline Registers
+### Pipeline Stage Modules
 
-Pipeline register modules inserted between stages when PIPELINED=1:
+The processor pipeline is organized into dedicated stage modules that
+encapsulate all logic for each pipeline stage:
 
-- **svc_rv_reg_pc_if.sv** - PC to IF stage register
-- **svc_rv_reg_if_id.sv** - IF to ID stage register
-- **svc_rv_reg_id_ex.sv** - ID to EX stage register
-- **svc_rv_reg_ex_mem.sv** - EX to MEM stage register
-- **svc_rv_reg_mem_wb.sv** - MEM to WB stage register
+- **svc_rv_stage_if.sv** - Instruction Fetch stage
+
+  - PC management and generation
+  - Instruction memory interface
+  - Memory-type specific fetch adapters (SRAM/BRAM)
+  - IF/ID pipeline register
+  - Branch prediction target input
+
+- **svc_rv_stage_id.sv** - Instruction Decode stage
+
+  - Instruction decoder (instantiates svc_rv_idec.sv)
+  - Register file (instantiates svc_rv_regfile.sv)
+  - Immediate value generation
+  - Branch prediction logic (static BTFNT)
+  - ID/EX pipeline register
+
+- **svc_rv_stage_ex.sv** - Execute stage
+
+  - ALU operations (instantiates svc_rv_alu.sv)
+  - Branch comparator (instantiates svc_rv_bcmp.sv)
+  - Jump/branch target calculation
+  - CSR operations (instantiates svc_rv_csr.sv)
+  - M extension support (instantiates svc_rv_ext_m.sv or svc_rv_ext_zmmul.sv)
+  - Data forwarding (instantiates svc_rv_forward.sv)
+  - Multi-cycle operation control
+  - EX/MEM pipeline register
+
+- **svc_rv_stage_mem.sv** - Memory Access stage
+
+  - Load data formatting (instantiates svc_rv_ld_fmt.sv)
+  - Store data formatting (instantiates svc_rv_st_fmt.sv)
+  - Data memory interface
+  - MEM/WB pipeline register
+
+- **svc_rv_stage_wb.sv** - Write-Back stage
+  - Final result selection mux
+  - EBREAK detection
+  - Register write-back to ID stage
 
 ### Functional Units
 

@@ -20,12 +20,12 @@ task automatic test_div_basic;
   load_program();
 
   `CHECK_WAIT_FOR_EBREAK(clk, 256);
-  `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd20);
-  `CHECK_EQ(uut.cpu.regfile.regs[2], 32'd3);
-  `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd6);
-  `CHECK_EQ(uut.cpu.regfile.regs[4], 32'hFFFFFFEC);
-  `CHECK_EQ($signed(uut.cpu.regfile.regs[5]), -32'sd6);
-  `CHECK_EQ($signed(uut.cpu.regfile.regs[6]), -32'sd1);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[1], 32'd20);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[2], 32'd3);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'd6);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[4], 32'hFFFFFFEC);
+  `CHECK_EQ($signed(uut.cpu.stage_id.regfile.regs[5]), -32'sd6);
+  `CHECK_EQ($signed(uut.cpu.stage_id.regfile.regs[6]), -32'sd1);
 endtask
 
 //
@@ -43,8 +43,8 @@ task automatic test_divu_basic;
   load_program();
 
   `CHECK_WAIT_FOR_EBREAK(clk);
-  `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd6);
-  `CHECK_EQ(uut.cpu.regfile.regs[6], 32'h7FFFFFFF);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'd6);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[6], 32'h7FFFFFFF);
 endtask
 
 //
@@ -62,9 +62,9 @@ task automatic test_rem_basic;
   load_program();
 
   `CHECK_WAIT_FOR_EBREAK(clk);
-  `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd2);
-  `CHECK_EQ($signed(uut.cpu.regfile.regs[5]), -32'sd2);
-  `CHECK_EQ(uut.cpu.regfile.regs[6], 32'd0);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'd2);
+  `CHECK_EQ($signed(uut.cpu.stage_id.regfile.regs[5]), -32'sd2);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[6], 32'd0);
 endtask
 
 //
@@ -82,8 +82,8 @@ task automatic test_remu_basic;
   load_program();
 
   `CHECK_WAIT_FOR_EBREAK(clk);
-  `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd2);
-  `CHECK_EQ(uut.cpu.regfile.regs[6], 32'd1);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'd2);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[6], 32'd1);
 endtask
 
 //
@@ -100,10 +100,10 @@ task automatic test_div_by_zero;
   load_program();
 
   `CHECK_WAIT_FOR_EBREAK(clk);
-  `CHECK_EQ(uut.cpu.regfile.regs[2], 32'hFFFFFFFF);
-  `CHECK_EQ(uut.cpu.regfile.regs[3], 32'hFFFFFFFF);
-  `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd10);
-  `CHECK_EQ(uut.cpu.regfile.regs[5], 32'd10);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[2], 32'hFFFFFFFF);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'hFFFFFFFF);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[4], 32'd10);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[5], 32'd10);
 endtask
 
 //
@@ -119,8 +119,8 @@ task automatic test_div_overflow;
   load_program();
 
   `CHECK_WAIT_FOR_EBREAK(clk);
-  `CHECK_EQ(uut.cpu.regfile.regs[3], 32'h80000000);
-  `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd0);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'h80000000);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[4], 32'd0);
 endtask
 
 //
@@ -137,9 +137,9 @@ task automatic test_div_raw_dependency;
   load_program();
 
   `CHECK_WAIT_FOR_EBREAK(clk);
-  `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd5);
-  `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd105);
-  `CHECK_EQ(uut.cpu.regfile.regs[5], 32'd1);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'd5);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[4], 32'd105);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[5], 32'd1);
 endtask
 
 //
@@ -157,11 +157,11 @@ task automatic test_div_chained_dependencies;
   load_program();
 
   `CHECK_WAIT_FOR_EBREAK(clk, 512);
-  `CHECK_EQ(uut.cpu.regfile.regs[1], 32'd100);
-  `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd50);
-  `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd25);
-  `CHECK_EQ(uut.cpu.regfile.regs[5], 32'd12);
-  `CHECK_EQ(uut.cpu.regfile.regs[6], 32'd6);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[1], 32'd100);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'd50);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[4], 32'd25);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[5], 32'd12);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[6], 32'd6);
 endtask
 
 //
@@ -179,10 +179,10 @@ task automatic test_div_mixed_ops;
   load_program();
 
   `CHECK_WAIT_FOR_EBREAK(clk);
-  `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd23);
-  `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd6);
-  `CHECK_EQ($signed(uut.cpu.regfile.regs[5]), -32'sd17);
-  `CHECK_EQ(uut.cpu.regfile.regs[6], 32'd2);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'd23);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[4], 32'd6);
+  `CHECK_EQ($signed(uut.cpu.stage_id.regfile.regs[5]), -32'sd17);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[6], 32'd2);
 endtask
 
 //
@@ -200,8 +200,8 @@ task automatic test_mul_div_mixed;
   load_program();
 
   `CHECK_WAIT_FOR_EBREAK(clk, 512);
-  `CHECK_EQ(uut.cpu.regfile.regs[3], 32'd50);
-  `CHECK_EQ(uut.cpu.regfile.regs[4], 32'd10);
-  `CHECK_EQ(uut.cpu.regfile.regs[5], 32'd5);
-  `CHECK_EQ(uut.cpu.regfile.regs[6], 32'd0);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'd50);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[4], 32'd10);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[5], 32'd5);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[6], 32'd0);
 endtask

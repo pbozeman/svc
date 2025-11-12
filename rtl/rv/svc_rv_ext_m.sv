@@ -33,8 +33,7 @@ module svc_rv_ext_m (
     input  logic [ 2:0] op,
     output logic        busy,
 
-    output logic [31:0] result,
-    output logic        result_valid
+    output logic [31:0] result
 );
 
   //
@@ -141,26 +140,14 @@ module svc_rv_ext_m (
   always_comb begin
     if (div_zero) begin
       if (div_result_is_rem) begin
-        //
-        // REM/REMU: return dividend
-        //
         div_result = rs1;
       end else begin
-        //
-        // DIV/DIVU: return all 1s
-        //
         div_result = 32'hFFFFFFFF;
       end
     end else begin
       if (div_result_is_rem) begin
-        //
-        // REM/REMU
-        //
         div_result = remainder_signed;
       end else begin
-        //
-        // DIV/DIVU
-        //
         div_result = quotient_signed;
       end
     end
@@ -169,20 +156,12 @@ module svc_rv_ext_m (
   //
   // Output selection
   //
-  // For multiplication: result_valid when en is asserted (combinational)
-  // For division: result_valid comes from divider (valid or div_zero)
+  // Result selection and busy signal
   //
-  logic mul_result_valid;
-  logic div_result_valid_comb;
+  assign result = is_mul ? mul_result : div_result;
+  assign busy   = div_busy;
 
-  assign mul_result_valid      = en && is_mul;
-  assign div_result_valid_comb = div_valid || div_zero;
-
-  assign result                = is_mul ? mul_result : div_result;
-  assign result_valid          = mul_result_valid || div_result_valid_comb;
-  assign busy                  = div_busy;
-
-  `SVC_UNUSED(product[65:64]);
+  `SVC_UNUSED({product[65:64], div_valid, div_zero});
 
 endmodule
 

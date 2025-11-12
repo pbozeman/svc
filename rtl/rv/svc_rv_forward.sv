@@ -39,8 +39,7 @@ module svc_rv_forward #(
     //
     input logic [     4:0] rd_mem,
     input logic            reg_write_mem,
-    input logic            is_load_mem,
-    input logic            is_csr_mem,
+    input logic [     2:0] res_src_mem,
     input logic [XLEN-1:0] result_mem,
     input logic [XLEN-1:0] load_data_mem,
 
@@ -49,18 +48,27 @@ module svc_rv_forward #(
     //
     input logic [     4:0] rd_wb,
     input logic            reg_write_wb,
-    input logic [XLEN-1:0] rd_data,
+    input logic [XLEN-1:0] rd_data_wb,
 
     //
     // Forwarded outputs
     //
-    output logic [XLEN-1:0] rs1_fwd_ex,
-    output logic [XLEN-1:0] rs2_fwd_ex
+    output logic [XLEN-1:0] fwd_rs1_ex,
+    output logic [XLEN-1:0] fwd_rs2_ex
 );
 
   `include "svc_rv_defs.svh"
 
   if (FWD != 0) begin : g_forwarding
+    //
+    // Decode result source to determine forwarding eligibility
+    //
+    logic is_load_mem;
+    logic is_csr_mem;
+
+    assign is_load_mem = (res_src_mem == RES_MEM);
+    assign is_csr_mem  = (res_src_mem == RES_CSR);
+
     //
     // MEM→EX result forwarding (common to both SRAM and BRAM)
     //
@@ -123,19 +131,19 @@ module svc_rv_forward #(
       //
       always_comb begin
         case (1'b1)
-          mem_to_ex_fwd_load_a: rs1_fwd_ex = load_data_mem;
-          mem_to_ex_fwd_a:      rs1_fwd_ex = result_mem;
-          wb_to_ex_fwd_a:       rs1_fwd_ex = rd_data;
-          default:              rs1_fwd_ex = rs1_data_ex;
+          mem_to_ex_fwd_load_a: fwd_rs1_ex = load_data_mem;
+          mem_to_ex_fwd_a:      fwd_rs1_ex = result_mem;
+          wb_to_ex_fwd_a:       fwd_rs1_ex = rd_data_wb;
+          default:              fwd_rs1_ex = rs1_data_ex;
         endcase
       end
 
       always_comb begin
         case (1'b1)
-          mem_to_ex_fwd_load_b: rs2_fwd_ex = load_data_mem;
-          mem_to_ex_fwd_b:      rs2_fwd_ex = result_mem;
-          wb_to_ex_fwd_b:       rs2_fwd_ex = rd_data;
-          default:              rs2_fwd_ex = rs2_data_ex;
+          mem_to_ex_fwd_load_b: fwd_rs2_ex = load_data_mem;
+          mem_to_ex_fwd_b:      fwd_rs2_ex = result_mem;
+          wb_to_ex_fwd_b:       fwd_rs2_ex = rd_data_wb;
+          default:              fwd_rs2_ex = rs2_data_ex;
         endcase
       end
 
@@ -147,17 +155,17 @@ module svc_rv_forward #(
       //
       always_comb begin
         case (1'b1)
-          mem_to_ex_fwd_a: rs1_fwd_ex = result_mem;
-          wb_to_ex_fwd_a:  rs1_fwd_ex = rd_data;
-          default:         rs1_fwd_ex = rs1_data_ex;
+          mem_to_ex_fwd_a: fwd_rs1_ex = result_mem;
+          wb_to_ex_fwd_a:  fwd_rs1_ex = rd_data_wb;
+          default:         fwd_rs1_ex = rs1_data_ex;
         endcase
       end
 
       always_comb begin
         case (1'b1)
-          mem_to_ex_fwd_b: rs2_fwd_ex = result_mem;
-          wb_to_ex_fwd_b:  rs2_fwd_ex = rd_data;
-          default:         rs2_fwd_ex = rs2_data_ex;
+          mem_to_ex_fwd_b: fwd_rs2_ex = result_mem;
+          wb_to_ex_fwd_b:  fwd_rs2_ex = rd_data_wb;
+          default:         fwd_rs2_ex = rs2_data_ex;
         endcase
       end
 
@@ -168,13 +176,13 @@ module svc_rv_forward #(
     //
     // No forwarding, just pass through
     //
-    assign rs1_fwd_ex = rs1_data_ex;
-    assign rs2_fwd_ex = rs2_data_ex;
+    assign fwd_rs1_ex = rs1_data_ex;
+    assign fwd_rs2_ex = rs2_data_ex;
 
     // verilog_format: off
-    `SVC_UNUSED({rs1_ex, rs2_ex, rd_mem, reg_write_mem, is_load_mem,
-                 is_csr_mem, result_mem, load_data_mem, rd_wb, reg_write_wb,
-                 rd_data, MEM_TYPE});
+    `SVC_UNUSED({rs1_ex, rs2_ex, rd_mem, reg_write_mem, res_src_mem,
+                 result_mem, load_data_mem, rd_wb, reg_write_wb, rd_data_wb,
+                 MEM_TYPE});
     // verilog_format: on
   end
 
