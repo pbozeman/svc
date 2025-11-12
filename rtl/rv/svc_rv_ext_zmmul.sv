@@ -26,8 +26,7 @@ module svc_rv_ext_zmmul (
     input  logic [ 2:0] op,
     output logic        busy,
 
-    output logic [31:0] result,
-    output logic        result_valid
+    output logic [31:0] result
 );
 
   //
@@ -43,27 +42,26 @@ module svc_rv_ext_zmmul (
   logic [65:0] product;
   logic [31:0] result_bits;
 
-  assign rs1_ext      = (op[1:0] == 2'b11) ? {1'b0, rs1} : {rs1[31], rs1};
-  assign rs2_ext      = (op[1]) ? {1'b0, rs2} : {rs2[31], rs2};
+  assign rs1_ext     = (op[1:0] == 2'b11) ? {1'b0, rs1} : {rs1[31], rs1};
+  assign rs2_ext     = (op[1]) ? {1'b0, rs2} : {rs2[31], rs2};
 
   //
   // Single multiply
   //
-  assign product      = $signed(rs1_ext) * $signed(rs2_ext);
+  assign product     = $signed(rs1_ext) * $signed(rs2_ext);
 
   //
   // Select upper or lower 32 bits
   //
-  assign result_bits  = (op[1:0] == 2'b00) ? product[31:0] : product[63:32];
+  assign result_bits = (op[1:0] == 2'b00) ? product[31:0] : product[63:32];
 
   //
   // Result selection (combinational)
   //
-  assign result       = result_bits;
-  assign result_valid = en;
-  assign busy         = 1'b0;
+  assign result      = result_bits;
+  assign busy        = 1'b0;
 
-  `SVC_UNUSED({clk, rst_n, op[2], product[65:64]});
+  `SVC_UNUSED({clk, rst_n, en, op[2], product[65:64]});
 
 endmodule
 

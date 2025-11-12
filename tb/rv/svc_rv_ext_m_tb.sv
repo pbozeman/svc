@@ -17,18 +17,16 @@ module svc_rv_ext_m_tb;
   logic [ 2:0] op;
   logic        busy;
   logic [31:0] result;
-  logic        result_valid;
 
   svc_rv_ext_m dut (
-      .clk         (clk),
-      .rst_n       (rst_n),
-      .en          (en),
-      .rs1         (rs1),
-      .rs2         (rs2),
-      .op          (op),
-      .busy        (busy),
-      .result      (result),
-      .result_valid(result_valid)
+      .clk   (clk),
+      .rst_n (rst_n),
+      .en    (en),
+      .rs1   (rs1),
+      .rs2   (rs2),
+      .op    (op),
+      .busy  (busy),
+      .result(result)
   );
 
   //
@@ -43,7 +41,6 @@ module svc_rv_ext_m_tb;
     en  = 1'b1;
     `TICK(clk);
 
-    `CHECK_TRUE(result_valid);
     `CHECK_FALSE(busy);
     `CHECK_EQ(result, expected);
 
@@ -63,8 +60,7 @@ module svc_rv_ext_m_tb;
     `TICK(clk);
     en = 1'b0;
 
-    `CHECK_WAIT_FOR(clk, result_valid, 40);
-    `CHECK_FALSE(busy);
+    `CHECK_WAIT_FOR(clk, !busy, 40);
     `CHECK_EQ(result, expected);
 
     `TICK(clk);
@@ -298,13 +294,11 @@ module svc_rv_ext_m_tb;
       `TICK(clk);
     end
     `CHECK_TRUE(busy);
-    `CHECK_FALSE(result_valid);
 
     //
     // Wait for completion
     //
-    `CHECK_WAIT_FOR(clk, result_valid, 35);
-    `CHECK_FALSE(busy);
+    `CHECK_WAIT_FOR(clk, !busy, 35);
     `CHECK_EQ(result, 32'd10);
 
     `TICK(clk);

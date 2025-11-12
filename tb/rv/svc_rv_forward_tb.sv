@@ -21,15 +21,14 @@ module svc_rv_forward_tb;
   logic [XLEN-1:0] rs2_data_ex;
   logic [     4:0] rd_mem;
   logic            reg_write_mem;
-  logic            is_load_mem;
-  logic            is_csr_mem;
+  logic [     2:0] res_src_mem;
   logic [XLEN-1:0] result_mem;
   logic [XLEN-1:0] load_data_mem;
   logic [     4:0] rd_wb;
   logic            reg_write_wb;
-  logic [XLEN-1:0] rd_data;
-  logic [XLEN-1:0] rs1_fwd_ex;
-  logic [XLEN-1:0] rs2_fwd_ex;
+  logic [XLEN-1:0] rd_data_wb;
+  logic [XLEN-1:0] fwd_rs1_ex;
+  logic [XLEN-1:0] fwd_rs2_ex;
 
   svc_rv_forward #(
       .XLEN    (XLEN),
@@ -42,32 +41,29 @@ module svc_rv_forward_tb;
       .rs2_data_ex  (rs2_data_ex),
       .rd_mem       (rd_mem),
       .reg_write_mem(reg_write_mem),
-      .is_load_mem  (is_load_mem),
-      .is_csr_mem   (is_csr_mem),
+      .res_src_mem  (res_src_mem),
       .result_mem   (result_mem),
       .load_data_mem(load_data_mem),
       .rd_wb        (rd_wb),
       .reg_write_wb (reg_write_wb),
-      .rd_data      (rd_data),
-      .rs1_fwd_ex   (rs1_fwd_ex),
-      .rs2_fwd_ex   (rs2_fwd_ex)
+      .rd_data_wb   (rd_data_wb),
+      .fwd_rs1_ex   (fwd_rs1_ex),
+      .fwd_rs2_ex   (fwd_rs2_ex)
   );
 
   task automatic reset_inputs;
     rs1_ex        = 5'd0;
     rs2_ex        = 5'd0;
-    // rs1_ex/rs2_ex already set to 0 to indicate not used
     rs1_data_ex   = 32'h0;
     rs2_data_ex   = 32'h0;
     rd_mem        = 5'd0;
     reg_write_mem = 1'b0;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b0;
+    res_src_mem   = 3'd0;
     result_mem    = 32'h0;
     load_data_mem = 32'h0;
     rd_wb         = 5'd0;
     reg_write_wb  = 1'b0;
-    rd_data       = 32'h0;
+    rd_data_wb    = 32'h0;
   endtask
 
   //
@@ -87,12 +83,12 @@ module svc_rv_forward_tb;
 
     rd_wb         = 5'd4;
     reg_write_wb  = 1'b1;
-    rd_data       = 32'hDDDDDDDD;
+    rd_data_wb    = 32'hDDDDDDDD;
 
     `TICK(clk);
 
-    `CHECK_EQ(rs1_fwd_ex, 32'hAAAAAAAA);
-    `CHECK_EQ(rs2_fwd_ex, 32'hBBBBBBBB);
+    `CHECK_EQ(fwd_rs1_ex, 32'hAAAAAAAA);
+    `CHECK_EQ(fwd_rs2_ex, 32'hBBBBBBBB);
   endtask
 
   //
@@ -108,14 +104,13 @@ module svc_rv_forward_tb;
 
     rd_mem        = 5'd10;
     reg_write_mem = 1'b1;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b0;
+    res_src_mem   = 3'd0;
     result_mem    = 32'hFEEDBEEF;
 
     `TICK(clk);
 
-    `CHECK_EQ(rs1_fwd_ex, 32'hFEEDBEEF);
-    `CHECK_EQ(rs2_fwd_ex, 32'hBBBBBBBB);
+    `CHECK_EQ(fwd_rs1_ex, 32'hFEEDBEEF);
+    `CHECK_EQ(fwd_rs2_ex, 32'hBBBBBBBB);
   endtask
 
   //
@@ -131,14 +126,13 @@ module svc_rv_forward_tb;
 
     rd_mem        = 5'd10;
     reg_write_mem = 1'b1;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b0;
+    res_src_mem   = 3'd0;
     result_mem    = 32'hDEADBEEF;
 
     `TICK(clk);
 
-    `CHECK_EQ(rs1_fwd_ex, 32'hAAAAAAAA);
-    `CHECK_EQ(rs2_fwd_ex, 32'hDEADBEEF);
+    `CHECK_EQ(fwd_rs1_ex, 32'hAAAAAAAA);
+    `CHECK_EQ(fwd_rs2_ex, 32'hDEADBEEF);
   endtask
 
   //
@@ -154,14 +148,13 @@ module svc_rv_forward_tb;
 
     rd_mem        = 5'd10;
     reg_write_mem = 1'b1;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b0;
+    res_src_mem   = 3'd0;
     result_mem    = 32'hCAFEBABE;
 
     `TICK(clk);
 
-    `CHECK_EQ(rs1_fwd_ex, 32'hCAFEBABE);
-    `CHECK_EQ(rs2_fwd_ex, 32'hCAFEBABE);
+    `CHECK_EQ(fwd_rs1_ex, 32'hCAFEBABE);
+    `CHECK_EQ(fwd_rs2_ex, 32'hCAFEBABE);
   endtask
 
   //
@@ -181,12 +174,12 @@ module svc_rv_forward_tb;
 
     rd_wb         = 5'd10;
     reg_write_wb  = 1'b1;
-    rd_data       = 32'h12345678;
+    rd_data_wb    = 32'h12345678;
 
     `TICK(clk);
 
-    `CHECK_EQ(rs1_fwd_ex, 32'h12345678);
-    `CHECK_EQ(rs2_fwd_ex, 32'hBBBBBBBB);
+    `CHECK_EQ(fwd_rs1_ex, 32'h12345678);
+    `CHECK_EQ(fwd_rs2_ex, 32'hBBBBBBBB);
   endtask
 
   //
@@ -206,12 +199,12 @@ module svc_rv_forward_tb;
 
     rd_wb         = 5'd10;
     reg_write_wb  = 1'b1;
-    rd_data       = 32'h87654321;
+    rd_data_wb    = 32'h87654321;
 
     `TICK(clk);
 
-    `CHECK_EQ(rs1_fwd_ex, 32'hAAAAAAAA);
-    `CHECK_EQ(rs2_fwd_ex, 32'h87654321);
+    `CHECK_EQ(fwd_rs1_ex, 32'hAAAAAAAA);
+    `CHECK_EQ(fwd_rs2_ex, 32'h87654321);
   endtask
 
   //
@@ -227,18 +220,17 @@ module svc_rv_forward_tb;
 
     rd_mem        = 5'd10;
     reg_write_mem = 1'b1;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b0;
+    res_src_mem   = 3'd0;
     result_mem    = 32'h11110000;
 
     rd_wb         = 5'd10;
     reg_write_wb  = 1'b1;
-    rd_data       = 32'h22220000;
+    rd_data_wb    = 32'h22220000;
 
     `TICK(clk);
 
-    `CHECK_EQ(rs1_fwd_ex, 32'h11110000);
-    `CHECK_EQ(rs2_fwd_ex, 32'hBBBBBBBB);
+    `CHECK_EQ(fwd_rs1_ex, 32'h11110000);
+    `CHECK_EQ(fwd_rs2_ex, 32'hBBBBBBBB);
   endtask
 
   //
@@ -257,19 +249,18 @@ module svc_rv_forward_tb;
 
     rd_mem        = 5'd10;
     reg_write_mem = 1'b1;
-    is_load_mem   = 1'b1;
-    is_csr_mem    = 1'b0;
+    res_src_mem   = 3'd1;
     result_mem    = 32'h99990000;
     load_data_mem = 32'h12340000;
 
     rd_wb         = 5'd11;
     reg_write_wb  = 1'b0;
-    rd_data       = 32'h0;
+    rd_data_wb    = 32'h0;
 
     `TICK(clk);
 
-    `CHECK_EQ(rs1_fwd_ex, 32'h12340000);
-    `CHECK_EQ(rs2_fwd_ex, 32'hBBBBBBBB);
+    `CHECK_EQ(fwd_rs1_ex, 32'h12340000);
+    `CHECK_EQ(fwd_rs2_ex, 32'hBBBBBBBB);
   endtask
 
   //
@@ -286,19 +277,18 @@ module svc_rv_forward_tb;
 
     rd_mem        = 5'd10;
     reg_write_mem = 1'b1;
-    is_load_mem   = 1'b1;
-    is_csr_mem    = 1'b0;
+    res_src_mem   = 3'd1;
     result_mem    = 32'h99990000;
     load_data_mem = 32'hFEEDBEEF;
 
     rd_wb         = 5'd10;
     reg_write_wb  = 1'b1;
-    rd_data       = 32'h88880000;
+    rd_data_wb    = 32'h88880000;
 
     `TICK(clk);
 
-    `CHECK_EQ(rs1_fwd_ex, 32'hFEEDBEEF);
-    `CHECK_EQ(rs2_fwd_ex, 32'hBBBBBBBB);
+    `CHECK_EQ(fwd_rs1_ex, 32'hFEEDBEEF);
+    `CHECK_EQ(fwd_rs2_ex, 32'hBBBBBBBB);
   endtask
 
   //
@@ -314,18 +304,17 @@ module svc_rv_forward_tb;
 
     rd_mem        = 5'd10;
     reg_write_mem = 1'b1;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b1;
+    res_src_mem   = 3'd4;
     result_mem    = 32'h99990000;
 
     rd_wb         = 5'd11;
     reg_write_wb  = 1'b0;
-    rd_data       = 32'h0;
+    rd_data_wb    = 32'h0;
 
     `TICK(clk);
 
-    `CHECK_EQ(rs1_fwd_ex, 32'hAAAAAAAA);
-    `CHECK_EQ(rs2_fwd_ex, 32'hBBBBBBBB);
+    `CHECK_EQ(fwd_rs1_ex, 32'hAAAAAAAA);
+    `CHECK_EQ(fwd_rs2_ex, 32'hBBBBBBBB);
   endtask
 
   //
@@ -341,18 +330,17 @@ module svc_rv_forward_tb;
 
     rd_mem        = 5'd0;
     reg_write_mem = 1'b1;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b0;
+    res_src_mem   = 3'd0;
     result_mem    = 32'h99990000;
 
     rd_wb         = 5'd0;
     reg_write_wb  = 1'b1;
-    rd_data       = 32'h99990000;
+    rd_data_wb    = 32'h99990000;
 
     `TICK(clk);
 
-    `CHECK_EQ(rs1_fwd_ex, 32'h0);
-    `CHECK_EQ(rs2_fwd_ex, 32'h0);
+    `CHECK_EQ(fwd_rs1_ex, 32'h0);
+    `CHECK_EQ(fwd_rs2_ex, 32'h0);
   endtask
 
   //
@@ -366,18 +354,17 @@ module svc_rv_forward_tb;
 
     rd_mem        = 5'd10;
     reg_write_mem = 1'b1;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b0;
+    res_src_mem   = 3'd0;
     result_mem    = 32'h99990000;
 
     rd_wb         = 5'd10;
     reg_write_wb  = 1'b1;
-    rd_data       = 32'h99990000;
+    rd_data_wb    = 32'h99990000;
 
     `TICK(clk);
 
-    `CHECK_EQ(rs1_fwd_ex, 32'hAAAAAAAA);
-    `CHECK_EQ(rs2_fwd_ex, 32'hBBBBBBBB);
+    `CHECK_EQ(fwd_rs1_ex, 32'hAAAAAAAA);
+    `CHECK_EQ(fwd_rs2_ex, 32'hBBBBBBBB);
   endtask
 
   //
@@ -393,18 +380,17 @@ module svc_rv_forward_tb;
 
     rd_mem        = 5'd11;
     reg_write_mem = 1'b0;
-    is_load_mem   = 1'b0;
-    is_csr_mem    = 1'b0;
+    res_src_mem   = 3'd0;
     result_mem    = 32'hCCCCCCCC;
 
     rd_wb         = 5'd10;
     reg_write_wb  = 1'b1;
-    rd_data       = 32'h99990000;
+    rd_data_wb    = 32'h99990000;
 
     `TICK(clk);
 
-    `CHECK_EQ(rs1_fwd_ex, 32'h99990000);
-    `CHECK_EQ(rs2_fwd_ex, 32'hBBBBBBBB);
+    `CHECK_EQ(fwd_rs1_ex, 32'h99990000);
+    `CHECK_EQ(fwd_rs2_ex, 32'hBBBBBBBB);
   endtask
 
   `TEST_SUITE_BEGIN(svc_rv_forward_tb);

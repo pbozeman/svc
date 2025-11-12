@@ -27,9 +27,9 @@ end
 always @(posedge clk) begin
   if (rst_n && cpu_dbg_enabled) begin
     $display("[%12t] %-4s %08x  %-28s  %08x %08x -> %08x | %d %d", $time, "",
-             uut.cpu.pc_ex, dasm_inst(uut.cpu.instr_ex), uut.cpu.alu_a_ex,
-             uut.cpu.alu_b_ex, uut.cpu.alu_result_ex,
-             uut.cpu.op_en_ex, uut.cpu.op_active_ex);
+             uut.cpu.pc_ex, dasm_inst(uut.cpu.instr_ex), uut.cpu.stage_ex.alu_a_ex,
+             uut.cpu.stage_ex.alu_b_ex, uut.cpu.stage_ex.alu_result_ex,
+             uut.cpu.stage_ex.op_en_ex, uut.cpu.op_active_ex);
 
     if (io_ren) begin
       $display("[%12t] %-4s %08x  %-28s  %08x %8s -> %08x", $time, "MR:",

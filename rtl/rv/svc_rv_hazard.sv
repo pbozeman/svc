@@ -8,14 +8,19 @@
 //
 // Detects data and control hazards and sets control flags for resolution.
 //
-// For control hazards, this requires flushing. For data hazards, i.e. RAW,
-// forwarding is a possibility, but on some fpga (e.g. hx8k), the combinatorial
-// path is too long to get from WB to EX that there is a large fmax hit.
-// Therefor, the hazard unit can optionally forward, or else, stall, dependent
-// ops until the write has settled.
+// Control hazards are resolved by flushing the pipeline. For data hazards
+// (RAW dependencies), this unit detects hazards and generates stall signals.
+// Actual data forwarding, when enabled, is handled by a separate forwarding
+// unit in the EX stage.
 //
-// In early tests on an hx8k, forwarding dropped fmax by almost 40% compared to
-// stalling. Overall perf (CPI * clock_rate) is TBD for optimal tuning.
+// FWD parameter controls hazard detection behavior:
+// - FWD=0: Stall on all RAW hazards (EX, MEM, WB stages)
+// - FWD=1: Assume external forwarding unit exists, only stall on hazards that
+//          cannot be forwarded (load-use, CSR-use, WB if no regfile forwarding)
+//
+// In early tests on an hx8k, a design with forwarding achieved better CPI but
+// lower fmax (40% drop), while stalling had worse CPI but higher fmax. The
+// optimal choice depends on the specific workload and FPGA target.
 //
 // NOTE: This unit only detects register-based RAW hazards. It does NOT detect
 // memory address hazards (e.g., store followed by load to the same address
@@ -30,15 +35,13 @@
 module svc_rv_hazard #(
     parameter int FWD_REGFILE = 1,
     parameter int FWD         = 0,
-    parameter int MEM_TYPE    = 0,
-    parameter int BPRED       = 0
+    parameter int MEM_TYPE    = 0
 ) (
     // ID stage input registers
     input logic [4:0] rs1_id,
     input logic [4:0] rs2_id,
-    input logic       rs1_used,
-    input logic       rs2_used,
-    input logic       is_branch_id,
+    input logic       rs1_used_id,
+    input logic       rs2_used_id,
 
     // EX stage control signals and destination
     input logic [4:0] rd_ex,
@@ -50,8 +53,6 @@ module svc_rv_hazard #(
     // MEM stage control signals and destination
     input logic [4:0] rd_mem,
     input logic       reg_write_mem,
-    input logic       is_load_mem,
-    input logic       is_csr_mem,
 
     // WB stage control signals and destination
     input logic [4:0] rd_wb,
@@ -88,8 +89,8 @@ module svc_rv_hazard #(
     ex_hazard_rs2 = 1'b0;
 
     if (reg_write_ex && rd_ex != 5'd0) begin
-      ex_hazard_rs1 = rs1_used && (rd_ex == rs1_id);
-      ex_hazard_rs2 = rs2_used && (rd_ex == rs2_id);
+      ex_hazard_rs1 = rs1_used_id && (rd_ex == rs1_id);
+      ex_hazard_rs2 = rs2_used_id && (rd_ex == rs2_id);
     end
   end
 
@@ -107,8 +108,8 @@ module svc_rv_hazard #(
     mem_hazard_rs2 = 1'b0;
 
     if (reg_write_mem && rd_mem != 5'd0) begin
-      mem_hazard_rs1 = rs1_used && (rd_mem == rs1_id);
-      mem_hazard_rs2 = rs2_used && (rd_mem == rs2_id);
+      mem_hazard_rs1 = rs1_used_id && (rd_mem == rs1_id);
+      mem_hazard_rs2 = rs2_used_id && (rd_mem == rs2_id);
     end
   end
 
@@ -136,8 +137,8 @@ module svc_rv_hazard #(
       wb_hazard_rs2 = 1'b0;
 
       if (reg_write_wb && rd_wb != 5'd0) begin
-        wb_hazard_rs1 = rs1_used && (rd_wb == rs1_id);
-        wb_hazard_rs2 = rs2_used && (rd_wb == rs2_id);
+        wb_hazard_rs1 = rs1_used_id && (rd_wb == rs1_id);
+        wb_hazard_rs2 = rs2_used_id && (rd_wb == rs2_id);
       end
     end
 
@@ -147,13 +148,16 @@ module svc_rv_hazard #(
   //
   // Generate stall and flush signals
   //
-  // Data hazards: We need to stall if there's a RAW hazard in EX, MEM, or
-  // WB stage (unless regfile has internal forwarding for WB).
+  // Data hazards: Stall behavior depends on FWD parameter:
+  // - FWD=0: Stall on all RAW hazards (EX, MEM, WB stages)
+  // - FWD=1: Only stall on unavoidable hazards (load-use, CSR-use, and WB if
+  //          regfile lacks internal forwarding)
   //
   // When a data hazard is detected:
   // - Stall PC to prevent fetching new instructions
   // - Stall IF/ID to hold current instruction in decode
   // - Flush ID/EX to insert a bubble (NOP) in execute stage
+  //   (unless multi-cycle operation is active, then ID/EX is stalled instead)
   //
   // Control hazards: When a branch/jump is taken (pc_sel asserted in EX stage),
   // we need to flush the instructions already in the pipeline:
@@ -164,7 +168,7 @@ module svc_rv_hazard #(
 
   logic data_hazard;
 
-  if (FWD != 0) begin : g_forwarding
+  if (FWD != 0) begin : g_external_forwarding
     //
     // Load-use hazard detection
     //
@@ -199,17 +203,18 @@ module svc_rv_hazard #(
     // - load_use_hazard: Load/CSR in EX can't forward to consumer in ID
     // - wb_hazard: Only if regfile doesn't have internal forwarding
     //
-    // EX and MEM hazards (including branches) are resolved by forwarding
+    // Regular EX and MEM stage RAW hazards are assumed to be resolved by the
+    // external forwarding unit (in the EX stage), so they don't cause stalls.
     //
     assign data_hazard = load_use_hazard || wb_hazard;
 
-    `SVC_UNUSED({is_load_mem, is_csr_mem, is_branch_id, ex_hazard, mem_hazard});
+    `SVC_UNUSED({ex_hazard, mem_hazard});
   end else begin : g_no_forwarding
     //
     // Non-forwarding: stall on all hazards
     //
     assign data_hazard = ex_hazard || mem_hazard || wb_hazard;
-    `SVC_UNUSED({is_load_ex, is_csr_ex, is_load_mem, is_csr_mem, is_branch_id});
+    `SVC_UNUSED({is_load_ex, is_csr_ex});
   end
 
   //
@@ -222,17 +227,28 @@ module svc_rv_hazard #(
   // - When operation completes (op_active_ex drops), all stalls release
   //   and the completed result flows normally through MEM→WB→regfile
   //
+  // Note: For ID/EX stage, we use STALL during multi-cycle operations but
+  // FLUSH for data hazards. This is why id_ex_stall only checks op_active_ex.
+  //
   assign pc_stall = data_hazard || op_active_ex;
   assign if_id_stall = data_hazard || op_active_ex;
   assign id_ex_stall = op_active_ex;
   assign ex_mem_stall = op_active_ex;
   assign mem_wb_stall = op_active_ex;
+
+  //
+  // Flush logic with stall interaction
+  //
+  // if_id_flush: Suppress branch prediction flush when stalling, since the
+  // predicted-taken branch in ID hasn't advanced yet.
+  //
+  // id_ex_flush: For data hazards, use flush (insert bubble) unless a
+  // multi-cycle operation is active (then use stall to preserve EX state).
+  //
   assign if_id_flush = (pc_sel || mispredicted_ex ||
                         (pred_taken_id && !data_hazard && !op_active_ex));
   assign id_ex_flush = ((data_hazard && !op_active_ex) || pc_sel ||
                         mispredicted_ex);
-
-  `SVC_UNUSED({BPRED});
 
 endmodule
 
