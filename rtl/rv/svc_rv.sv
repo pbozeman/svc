@@ -338,7 +338,8 @@ module svc_rv #(
   //
   // For SRAM with PIPELINED=1: register with if_id_stall/flush support
   // For SRAM with PIPELINED=0: pass through
-  // For BRAM: Two-stage pipeline - always capture BRAM output, then conditionally advance
+  // For BRAM: Two-stage pipeline - always capture BRAM output, then
+  // conditionally advance
   //
   if (MEM_TYPE == MEM_TYPE_SRAM) begin : g_sram
     //
@@ -561,7 +562,7 @@ module svc_rv #(
     assign mem_wb_stall = 1'b0;
 
     // verilog_format: off
-    `SVC_UNUSED({is_load_ex, is_csr_ex, is_load_mem, is_csr_mem, 
+    `SVC_UNUSED({is_load_ex, is_csr_ex, is_load_mem, is_csr_mem,
                  rs1_used_id, rs2_used_id });
     // verilog_format: on
   end
