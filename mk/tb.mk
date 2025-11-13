@@ -98,7 +98,7 @@ $(TB_BUILD_DIR)/%: %.sv $(ICE40_CELLS_SIM) Makefile | $(TB_BUILD_DIR)
 # run a tb and do results tracking
 define tb_run_test
 	@echo "$1" >> $(TB_BUILD_DIR)/tb_run.log;
-	@$(VVP) $1 +SKIP_SLOW_TESTS=$(SKIP_SLOW_TESTS) +run=$(RUN) +SVC_TB_RPT=$(SVC_TB_RPT) $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) 2>&1 |\
+	@$(VVP) $1 +SKIP_SLOW_TESTS=$(SKIP_SLOW_TESTS) +run=$(RUN) +SVC_TB_RPT=$(SVC_TB_RPT) $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) 2>&1 |\
 		grep -v "VCD info:" |\
 		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored"; \
 		status=$${PIPESTATUS[0]}; \

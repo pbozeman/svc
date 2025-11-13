@@ -320,12 +320,26 @@ module svc_rv #(
 `ifndef SYNTHESIS
   `include "svc_rv_dasm.svh"
 
+  //
+  // Debug alignment constants
+  //
+  localparam int DBG_ID_PRED_WIDTH = 13;
+  localparam int DBG_EX_FLAGS_WIDTH = 5;
+  localparam int DBG_WB_WIDTH = 15;
+  localparam int DBG_MEM_WIDTH = 24;
+
   logic dbg_if;
+  logic dbg_id;
   logic dbg_ex;
+  logic dbg_mem;
+  logic dbg_wb;
 
   initial begin
     integer dbg_if_level;
+    integer dbg_id_level;
     integer dbg_ex_level;
+    integer dbg_mem_level;
+    integer dbg_wb_level;
 
     if ($value$plusargs("SVC_RV_DBG_IF=%d", dbg_if_level)) begin
       dbg_if = (dbg_if_level != 0);
@@ -333,10 +347,28 @@ module svc_rv #(
       dbg_if = 1'b0;
     end
 
+    if ($value$plusargs("SVC_RV_DBG_ID=%d", dbg_id_level)) begin
+      dbg_id = (dbg_id_level != 0);
+    end else begin
+      dbg_id = 1'b0;
+    end
+
     if ($value$plusargs("SVC_RV_DBG_EX=%d", dbg_ex_level)) begin
       dbg_ex = (dbg_ex_level != 0);
     end else begin
       dbg_ex = 1'b0;
+    end
+
+    if ($value$plusargs("SVC_RV_DBG_MEM=%d", dbg_mem_level)) begin
+      dbg_mem = (dbg_mem_level != 0);
+    end else begin
+      dbg_mem = 1'b0;
+    end
+
+    if ($value$plusargs("SVC_RV_DBG_WB=%d", dbg_wb_level)) begin
+      dbg_wb = (dbg_wb_level != 0);
+    end else begin
+      dbg_wb = 1'b0;
     end
   end
 
@@ -349,21 +381,20 @@ module svc_rv #(
     string flush_str;
 
     case (stage_if.pc_sel)
-      PC_SEL_SEQUENTIAL: pc_sel_str = " ";
-      PC_SEL_PREDICTED:  pc_sel_str = "p";
-      PC_SEL_REDIRECT:   pc_sel_str = "r";
-      default:           pc_sel_str = "?";
+      PC_SEL_SEQUENTIAL: pc_sel_str = " seq";
+      PC_SEL_PREDICTED:  pc_sel_str = "pred";
+      PC_SEL_REDIRECT:   pc_sel_str = "rdir";
+      default:           pc_sel_str = "????";
     endcase
 
     stall_str = stage_if.pc_stall ? "s" : " ";
     flush_str = stage_if.if_id_flush ? "f" : " ";
 
     return $sformatf(
-        "IF %s%s %08x  %-40s %s %08x %08x -> %08x",
+        "IF %s%s %08x   %s   %08x %08x -> %08x",
         stall_str,
         flush_str,
         stage_if.pc,
-        "",
         pc_sel_str,
         stage_if.pred_target,
         stage_if.pc_redirect_target,
@@ -371,60 +402,160 @@ module svc_rv #(
     );
   endfunction
 
+  //
+  // Helper function to format ID stage debug output
+  //
+  function automatic string fmt_id_debug();
+    string stall_str;
+    string flush_str;
+    string pred_str;
+
+    stall_str = id_ex_stall ? "s" : " ";
+    flush_str = id_ex_flush ? "f" : " ";
+
+    if (BPRED != 0) begin
+      if ((stage_id.is_branch_id || stage_id.is_jump_id) &&
+          (pc_sel_id == PC_SEL_PREDICTED)) begin
+        pred_str = $sformatf("-> %08x T", pred_target);
+      end else if (stage_id.is_branch_id || stage_id.is_jump_id) begin
+        pred_str = $sformatf("-> %08x N", pc_id + 4);
+      end else begin
+        pred_str = {DBG_ID_PRED_WIDTH{" "}};
+      end
+    end else begin
+      pred_str = {DBG_ID_PRED_WIDTH{" "}};
+    end
+
+    return $sformatf(
+        "ID %s%s %08x  %-30s %s",
+        stall_str,
+        flush_str,
+        pc_id,
+        dasm_inst(
+            instr_id
+        ),
+        pred_str
+    );
+  endfunction
+
   always @(posedge clk) begin
+    string line;
+
     //
-    // IF-only debug output (when EX debug is disabled)
+    // IF-only debug output (when ID and EX debug are disabled)
     //
-    if (rst_n && dbg_if && !dbg_ex) begin
+    if (rst_n && dbg_if && !dbg_id && !dbg_ex) begin
       $display("[%12t] %s", $time, fmt_if_debug());
     end
 
     //
-    // EX debug output (with optional IF output when both enabled)
+    // ID-only debug output (when EX debug is disabled)
+    //
+    if (rst_n && dbg_id && !dbg_ex) begin
+      if (dbg_if) begin
+        line = {fmt_if_debug(), " | ", fmt_id_debug()};
+        $display("[%12t] %s", $time, line);
+      end else begin
+        $display("[%12t] %s", $time, fmt_id_debug());
+      end
+    end
+
+    //
+    // EX debug output (with optional IF and ID output when enabled)
     //
     if (rst_n && dbg_ex) begin
       //
-      // Show IF stage on separate line when both debug modes enabled
+      // Build combined line with all enabled stages
       //
+      line = "";
       if (dbg_if) begin
-        $display("[%12t] %s", $time, fmt_if_debug());
+        line = fmt_if_debug();
+      end
+
+      if (dbg_id) begin
+        if (line != "") line = {line, " | "};
+        line = {line, fmt_id_debug()};
       end
 
       //
-      // EX stage output
+      // Add EX stage output
       //
+      if (line != "") line = {line, " | "};
+
       if (is_branch_ex) begin
         //
         // Branch ops: show comparison operands, prediction, and actual result
         //
-        $display("[%12t] EX    %08x  %-40s   %08x %08x -> %08x %s %s", $time,
-                 pc_ex, dasm_inst(instr_ex), stage_ex.fwd_rs1_ex,
-                 stage_ex.fwd_rs2_ex, stage_ex.jb_target_ex,
-                 bpred_taken_ex ? "T" : "N",
-                 stage_ex.branch_taken_ex ? "T" : "N");
+        line = {
+          line,
+          $sformatf(
+              "EX    %08x  %-30s   %08x %08x -> %08x %s %s ",
+              pc_ex,
+              dasm_inst(
+                instr_ex
+              ),
+              stage_ex.fwd_rs1_ex,
+              stage_ex.fwd_rs2_ex,
+              stage_ex.jb_target_ex,
+              bpred_taken_ex ? "T" : "N",
+              stage_ex.branch_taken_ex ? "T" : "N"
+          )
+        };
       end else if (is_jump_ex) begin
         //
         // Jump ops: show base address (for JALR) and target
         //
-        $display("[%12t] EX    %08x  %-40s   %08x %08x -> %08x", $time, pc_ex,
-                 dasm_inst(instr_ex),
-                 jb_target_src_ex ? stage_ex.fwd_rs1_ex : pc_ex, imm_ex,
-                 stage_ex.jb_target_ex);
+        line = {
+          line,
+          $sformatf(
+              "EX    %08x  %-30s   %08x %08x -> %08x%s",
+              pc_ex,
+              dasm_inst(
+                instr_ex
+              ),
+              jb_target_src_ex ? stage_ex.fwd_rs1_ex : pc_ex,
+              imm_ex,
+              stage_ex.jb_target_ex,
+              {DBG_EX_FLAGS_WIDTH{" "}}
+          )
+        };
       end else if (res_src_ex == RES_M) begin
         //
         // M extension ops: show operands and result
         // Note: fwd_rs1_ex/fwd_rs2_ex are stable during multi-cycle ops
         //
-        $display("[%12t] EX    %08x  %-40s   %08x %08x -> %08x", $time, pc_ex,
-                 dasm_inst(instr_ex), stage_ex.fwd_rs1_ex, stage_ex.fwd_rs2_ex,
-                 stage_ex.m_result_ex);
+        line = {
+          line,
+          $sformatf(
+              "EX    %08x  %-30s   %08x %08x -> %08x%s",
+              pc_ex,
+              dasm_inst(
+                instr_ex
+              ),
+              stage_ex.fwd_rs1_ex,
+              stage_ex.fwd_rs2_ex,
+              stage_ex.m_result_ex,
+              {DBG_EX_FLAGS_WIDTH{" "}}
+          )
+        };
       end else begin
         //
         // Non-M ops: show ALU operation
         //
-        $display("[%12t] EX    %08x  %-40s   %08x %08x -> %08x", $time, pc_ex,
-                 dasm_inst(instr_ex), stage_ex.alu_a_ex, stage_ex.alu_b_ex,
-                 stage_ex.alu_result_ex);
+        line = {
+          line,
+          $sformatf(
+              "EX    %08x  %-30s   %08x %08x -> %08x%s",
+              pc_ex,
+              dasm_inst(
+                instr_ex
+              ),
+              stage_ex.alu_a_ex,
+              stage_ex.alu_b_ex,
+              stage_ex.alu_result_ex,
+              {DBG_EX_FLAGS_WIDTH{" "}}
+          )
+        };
       end
 
       //
@@ -432,35 +563,51 @@ module svc_rv #(
       // SRAM: 0-cycle latency, display in EX stage when dmem_ren/dmem_we active
       // BRAM: 1-cycle latency, display in MEM stage when mem_read_mem/mem_write_mem active
       //
-      if (MEM_TYPE == MEM_TYPE_SRAM) begin
-        if (dmem_ren) begin
-          if (dbg_if) begin
-            $display("[%12t] %s", $time, fmt_if_debug());
+      if (dbg_mem) begin
+        line = {line, " | "};
+        if (MEM_TYPE == MEM_TYPE_SRAM) begin
+          if (dmem_ren) begin
+            line = {
+              line, $sformatf("MR %08x -> %08x ", alu_result_mem, dmem_rdata)
+            };
+          end else if (dmem_we) begin
+            line = {
+              line, $sformatf("MW %08x -> %08x ", dmem_wdata, alu_result_mem)
+            };
+          end else begin
+            line = {line, {DBG_MEM_WIDTH{" "}}};
           end
-          $display("[%12t] MR    %08x  %-40s   %08x %8s -> %08x", $time,
-                   pc_plus4_mem - 4, "", alu_result_mem, "", dmem_rdata);
-        end else if (dmem_we) begin
-          if (dbg_if) begin
-            $display("[%12t] %s", $time, fmt_if_debug());
+        end else begin
+          if (mem_read_mem) begin
+            line = {
+              line, $sformatf("MR %08x -> %08x ", alu_result_mem, dmem_rdata)
+            };
+          end else if (mem_write_mem) begin
+            line = {
+              line, $sformatf("MW %08x -> %08x ", dmem_wdata, alu_result_mem)
+            };
+          end else begin
+            line = {line, {DBG_MEM_WIDTH{" "}}};
           end
-          $display("[%12t] MW    %08x  %-40s   %08x %8s -> %08x", $time,
-                   pc_plus4_mem - 4, "", alu_result_mem, "", dmem_wdata);
-        end
-      end else begin
-        if (mem_read_mem) begin
-          if (dbg_if) begin
-            $display("[%12t] %s", $time, fmt_if_debug());
-          end
-          $display("[%12t] MR    %08x  %-40s   %08x %8s -> %08x", $time,
-                   pc_plus4_mem - 4, "", alu_result_mem, "", dmem_rdata);
-        end else if (mem_write_mem) begin
-          if (dbg_if) begin
-            $display("[%12t] %s", $time, fmt_if_debug());
-          end
-          $display("[%12t] MW    %08x  %-40s   %08x %8s -> %08x", $time,
-                   pc_plus4_mem - 4, "", alu_result_mem, "", dmem_wdata);
         end
       end
+
+      //
+      // WB stage - show register writes (non-x0 only)
+      // Always reserve space for consistent alignment
+      //
+      if (dbg_wb) begin
+        line = {line, " | "};
+        if (reg_write_wb && (rd_wb != 5'h0)) begin
+          line = {
+            line, $sformatf("WB %08x -> x%02d", stage_wb.rd_data_wb, rd_wb)
+          };
+        end else begin
+          line = {line, {DBG_WB_WIDTH{" "}}};
+        end
+      end
+
+      $display("[%12t] %s", $time, line);
     end
   end
 `endif
