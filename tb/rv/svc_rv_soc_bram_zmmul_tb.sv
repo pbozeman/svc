@@ -80,7 +80,6 @@ module svc_rv_soc_bram_zmmul_tb;
       .wr_strb(io_wstrb)
   );
 
-  `include "svc_rv_soc_cpu_dbg.svh"
   `include "svc_rv_soc_test_defs.svh"
   `include "svc_rv_soc_test_defs_m.svh"
 

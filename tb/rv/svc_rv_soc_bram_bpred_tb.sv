@@ -84,7 +84,6 @@ module svc_rv_soc_bram_bpred_tb;
       .wr_strb(io_wstrb)
   );
 
-  `include "svc_rv_soc_cpu_dbg.svh"
   `include "svc_rv_soc_test_defs.svh"
 
   //

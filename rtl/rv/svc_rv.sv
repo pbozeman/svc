@@ -302,6 +302,87 @@ module svc_rv #(
 
   `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem});
 
+  //
+  // Optional pipeline execution monitor for debug
+  // Controlled by +SVC_CPU_DBG runtime plusarg
+  //
+`ifndef SYNTHESIS
+  `include "svc_rv_dasm.svh"
+
+  logic cpu_dbg_enabled;
+
+  initial begin
+    integer cpu_dbg_level;
+
+    if ($value$plusargs("SVC_CPU_DBG=%d", cpu_dbg_level)) begin
+      cpu_dbg_enabled = (cpu_dbg_level != 0);
+    end else begin
+      cpu_dbg_enabled = 1'b0;
+    end
+  end
+
+  always @(posedge clk) begin
+    if (rst_n && cpu_dbg_enabled) begin
+      if (is_branch_ex) begin
+        //
+        // Branch ops: show comparison operands, prediction, and actual result
+        //
+        $display("[%12t] %-4s %08x  %-28s  %08x %08x -> %08x %s %s", $time, "",
+                 pc_ex, dasm_inst(instr_ex), stage_ex.fwd_rs1_ex,
+                 stage_ex.fwd_rs2_ex, stage_ex.jb_target_ex,
+                 bpred_taken_ex ? "T" : "N",
+                 stage_ex.branch_taken_ex ? "T" : "N");
+      end else if (is_jump_ex) begin
+        //
+        // Jump ops: show base address (for JALR) and target
+        //
+        $display("[%12t] %-4s %08x  %-28s  %08x %08x -> %08x", $time, "",
+                 pc_ex, dasm_inst(instr_ex),
+                 jb_target_src_ex ? stage_ex.fwd_rs1_ex : pc_ex, imm_ex,
+                 stage_ex.jb_target_ex);
+      end else if (res_src_ex == RES_M) begin
+        //
+        // M extension ops: show operands and result
+        // Note: fwd_rs1_ex/fwd_rs2_ex are stable during multi-cycle ops
+        //
+        $display("[%12t] %-4s %08x  %-28s  %08x %08x -> %08x", $time, "",
+                 pc_ex, dasm_inst(instr_ex), stage_ex.fwd_rs1_ex,
+                 stage_ex.fwd_rs2_ex, stage_ex.m_result_ex);
+      end else begin
+        //
+        // Non-M ops: show ALU operation
+        //
+        $display("[%12t] %-4s %08x  %-28s  %08x %08x -> %08x", $time, "",
+                 pc_ex, dasm_inst(instr_ex), stage_ex.alu_a_ex,
+                 stage_ex.alu_b_ex, stage_ex.alu_result_ex);
+      end
+
+      //
+      // Memory operations
+      // SRAM: 0-cycle latency, display in EX stage when dmem_ren/dmem_we active
+      // BRAM: 1-cycle latency, display in MEM stage when mem_read_mem/mem_write_mem active
+      //
+      if (MEM_TYPE == MEM_TYPE_SRAM) begin
+        if (dmem_ren) begin
+          $display("[%12t] %-4s %08x  %-28s  %08x %8s -> %08x", $time, "MR:",
+                   pc_plus4_mem - 4, "", alu_result_mem, "", dmem_rdata);
+        end else if (dmem_we) begin
+          $display("[%12t] %-4s %08x  %-28s  %08x %8s -> %08x", $time, "MW:",
+                   pc_plus4_mem - 4, "", alu_result_mem, "", dmem_wdata);
+        end
+      end else begin
+        if (mem_read_mem) begin
+          $display("[%12t] %-4s %08x  %-28s  %08x %8s -> %08x", $time, "MR:",
+                   pc_plus4_mem - 4, "", alu_result_mem, "", dmem_rdata);
+        end else if (mem_write_mem) begin
+          $display("[%12t] %-4s %08x  %-28s  %08x %8s -> %08x", $time, "MW:",
+                   pc_plus4_mem - 4, "", alu_result_mem, "", dmem_wdata);
+        end
+      end
+    end
+  end
+`endif
+
 endmodule
 
 `endif
