@@ -86,8 +86,10 @@ module svc_rv_btb #(
   //
   // Output predicted target and taken signal
   //
-  assign predicted_target = targets[lookup_index];
-  assign predicted_taken  = counters[lookup_index][1];
+  // Only output valid predictions on a hit, otherwise output zeros
+  //
+  assign predicted_target = hit ? targets[lookup_index] : '0;
+  assign predicted_taken  = hit ? counters[lookup_index][1] : 1'b0;
 
   //
   // Update path (combinational next-state logic)
