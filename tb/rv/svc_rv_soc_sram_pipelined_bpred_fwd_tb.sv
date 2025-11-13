@@ -27,6 +27,7 @@ module svc_rv_soc_sram_pipelined_bpred_fwd_tb;
   localparam real fib12_max_cpi = 1.22;
   localparam real fib100_max_cpi = 1.18;
   localparam real bubble_max_cpi = 1.41;
+  localparam real forward_taken_loop_max_cpi = 2.0;
   logic        ebreak;
 
   //
@@ -48,7 +49,9 @@ module svc_rv_soc_sram_pipelined_bpred_fwd_tb;
       .PIPELINED  (1),
       .FWD_REGFILE(1),
       .FWD        (1),
-      .BPRED      (1)
+      .BPRED      (1),
+      .BTB_ENABLE (0),
+      .BTB_ENTRIES(16)
   ) uut (
       .clk  (clk),
       .rst_n(rst_n),

@@ -34,7 +34,8 @@ module svc_rv_hazard_tb;
 
   svc_rv_hazard #(
       .FWD_REGFILE(1),
-      .FWD        (0)
+      .FWD        (0),
+      .MEM_TYPE   (0)
   ) uut (
       .rs1_id         (rs1_id),
       .rs2_id         (rs2_id),
@@ -47,10 +48,12 @@ module svc_rv_hazard_tb;
       .op_active_ex   (op_active_ex),
       .rd_mem         (rd_mem),
       .reg_write_mem  (reg_write_mem),
+      .mem_read_mem   (1'b0),
       .rd_wb          (rd_wb),
       .reg_write_wb   (reg_write_wb),
       .pc_sel         (pc_sel),
       .mispredicted_ex(mispredicted_ex),
+      .btb_pred_taken (1'b0),
       .pc_stall       (pc_stall),
       .if_id_stall    (if_id_stall),
       .if_id_flush    (if_id_flush),

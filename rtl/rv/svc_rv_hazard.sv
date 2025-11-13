@@ -53,6 +53,7 @@ module svc_rv_hazard #(
     // MEM stage control signals and destination
     input logic [4:0] rd_mem,
     input logic       reg_write_mem,
+    input logic       mem_read_mem,
 
     // WB stage control signals and destination
     input logic [4:0] rd_wb,
@@ -63,6 +64,15 @@ module svc_rv_hazard #(
 
     // Branch misprediction (EX stage)
     input logic mispredicted_ex,
+
+    //
+    // BTB prediction indicator (IF stage, synchronous with PC mux)
+    //
+    // This signal indicates whether the current PC_SEL_PREDICTED came from BTB
+    // in this cycle. It must be IF-synchronous (not ID-aligned) to correctly
+    // gate the static prediction flush logic.
+    //
+    input logic btb_pred_taken,
 
     // Hazard control outputs
     output logic pc_stall,
@@ -186,12 +196,13 @@ module svc_rv_hazard #(
       //
       assign load_use_hazard = ((is_load_ex || is_csr_ex) &&
                                 (ex_hazard_rs1 || ex_hazard_rs2));
+      `SVC_UNUSED({mem_read_mem});
     end else begin : g_sram_no_stall
       //
       // SRAM: Load data forwarded, only stall on CSR-use
       //
       assign load_use_hazard = (is_csr_ex && (ex_hazard_rs1 || ex_hazard_rs2));
-      `SVC_UNUSED({is_load_ex});
+      `SVC_UNUSED({is_load_ex, mem_read_mem});
     end
 
     //
@@ -211,7 +222,7 @@ module svc_rv_hazard #(
     // Non-forwarding: stall on all hazards
     //
     assign data_hazard = ex_hazard || mem_hazard || wb_hazard;
-    `SVC_UNUSED({is_load_ex, is_csr_ex});
+    `SVC_UNUSED({is_load_ex, is_csr_ex, mem_read_mem});
   end
 
   //
@@ -237,6 +248,13 @@ module svc_rv_hazard #(
   // Flush logic with stall interaction
   //
   // if_id_flush: Flush when PC redirection occurs (branches/jumps or prediction)
+  //
+  // For BTB predictions (IF stage): Do NOT flush - the branch instruction must
+  // flow through the pipeline to EX for validation.
+  //
+  // For static predictions (ID stage): DO flush - the sequential instruction
+  // after the branch was already fetched and is incorrect.
+  //
   // Suppress prediction flush when stalling, since the predicted instruction
   // in ID hasn't advanced yet.
   //
@@ -249,8 +267,9 @@ module svc_rv_hazard #(
   assign pc_redirect = (pc_sel == PC_SEL_REDIRECT);
   assign pc_predicted = (pc_sel == PC_SEL_PREDICTED);
 
-  assign if_id_flush = (pc_redirect || mispredicted_ex ||
-                        (pc_predicted && !data_hazard && !op_active_ex));
+  assign if_id_flush = (
+      pc_redirect || mispredicted_ex ||
+          (pc_predicted && !btb_pred_taken && !data_hazard && !op_active_ex));
   assign id_ex_flush = ((data_hazard && !op_active_ex) || pc_redirect ||
                         mispredicted_ex);
 

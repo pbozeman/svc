@@ -12,10 +12,11 @@ module svc_rv_soc_bram_bpred_tb;
   localparam int IO_AW = 10;
 
   //
-  // CPI expectations with BRAM memories and branch prediction
+  // CPI expectations with BRAM memories and branch prediction with BTB
   //
-  // With JAL early resolution and BTFNT prediction, improved CPI
+  // With JAL early resolution, BTFNT prediction, and dynamic BTB
   // BRAM latency still adds overhead compared to SRAM
+  // BTB has learning overhead for initial branch executions
   //
   localparam real alu_indep_max_cpi = 1.34;
   localparam real alu_chain_max_cpi = 2.75;
@@ -26,6 +27,7 @@ module svc_rv_soc_bram_bpred_tb;
   localparam real fib12_max_cpi = 1.54;
   localparam real fib100_max_cpi = 1.51;
   localparam real bubble_max_cpi = 2.08;
+  localparam real forward_taken_loop_max_cpi = 3.35;
   logic        ebreak;
 
   //
@@ -47,7 +49,9 @@ module svc_rv_soc_bram_bpred_tb;
       .DMEM_DEPTH (DMEM_DEPTH),
       .PIPELINED  (1),
       .FWD_REGFILE(1),
-      .BPRED      (1)
+      .BPRED      (1),
+      .BTB_ENABLE (0),
+      .BTB_ENTRIES(16)
   ) uut (
       .clk  (clk),
       .rst_n(rst_n),

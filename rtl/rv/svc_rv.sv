@@ -4,6 +4,7 @@
 `include "svc.sv"
 `include "svc_unused.sv"
 
+`include "svc_rv_btb.sv"
 `include "svc_rv_hazard.sv"
 `include "svc_rv_stage_if.sv"
 `include "svc_rv_stage_id.sv"
@@ -42,6 +43,8 @@ module svc_rv #(
     parameter int FWD         = 0,
     parameter int MEM_TYPE    = 0,
     parameter int BPRED       = 0,
+    parameter int BTB_ENABLE  = 0,
+    parameter int BTB_ENTRIES = 16,
     parameter int EXT_ZMMUL   = 0,
     parameter int EXT_M       = 0
 ) (
@@ -91,6 +94,9 @@ module svc_rv #(
     if ((BPRED == 1) && (PIPELINED == 0)) begin
       $fatal(1, "BPRED=1 requires PIPELINED=1");
     end
+    if ((BTB_ENABLE == 1) && (BPRED == 0)) begin
+      $fatal(1, "BTB_ENABLE=1 requires BPRED=1");
+    end
     if ((EXT_ZMMUL == 1) && (EXT_M == 1)) begin
       $fatal(1, "EXT_ZMMUL and EXT_M are mutually exclusive");
     end
@@ -104,6 +110,9 @@ module svc_rv #(
   logic [    31:0] instr_id;
   logic [XLEN-1:0] pc_id;
   logic [XLEN-1:0] pc_plus4_id;
+
+  // IF -> BTB
+  logic [XLEN-1:0] pc;
 
   // ID -> EX
   logic            reg_write_ex;
@@ -174,7 +183,9 @@ module svc_rv #(
 
   // ID -> IF (branch prediction)
   logic [     1:0] pc_sel_id;
+  logic [XLEN-1:0] pred_target_id;
   logic [XLEN-1:0] pred_target;
+  logic            pred_taken_id;
 
   // Combined PC selection to IF
   logic [     1:0] pc_sel;
@@ -197,6 +208,27 @@ module svc_rv #(
   logic            mem_wb_stall;
 
   //
+  // BTB prediction signals
+  //
+  // btb_hit_if: BTB hit input to IF stage (from BTB lookup)
+  // btb_pred_taken_if: BTB prediction input to IF stage (from BTB lookup)
+  // btb_target_if: BTB target input to IF stage (from BTB lookup)
+  // btb_hit_id: BTB hit output from IF/ID register
+  // btb_pred_taken_id: BTB prediction output from IF/ID register
+  // btb_target_id: BTB target output from IF/ID register
+  // btb_pred_taken: IF-stage synchronous signal to hazard unit indicating
+  //                 "this PC_SEL_PREDICTED came from BTB in this cycle"
+  //                 (NOT ID-aligned - must be synchronous with PC mux)
+  //
+  logic            btb_hit_if;
+  logic            btb_pred_taken_if;
+  logic [XLEN-1:0] btb_target_if;
+  logic            btb_hit_id;
+  logic            btb_pred_taken_id;
+  logic [XLEN-1:0] btb_target_id;
+  logic            btb_pred_taken;
+
+  //
   // Instruction retirement tracking
   //
   // An instruction retires when it reaches WB and is not a bubble.
@@ -206,6 +238,17 @@ module svc_rv #(
   logic            instr_retired;
 
   assign instr_retired = (instr_wb != 32'h0) && (instr_wb != I_NOP);
+
+  //
+  // BTB signals
+  //
+  logic            btb_hit;
+  logic [XLEN-1:0] btb_target;
+  logic            btb_taken;
+  logic            btb_update_en;
+  logic [XLEN-1:0] btb_update_pc;
+  logic [XLEN-1:0] btb_update_target;
+  logic            btb_update_taken;
 
   //
   // Hazard Detection Unit
@@ -232,7 +275,7 @@ module svc_rv #(
 
     // verilog_format: off
     `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_load_ex,
-                mispredicted_ex, is_csr_ex, op_active_ex});
+                mispredicted_ex, is_csr_ex, op_active_ex, btb_pred_taken});
     // verilog_format: on
   end
 
@@ -244,12 +287,121 @@ module svc_rv #(
   assign is_load_ex = (res_src_ex == RES_MEM);
 
   //
-  // Combine PC selection signals from EX and ID stages
+  // Combine PC selection signals from EX, ID, and BTB
   //
-  // Priority: EX (redirect) > ID (prediction) > sequential
-  // EX stage overrides ID prediction on actual branch resolution
+  // Priority: EX (redirect) > BTB (IF prediction) > ID (prediction) > sequential
+  // - EX stage overrides all on actual branch resolution
+  // - BTB provides immediate prediction in IF stage when validated by ID
+  // - ID stage provides static prediction fallback
   //
-  assign pc_sel     = (pc_sel_ex == PC_SEL_REDIRECT) ? pc_sel_ex : pc_sel_id;
+  // IMPORTANT: BTB predictions are only used when ID stage confirms a predictable
+  // instruction (branch/jump). This prevents BTB from mispredicting on non-branch
+  // instructions that happen to be in the BTB.
+  //
+  logic [1:0] pc_sel_btb;
+
+  if (BTB_ENABLE != 0) begin : g_btb_pc_sel
+    logic btb_prediction_valid;
+
+    //
+    // BTB prediction is valid when:
+    // - BTB hits and predicts taken
+    //
+    // No ID stage validation needed - BTB only contains entries for actual
+    // branch/jump instructions (updated only for is_predictable in EX stage)
+    //
+    assign btb_prediction_valid = btb_hit && btb_taken;
+    assign btb_hit_if = btb_hit;
+    assign btb_pred_taken_if = btb_prediction_valid;
+    assign btb_target_if = btb_target;
+
+    //
+    // BTB + Static prediction arbitration
+    //
+    // With BRAM's 1-cycle latency, by the time an instruction reaches ID stage
+    // and gets decoded, the IF stage has moved ahead by 1-2 PCs. This creates
+    // a timing conflict:
+    //
+    // Example:
+    //   Cycle N:   IF fetches PC=0x58 (BTB misses)
+    //   Cycle N+1: IF at PC=0x5c, instruction from 0x58 propagating
+    //   Cycle N+2: IF at PC=0x60, ID decodes 0x58 as JAL → static predicts 0x28
+    //              BUT: BTB hits for current IF PC=0x60 → predicts 0x14
+    //
+    // If BTB takes priority (old logic), pred_target becomes 0x14 instead of
+    // 0x28, causing ID's JAL prediction to be ignored and the program jumps
+    // to the wrong address!
+    //
+    // Solution: When ID makes a prediction (pc_sel_id==PREDICTED), it must
+    // override BTB's speculation for the current IF PC. ID's prediction is for
+    // a concrete, decoded instruction already in the pipeline. BTB's prediction
+    // is speculative for an instruction not yet decoded. The decoded instruction
+    // must take priority.
+    //
+    // For SRAM this doesn't matter because IF and ID are only 1 cycle apart,
+    // so conflicts are rare. For BRAM, this fix is essential.
+    //
+    assign pc_sel_btb = ((pc_sel_id == PC_SEL_PREDICTED) ? pc_sel_id :
+                         (btb_prediction_valid ? PC_SEL_PREDICTED : pc_sel_id));
+    assign pred_target = ((pc_sel_id == PC_SEL_PREDICTED) ? pred_target_id :
+                          (btb_prediction_valid ? btb_target : pred_target_id));
+
+    //
+    // PC-mux-synchronous signal indicating this prediction came from BTB
+    //
+    // This signal is used by the hazard unit to distinguish BTB predictions
+    // from static predictions. It must be synchronous with pc_sel_btb to
+    // correctly answer: "Is this PC_SEL_PREDICTED from BTB or from static?"
+    //
+    // For BTB predictions: pc_sel_btb == PREDICTED && btb_pred_taken == 1
+    //   -> Hazard unit does NOT flush (prediction already speculated)
+    // For static predictions: pc_sel_btb == PREDICTED && btb_pred_taken == 0
+    //   -> Hazard unit DOES flush (kill fall-through instruction)
+    //
+    // Must match the pc_sel_btb arbitration logic: if ID predicted, this is
+    // NOT a BTB prediction even if BTB is also predicting for current IF PC.
+    //
+    assign btb_pred_taken = ((pc_sel_id == PC_SEL_PREDICTED) ? 1'b0 :
+                             btb_prediction_valid);
+  end else begin : g_no_btb_pc_sel
+    assign pc_sel_btb        = pc_sel_id;
+    assign pred_target       = pred_target_id;
+    assign btb_pred_taken    = 1'b0;
+    assign btb_hit_if        = 1'b0;
+    assign btb_pred_taken_if = 1'b0;
+    assign btb_target_if     = '0;
+  end
+
+  assign pc_sel = (pc_sel_ex == PC_SEL_REDIRECT) ? pc_sel_ex : pc_sel_btb;
+
+  // Branch Target Buffer
+  //
+  if (BTB_ENABLE == 1) begin : g_btb
+    svc_rv_btb #(
+        .XLEN    (XLEN),
+        .NENTRIES(BTB_ENTRIES)
+    ) btb (
+        .clk             (clk),
+        .rst_n           (rst_n),
+        .lookup_pc       (pc),
+        .hit             (btb_hit),
+        .predicted_target(btb_target),
+        .predicted_taken (btb_taken),
+        .update_en       (btb_update_en),
+        .update_pc       (btb_update_pc),
+        .update_target   (btb_update_target),
+        .update_taken    (btb_update_taken)
+    );
+  end else begin : g_no_btb
+    assign btb_hit    = 1'b0;
+    assign btb_target = '0;
+    assign btb_taken  = 1'b0;
+
+    // verilog_format: off
+    `SVC_UNUSED({pc, btb_hit, btb_target, btb_taken, btb_update_en, btb_update_pc,
+                 btb_update_target, btb_update_taken});
+    // verilog_format: on
+  end
 
   //----------------------------------------------------------------------------
   // Pipeline Stages
@@ -274,9 +426,11 @@ module svc_rv #(
       .PIPELINED  (PIPELINED),
       .FWD_REGFILE(FWD_REGFILE),
       .BPRED      (BPRED),
+      .BTB_ENABLE (BTB_ENABLE),
       .EXT_ZMMUL  (EXT_ZMMUL),
       .EXT_M      (EXT_M)
   ) stage_id (
+      .pred_target(pred_target_id),
       .*
   );
 
@@ -284,13 +438,14 @@ module svc_rv #(
   // EX Stage: Execute
   //
   svc_rv_stage_ex #(
-      .XLEN     (XLEN),
-      .PIPELINED(PIPELINED),
-      .FWD      (FWD),
-      .MEM_TYPE (MEM_TYPE),
-      .BPRED    (BPRED),
-      .EXT_ZMMUL(EXT_ZMMUL),
-      .EXT_M    (EXT_M)
+      .XLEN      (XLEN),
+      .PIPELINED (PIPELINED),
+      .FWD       (FWD),
+      .MEM_TYPE  (MEM_TYPE),
+      .BPRED     (BPRED),
+      .BTB_ENABLE(BTB_ENABLE),
+      .EXT_ZMMUL (EXT_ZMMUL),
+      .EXT_M     (EXT_M)
   ) stage_ex (
       .*
   );
@@ -311,7 +466,7 @@ module svc_rv #(
   //
   svc_rv_stage_wb #(.XLEN(XLEN)) stage_wb (.*);
 
-  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem});
+  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id});
 
   //
   // Optional pipeline execution monitor for debug
@@ -379,6 +534,7 @@ module svc_rv #(
     string pc_sel_str;
     string stall_str;
     string flush_str;
+    string btb_str;
 
     case (stage_if.pc_sel)
       PC_SEL_SEQUENTIAL: pc_sel_str = " seq";
@@ -390,15 +546,33 @@ module svc_rv #(
     stall_str = stage_if.pc_stall ? "s" : " ";
     flush_str = stage_if.if_id_flush ? "f" : " ";
 
+    if (BTB_ENABLE != 0) begin
+      string hit_str;
+      string taken_str;
+
+      if (btb_hit === 1'b1) hit_str = "H";
+      else if (btb_hit === 1'b0) hit_str = "-";
+      else hit_str = "X";
+
+      if (btb_taken === 1'b1) taken_str = "T";
+      else if (btb_taken === 1'b0) taken_str = "N";
+      else taken_str = "?";
+
+      btb_str = $sformatf(" BTB[%s%s:%08x]", hit_str, taken_str, btb_target);
+    end else begin
+      btb_str = "";
+    end
+
     return $sformatf(
-        "IF %s%s %08x   %s   %08x %08x -> %08x",
+        "IF %s%s %08x   %s   %08x %08x -> %08x%s",
         stall_str,
         flush_str,
         stage_if.pc,
         pc_sel_str,
         stage_if.pred_target,
         stage_if.pc_redirect_target,
-        stage_if.pc_next
+        stage_if.pc_next,
+        btb_str
     );
   endfunction
 

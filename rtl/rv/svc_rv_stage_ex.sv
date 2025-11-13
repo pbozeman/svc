@@ -30,13 +30,14 @@
 // prepares results for the memory stage.
 //
 module svc_rv_stage_ex #(
-    parameter int XLEN      = 32,
-    parameter int PIPELINED = 0,
-    parameter int FWD       = 0,
-    parameter int MEM_TYPE  = 0,
-    parameter int BPRED     = 0,
-    parameter int EXT_ZMMUL = 0,
-    parameter int EXT_M     = 0
+    parameter int XLEN       = 32,
+    parameter int PIPELINED  = 0,
+    parameter int FWD        = 0,
+    parameter int MEM_TYPE   = 0,
+    parameter int BPRED      = 0,
+    parameter int BTB_ENABLE = 0,
+    parameter int EXT_ZMMUL  = 0,
+    parameter int EXT_M      = 0
 ) (
     input logic clk,
     input logic rst_n,
@@ -120,7 +121,15 @@ module svc_rv_stage_ex #(
     // Outputs to hazard unit
     //
     output logic is_csr_ex,
-    output logic op_active_ex
+    output logic op_active_ex,
+
+    //
+    // BTB update interface
+    //
+    output logic            btb_update_en,
+    output logic [XLEN-1:0] btb_update_pc,
+    output logic [XLEN-1:0] btb_update_target,
+    output logic            btb_update_taken
 );
 
   `include "svc_rv_defs.svh"
@@ -442,6 +451,45 @@ module svc_rv_stage_ex #(
     end else begin
       pc_sel_ex = PC_SEL_SEQUENTIAL;
     end
+  end
+
+  //
+  // BTB Update Logic
+  //
+  // Update BTB for all branches and PC-relative jumps (JAL).
+  // JALR excluded because target depends on register values unknown at fetch.
+  //
+  if (BTB_ENABLE != 0) begin : g_btb_update
+    logic is_predictable;
+    logic is_jalr;
+
+    //
+    // Predictable: branches and PC-relative jumps (JAL), but not JALR
+    //
+    assign is_predictable = is_branch_ex || (is_jump_ex && !jb_target_src_ex);
+    assign is_jalr        = is_jump_ex && jb_target_src_ex;
+
+    `SVC_UNUSED({is_jalr});
+
+    //
+    // Update BTB for all predictable instructions
+    // This allows 2-bit counter to train on both taken and not-taken outcomes
+    //
+    assign btb_update_en     = is_predictable;
+    assign btb_update_pc     = pc_ex;
+    assign btb_update_target = jb_target_ex;
+
+    //
+    // For branches: pass actual outcome to train counter
+    // For JAL: always taken
+    //
+    assign btb_update_taken  = is_jump_ex ? 1'b1 : branch_taken_ex;
+
+  end else begin : g_no_btb_update
+    assign btb_update_en     = 1'b0;
+    assign btb_update_pc     = '0;
+    assign btb_update_target = '0;
+    assign btb_update_taken  = 1'b0;
   end
 
   //
