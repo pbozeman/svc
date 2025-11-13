@@ -168,13 +168,16 @@ module svc_rv #(
   logic [XLEN-1:0] rd_data_wb;
 
   // EX -> IF (PC control)
-  logic            pc_sel;
+  logic [     1:0] pc_sel_ex;
   logic [XLEN-1:0] pc_redirect_target;
   logic            mispredicted_ex;
 
   // ID -> IF (branch prediction)
-  logic            pred_taken_id;
+  logic [     1:0] pc_sel_id;
   logic [XLEN-1:0] pred_target;
+
+  // Combined PC selection to IF
+  logic [     1:0] pc_sel;
 
   // MEM -> EX (forwarding)
   logic [XLEN-1:0] result_mem;
@@ -239,6 +242,14 @@ module svc_rv #(
   logic is_load_ex;
 
   assign is_load_ex = (res_src_ex == RES_MEM);
+
+  //
+  // Combine PC selection signals from EX and ID stages
+  //
+  // Priority: EX (redirect) > ID (prediction) > sequential
+  // EX stage overrides ID prediction on actual branch resolution
+  //
+  assign pc_sel     = (pc_sel_ex == PC_SEL_REDIRECT) ? pc_sel_ex : pc_sel_id;
 
   //----------------------------------------------------------------------------
   // Pipeline Stages
