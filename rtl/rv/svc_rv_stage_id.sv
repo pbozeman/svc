@@ -26,6 +26,7 @@ module svc_rv_stage_id #(
     parameter int PIPELINED   = 0,
     parameter int FWD_REGFILE = PIPELINED,
     parameter int BPRED       = 0,
+    parameter int BTB_ENABLE  = 0,
     parameter int EXT_ZMMUL   = 0,
     parameter int EXT_M       = 0
 ) (
@@ -41,9 +42,12 @@ module svc_rv_stage_id #(
     //
     // From IF stage
     //
-    input logic [31:0] instr_id,
-    input logic [31:0] pc_id,
-    input logic [31:0] pc_plus4_id,
+    input logic [    31:0] instr_id,
+    input logic [    31:0] pc_id,
+    input logic [    31:0] pc_plus4_id,
+    input logic            btb_hit_id,
+    input logic            btb_pred_taken_id,
+    input logic [XLEN-1:0] btb_target_id,
 
     //
     // Write-back from WB stage
@@ -91,7 +95,15 @@ module svc_rv_stage_id #(
     // Branch prediction outputs to IF stage
     //
     output logic [     1:0] pc_sel_id,
-    output logic [XLEN-1:0] pred_target
+    output logic [XLEN-1:0] pred_target,
+    output logic            pred_taken_id,
+
+    //
+    // BTB prediction inputs
+    //
+    input logic            btb_hit,
+    input logic [XLEN-1:0] btb_target,
+    input logic            btb_taken
 );
 
   `include "svc_rv_defs.svh"
@@ -201,31 +213,76 @@ module svc_rv_stage_id #(
   );
 
   //
-  // Branch Prediction
-  //
-  // Static BTFNT (Backward Taken/Forward Not-Taken) prediction:
-  // - Backward branches (negative immediate): predict taken
-  // - Forward branches (positive immediate): predict not-taken
-  // - JAL (unconditional PC-relative jump): predict taken
+  // Branch Prediction: BTB with static BTFNT fallback
   //
   if (BPRED != 0) begin : g_bpred
-    //
-    // Prediction based on immediate sign (only for branches) and JAL
-    //
-    // Backward branches (negative displacement, imm[31]=1): predict taken
-    // Forward branches (positive displacement, imm[31]=0): predict not-taken
-    // JAL (PC-relative jump): predict taken
-    // JALR (register-indirect): not predicted (wait for ALU)
-    //
-    logic pred_taken_id;
+    if (BTB_ENABLE != 0) begin : g_btb_pred
+      //
+      // Hybrid prediction: BTB hit > Static BTFNT fallback
+      //
+      logic is_predictable;
+      logic static_taken;
 
-    assign pred_taken_id = ((is_branch_id && imm_id[XLEN-1]) ||
-                            (is_jump_id && !jb_target_src_id));
+      //
+      // Predictable: branches and PC-relative jumps (JAL), but not JALR
+      //
+      assign is_predictable = is_branch_id || (is_jump_id && !jb_target_src_id);
 
-    //
-    // Predicted target calculation (PC-relative for branches and JAL)
-    //
-    assign pred_target = pc_id + imm_id;
+      //
+      // Static BTFNT: backward branches taken, JAL taken
+      //
+      assign static_taken = ((is_branch_id && imm_id[XLEN-1]) ||
+                             (is_jump_id && !jb_target_src_id));
+
+      //
+      // Three-tier prediction: BTB (IF) > Static BTFNT (ID) > No prediction
+      //
+      // This implements the standard predictor hierarchy:
+      // 1. BTB hit in IF stage → immediate speculation (highest priority)
+      // 2. BTB miss → Static BTFNT in ID stage (fallback)
+      // 3. Not predictable → No prediction
+      //
+      // CRITICAL: Check btb_hit_id (buffered from IF) not btb_hit (current lookup)
+      // to avoid double-prediction. When BTB already predicted this instruction
+      // in IF stage, ID must NOT issue another redirect or it will flush the
+      // wrong PC (the instruction after the target, not the target itself).
+      //
+      // For BRAM with 2-cycle latency (BRAM + IF/ID register), by the time
+      // instruction reaches ID, IF has already moved to the target. ID's redirect
+      // would flush that target instruction, skipping it - architectural bug!
+      //
+      always_comb begin
+        if (btb_hit_id && is_predictable) begin
+          // BTB already handled this in IF stage - ID must NOT redirect
+          // Setting pred_taken_id=0 prevents pc_sel_id from issuing another redirect
+          // BTB prediction is tracked separately via btb_pred_taken_id for misprediction detection
+          pred_taken_id = 1'b0;
+          pred_target   = '0;
+        end else if (is_predictable) begin
+          // BTB missed - use static BTFNT prediction
+          pred_taken_id = static_taken;
+          pred_target   = pc_id + imm_id;
+        end else begin
+          pred_taken_id = 1'b0;
+          pred_target   = '0;
+        end
+      end
+
+      //
+      // Current BTB lookup signals unused - we use buffered signals from IF
+      //
+      `SVC_UNUSED({btb_hit, btb_target, btb_taken, btb_target_id});
+
+    end else begin : g_static_pred
+      //
+      // Static BTFNT only (original logic)
+      //
+      assign pred_taken_id = ((is_branch_id && imm_id[XLEN-1]) ||
+                              (is_jump_id && !jb_target_src_id));
+      assign pred_target = pc_id + imm_id;
+
+      `SVC_UNUSED({btb_hit, btb_target, btb_taken, btb_hit_id, btb_target_id});
+    end
 
     //
     // PC selection output to IF stage
@@ -233,8 +290,18 @@ module svc_rv_stage_id #(
     assign pc_sel_id = pred_taken_id ? PC_SEL_PREDICTED : PC_SEL_SEQUENTIAL;
 
   end else begin : g_no_bpred
-    assign pred_target = '0;
-    assign pc_sel_id   = PC_SEL_SEQUENTIAL;
+    assign pred_taken_id = 1'b0;
+    assign pred_target   = '0;
+    assign pc_sel_id     = PC_SEL_SEQUENTIAL;
+
+    `SVC_UNUSED({
+                btb_hit,
+                btb_target,
+                btb_taken,
+                btb_hit_id,
+                btb_pred_taken_id,
+                btb_target_id
+                });
   end
 
   //
@@ -244,7 +311,11 @@ module svc_rv_stage_id #(
     logic bpred_taken_id;
 
     if (BPRED != 0) begin : g_bpred_pipe
-      assign bpred_taken_id = g_bpred.pred_taken_id;
+      //
+      // Use BTB prediction from IF stage if BTB made a prediction,
+      // otherwise use ID stage's static prediction
+      //
+      assign bpred_taken_id = btb_pred_taken_id ? 1'b1 : pred_taken_id;
     end else begin : g_no_bpred_pipe
       assign bpred_taken_id = 1'b0;
     end

@@ -30,6 +30,7 @@ module svc_rv_soc_bram_m_fwd_tb;
   localparam real fib12_max_cpi = 1.6;
   localparam real fib100_max_cpi = 1.6;
   localparam real bubble_max_cpi = 1.8;
+  localparam real forward_taken_loop_max_cpi = 3.0;
   logic        ebreak;
 
   //

@@ -1822,7 +1822,8 @@ task automatic test_csr_cycle_increments;
 
   `CHECK_WAIT_FOR_EBREAK(clk);
   `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[1] > 32'h0);
-  `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[2] > uut.cpu.stage_id.regfile.regs[1]);
+  `CHECK_TRUE(
+      uut.cpu.stage_id.regfile.regs[2] > uut.cpu.stage_id.regfile.regs[1]);
   `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[3] > 32'h0);
 endtask
 
@@ -1845,7 +1846,8 @@ task automatic test_csr_instret_increments;
 
   `CHECK_WAIT_FOR_EBREAK(clk);
   `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[1] > 32'h0);
-  `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[2] > uut.cpu.stage_id.regfile.regs[1]);
+  `CHECK_TRUE(
+      uut.cpu.stage_id.regfile.regs[2] > uut.cpu.stage_id.regfile.regs[1]);
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'd4);
 endtask
 
@@ -2370,4 +2372,64 @@ task automatic test_bubble_sort;
   cycles = uut.cpu.stage_id.regfile.regs[26];
   instrs = uut.cpu.stage_id.regfile.regs[27];
   `CHECK_CPI("bubble", bubble_max_cpi, cycles, instrs);
+endtask
+
+//
+// Test: Forward taken branch loop (anti-BTFNT)
+//
+// This test has a forward branch that is ALWAYS taken, which is the opposite
+// of what BTFNT predicts (forward branches predicted not-taken).
+//
+// Without BTB: Every iteration mispredicts (forward branch predicted not-taken but is taken)
+// With BTB: First iteration mispredicts, then BTB learns and predicts correctly
+//
+// Expected improvement with BTB: Significant CPI reduction after first iteration
+//
+task automatic test_forward_taken_loop;
+  logic [31:0] cycles;
+  logic [31:0] instrs;
+
+  RDCYCLE(x28);
+  RDINSTRET(x29);
+  ADDI(x10, x0, 0);
+  ADDI(x11, x0, 100);
+
+  //
+  // Main loop with forward taken branch
+  // PC=16: loop:
+  //
+  BLT(x10, x11, 12);
+
+  //
+  // Should never reach here (branch always taken)
+  // PC=20:
+  //
+  ADDI(x12, x0, 999);
+  EBREAK();
+
+  //
+  // taken_target: (PC=28)
+  //
+  ADDI(x10, x10, 1);
+  BLT(x10, x11, -16);
+
+  //
+  // Done - measure cycles
+  //
+  RDCYCLE(x30);
+  RDINSTRET(x31);
+  SUB(x26, x30, x28);
+  SUB(x27, x31, x29);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR(clk, ebreak, 2000);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[10], 32'd100);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[11], 32'd100);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[12], 32'd0);
+
+  cycles = uut.cpu.stage_id.regfile.regs[26];
+  instrs = uut.cpu.stage_id.regfile.regs[27];
+  `CHECK_CPI("forward_taken_loop", forward_taken_loop_max_cpi, cycles, instrs);
 endtask

@@ -21,6 +21,14 @@
 //   - Lookup (combinational): Query with PC, get hit/target/prediction
 //   - Update (sequential): Write entry on branch resolution
 //
+// Note on Direct-Mapped Collisions:
+//   - Multiple PCs can map to same index (e.g. PC=0x18 and PC=0x58 both
+//     map to index 6 when NENTRIES=16)
+//   - When collision occurs, newer entry evicts older entry
+//   - This can cause temporary BTB misses until entry is re-learned
+//   - Static BTFNT prediction handles misses, so collisions affect
+//     performance but not correctness
+//
 module svc_rv_btb #(
     parameter int XLEN     = 32,
     parameter int NENTRIES = 16

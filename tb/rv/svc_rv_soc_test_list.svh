@@ -122,3 +122,6 @@
 `TEST_CASE(test_fib12);
 `TEST_CASE(test_fib100);
 `TEST_CASE(test_bubble_sort);
+
+// BTB stress test - forward taken branch (anti-BTFNT)
+`TEST_CASE(test_forward_taken_loop);

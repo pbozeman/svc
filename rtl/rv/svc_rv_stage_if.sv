@@ -44,6 +44,13 @@ module svc_rv_stage_if #(
     input logic [XLEN-1:0] pred_target,
 
     //
+    // BTB prediction signals (from top level)
+    //
+    input logic            btb_hit_if,
+    input logic            btb_pred_taken_if,
+    input logic [XLEN-1:0] btb_target_if,
+
+    //
     // Instruction memory interface
     //
     output logic        imem_ren,
@@ -51,16 +58,23 @@ module svc_rv_stage_if #(
     input  logic [31:0] imem_rdata,
 
     //
+    // PC for BTB lookup
+    //
+    output logic [XLEN-1:0] pc,
+
+    //
     // Outputs to ID stage
     //
-    output logic [31:0] instr_id,
-    output logic [31:0] pc_id,
-    output logic [31:0] pc_plus4_id
+    output logic [    31:0] instr_id,
+    output logic [    31:0] pc_id,
+    output logic [    31:0] pc_plus4_id,
+    output logic            btb_hit_id,
+    output logic            btb_pred_taken_id,
+    output logic [XLEN-1:0] btb_target_id
 );
 
   `include "svc_rv_defs.svh"
 
-  logic [XLEN-1:0] pc;
   logic [XLEN-1:0] pc_plus4;
   logic [    31:0] instr;
 
@@ -113,13 +127,16 @@ module svc_rv_stage_if #(
   end
 
   //
-  // PC values for IF/ID register
+  // PC values and BTB prediction for IF/ID register
   //
   // For BRAM: Need extra buffering to match 2-cycle instruction latency
-  // For SRAM: Use PC directly
+  // For SRAM: Use PC and BTB prediction directly
   //
   logic [XLEN-1:0] pc_to_if_id;
   logic [XLEN-1:0] pc_plus4_to_if_id;
+  logic            btb_hit_to_if_id;
+  logic            btb_pred_taken_to_if_id;
+  logic [XLEN-1:0] btb_target_to_if_id;
 
   //
   // Memory-type specific instruction fetch adapter
@@ -132,10 +149,13 @@ module svc_rv_stage_if #(
     //
 
     //
-    // For SRAM: Pass PC directly to IF/ID register
+    // For SRAM: Pass PC and BTB prediction directly to IF/ID register
     //
-    assign pc_to_if_id       = pc;
-    assign pc_plus4_to_if_id = pc_plus4;
+    assign pc_to_if_id             = pc;
+    assign pc_plus4_to_if_id       = pc_plus4;
+    assign btb_hit_to_if_id        = btb_hit_if;
+    assign btb_pred_taken_to_if_id = btb_pred_taken_if;
+    assign btb_target_to_if_id     = btb_target_if;
 
     //
     // Instruction path
@@ -164,34 +184,47 @@ module svc_rv_stage_if #(
     //
     logic [XLEN-1:0] pc_buf;
     logic [XLEN-1:0] pc_plus4_buf;
+    logic            btb_hit_buf;
+    logic            btb_pred_taken_buf;
+    logic [XLEN-1:0] btb_target_buf;
     logic            flush_extend;
     logic [    31:0] instr_buf;
 
     //
-    // PC buffering to match instruction latency
+    // PC and BTB prediction buffering to match instruction latency
     //
     // BRAM has 2 cycles of instruction latency (BRAM output + instr_id register)
     // but IF/ID register only provides 1 cycle for PC
-    // So we need to add one more cycle of PC buffering
+    // So we need to add one more cycle of PC and BTB prediction buffering
     //
     // NOTE: PC buffer continues tracking even during flushes. Only instructions
     // are flushed to NOP, PC values must remain correct for pipeline tracking.
+    // BTB prediction must track with PC, so it also continues during flushes.
     //
     always_ff @(posedge clk) begin
       if (!rst_n) begin
-        pc_buf       <= '0;
-        pc_plus4_buf <= '0;
+        pc_buf             <= '0;
+        pc_plus4_buf       <= '0;
+        btb_hit_buf        <= 1'b0;
+        btb_pred_taken_buf <= 1'b0;
+        btb_target_buf     <= '0;
       end else if (!if_id_stall) begin
-        pc_buf       <= pc;
-        pc_plus4_buf <= pc_plus4;
+        pc_buf             <= pc;
+        pc_plus4_buf       <= pc_plus4;
+        btb_hit_buf        <= btb_hit_if;
+        btb_pred_taken_buf <= btb_pred_taken_if;
+        btb_target_buf     <= btb_target_if;
       end
     end
 
     //
-    // Output buffered PC values
+    // Output buffered PC values and BTB prediction
     //
-    assign pc_to_if_id       = pc_buf;
-    assign pc_plus4_to_if_id = pc_plus4_buf;
+    assign pc_to_if_id             = pc_buf;
+    assign pc_plus4_to_if_id       = pc_plus4_buf;
+    assign btb_hit_to_if_id        = btb_hit_buf;
+    assign btb_pred_taken_to_if_id = btb_pred_taken_buf;
+    assign btb_target_to_if_id     = btb_target_buf;
 
     //
     // Extended flush for BRAM
@@ -223,25 +256,41 @@ module svc_rv_stage_if #(
   end
 
   //
-  // IF/ID Pipeline Register for PC values
+  // IF/ID Pipeline Register for PC values and BTB prediction
   //
   if (PIPELINED != 0) begin : g_registered_pc
     logic [XLEN-1:0] pc_id_buf;
     logic [XLEN-1:0] pc_plus4_id_buf;
+    logic            btb_hit_id_buf;
+    logic            btb_pred_taken_id_buf;
+    logic [XLEN-1:0] btb_target_id_buf;
 
     always_ff @(posedge clk) begin
-      if (!if_id_stall) begin
-        pc_id_buf       <= pc_to_if_id;
-        pc_plus4_id_buf <= pc_plus4_to_if_id;
+      if (!rst_n || if_id_flush) begin
+        btb_hit_id_buf        <= 1'b0;
+        btb_pred_taken_id_buf <= 1'b0;
+        btb_target_id_buf     <= '0;
+      end else if (!if_id_stall) begin
+        pc_id_buf             <= pc_to_if_id;
+        pc_plus4_id_buf       <= pc_plus4_to_if_id;
+        btb_hit_id_buf        <= btb_hit_to_if_id;
+        btb_pred_taken_id_buf <= btb_pred_taken_to_if_id;
+        btb_target_id_buf     <= btb_target_to_if_id;
       end
     end
 
-    assign pc_id       = pc_id_buf;
-    assign pc_plus4_id = pc_plus4_id_buf;
+    assign pc_id             = pc_id_buf;
+    assign pc_plus4_id       = pc_plus4_id_buf;
+    assign btb_hit_id        = btb_hit_id_buf;
+    assign btb_pred_taken_id = btb_pred_taken_id_buf;
+    assign btb_target_id     = btb_target_id_buf;
 
   end else begin : g_passthrough_pc
-    assign pc_id       = pc_to_if_id;
-    assign pc_plus4_id = pc_plus4_to_if_id;
+    assign pc_id             = pc_to_if_id;
+    assign pc_plus4_id       = pc_plus4_to_if_id;
+    assign btb_hit_id        = btb_hit_to_if_id;
+    assign btb_pred_taken_id = btb_pred_taken_to_if_id;
+    assign btb_target_id     = btb_target_to_if_id;
 
     `SVC_UNUSED({if_id_stall, if_id_flush})
   end

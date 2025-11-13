@@ -25,6 +25,8 @@ module svc_rv_soc_bram #(
     parameter int FWD_REGFILE = 1,
     parameter int FWD         = 0,
     parameter int BPRED       = 0,
+    parameter int BTB_ENABLE  = 0,
+    parameter int BTB_ENTRIES = 16,
     parameter int EXT_ZMMUL   = 0,
     parameter int EXT_M       = 0,
 
@@ -130,6 +132,8 @@ module svc_rv_soc_bram #(
       .FWD        (FWD),
       .MEM_TYPE   (MEM_TYPE_BRAM),
       .BPRED      (BPRED),
+      .BTB_ENABLE (BTB_ENABLE),
+      .BTB_ENTRIES(BTB_ENTRIES),
       .EXT_ZMMUL  (EXT_ZMMUL),
       .EXT_M      (EXT_M)
   ) cpu (
