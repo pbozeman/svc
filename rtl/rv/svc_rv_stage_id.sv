@@ -90,8 +90,8 @@ module svc_rv_stage_id #(
     //
     // Branch prediction outputs to IF stage
     //
-    output logic [XLEN-1:0] pred_target,
-    output logic            pred_taken_id
+    output logic [     1:0] pc_sel_id,
+    output logic [XLEN-1:0] pred_target
 );
 
   `include "svc_rv_defs.svh"
@@ -217,6 +217,8 @@ module svc_rv_stage_id #(
     // JAL (PC-relative jump): predict taken
     // JALR (register-indirect): not predicted (wait for ALU)
     //
+    logic pred_taken_id;
+
     assign pred_taken_id = ((is_branch_id && imm_id[XLEN-1]) ||
                             (is_jump_id && !jb_target_src_id));
 
@@ -225,9 +227,14 @@ module svc_rv_stage_id #(
     //
     assign pred_target = pc_id + imm_id;
 
+    //
+    // PC selection output to IF stage
+    //
+    assign pc_sel_id = pred_taken_id ? PC_SEL_PREDICTED : PC_SEL_SEQUENTIAL;
+
   end else begin : g_no_bpred
-    assign pred_taken_id = 1'b0;
-    assign pred_target   = '0;
+    assign pred_target = '0;
+    assign pc_sel_id   = PC_SEL_SEQUENTIAL;
   end
 
   //
@@ -236,7 +243,11 @@ module svc_rv_stage_id #(
   if (PIPELINED != 0) begin : g_registered
     logic bpred_taken_id;
 
-    assign bpred_taken_id = pred_taken_id;
+    if (BPRED != 0) begin : g_bpred_pipe
+      assign bpred_taken_id = g_bpred.pred_taken_id;
+    end else begin : g_no_bpred_pipe
+      assign bpred_taken_id = 1'b0;
+    end
 
     always_ff @(posedge clk) begin
       if (!rst_n || id_ex_flush) begin

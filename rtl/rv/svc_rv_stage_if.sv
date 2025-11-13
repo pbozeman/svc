@@ -35,13 +35,12 @@ module svc_rv_stage_if #(
     //
     // PC control from EX stage
     //
-    input logic            pc_sel,
+    input logic [     1:0] pc_sel,
     input logic [XLEN-1:0] pc_redirect_target,
 
     //
     // Branch prediction from ID stage
     //
-    input logic            pred_taken_id,
     input logic [XLEN-1:0] pred_target,
 
     //
@@ -73,16 +72,17 @@ module svc_rv_stage_if #(
   assign pc_plus4 = pc + 4;
 
   //
-  // PC next calculation with 3-way priority:
-  // 1. Actual branch/jump taken (pc_sel) - highest priority
-  // 2. Predicted branch taken (pred_taken_id) - speculative fetch
-  // 3. Sequential (pc_plus4) - default
+  // PC next calculation with 3-way mux:
+  // - PC_SEL_REDIRECT: Actual branch/jump or misprediction
+  // - PC_SEL_PREDICTED: Predicted branch taken (speculative fetch)
+  // - PC_SEL_SEQUENTIAL: Normal sequential execution (pc + 4)
   //
   always_comb begin
-    case (1'b1)
-      pc_sel:        pc_next = pc_redirect_target;
-      pred_taken_id: pc_next = pred_target;
-      default:       pc_next = pc_plus4;
+    case (pc_sel)
+      PC_SEL_REDIRECT:   pc_next = pc_redirect_target;
+      PC_SEL_PREDICTED:  pc_next = pred_target;
+      PC_SEL_SEQUENTIAL: pc_next = pc_plus4;
+      default:           pc_next = pc_plus4;
     endcase
   end
 

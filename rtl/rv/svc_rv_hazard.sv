@@ -58,11 +58,8 @@ module svc_rv_hazard #(
     input logic [4:0] rd_wb,
     input logic       reg_write_wb,
 
-    // Control flow changes (branches/jumps taken in EX stage)
-    input logic pc_sel,
-
-    // Branch prediction taken (ID stage)
-    input logic pred_taken_id,
+    // PC selection mode from EX stage
+    input logic [1:0] pc_sel,
 
     // Branch misprediction (EX stage)
     input logic mispredicted_ex,
@@ -230,24 +227,31 @@ module svc_rv_hazard #(
   // Note: For ID/EX stage, we use STALL during multi-cycle operations but
   // FLUSH for data hazards. This is why id_ex_stall only checks op_active_ex.
   //
-  assign pc_stall = data_hazard || op_active_ex;
-  assign if_id_stall = data_hazard || op_active_ex;
-  assign id_ex_stall = op_active_ex;
+  assign pc_stall     = data_hazard || op_active_ex;
+  assign if_id_stall  = data_hazard || op_active_ex;
+  assign id_ex_stall  = op_active_ex;
   assign ex_mem_stall = op_active_ex;
   assign mem_wb_stall = op_active_ex;
 
   //
   // Flush logic with stall interaction
   //
-  // if_id_flush: Suppress branch prediction flush when stalling, since the
-  // predicted-taken branch in ID hasn't advanced yet.
+  // if_id_flush: Flush when PC redirection occurs (branches/jumps or prediction)
+  // Suppress prediction flush when stalling, since the predicted instruction
+  // in ID hasn't advanced yet.
   //
   // id_ex_flush: For data hazards, use flush (insert bubble) unless a
   // multi-cycle operation is active (then use stall to preserve EX state).
   //
-  assign if_id_flush = (pc_sel || mispredicted_ex ||
-                        (pred_taken_id && !data_hazard && !op_active_ex));
-  assign id_ex_flush = ((data_hazard && !op_active_ex) || pc_sel ||
+  logic pc_redirect;
+  logic pc_predicted;
+
+  assign pc_redirect = (pc_sel == PC_SEL_REDIRECT);
+  assign pc_predicted = (pc_sel == PC_SEL_PREDICTED);
+
+  assign if_id_flush = (pc_redirect || mispredicted_ex ||
+                        (pc_predicted && !data_hazard && !op_active_ex));
+  assign id_ex_flush = ((data_hazard && !op_active_ex) || pc_redirect ||
                         mispredicted_ex);
 
 endmodule

@@ -94,7 +94,7 @@ module svc_rv_stage_ex #(
     //
     // PC control outputs to IF
     //
-    output logic            pc_sel,
+    output logic [     1:0] pc_sel_ex,
     output logic [XLEN-1:0] pc_redirect_target,
     output logic            mispredicted_ex,
 
@@ -395,12 +395,12 @@ module svc_rv_stage_ex #(
   end
 
   //
-  // PC muxing and misprediction recovery
+  // PC selection logic
   //
-  // pc_sel triggers PC redirection for:
-  // - Actual taken branches (only if not correctly predicted)
-  // - Jumps (JALR always, JAL only if not predicted)
-  // - Branch mispredictions (need to redirect to correct target)
+  // Determines which PC source to use based on control flow and prediction:
+  // - PC_SEL_REDIRECT: Actual taken branches/jumps or mispredictions
+  // - PC_SEL_PREDICTED: Handled by ID stage (never set here)
+  // - PC_SEL_SEQUENTIAL: Normal execution (default)
   //
   // When BPRED is enabled:
   //   - JAL is handled by predictor in ID stage, so don't redirect in EX
@@ -413,27 +413,36 @@ module svc_rv_stage_ex #(
 
   if (BPRED != 0) begin : g_pc_sel_jump
     //
-    // Only JALR triggers pc_sel (JAL is predicted in ID)
+    // Only JALR triggers redirect (JAL is predicted in ID)
     //
     assign pc_sel_jump   = is_jump_ex && jb_target_src_ex;
 
     //
-    // Branches don't trigger pc_sel (handled by predictor or misprediction)
+    // Branches don't trigger redirect (handled by predictor or misprediction)
     //
     assign pc_sel_branch = 1'b0;
   end else begin : g_no_pc_sel_jump
     //
-    // All jumps trigger pc_sel
+    // All jumps trigger redirect
     //
     assign pc_sel_jump   = is_jump_ex;
 
     //
-    // Taken branches trigger pc_sel
+    // Taken branches trigger redirect
     //
     assign pc_sel_branch = is_branch_ex & branch_taken_ex;
   end
 
-  assign pc_sel = pc_sel_branch | pc_sel_jump | mispredicted_ex;
+  //
+  // Calculate PC selection mode
+  //
+  always_comb begin
+    if (pc_sel_branch || pc_sel_jump || mispredicted_ex) begin
+      pc_sel_ex = PC_SEL_REDIRECT;
+    end else begin
+      pc_sel_ex = PC_SEL_SEQUENTIAL;
+    end
+  end
 
   //
   // CSR (Control and Status Registers) - Zicntr

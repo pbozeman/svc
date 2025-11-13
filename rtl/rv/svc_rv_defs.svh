@@ -23,6 +23,13 @@
 localparam int MEM_TYPE_SRAM = 0;
 localparam int MEM_TYPE_BRAM = 1;
 
+//
+// PC selection values
+//
+localparam logic [1:0] PC_SEL_SEQUENTIAL = 2'b00;
+localparam logic [1:0] PC_SEL_PREDICTED  = 2'b01;
+localparam logic [1:0] PC_SEL_REDIRECT   = 2'b10;
+
 // ALU operation constants
 //
 // alu_op values
