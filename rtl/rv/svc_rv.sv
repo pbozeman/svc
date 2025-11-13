@@ -442,120 +442,111 @@ module svc_rv #(
     string line;
 
     //
-    // IF-only debug output (when ID and EX debug are disabled)
+    // Combined debug output
+    // Display any enabled stages in pipeline order: IF | ID | EX | MEM | WB
     //
-    if (rst_n && dbg_if && !dbg_id && !dbg_ex) begin
-      $display("[%12t] %s", $time, fmt_if_debug());
-    end
-
-    //
-    // ID-only debug output (when EX debug is disabled)
-    //
-    if (rst_n && dbg_id && !dbg_ex) begin
-      if (dbg_if) begin
-        line = {fmt_if_debug(), " | ", fmt_id_debug()};
-        $display("[%12t] %s", $time, line);
-      end else begin
-        $display("[%12t] %s", $time, fmt_id_debug());
-      end
-    end
-
-    //
-    // EX debug output (with optional IF and ID output when enabled)
-    //
-    if (rst_n && dbg_ex) begin
+    if (rst_n && (dbg_if || dbg_id || dbg_ex || dbg_mem || dbg_wb)) begin
       //
       // Build combined line with all enabled stages
       //
       line = "";
+
+      //
+      // IF stage
+      //
       if (dbg_if) begin
         line = fmt_if_debug();
       end
 
+      //
+      // ID stage
+      //
       if (dbg_id) begin
         if (line != "") line = {line, " | "};
         line = {line, fmt_id_debug()};
       end
 
       //
-      // Add EX stage output
+      // EX stage
       //
-      if (line != "") line = {line, " | "};
+      if (dbg_ex) begin
+        if (line != "") line = {line, " | "};
 
-      if (is_branch_ex) begin
-        //
-        // Branch ops: show comparison operands, prediction, and actual result
-        //
-        line = {
-          line,
-          $sformatf(
-              "EX    %08x  %-30s   %08x %08x -> %08x %s %s ",
-              pc_ex,
-              dasm_inst(
-                instr_ex
-              ),
-              stage_ex.fwd_rs1_ex,
-              stage_ex.fwd_rs2_ex,
-              stage_ex.jb_target_ex,
-              bpred_taken_ex ? "T" : "N",
-              stage_ex.branch_taken_ex ? "T" : "N"
-          )
-        };
-      end else if (is_jump_ex) begin
-        //
-        // Jump ops: show base address (for JALR) and target
-        //
-        line = {
-          line,
-          $sformatf(
-              "EX    %08x  %-30s   %08x %08x -> %08x%s",
-              pc_ex,
-              dasm_inst(
-                instr_ex
-              ),
-              jb_target_src_ex ? stage_ex.fwd_rs1_ex : pc_ex,
-              imm_ex,
-              stage_ex.jb_target_ex,
-              {DBG_EX_FLAGS_WIDTH{" "}}
-          )
-        };
-      end else if (res_src_ex == RES_M) begin
-        //
-        // M extension ops: show operands and result
-        // Note: fwd_rs1_ex/fwd_rs2_ex are stable during multi-cycle ops
-        //
-        line = {
-          line,
-          $sformatf(
-              "EX    %08x  %-30s   %08x %08x -> %08x%s",
-              pc_ex,
-              dasm_inst(
-                instr_ex
-              ),
-              stage_ex.fwd_rs1_ex,
-              stage_ex.fwd_rs2_ex,
-              stage_ex.m_result_ex,
-              {DBG_EX_FLAGS_WIDTH{" "}}
-          )
-        };
-      end else begin
-        //
-        // Non-M ops: show ALU operation
-        //
-        line = {
-          line,
-          $sformatf(
-              "EX    %08x  %-30s   %08x %08x -> %08x%s",
-              pc_ex,
-              dasm_inst(
-                instr_ex
-              ),
-              stage_ex.alu_a_ex,
-              stage_ex.alu_b_ex,
-              stage_ex.alu_result_ex,
-              {DBG_EX_FLAGS_WIDTH{" "}}
-          )
-        };
+        if (is_branch_ex) begin
+          //
+          // Branch ops: show comparison operands, prediction, and actual result
+          //
+          line = {
+            line,
+            $sformatf(
+                "EX    %08x  %-30s   %08x %08x -> %08x %s %s ",
+                pc_ex,
+                dasm_inst(
+                  instr_ex
+                ),
+                stage_ex.fwd_rs1_ex,
+                stage_ex.fwd_rs2_ex,
+                stage_ex.jb_target_ex,
+                bpred_taken_ex ? "T" : "N",
+                stage_ex.branch_taken_ex ? "T" : "N"
+            )
+          };
+        end else if (is_jump_ex) begin
+          //
+          // Jump ops: show base address (for JALR) and target
+          //
+          line = {
+            line,
+            $sformatf(
+                "EX    %08x  %-30s   %08x %08x -> %08x%s",
+                pc_ex,
+                dasm_inst(
+                  instr_ex
+                ),
+                jb_target_src_ex ? stage_ex.fwd_rs1_ex : pc_ex,
+                imm_ex,
+                stage_ex.jb_target_ex,
+                {DBG_EX_FLAGS_WIDTH{" "}}
+            )
+          };
+        end else if (res_src_ex == RES_M) begin
+          //
+          // M extension ops: show operands and result
+          // Note: fwd_rs1_ex/fwd_rs2_ex are stable during multi-cycle ops
+          //
+          line = {
+            line,
+            $sformatf(
+                "EX    %08x  %-30s   %08x %08x -> %08x%s",
+                pc_ex,
+                dasm_inst(
+                  instr_ex
+                ),
+                stage_ex.fwd_rs1_ex,
+                stage_ex.fwd_rs2_ex,
+                stage_ex.m_result_ex,
+                {DBG_EX_FLAGS_WIDTH{" "}}
+            )
+          };
+        end else begin
+          //
+          // Non-M ops: show ALU operation
+          //
+          line = {
+            line,
+            $sformatf(
+                "EX    %08x  %-30s   %08x %08x -> %08x%s",
+                pc_ex,
+                dasm_inst(
+                  instr_ex
+                ),
+                stage_ex.alu_a_ex,
+                stage_ex.alu_b_ex,
+                stage_ex.alu_result_ex,
+                {DBG_EX_FLAGS_WIDTH{" "}}
+            )
+          };
+        end
       end
 
       //
@@ -564,7 +555,7 @@ module svc_rv #(
       // BRAM: 1-cycle latency, display in MEM stage when mem_read_mem/mem_write_mem active
       //
       if (dbg_mem) begin
-        line = {line, " | "};
+        if (line != "") line = {line, " | "};
         if (MEM_TYPE == MEM_TYPE_SRAM) begin
           if (dmem_ren) begin
             line = {
@@ -597,7 +588,7 @@ module svc_rv #(
       // Always reserve space for consistent alignment
       //
       if (dbg_wb) begin
-        line = {line, " | "};
+        if (line != "") line = {line, " | "};
         if (reg_write_wb && (rd_wb != 5'h0)) begin
           line = {
             line, $sformatf("WB %08x -> x%02d", stage_wb.rd_data_wb, rd_wb)
