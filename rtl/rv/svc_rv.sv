@@ -472,7 +472,11 @@ module svc_rv #(
   // Optional pipeline execution monitor for debug
   // Controlled by +SVC_RV_DBG_IF and +SVC_RV_DBG_EX runtime plusargs
   //
+  // Linter gets too confused about reaching into the hierarchy while
+  // linting, so just disable it.
+  //
 `ifndef SYNTHESIS
+`ifndef VERILATOR
   `include "svc_rv_dasm.svh"
 
   //
@@ -480,7 +484,7 @@ module svc_rv #(
   //
   localparam int DBG_ID_PRED_WIDTH = 13;
   localparam int DBG_EX_FLAGS_WIDTH = 5;
-  localparam int DBG_WB_WIDTH = 15;
+  localparam int DBG_WB_WIDTH = 18;
   localparam int DBG_MEM_WIDTH = 24;
 
   logic dbg_if;
@@ -488,6 +492,7 @@ module svc_rv #(
   logic dbg_ex;
   logic dbg_mem;
   logic dbg_wb;
+  logic dbg_haz;
 
   initial begin
     integer dbg_if_level;
@@ -495,6 +500,7 @@ module svc_rv #(
     integer dbg_ex_level;
     integer dbg_mem_level;
     integer dbg_wb_level;
+    integer dbg_haz_level;
 
     if ($value$plusargs("SVC_RV_DBG_IF=%d", dbg_if_level)) begin
       dbg_if = (dbg_if_level != 0);
@@ -524,6 +530,12 @@ module svc_rv #(
       dbg_wb = (dbg_wb_level != 0);
     end else begin
       dbg_wb = 1'b0;
+    end
+
+    if ($value$plusargs("SVC_RV_DBG_HAZ=%d", dbg_haz_level)) begin
+      dbg_haz = (dbg_haz_level != 0);
+    end else begin
+      dbg_haz = 1'b0;
     end
   end
 
@@ -617,9 +629,10 @@ module svc_rv #(
 
     //
     // Combined debug output
-    // Display any enabled stages in pipeline order: IF | ID | EX | MEM | WB
+    // Display any enabled stages in pipeline order: IF | ID | EX | MEM | WB | HAZ
     //
-    if (rst_n && (dbg_if || dbg_id || dbg_ex || dbg_mem || dbg_wb)) begin
+    if (rst_n &&
+        (dbg_if || dbg_id || dbg_ex || dbg_mem || dbg_wb || dbg_haz)) begin
       //
       // Build combined line with all enabled stages
       //
@@ -772,9 +785,67 @@ module svc_rv #(
         end
       end
 
-      $display("[%12t] %s", $time, line);
+
+      //
+      // Hazard information
+      //
+      if (PIPELINED == 1) begin
+        if (dbg_haz) begin
+          string rs1_str;
+          string rs2_str;
+          string ctrl_str;
+
+          if (line != "") line = {line, " | "};
+
+          // Format rs1 hazard
+          //
+          if (g_hazard.hazard.ex_hazard_rs1) begin
+            rs1_str = $sformatf("E:x%02d  ", rd_ex);
+          end else if (g_hazard.hazard.mem_hazard_rs1) begin
+            rs1_str = $sformatf("M:x%02d  ", rd_mem);
+          end else if (g_hazard.hazard.wb_hazard_rs1) begin
+            rs1_str = $sformatf("W:x%02d  ", rd_wb);
+          end else begin
+            rs1_str = "       ";
+          end
+
+          //
+          // Format rs2 hazard
+          //
+          if (g_hazard.hazard.ex_hazard_rs2) begin
+            rs2_str = $sformatf("E:x%02d  ", rd_ex);
+          end else if (g_hazard.hazard.mem_hazard_rs2) begin
+            rs2_str = $sformatf("M:x%02d  ", rd_mem);
+          end else if (g_hazard.hazard.wb_hazard_rs2) begin
+            rs2_str = $sformatf("W:x%02d  ", rd_wb);
+          end else begin
+            rs2_str = "       ";
+          end
+
+          if (BPRED != 0) begin : g_bpred_dbg_haz
+            //
+            // Format control/multi-cycle
+            //
+            if (op_active_ex) begin
+              ctrl_str = "MC";
+            end else if (pc_sel == PC_SEL_REDIRECT) begin
+              ctrl_str = "BR";
+            end else if ((pc_sel == PC_SEL_PREDICTED) && !btb_pred_taken &&
+                         !g_hazard.hazard.data_hazard && !op_active_ex) begin
+              ctrl_str = "PR";
+            end else begin
+              ctrl_str = "  ";
+            end
+          end
+
+          line = {line, $sformatf("H %s %s %s", rs1_str, rs2_str, ctrl_str)};
+        end
+
+        $display("[%12t] %s", $time, line);
+      end
     end
   end
+`endif
 `endif
 
 endmodule
