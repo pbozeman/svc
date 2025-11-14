@@ -493,6 +493,7 @@ module svc_rv #(
   logic dbg_mem;
   logic dbg_wb;
   logic dbg_haz;
+  logic dbg_first_line;
 
   initial begin
     integer dbg_if_level;
@@ -501,41 +502,74 @@ module svc_rv #(
     integer dbg_mem_level;
     integer dbg_wb_level;
     integer dbg_haz_level;
+    integer dbg_cpu_level;
 
+    //
+    // Master debug flag - enables all CPU debug output
+    //
+    if ($value$plusargs("SVC_RV_DBG_CPU=%d", dbg_cpu_level)) begin
+      if (dbg_cpu_level != 0) begin
+        dbg_if  = 1'b1;
+        dbg_id  = 1'b1;
+        dbg_ex  = 1'b1;
+        dbg_mem = 1'b1;
+        dbg_wb  = 1'b1;
+        dbg_haz = 1'b1;
+      end else begin
+        dbg_if  = 1'b0;
+        dbg_id  = 1'b0;
+        dbg_ex  = 1'b0;
+        dbg_mem = 1'b0;
+        dbg_wb  = 1'b0;
+        dbg_haz = 1'b0;
+      end
+    end else begin
+      dbg_if  = 1'b0;
+      dbg_id  = 1'b0;
+      dbg_ex  = 1'b0;
+      dbg_mem = 1'b0;
+      dbg_wb  = 1'b0;
+      dbg_haz = 1'b0;
+    end
+
+    //
+    // Individual debug flags (override master setting)
+    //
     if ($value$plusargs("SVC_RV_DBG_IF=%d", dbg_if_level)) begin
       dbg_if = (dbg_if_level != 0);
-    end else begin
-      dbg_if = 1'b0;
     end
 
     if ($value$plusargs("SVC_RV_DBG_ID=%d", dbg_id_level)) begin
       dbg_id = (dbg_id_level != 0);
-    end else begin
-      dbg_id = 1'b0;
     end
 
     if ($value$plusargs("SVC_RV_DBG_EX=%d", dbg_ex_level)) begin
       dbg_ex = (dbg_ex_level != 0);
-    end else begin
-      dbg_ex = 1'b0;
     end
 
     if ($value$plusargs("SVC_RV_DBG_MEM=%d", dbg_mem_level)) begin
       dbg_mem = (dbg_mem_level != 0);
-    end else begin
-      dbg_mem = 1'b0;
     end
 
     if ($value$plusargs("SVC_RV_DBG_WB=%d", dbg_wb_level)) begin
       dbg_wb = (dbg_wb_level != 0);
-    end else begin
-      dbg_wb = 1'b0;
     end
 
     if ($value$plusargs("SVC_RV_DBG_HAZ=%d", dbg_haz_level)) begin
       dbg_haz = (dbg_haz_level != 0);
-    end else begin
-      dbg_haz = 1'b0;
+    end
+
+  end
+
+  //
+  // Track first debug line after reset
+  //
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      dbg_first_line <= 1'b1;
+    end else
+        if (dbg_if || dbg_id || dbg_ex || dbg_mem || dbg_wb || dbg_haz) begin
+      dbg_first_line <= 1'b0;
     end
   end
 
@@ -633,6 +667,13 @@ module svc_rv #(
     //
     if (rst_n &&
         (dbg_if || dbg_id || dbg_ex || dbg_mem || dbg_wb || dbg_haz)) begin
+      //
+      // Print newline before first debug line after reset
+      //
+      if (dbg_first_line) begin
+        $display("");
+      end
+
       //
       // Build combined line with all enabled stages
       //
