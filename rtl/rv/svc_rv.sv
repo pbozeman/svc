@@ -100,6 +100,9 @@ module svc_rv #(
     if ((EXT_ZMMUL == 1) && (EXT_M == 1)) begin
       $fatal(1, "EXT_ZMMUL and EXT_M are mutually exclusive");
     end
+    if ((EXT_M == 1) && (PIPELINED == 0) && (MEM_TYPE == MEM_TYPE_BRAM)) begin
+      $fatal(1, "EXT_M with PIPELINED=0 requires MEM_TYPE=SRAM");
+    end
   end
 
   //
@@ -253,8 +256,8 @@ module svc_rv #(
   //
   // Hazard Detection Unit
   //
-  // Only instantiate when pipeline registers are enabled.
-  // In a single-cycle design, there are no pipeline hazards.
+  // Full hazard unit for pipelined mode.
+  // Minimal stall logic for single-cycle mode with M extension.
   //
   if (PIPELINED == 1) begin : g_hazard
     svc_rv_hazard #(
@@ -264,7 +267,34 @@ module svc_rv #(
     ) hazard (
         .*
     );
+  end else if (EXT_M == 1) begin : g_minimal_hazard
+    //
+    // Minimal hazard logic for single-cycle mode with M extension
+    //
+    // Multi-cycle division operations (32 cycles) require stalling the PC
+    // to keep the instruction visible in the combinational pipeline while
+    // the divider runs. The multi-cycle state machine in EX stage handles
+    // op_active_ex generation.
+    //
+    // No data hazards exist in single-cycle mode (no pipeline registers),
+    // so only PC and IF/ID stalls are needed.
+    //
+    assign pc_stall     = op_active_ex;
+    assign if_id_stall  = op_active_ex;
+    assign if_id_flush  = 1'b0;
+    assign id_ex_stall  = 1'b0;
+    assign id_ex_flush  = 1'b0;
+    assign ex_mem_stall = 1'b0;
+    assign mem_wb_stall = 1'b0;
+
+    // verilog_format: off
+    `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_load_ex,
+                mispredicted_ex, is_csr_ex, btb_pred_taken});
+    // verilog_format: on
   end else begin : g_no_hazard
+    //
+    // No hazards in single-cycle mode without multi-cycle operations
+    //
     assign pc_stall     = 1'b0;
     assign if_id_stall  = 1'b0;
     assign if_id_flush  = 1'b0;
