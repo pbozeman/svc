@@ -887,9 +887,9 @@ module svc_rv #(
 
           line = {line, $sformatf("H %s %s %s", rs1_str, rs2_str, ctrl_str)};
         end
-
-        $display("[%12t] %s", $time, line);
       end
+
+      $display("[%12t] %s", $time, line);
     end
   end
 `endif
