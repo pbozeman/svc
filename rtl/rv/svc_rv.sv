@@ -666,7 +666,9 @@ module svc_rv #(
           line = {
             line,
             $sformatf(
-                "EX    %08x  %-30s   %08x %08x -> %08x %s %s ",
+                "EX %s%s %08x  %-30s   %08x %08x -> %08x %s %s ",
+                id_ex_stall ? "s" : " ",
+                id_ex_flush ? "f" : " ",
                 pc_ex,
                 dasm_inst(
                   instr_ex
@@ -685,15 +687,16 @@ module svc_rv #(
           line = {
             line,
             $sformatf(
-                "EX    %08x  %-30s   %08x %08x -> %08x%s",
+                "EX %s%s %08x  %-30s   %08x %08x -> %08x     ",
+                id_ex_stall ? "s" : " ",
+                id_ex_flush ? "f" : " ",
                 pc_ex,
                 dasm_inst(
                   instr_ex
                 ),
                 jb_target_src_ex ? stage_ex.fwd_rs1_ex : pc_ex,
                 imm_ex,
-                stage_ex.jb_target_ex,
-                {DBG_EX_FLAGS_WIDTH{" "}}
+                stage_ex.jb_target_ex
             )
           };
         end else if (res_src_ex == RES_M) begin
@@ -704,7 +707,9 @@ module svc_rv #(
           line = {
             line,
             $sformatf(
-                "EX    %08x  %-30s   %08x %08x -> %08x%s",
+                "EX %s%s %08x  %-30s   %08x %08x -> %08x %s   ",
+                id_ex_stall ? "s" : " ",
+                id_ex_flush ? "f" : " ",
                 pc_ex,
                 dasm_inst(
                   instr_ex
@@ -712,7 +717,7 @@ module svc_rv #(
                 stage_ex.fwd_rs1_ex,
                 stage_ex.fwd_rs2_ex,
                 stage_ex.m_result_ex,
-                {DBG_EX_FLAGS_WIDTH{" "}}
+                ex_mem_stall ? "s" : " "
             )
           };
         end else begin
@@ -722,15 +727,16 @@ module svc_rv #(
           line = {
             line,
             $sformatf(
-                "EX    %08x  %-30s   %08x %08x -> %08x%s",
+                "EX %s%s %08x  %-30s   %08x %08x -> %08x     ",
+                id_ex_stall ? "s" : " ",
+                id_ex_flush ? "f" : " ",
                 pc_ex,
                 dasm_inst(
                   instr_ex
                 ),
                 stage_ex.alu_a_ex,
                 stage_ex.alu_b_ex,
-                stage_ex.alu_result_ex,
-                {DBG_EX_FLAGS_WIDTH{" "}}
+                stage_ex.alu_result_ex
             )
           };
         end
