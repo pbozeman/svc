@@ -22,9 +22,12 @@ module svc_rv_soc_sram #(
     parameter int BPRED       = 0,
     parameter int BTB_ENABLE  = 0,
     parameter int BTB_ENTRIES = 16,
+    parameter int EXT_ZMMUL   = 0,
+    parameter int EXT_M       = 0,
 
     // verilog_lint: waive explicit-parameter-storage-type
-    parameter IMEM_INIT = ""
+    parameter IMEM_INIT = "",
+    parameter DMEM_INIT = ""
 ) (
     input logic clk,
     input logic rst_n,
@@ -106,7 +109,9 @@ module svc_rv_soc_sram #(
       .FWD        (FWD),
       .BPRED      (BPRED),
       .BTB_ENABLE (BTB_ENABLE),
-      .BTB_ENTRIES(BTB_ENTRIES)
+      .BTB_ENTRIES(BTB_ENTRIES),
+      .EXT_ZMMUL  (EXT_ZMMUL),
+      .EXT_M      (EXT_M)
   ) cpu (
       .clk  (clk),
       .rst_n(rst_n),
@@ -151,8 +156,9 @@ module svc_rv_soc_sram #(
   // Data memory (SRAM)
   //
   svc_mem_sram #(
-      .DW   (32),
-      .DEPTH(DMEM_DEPTH)
+      .DW       (32),
+      .DEPTH    (DMEM_DEPTH),
+      .INIT_FILE(DMEM_INIT)
   ) dmem (
       .clk  (clk),
       .rst_n(rst_n),

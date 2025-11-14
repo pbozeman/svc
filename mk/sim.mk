@@ -52,6 +52,16 @@ $(SIM_BUILD_DIR)/rv_%_i_sim: $(BUILD_DIR)/sw/rv32i/%/%.hex
 $(SIM_BUILD_DIR)/rv_%_im_sim: $(BUILD_DIR)/sw/rv32im/%/%.hex
 $(SIM_BUILD_DIR)/rv_%_i_zmmul_sim: $(BUILD_DIR)/sw/rv32i_zmmul/%/%.hex
 
+# SRAM pipelined simulation pattern rules
+$(SIM_BUILD_DIR)/rv_%_sram_i_sim: $(BUILD_DIR)/sw/rv32i/%/%.hex
+$(SIM_BUILD_DIR)/rv_%_sram_im_sim: $(BUILD_DIR)/sw/rv32im/%/%.hex
+$(SIM_BUILD_DIR)/rv_%_sram_i_zmmul_sim: $(BUILD_DIR)/sw/rv32i_zmmul/%/%.hex
+
+# SRAM single-cycle simulation pattern rules
+$(SIM_BUILD_DIR)/rv_%_sram_sc_i_sim: $(BUILD_DIR)/sw/rv32i/%/%.hex
+$(SIM_BUILD_DIR)/rv_%_sram_sc_im_sim: $(BUILD_DIR)/sw/rv32im/%/%.hex
+$(SIM_BUILD_DIR)/rv_%_sram_sc_i_zmmul_sim: $(BUILD_DIR)/sw/rv32i_zmmul/%/%.hex
+
 # Architecture-specific simulation build rules with defines
 # Generate rules for each RV module and architecture combination
 define rv_arch_sim_rule
@@ -68,12 +78,52 @@ $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_arch_sim_rule,$(mod),i,$(BUILD_
 $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_arch_sim_rule,$(mod),im,$(BUILD_DIR)/sw/rv32im)))
 $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_arch_sim_rule,$(mod),i_zmmul,$(BUILD_DIR)/sw/rv32i_zmmul)))
 
+# SRAM pipelined simulation build rules
+define rv_sram_sim_rule
+.PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_sram_$(2)_sim
+$(SIM_BUILD_DIR)/rv_$(1)_sram_$(2)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv Makefile | $(SIM_BUILD_DIR)
+	@$$(IVERILOG) -M $$(@).dep -DSVC_MEM_SRAM -DRV_$(shell echo $(1) | tr 'a-z' 'A-Z')_HEX='"$(3)/$(1)/$(1).hex"' $(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) $(if $(filter im,$(2)),-DRV_ARCH_M) $$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
+		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
+		exit $$$${PIPESTATUS[0]}
+	@echo "$$@: $$$$(tr '\n' ' ' < $$(@).dep)" > $$(@).d
+endef
+
+# Generate SRAM pipelined rules for each module x architecture
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_sram_sim_rule,$(mod),i,$(BUILD_DIR)/sw/rv32i)))
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_sram_sim_rule,$(mod),im,$(BUILD_DIR)/sw/rv32im)))
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_sram_sim_rule,$(mod),i_zmmul,$(BUILD_DIR)/sw/rv32i_zmmul)))
+
+# SRAM single-cycle simulation build rules
+define rv_sram_sc_sim_rule
+.PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_sram_sc_$(2)_sim
+$(SIM_BUILD_DIR)/rv_$(1)_sram_sc_$(2)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv Makefile | $(SIM_BUILD_DIR)
+	@$$(IVERILOG) -M $$(@).dep -DSVC_MEM_SRAM -DSVC_CPU_SINGLE_CYCLE -DRV_$(shell echo $(1) | tr 'a-z' 'A-Z')_HEX='"$(3)/$(1)/$(1).hex"' $(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) $(if $(filter im,$(2)),-DRV_ARCH_M) $$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
+		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
+		exit $$$${PIPESTATUS[0]}
+	@echo "$$@: $$$$(tr '\n' ' ' < $$(@).dep)" > $$(@).d
+endef
+
+# Generate SRAM single-cycle rules for each module x architecture
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_sram_sc_sim_rule,$(mod),i,$(BUILD_DIR)/sw/rv32i)))
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_sram_sc_sim_rule,$(mod),im,$(BUILD_DIR)/sw/rv32im)))
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_sram_sc_sim_rule,$(mod),i_zmmul,$(BUILD_DIR)/sw/rv32i_zmmul)))
+
 # Phony targets for convenience
 RV_I_SIMS := $(addprefix rv_,$(addsuffix _i_sim,$(RV_SIM_MODULES)))
 RV_IM_SIMS := $(addprefix rv_,$(addsuffix _im_sim,$(RV_SIM_MODULES)))
 RV_I_ZMMUL_SIMS := $(addprefix rv_,$(addsuffix _i_zmmul_sim,$(RV_SIM_MODULES)))
 
-.PHONY: $(RV_I_SIMS) $(RV_IM_SIMS) $(RV_I_ZMMUL_SIMS)
+# SRAM pipelined phony targets
+RV_SRAM_I_SIMS := $(addprefix rv_,$(addsuffix _sram_i_sim,$(RV_SIM_MODULES)))
+RV_SRAM_IM_SIMS := $(addprefix rv_,$(addsuffix _sram_im_sim,$(RV_SIM_MODULES)))
+RV_SRAM_I_ZMMUL_SIMS := $(addprefix rv_,$(addsuffix _sram_i_zmmul_sim,$(RV_SIM_MODULES)))
+
+# SRAM single-cycle phony targets
+RV_SRAM_SC_I_SIMS := $(addprefix rv_,$(addsuffix _sram_sc_i_sim,$(RV_SIM_MODULES)))
+RV_SRAM_SC_IM_SIMS := $(addprefix rv_,$(addsuffix _sram_sc_im_sim,$(RV_SIM_MODULES)))
+RV_SRAM_SC_I_ZMMUL_SIMS := $(addprefix rv_,$(addsuffix _sram_sc_i_zmmul_sim,$(RV_SIM_MODULES)))
+
+.PHONY: $(RV_I_SIMS) $(RV_IM_SIMS) $(RV_I_ZMMUL_SIMS) $(RV_SRAM_I_SIMS) $(RV_SRAM_IM_SIMS) $(RV_SRAM_I_ZMMUL_SIMS) $(RV_SRAM_SC_I_SIMS) $(RV_SRAM_SC_IM_SIMS) $(RV_SRAM_SC_I_ZMMUL_SIMS)
 
 $(RV_I_SIMS): rv_%_i_sim: $(SIM_BUILD_DIR)/rv_%_i_sim
 	@$(VVP) $< $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) $(if $(SVC_RV_DBG_HAZ),+SVC_RV_DBG_HAZ=$(SVC_RV_DBG_HAZ)) $(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
@@ -83,6 +133,26 @@ $(RV_IM_SIMS): rv_%_im_sim: $(SIM_BUILD_DIR)/rv_%_im_sim
 
 $(RV_I_ZMMUL_SIMS): rv_%_i_zmmul_sim: $(SIM_BUILD_DIR)/rv_%_i_zmmul_sim
 	@$(VVP) $< $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) $(if $(SVC_RV_DBG_HAZ),+SVC_RV_DBG_HAZ=$(SVC_RV_DBG_HAZ)) $(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
+
+# SRAM pipelined execution targets
+$(RV_SRAM_I_SIMS): rv_%_sram_i_sim: $(SIM_BUILD_DIR)/rv_%_sram_i_sim
+	@$(VVP) $< $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) $(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
+
+$(RV_SRAM_IM_SIMS): rv_%_sram_im_sim: $(SIM_BUILD_DIR)/rv_%_sram_im_sim
+	@$(VVP) $< $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) $(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
+
+$(RV_SRAM_I_ZMMUL_SIMS): rv_%_sram_i_zmmul_sim: $(SIM_BUILD_DIR)/rv_%_sram_i_zmmul_sim
+	@$(VVP) $< $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) $(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
+
+# SRAM single-cycle execution targets
+$(RV_SRAM_SC_I_SIMS): rv_%_sram_sc_i_sim: $(SIM_BUILD_DIR)/rv_%_sram_sc_i_sim
+	@$(VVP) $< $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) $(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
+
+$(RV_SRAM_SC_IM_SIMS): rv_%_sram_sc_im_sim: $(SIM_BUILD_DIR)/rv_%_sram_sc_im_sim
+	@$(VVP) $< $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) $(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
+
+$(RV_SRAM_SC_I_ZMMUL_SIMS): rv_%_sram_sc_i_zmmul_sim: $(SIM_BUILD_DIR)/rv_%_sram_sc_i_zmmul_sim
+	@$(VVP) $< $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) $(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
 
 # Hex files are built by targeted sw builds (recursive make into sw/<module>)
 # The .hex.d files (included above) provide source dependencies for rebuild detection
