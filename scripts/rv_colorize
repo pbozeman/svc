@@ -1,0 +1,339 @@
+#!/usr/bin/env python3
+#
+# 🚨🚨🚨 VIBE CODED 🤖🔥✨💯 (NO CAP THIS SCRIPT GOES HARD FR FR) 🚨🚨🚨
+#
+# pipeline traces be looking MID AF 😤 until you pipe them through this ABSOLUTE UNIT 💅✨
+# we got that nordic color palette BUSSIN BUSSIN 🌊💎 registers stay DRIPPED OUT 🥶
+# jump targets? COLORIZED. hazards? RED BG ENERGY ⚠️🔴 NOPs? CAUGHT IN 4K 📸
+# RAM usage? RESPECTFUL 🙏 streaming? IMMACULATE 🧊 performance? UNMATCHED 💪
+# readability? CHEF'S KISS 👨‍🍳💋 aesthetics? VALID ✅ this code? UNDERSTOOD THE ASSIGNMENT 📝
+#
+# POV: you're debugging and your terminal actually looks fire now 🔥🔥🔥
+# the pipeline trace glow up we all needed but didn't deserve 😭💅
+# your pipeline be aura farming with these colors fr 🌟💎
+# zero lies detected. absolute cinema. 10/10 would colorize again. sheeeesh 🥴
+#
+# usage: your_sim | rv_colorize | less -R
+# (or just let it rip and watch your terminal transcend reality) 🌌🪐✨
+#
+# ⚠️ IMPORTANT NOTE ⚠️
+# this comment section was specifically designed to embarrass my kids 💀
+# (they were watching me vibe code this and the cringe was palpable) 😬
+# they said I don't have rizz?? well now I got COLORIZER RIZZ 😎🎨
+# this code is straight up sigma grindset ⚡💪
+# kids be like "dad please stop" but the vibes are too immaculate to quit 🛑❌
+#
+
+import hashlib
+import re
+import sys
+
+RESET = "\x1b[0m"
+DIM_TEXT_COLOR = 250  # Light gray for normal text (less intense than white)
+MEDIUM_DIM_COLOR = 244  # Medium gray for non-jump-target PCs
+VERY_DIM_COLOR = 238  # Very dark gray for BTB misses
+REGULAR_BG_COLOR = 232  # Regular background color
+ALT_LINE_BG_COLOR = 233  # Very mild darker background for alternating lines
+NOP_BG_COLOR = 52  # Nordic dark red for NOP instructions (addi x0, x0, 0)
+HAZARD_BG_COLOR = 52  # Red background for flush/hazard markers
+
+
+def ansi_fg(code: int) -> str:
+    return f"\x1b[38;5;{code}m"
+
+
+def ansi_bg(code: int) -> str:
+    return f"\x1b[48;5;{code}m"
+
+
+# Register colors: Nordic/Nord-inspired palette (one per register x0-x31)
+# Colors arranged to maximize contrast between adjacent registers
+# Brightness normalized for consistency
+REG_COLORS = [
+    244,  # x0 - medium white (zero register, special)
+    167,  # x1 - red (ra)
+    109,  # x2 - teal (sp)
+    180,  # x3 - orange
+    110,  # x4 - teal-cyan
+    173,  # x5 - orange-peach
+    152,  # x6 - light blue
+    139,  # x7 - purple
+    108,  # x8 - green (fp/s0)
+    182,  # x9 - mauve
+    111,  # x10 - cyan-blue (a0)
+    168,  # x11 - red (a1)
+    107,  # x12 - sage green
+    179,  # x13 - peach
+    116,  # x14 - aqua
+    178,  # x15 - yellow-orange
+    140,  # x16 - purple
+    144,  # x17 - green
+    117,  # x18 - light cyan (s2)
+    166,  # x19 - orange
+    150,  # x20 - light green
+    176,  # x21 - pink-purple
+    145,  # x22 - lavender
+    172,  # x23 - orange-red
+    183,  # x24 - light purple
+    109,  # x25 - teal
+    174,  # x26 - peach-orange
+    110,  # x27 - teal-cyan
+    168,  # x28 - red (t3)
+    145,  # x29 - lavender (t4)
+    180,  # x30 - orange (t5)
+    144,  # x31 - green (t6)
+]
+
+# Addresses (jump/branch targets): Nordic/Nord-inspired palette
+# Based on Nord theme colors - muted, pastel-like tones
+# Brightness normalized for consistency (avoiding whitish colors)
+ADDR_COLORS = [
+    167,  # red
+    168,  # red variation
+    173,  # orange
+    180,  # orange variation
+    179,  # peach
+    178,  # yellow-orange
+    172,  # orange-red
+    174,  # peach-orange
+    108,  # green
+    144,  # green variation
+    107,  # sage green
+    143,  # green-yellow
+    109,  # teal
+    110,  # teal variation
+    116,  # aqua
+    117,  # cyan
+    111,  # cyan-blue
+    145,  # lavender
+    139,  # purple
+    140,  # purple variation
+    182,  # mauve
+    176,  # pink-purple
+    181,  # dusty rose
+    175,  # pink
+    166,  # orange-coral
+    172,  # orange-red
+    180,  # warm orange
+    107,  # sage
+    144,  # moss green
+    109,  # teal-green
+    110,  # teal
+    140,  # violet
+    139,  # purple
+    168,  # red
+    173,  # orange
+]
+
+# Regex for matching 8-hex addresses
+re_pc_addr = re.compile(r"\b([0-9a-fA-F]{8})\b")
+# Regex for BTB entries
+re_btb = re.compile(r"(BTB\[(HT|--|-N):[0-9a-fA-F]{8}\])")
+
+
+class Colorizer:
+    def __init__(self):
+        self.color_cache = {}
+        self.jump_targets = set()
+        self.line_number = 0
+
+    def hash_to_color(self, key: str, palette):
+        """Hash a key to a stable color from the palette.
+
+        For addresses, uses multiplicative hashing to ensure sequential
+        addresses get very different colors.
+        """
+        if key in self.color_cache:
+            return self.color_cache[key]
+
+        # For addresses, use multiplicative hash on the numeric value
+        # to spread sequential addresses far apart in color space
+        if key.startswith("addr:"):
+            addr_hex = key[5:]  # Remove "addr:" prefix
+            addr_val = int(addr_hex, 16)
+            # Multiply by large prime and take modulo
+            # This causes sequential values to wrap differently
+            h = (addr_val * 2654435761) % len(palette)
+        else:
+            # For other keys, use MD5
+            h = int(hashlib.md5(key.encode("utf-8")).hexdigest(), 16) % len(palette)
+
+        color = palette[h]
+        self.color_cache[key] = color
+        return color
+
+    def extract_jump_targets(self, line: str):
+        """Extract addresses that are jump/branch targets from ID and EX stages."""
+        # Split by pipeline stage separator
+        parts = line.split("|")
+
+        for part in parts:
+            # Only look at ID and EX stages
+            if not ("ID " in part or "EX " in part):
+                continue
+
+            # Check if this is a branch or jump instruction
+            if not re.search(r"\b(beq|bne|blt|bge|bltu|bgeu|jal|jalr)\b", part):
+                continue
+
+            # Extract the jump target
+            target_matches = re.findall(r"-> ([0-9a-fA-F]{8})", part)
+            for addr in target_matches:
+                self.jump_targets.add(addr.lower())
+
+    def colorize_id_ex_instructions(self, line: str, line_bg: int = None) -> str:
+        """Set instruction and register section of ID and EX to chill white."""
+        # Split by pipeline stages
+        parts = line.split("|")
+        result_parts = []
+
+        for part in parts:
+            if "ID " in part or "EX " in part:
+                # Check if this stage contains a NOP instruction (matches x0, x00, etc.)
+                is_nop = re.search(r"addi\s+x0+\s*,\s*x0+\s*,\s*0\b", part)
+
+                if is_nop:
+                    # Apply red background to entire stage, then reset to line bg
+                    bg_reset = ansi_bg(line_bg) if line_bg is not None else "\x1b[49m"
+                    part = f"{ansi_bg(NOP_BG_COLOR)}{part}{bg_reset}"
+                else:
+                    # Match the instruction region: after PC, capture instruction+operands
+                    # until we hit hex values, ->, or end of part
+                    def repl_instr(m):
+                        # Group 1: stage, Group 2: PC, Group 3: spaces, Group 4: instruction
+                        # Group 5: rest (optional - might be empty)
+                        rest = m.group(5) if m.lastindex >= 5 else ""
+                        instr = m.group(4)
+                        colored_instr = f"{ansi_fg(DIM_TEXT_COLOR)}{instr}{ansi_fg(MEDIUM_DIM_COLOR)}"
+                        return m.group(1) + m.group(2) + m.group(3) + colored_instr + rest
+
+                    # Capture: (stage)(PC)(spaces)(instruction area)(optional: delimiter+rest)
+                    # Allow for optional flags (f, s) between stage and PC
+                    part = re.sub(
+                        r"((?:ID|EX)\s+[fs]?\s*)([0-9a-fA-FxX]{8})(\s+)([a-z][^|]*?)(\s+(?:[0-9a-fA-FxX]{8}|->).*)?$",
+                        repl_instr,
+                        part,
+                    )
+
+            result_parts.append(part)
+
+        return "|".join(result_parts)
+
+    def colorize_if_non_seq(self, line: str) -> str:
+        """Set pred/rdir keywords to chill white."""
+        # Colorize just the "pred" and "rdir" keywords
+        def repl_keyword(m):
+            keyword = m.group(0)
+            return f"{ansi_fg(DIM_TEXT_COLOR)}{keyword}{ansi_fg(MEDIUM_DIM_COLOR)}"
+
+        line = re.sub(r"\b(pred|rdir)\b", repl_keyword, line)
+        return line
+
+    def colorize_hazard_markers(self, line: str, line_bg: int = None) -> str:
+        """Highlight flush flags and hazard markers with background color."""
+        bg_reset = ansi_bg(line_bg) if line_bg is not None else "\x1b[49m"
+
+        # Colorize flush/stall flags in pipeline stages
+        def repl_flag(m):
+            stage = m.group(1)
+            flag = m.group(2)
+            return f"{stage}{ansi_bg(HAZARD_BG_COLOR)}{ansi_fg(DIM_TEXT_COLOR)}{flag}{bg_reset}{ansi_fg(MEDIUM_DIM_COLOR)}"
+
+        line = re.sub(r"((?:IF|ID|EX)\s+)([fs])(?=\s)", repl_flag, line)
+
+        # Colorize PR (pipeline register) and BR (branch) hazard markers
+        def repl_hazard(m):
+            marker = m.group(0)
+            return f"{ansi_bg(HAZARD_BG_COLOR)}{ansi_fg(DIM_TEXT_COLOR)}{marker}{bg_reset}{ansi_fg(MEDIUM_DIM_COLOR)}"
+
+        line = re.sub(r"\b(PR|BR)\b", repl_hazard, line)
+
+        return line
+
+    def colorize_btb(self, line: str) -> str:
+        """Massively dim BTB entries when they are not hits."""
+        def repl_btb(m):
+            btb_entry = m.group(1)
+            hit_type = m.group(2)
+
+            # If not a hit (-- or -N), make it very dim
+            if hit_type != "HT":
+                return (
+                    f"{ansi_fg(VERY_DIM_COLOR)}{btb_entry}{ansi_fg(MEDIUM_DIM_COLOR)}"
+                )
+
+            return btb_entry
+
+        return re_btb.sub(repl_btb, line)
+
+    def colorize_addresses(self, line: str) -> str:
+        """Color addresses that are jump/branch targets with stable colors."""
+        def repl_addr(m):
+            addr = m.group(1).lower()
+
+            if addr not in self.jump_targets:
+                return m.group(0)
+
+            color = self.hash_to_color(f"addr:{addr}", ADDR_COLORS)
+            return f"{ansi_fg(color)}{addr}{ansi_fg(MEDIUM_DIM_COLOR)}"
+
+        return re_pc_addr.sub(repl_addr, line)
+
+    def colorize_registers(self, line: str) -> str:
+        """Color register references with Nordic colors."""
+        def repl_reg(m):
+            # Normalize register number (handles x2 and x02 as same register)
+            reg_num = int(m.group(1))
+            color = REG_COLORS[reg_num]
+            # Keep original formatting (x2 or x02)
+            return f"{ansi_fg(color)}{m.group(0)}{ansi_fg(MEDIUM_DIM_COLOR)}"
+
+        # Match x0 through x31 (with or without leading zero)
+        return re.sub(r"\bx(0?[0-9]|[12][0-9]|3[01])\b", repl_reg, line)
+
+    def process_line(self, line: str) -> str:
+        """Colorize jump target addresses in a line."""
+        line = line.rstrip("\n")
+
+        # Determine line background color
+        line_bg = ALT_LINE_BG_COLOR if self.line_number % 2 == 1 else None
+
+        # Start with background and foreground
+        if line_bg is not None:
+            line = f"{ansi_bg(line_bg)}{ansi_fg(MEDIUM_DIM_COLOR)}{line}"
+        else:
+            line = f"{ansi_fg(MEDIUM_DIM_COLOR)}{line}"
+
+        # Process colorizations
+        line = self.colorize_id_ex_instructions(line, line_bg)
+        line = self.colorize_if_non_seq(line)
+        line = self.colorize_hazard_markers(line, line_bg)
+        line = self.colorize_btb(line)
+        line = self.colorize_addresses(line)
+        line = self.colorize_registers(line)
+
+        # Reset at end
+        line = f"{line}{RESET}"
+
+        self.line_number += 1
+        return line + "\n"
+
+
+def main():
+    colorizer = Colorizer()
+
+    try:
+        # Single-pass: extract targets and colorize line-by-line
+        for line in sys.stdin:
+            colorizer.extract_jump_targets(line)
+            sys.stdout.write(colorizer.process_line(line))
+            sys.stdout.flush()
+
+    except KeyboardInterrupt:
+        sys.exit(0)
+    except BrokenPipeError:
+        sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
