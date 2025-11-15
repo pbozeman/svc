@@ -67,7 +67,13 @@ $(SIM_BUILD_DIR)/rv_%_sram_sc_i_zmmul_sim: $(BUILD_DIR)/sw/rv32i_zmmul/%/%.hex
 define rv_arch_sim_rule
 .PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_$(2)_sim
 $(SIM_BUILD_DIR)/rv_$(1)_$(2)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv Makefile | $(SIM_BUILD_DIR)
-	@$$(IVERILOG) -M $$(@).dep -DRV_$(shell echo $(1) | tr 'a-z' 'A-Z')_HEX='"$(3)/$(1)/$(1).hex"' $(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) $(if $(filter im,$(2)),-DRV_ARCH_M) $$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
+	@$$(IVERILOG) -M $$(@).dep \
+		-DRV_IMEM_DEPTH=$$(or $$($(1)_RV_IMEM_DEPTH),$$(RV_IMEM_DEPTH)) \
+		-DRV_DMEM_DEPTH=$$(or $$($(1)_RV_DMEM_DEPTH),$$(RV_DMEM_DEPTH)) \
+		-DRV_$(shell echo $(1) | tr 'a-z' 'A-Z')_HEX='"$(3)/$(1)/$(1).hex"' \
+		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
+		$(if $(filter im,$(2)),-DRV_ARCH_M) \
+		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
 		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
 		exit $$$${PIPESTATUS[0]}
 	@echo "$$@: $$$$(tr '\n' ' ' < $$(@).dep)" > $$(@).d
@@ -82,7 +88,14 @@ $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_arch_sim_rule,$(mod),i_zmmul,$(
 define rv_sram_sim_rule
 .PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_sram_$(2)_sim
 $(SIM_BUILD_DIR)/rv_$(1)_sram_$(2)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv Makefile | $(SIM_BUILD_DIR)
-	@$$(IVERILOG) -M $$(@).dep -DSVC_MEM_SRAM -DRV_$(shell echo $(1) | tr 'a-z' 'A-Z')_HEX='"$(3)/$(1)/$(1).hex"' $(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) $(if $(filter im,$(2)),-DRV_ARCH_M) $$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
+	@$$(IVERILOG) -M $$(@).dep \
+		-DSVC_MEM_SRAM \
+		-DRV_IMEM_DEPTH=$$(or $$($(1)_RV_IMEM_DEPTH),$$(RV_IMEM_DEPTH)) \
+		-DRV_DMEM_DEPTH=$$(or $$($(1)_RV_DMEM_DEPTH),$$(RV_DMEM_DEPTH)) \
+		-DRV_$(shell echo $(1) | tr 'a-z' 'A-Z')_HEX='"$(3)/$(1)/$(1).hex"' \
+		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
+		$(if $(filter im,$(2)),-DRV_ARCH_M) \
+		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
 		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
 		exit $$$${PIPESTATUS[0]}
 	@echo "$$@: $$$$(tr '\n' ' ' < $$(@).dep)" > $$(@).d
@@ -97,7 +110,15 @@ $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_sram_sim_rule,$(mod),i_zmmul,$(
 define rv_sram_sc_sim_rule
 .PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_sram_sc_$(2)_sim
 $(SIM_BUILD_DIR)/rv_$(1)_sram_sc_$(2)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv Makefile | $(SIM_BUILD_DIR)
-	@$$(IVERILOG) -M $$(@).dep -DSVC_MEM_SRAM -DSVC_CPU_SINGLE_CYCLE -DRV_$(shell echo $(1) | tr 'a-z' 'A-Z')_HEX='"$(3)/$(1)/$(1).hex"' $(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) $(if $(filter im,$(2)),-DRV_ARCH_M) $$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
+	@$$(IVERILOG) -M $$(@).dep \
+		-DSVC_MEM_SRAM \
+		-DSVC_CPU_SINGLE_CYCLE \
+		-DRV_IMEM_DEPTH=$$(or $$($(1)_RV_IMEM_DEPTH),$$(RV_IMEM_DEPTH)) \
+		-DRV_DMEM_DEPTH=$$(or $$($(1)_RV_DMEM_DEPTH),$$(RV_DMEM_DEPTH)) \
+		-DRV_$(shell echo $(1) | tr 'a-z' 'A-Z')_HEX='"$(3)/$(1)/$(1).hex"' \
+		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
+		$(if $(filter im,$(2)),-DRV_ARCH_M) \
+		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
 		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
 		exit $$$${PIPESTATUS[0]}
 	@echo "$$@: $$$$(tr '\n' ' ' < $$(@).dep)" > $$(@).d
@@ -216,7 +237,11 @@ SIM_PRJ_INC = $(PRJ_RTL_DIR)/$(patsubst %_sim,%, $(notdir $(*)))
 # Pattern rule to compile a sim
 .PRECIOUS: $(SIM_BUILD_DIR)/%
 $(SIM_BUILD_DIR)/%: %.sv Makefile | $(SIM_BUILD_DIR)
-	@$(IVERILOG) -M $(@).dep $(I_RTL) -I$(PRJ_TB_DIR) -I$(SIM_PRJ_INC) -o $@ $< 2>&1 | \
+	@$(IVERILOG) -M $(@).dep \
+		$(if $(filter rv_%,$(notdir $*)),\
+			-DRV_IMEM_DEPTH=$(or $($(patsubst rv_%_sim,%,$(notdir $*))_RV_IMEM_DEPTH),$(RV_IMEM_DEPTH)) \
+			-DRV_DMEM_DEPTH=$(or $($(patsubst rv_%_sim,%,$(notdir $*))_RV_DMEM_DEPTH),$(RV_DMEM_DEPTH))) \
+		$(I_RTL) -I$(PRJ_TB_DIR) -I$(SIM_PRJ_INC) -o $@ $< 2>&1 | \
 		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
 		exit $${PIPESTATUS[0]}
 	@echo "$@: $$(tr '\n' ' ' < $(@).dep)" > $(@).d
