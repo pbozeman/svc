@@ -69,6 +69,7 @@
 `TEST_CASE(test_auipc_basic);
 `TEST_CASE(test_auipc_zero);
 `TEST_CASE(test_auipc_negative);
+`TEST_CASE(test_auipc_forwarding);
 `TEST_CASE(test_li_pseudo_small);
 
 // LI pseudo-instruction for large values has LUI+ADDI hazard

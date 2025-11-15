@@ -85,13 +85,6 @@ module svc_rv_stage_mem #(
   `include "svc_rv_defs.svh"
 
   //
-  // Decode result sources for hazard detection and forwarding
-  //
-  logic is_m_mem;
-
-  assign is_m_mem = (res_src_mem == RES_M);
-
-  //
   // Store data formatting
   //
   // Stores use rs2_data_mem, which comes from fwd_rs2_ex in EX stage.
@@ -165,7 +158,18 @@ module svc_rv_stage_mem #(
   // Select the actual result in MEM stage based on res_src_mem.
   // This unified result is forwarded to resolve data hazards.
   //
-  assign result_mem    = is_m_mem ? m_result_mem : alu_result_mem;
+  // RES_M: M extension (multiply/divide) result
+  // RES_TGT: Jump/branch target (used by AUIPC)
+  // Default: ALU result (most instructions)
+  //
+  always_comb begin
+    case (res_src_mem)
+      RES_M:   result_mem = m_result_mem;
+      RES_TGT: result_mem = jb_target_mem;
+      default: result_mem = alu_result_mem;
+    endcase
+  end
+
   assign load_data_mem = dmem_rdata_ext_mem;
 
   //
