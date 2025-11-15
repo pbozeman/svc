@@ -1344,6 +1344,25 @@ task automatic test_auipc_negative;
 endtask
 
 //
+// Test: AUIPC with immediate forwarding
+//
+// Tests AUIPC result being forwarded to the next instruction.
+// This creates a RAW hazard where the following instruction immediately
+// uses the AUIPC result before it reaches WB stage.
+//
+task automatic test_auipc_forwarding;
+  AUIPC(x2, 32'h00001000);
+  ADDI(x3, x2, 0);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[2], 32'h00001000);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'h00001000);
+endtask
+
+//
 // Test: LI pseudo-instruction with small values
 //
 // Tests the LI (Load Immediate) pseudo-instruction with values that fit in
