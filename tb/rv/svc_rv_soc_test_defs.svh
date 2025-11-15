@@ -735,12 +735,18 @@ endtask
 //--------------------------------------------------------------------
 //
 
+// NOTE: The NOP after JALR is a workaround for pipelined implementations
+// without proper flush logic. This delay shouldn't be necessary in a correct
+// implementation, but we allow it for basic functionality testing. Pipeline
+// hazards are tested separately, and after the basic tests.
+
 //
 // Test: Simple JAL
 //
 // Tests basic JAL functionality: jumps forward over one instruction and
 // saves the return address (PC+4) in the link register.
 //
+// See NOP note above.
 task automatic test_jal_simple;
   JAL(x1, 12);
   NOP();
@@ -760,6 +766,7 @@ endtask
 // Tests basic JALR functionality: computes target as base register (x0) plus
 // offset, jumps to that address, and saves return address in link register.
 //
+// See NOP note above.
 task automatic test_jalr_simple;
   JALR(x1, x0, 12);
   NOP();
@@ -779,11 +786,7 @@ endtask
 // Tests that JALR clears the least significant bit of the computed target
 // address. Uses offset 9 (odd), which should become 8 after LSB clearing.
 //
-// NOTE: The NOP after JALR is a workaround for pipelined implementations
-// without proper flush logic. This delay shouldn't be necessary in a correct
-// implementation, but we allow it for basic functionality testing. Pipeline
-// hazards are tested separately.
-//
+// See NOP note above.
 task automatic test_jalr_lsb_clear;
   JALR(x1, x0, 9);
   NOP();
@@ -823,11 +826,7 @@ endtask
 // saved address. This validates both jump instructions work correctly
 // together for implementing function calls.
 //
-// NOTE: The NOPs after JAL and JALR are workarounds for pipelined
-// implementations without proper flush logic. These delays shouldn't be
-// necessary in a correct implementation, but we allow them for basic
-// functionality testing. Pipeline hazards are tested separately.
-//
+// See NOP note above.
 task automatic test_call_return_pattern;
   JAL(ra, 12);
   NOP();
@@ -841,6 +840,18 @@ task automatic test_call_return_pattern;
   `CHECK_WAIT_FOR_EBREAK(clk);
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[1], 32'd4);
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[2], 32'd42);
+endtask
+
+task automatic test_jal_short;
+  JAL(x1, 4);
+  ADDI(x2, x0, 9);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[1], 32'd4);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[2], 32'd9);
 endtask
 
 //
@@ -921,6 +932,63 @@ task automatic test_jalr_forward_pipeline;
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[4], 32'd0);
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[5], 32'd0);
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[6], 32'd5);
+endtask
+
+//
+// Test: JAL with immediate forwarding
+//
+// Tests JAL result (PC+4) being forwarded to the next instruction.
+// This creates a RAW hazard where the following instruction immediately
+// uses the JAL link register before it reaches WB stage.
+//
+task automatic test_jal_forwarding;
+  JAL(x1, 4);
+  ADDI(x2, x1, 0);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[1], 32'd4);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[2], 32'd4);
+endtask
+
+//
+// Test: JALR with immediate forwarding
+//
+// Tests JALR result (PC+4) being forwarded to the next instruction.
+// This creates a RAW hazard where the following instruction immediately
+// uses the JALR link register before it reaches WB stage.
+//
+task automatic test_jalr_forwarding;
+  JALR(x1, x0, 4);
+  ADDI(x2, x1, 0);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[1], 32'd4);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[2], 32'd4);
+endtask
+
+//
+// Test: JALR with base register forwarding
+//
+// Tests forwarding a base register value to JALR.
+// This creates a RAW hazard where JALR immediately uses a register
+// that was just computed, requiring forwarding of the base address.
+//
+task automatic test_jalr_base_forwarding;
+  ADDI(x5, x0, 8);
+  JALR(x1, x5, 0);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[5], 32'd8);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[1], 32'd8);
 endtask
 
 //

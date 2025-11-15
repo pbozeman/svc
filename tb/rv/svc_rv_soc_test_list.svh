@@ -36,6 +36,7 @@
 // Jump tests (JAL/JALR)
 `TEST_CASE(test_jal_simple);
 `TEST_CASE(test_jalr_simple);
+`TEST_CASE(test_jal_short);
 `TEST_CASE(test_jalr_lsb_clear);
 `TEST_CASE(test_jalr_with_base_register);
 `TEST_CASE(test_call_return_pattern);
@@ -44,6 +45,11 @@
 `TEST_CASE(test_jal_forward_pipeline);
 `TEST_CASE(test_jal_short_forward_pipeline);
 `TEST_CASE(test_jalr_forward_pipeline);
+
+// jal/jalr result forwarding
+`TEST_CASE(test_jal_forwarding);
+`TEST_CASE(test_jalr_forwarding);
+`TEST_CASE(test_jalr_base_forwarding);
 
 // Branch tests
 `TEST_CASE(test_beq_taken_forward);

@@ -159,12 +159,14 @@ module svc_rv_stage_mem #(
   // This unified result is forwarded to resolve data hazards.
   //
   // RES_M: M extension (multiply/divide) result
+  // RES_PC4: PC+4 (used by JAL/JALR)
   // RES_TGT: Jump/branch target (used by AUIPC)
   // Default: ALU result (most instructions)
   //
   always_comb begin
     case (res_src_mem)
       RES_M:   result_mem = m_result_mem;
+      RES_PC4: result_mem = pc_plus4_mem;
       RES_TGT: result_mem = jb_target_mem;
       default: result_mem = alu_result_mem;
     endcase

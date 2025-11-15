@@ -238,11 +238,18 @@ module svc_rv_hazard #(
   // Note: For ID/EX stage, we use STALL during multi-cycle operations but
   // FLUSH for data hazards. This is why id_ex_stall only checks op_active_ex.
   //
-  assign pc_stall     = data_hazard || op_active_ex;
-  assign if_id_stall  = data_hazard || op_active_ex;
-  assign id_ex_stall  = op_active_ex;
-  assign ex_mem_stall = op_active_ex;
-  assign mem_wb_stall = op_active_ex;
+  // Don't stall on data hazards when redirecting (pc_redirect or misprediction),
+  // since the hazardous instruction will be flushed anyway.
+  //
+  logic stall_disable;
+
+  assign stall_disable = pc_redirect || mispredicted_ex;
+
+  assign pc_stall      = (data_hazard || op_active_ex) && !stall_disable;
+  assign if_id_stall   = (data_hazard || op_active_ex) && !stall_disable;
+  assign id_ex_stall   = op_active_ex;
+  assign ex_mem_stall  = op_active_ex;
+  assign mem_wb_stall  = op_active_ex;
 
   //
   // Flush logic with stall interaction
