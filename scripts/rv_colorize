@@ -231,7 +231,10 @@ class Colorizer:
 
     def colorize_hazard_markers(self, line: str, line_bg: int = None) -> str:
         """Highlight flush flags and hazard markers with background color."""
-        bg_reset = ansi_bg(line_bg) if line_bg is not None else "\x1b[49m"
+        # Check if this line contains a NOP - if so, reset to NOP bg instead of line bg
+        is_nop_line = bool(re.search(r"addi\s+x0+\s*,\s*x0+\s*,\s*0\b", line))
+        bg_reset_color = NOP_BG_COLOR if is_nop_line else (line_bg if line_bg is not None else None)
+        bg_reset = ansi_bg(bg_reset_color) if bg_reset_color is not None else "\x1b[49m"
 
         # Colorize flush/stall flags in pipeline stages
         def repl_flag(m):
@@ -298,13 +301,7 @@ class Colorizer:
         # Determine line background color
         line_bg = ALT_LINE_BG_COLOR if self.line_number % 2 == 1 else None
 
-        # Start with background and foreground
-        if line_bg is not None:
-            line = f"{ansi_bg(line_bg)}{ansi_fg(MEDIUM_DIM_COLOR)}{line}"
-        else:
-            line = f"{ansi_fg(MEDIUM_DIM_COLOR)}{line}"
-
-        # Process colorizations
+        # Process colorizations on plain text (without line background applied yet)
         line = self.colorize_id_ex_instructions(line, line_bg)
         line = self.colorize_if_non_seq(line)
         line = self.colorize_hazard_markers(line, line_bg)
@@ -312,8 +309,12 @@ class Colorizer:
         line = self.colorize_addresses(line)
         line = self.colorize_registers(line)
 
-        # Reset at end
-        line = f"{line}{RESET}"
+        # Now apply line background and foreground as the base layer
+        # This goes at the start, and special backgrounds (NOP, hazards) override it
+        if line_bg is not None:
+            line = f"{ansi_bg(line_bg)}{ansi_fg(MEDIUM_DIM_COLOR)}{line}{RESET}"
+        else:
+            line = f"{ansi_fg(MEDIUM_DIM_COLOR)}{line}{RESET}"
 
         self.line_number += 1
         return line + "\n"
