@@ -174,12 +174,16 @@ module svc_rv #(
   logic [     2:0] res_src_wb;
   logic [    31:0] instr_wb;
   logic [     4:0] rd_wb;
+  logic [     2:0] funct3_wb;
   logic [XLEN-1:0] alu_result_wb;
+  logic [XLEN-1:0] rs1_data_wb;
+  logic [XLEN-1:0] rs2_data_wb;
   logic [XLEN-1:0] dmem_rdata_ext_wb;
   logic [XLEN-1:0] pc_plus4_wb;
   logic [XLEN-1:0] jb_target_wb;
   logic [XLEN-1:0] csr_rdata_wb;
   logic [XLEN-1:0] m_result_wb;
+  logic [    63:0] product_64_wb;
 
   // WB -> ID (register write-back)
   logic [XLEN-1:0] rd_data_wb;

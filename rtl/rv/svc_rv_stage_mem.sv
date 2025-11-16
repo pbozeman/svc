@@ -74,12 +74,16 @@ module svc_rv_stage_mem #(
     output logic [     2:0] res_src_wb,
     output logic [    31:0] instr_wb,
     output logic [     4:0] rd_wb,
+    output logic [     2:0] funct3_wb,
     output logic [XLEN-1:0] alu_result_wb,
+    output logic [XLEN-1:0] rs1_data_wb,
+    output logic [XLEN-1:0] rs2_data_wb,
     output logic [XLEN-1:0] dmem_rdata_ext_wb,
     output logic [XLEN-1:0] pc_plus4_wb,
     output logic [XLEN-1:0] jb_target_wb,
     output logic [XLEN-1:0] csr_rdata_wb,
     output logic [XLEN-1:0] m_result_wb,
+    output logic [    63:0] product_64_wb,
 
     //
     // Outputs for forwarding (MEM stage result)
@@ -135,10 +139,8 @@ module svc_rv_stage_mem #(
 
   end else begin : g_ld_fmt_signals_bram
     //
-    // Internal funct3_wb for BRAM load formatting
+    // Use funct3_wb from pipeline registers for BRAM load formatting
     //
-    logic [2:0] funct3_wb;
-
     assign ld_fmt_addr        = alu_result_wb[1:0];
     assign ld_fmt_funct3      = funct3_wb;
 
@@ -164,14 +166,17 @@ module svc_rv_stage_mem #(
   // Select the actual result in MEM stage based on res_src_mem.
   // This unified result is forwarded to resolve data hazards.
   //
-  // RES_M: M extension (multiply/divide) result
+  // RES_M: M extension result (division only - multiply not forwarded from MEM)
   // RES_PC4: PC+4 (used by JAL/JALR)
   // RES_TGT: Jump/branch target (used by AUIPC)
   // Default: ALU result (most instructions)
   //
+  // Note: Multiply results are not forwarded from MEM (completed in WB stage).
+  // Division results are in m_result_mem and can be forwarded.
+  //
   always_comb begin
     case (res_src_mem)
-      RES_M:   result_mem = m_final_result_mem;
+      RES_M:   result_mem = m_result_mem;
       RES_PC4: result_mem = pc_plus4_mem;
       RES_TGT: result_mem = jb_target_mem;
       default: result_mem = alu_result_mem;
@@ -183,7 +188,7 @@ module svc_rv_stage_mem #(
   //
   // M Extension MEM stage: combine partial products
   //
-  logic [XLEN-1:0] m_final_result_mem;
+  logic [63:0] product_64_mem;
 
   svc_rv_ext_mul_mem ext_mul_mem (
       .mul_ll    (mul_ll_mem),
@@ -191,10 +196,7 @@ module svc_rv_stage_mem #(
       .mul_hl    (mul_hl_mem),
       .mul_hh    (mul_hh_mem),
       .div_result(m_result_mem),
-      .rs1_data  (rs1_data_mem),
-      .rs2_data  (rs2_data_mem),
-      .op        (funct3_mem),
-      .result    (m_final_result_mem)
+      .product_64(product_64_mem)
   );
 
   //
@@ -207,32 +209,29 @@ module svc_rv_stage_mem #(
         res_src_wb    <= '0;
         instr_wb      <= I_NOP;
         rd_wb         <= '0;
+        funct3_wb     <= '0;
         alu_result_wb <= '0;
+        rs1_data_wb   <= '0;
+        rs2_data_wb   <= '0;
         pc_plus4_wb   <= '0;
         jb_target_wb  <= '0;
         csr_rdata_wb  <= '0;
         m_result_wb   <= '0;
+        product_64_wb <= '0;
       end else if (!mem_wb_stall) begin
         reg_write_wb  <= reg_write_mem;
         res_src_wb    <= res_src_mem;
         instr_wb      <= instr_mem;
         rd_wb         <= rd_mem;
+        funct3_wb     <= funct3_mem;
         alu_result_wb <= alu_result_mem;
+        rs1_data_wb   <= rs1_data_mem;
+        rs2_data_wb   <= rs2_data_mem;
         pc_plus4_wb   <= pc_plus4_mem;
         jb_target_wb  <= jb_target_mem;
         csr_rdata_wb  <= csr_rdata_mem;
-        m_result_wb   <= m_final_result_mem;
-      end
-    end
-
-    //
-    // Register funct3 for BRAM load formatting in WB stage
-    //
-    if (MEM_TYPE == MEM_TYPE_BRAM) begin : g_funct3_reg
-      always_ff @(posedge clk) begin
-        if (!mem_wb_stall) begin
-          g_ld_fmt_signals_bram.funct3_wb <= funct3_mem;
-        end
+        m_result_wb   <= m_result_mem;
+        product_64_wb <= product_64_mem;
       end
     end
 
@@ -260,11 +259,15 @@ module svc_rv_stage_mem #(
     assign res_src_wb    = res_src_mem;
     assign instr_wb      = instr_mem;
     assign rd_wb         = rd_mem;
+    assign funct3_wb     = funct3_mem;
     assign alu_result_wb = alu_result_mem;
+    assign rs1_data_wb   = rs1_data_mem;
+    assign rs2_data_wb   = rs2_data_mem;
     assign pc_plus4_wb   = pc_plus4_mem;
     assign jb_target_wb  = jb_target_mem;
     assign csr_rdata_wb  = csr_rdata_mem;
-    assign m_result_wb   = m_final_result_mem;
+    assign m_result_wb   = m_result_mem;
+    assign product_64_wb = product_64_mem;
 
     //
     // Pass through SRAM load data
@@ -273,13 +276,6 @@ module svc_rv_stage_mem #(
     //
     if (MEM_TYPE == MEM_TYPE_SRAM) begin : g_dmem_rdata_sram
       assign dmem_rdata_ext_wb = dmem_rdata_ext_mem;
-    end
-
-    //
-    // For non-pipelined + BRAM mode, funct3 passthrough
-    //
-    if (MEM_TYPE == MEM_TYPE_BRAM) begin : g_funct3_passthrough
-      assign g_ld_fmt_signals_bram.funct3_wb = funct3_mem;
     end
 
     `SVC_UNUSED({clk, rst_n, mem_wb_stall});
