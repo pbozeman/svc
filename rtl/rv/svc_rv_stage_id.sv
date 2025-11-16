@@ -7,6 +7,7 @@
 
 `include "svc_rv_idec.sv"
 `include "svc_rv_regfile.sv"
+`include "svc_rv_fwd_id.sv"
 
 //
 // RISC-V Instruction Decode (ID) Stage
@@ -55,6 +56,15 @@ module svc_rv_stage_id #(
     input logic        reg_write_wb,
     input logic [ 4:0] rd_wb,
     input logic [31:0] rd_data_wb,
+
+    //
+    // MEM stage forwarding inputs
+    //
+    input logic [     4:0] rd_mem,
+    input logic            reg_write_mem,
+    input logic [     2:0] res_src_mem,
+    input logic [XLEN-1:0] result_mem,
+    input logic [XLEN-1:0] load_data_mem,
 
     //
     // Outputs to EX stage
@@ -213,6 +223,34 @@ module svc_rv_stage_id #(
   );
 
   //
+  // ID Stage Forwarding Unit
+  //
+  logic [XLEN-1:0] fwd_rs1_id;
+  logic [XLEN-1:0] fwd_rs2_id;
+
+  svc_rv_fwd_id #(
+      .XLEN    (XLEN),
+      .MEM_TYPE(0)
+  ) fwd_id (
+      .clk          (clk),
+      .rst_n        (rst_n),
+      .rs1_id       (rs1_id),
+      .rs2_id       (rs2_id),
+      .rs1_data_id  (rs1_data_id),
+      .rs2_data_id  (rs2_data_id),
+      .rd_mem       (rd_mem),
+      .reg_write_mem(reg_write_mem),
+      .res_src_mem  (res_src_mem),
+      .result_mem   (result_mem),
+      .load_data_mem(load_data_mem),
+      .rd_wb        (rd_wb),
+      .reg_write_wb (reg_write_wb),
+      .rd_data_wb   (rd_data_wb),
+      .fwd_rs1_id   (fwd_rs1_id),
+      .fwd_rs2_id   (fwd_rs2_id)
+  );
+
+  //
   // Branch Prediction: BTB with static BTFNT fallback
   //
   if (BPRED != 0) begin : g_bpred
@@ -363,8 +401,8 @@ module svc_rv_stage_id #(
         rs2_ex           <= rs2_id;
         funct3_ex        <= funct3_id;
         funct7_ex        <= funct7_id;
-        rs1_data_ex      <= rs1_data_id;
-        rs2_data_ex      <= rs2_data_id;
+        rs1_data_ex      <= fwd_rs1_id;
+        rs2_data_ex      <= fwd_rs2_id;
         imm_ex           <= imm_id;
         pc_ex            <= pc_id;
         pc_plus4_ex      <= pc_plus4_id;
@@ -397,7 +435,7 @@ module svc_rv_stage_id #(
     assign pc_plus4_ex      = pc_plus4_id;
     assign bpred_taken_ex   = 1'b0;
 
-    `SVC_UNUSED({id_ex_stall, id_ex_flush});
+    `SVC_UNUSED({id_ex_stall, id_ex_flush, fwd_rs1_id, fwd_rs2_id});
   end
 
 endmodule
