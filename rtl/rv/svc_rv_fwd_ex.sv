@@ -5,21 +5,31 @@
 `include "svc_unused.sv"
 
 //
-// RISC-V data forwarding unit
+// RISC-V EX stage data forwarding unit
 //
-// Forwards ALU results from later pipeline stages back to EX stage to resolve
-// data hazards without stalling.
+// Provides MEM→EX bypass for back-to-back ALU operations (cheap forwarding
+// from nearby EX/MEM pipeline register).
 //
-// Two types of forwarding:
-// - EX hazard (MEM→EX): Forward from MEM stage when it has the needed value
-// - MEM hazard (WB→EX): Forward from WB stage when MEM doesn't have it
+// TIMING NOTE: WB→EX forwarding was removed to improve timing. The WB
+// forwarding path is long (from WB stage back to EX mux) and increases EX
+// stage combinational depth. Instead, WB→ID forwarding happens earlier in
+// the ID stage (see svc_rv_fwd_id), before the ID→EX pipeline register.
+// This moves the expensive WB forwarding mux off the EX critical path.
 //
-// Priority: MEM > WB > regfile (MEM is more recent)
+// Forwarding paths:
+// - MEM→EX: Forwards ALU results for back-to-back ops (Producer in MEM,
+//           Consumer in EX). This is "cheap" - just reading from the nearby
+//           EX/MEM register.
+// - (WB→EX removed): Now handled by WB→ID in svc_rv_fwd_id. For loads on
+//           BRAM, the hazard unit stalls until load reaches WB, then WB→ID
+//           forwards the result.
 //
-// Cannot forward:
-// - Load results in MEM stage for BRAM (data not ready until WB)
-// - CSR results in MEM stage (data not ready until WB)
-// - Load results for SRAM are available in MEM stage and CAN be forwarded
+// Cannot forward from MEM stage:
+// - Load results on BRAM (data not ready until WB)
+// - CSR results (data not ready until WB)
+// - (Load results on SRAM ARE ready in MEM and can be forwarded)
+//
+// TODO: Consider making WB→EX configurable for timing-relaxed designs.
 //
 module svc_rv_fwd_ex #(
     parameter int XLEN     = 32,
@@ -42,13 +52,6 @@ module svc_rv_fwd_ex #(
     input logic [     2:0] res_src_mem,
     input logic [XLEN-1:0] result_mem,
     input logic [XLEN-1:0] load_data_mem,
-
-    //
-    // WB stage inputs (producer)
-    //
-    input logic [     4:0] rd_wb,
-    input logic            reg_write_wb,
-    input logic [XLEN-1:0] rd_data_wb,
 
     //
     // Forwarded outputs
@@ -87,25 +90,6 @@ module svc_rv_fwd_ex #(
       end
     end
 
-    //
-    // WB→EX forwarding (common to both SRAM and BRAM)
-    //
-    // Forward from WB stage when MEM doesn't have the value
-    // Handles load results after stall, CSR reads, and older hazards
-    //
-    logic wb_to_ex_fwd_a;
-    logic wb_to_ex_fwd_b;
-
-    always_comb begin
-      wb_to_ex_fwd_a = 1'b0;
-      wb_to_ex_fwd_b = 1'b0;
-
-      if (reg_write_wb && rd_wb != 5'd0) begin
-        wb_to_ex_fwd_a = (rd_wb == rs1_ex);
-        wb_to_ex_fwd_b = (rd_wb == rs2_ex);
-      end
-    end
-
     if (MEM_TYPE == MEM_TYPE_SRAM) begin : g_sram_load_fwd
       //
       // SRAM: Load data is ready in MEM stage, can forward
@@ -127,13 +111,12 @@ module svc_rv_fwd_ex #(
       end
 
       //
-      // Forwarding muxes with priority: MEM load > MEM result > WB > regfile
+      // Forwarding muxes with priority: MEM load > MEM result > regfile
       //
       always_comb begin
         case (1'b1)
           mem_to_ex_fwd_load_a: fwd_rs1_ex = load_data_mem;
           mem_to_ex_fwd_a:      fwd_rs1_ex = result_mem;
-          wb_to_ex_fwd_a:       fwd_rs1_ex = rd_data_wb;
           default:              fwd_rs1_ex = rs1_data_ex;
         endcase
       end
@@ -142,7 +125,6 @@ module svc_rv_fwd_ex #(
         case (1'b1)
           mem_to_ex_fwd_load_b: fwd_rs2_ex = load_data_mem;
           mem_to_ex_fwd_b:      fwd_rs2_ex = result_mem;
-          wb_to_ex_fwd_b:       fwd_rs2_ex = rd_data_wb;
           default:              fwd_rs2_ex = rs2_data_ex;
         endcase
       end
@@ -151,12 +133,11 @@ module svc_rv_fwd_ex #(
       //
       // BRAM: Load data not ready in MEM stage, cannot forward
       //
-      // Forwarding muxes with priority: MEM result > WB > regfile
+      // Forwarding muxes with priority: MEM result > regfile
       //
       always_comb begin
         case (1'b1)
           mem_to_ex_fwd_a: fwd_rs1_ex = result_mem;
-          wb_to_ex_fwd_a:  fwd_rs1_ex = rd_data_wb;
           default:         fwd_rs1_ex = rs1_data_ex;
         endcase
       end
@@ -164,7 +145,6 @@ module svc_rv_fwd_ex #(
       always_comb begin
         case (1'b1)
           mem_to_ex_fwd_b: fwd_rs2_ex = result_mem;
-          wb_to_ex_fwd_b:  fwd_rs2_ex = rd_data_wb;
           default:         fwd_rs2_ex = rs2_data_ex;
         endcase
       end
@@ -181,8 +161,7 @@ module svc_rv_fwd_ex #(
 
     // verilog_format: off
     `SVC_UNUSED({rs1_ex, rs2_ex, rd_mem, reg_write_mem, res_src_mem,
-                 result_mem, load_data_mem, rd_wb, reg_write_wb, rd_data_wb,
-                 MEM_TYPE});
+                 result_mem, load_data_mem, MEM_TYPE});
     // verilog_format: on
   end
 

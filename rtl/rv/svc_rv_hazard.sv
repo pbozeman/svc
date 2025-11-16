@@ -54,6 +54,7 @@ module svc_rv_hazard #(
     input logic [4:0] rd_mem,
     input logic       reg_write_mem,
     input logic       mem_read_mem,
+    input logic [2:0] res_src_mem,
 
     // WB stage control signals and destination
     input logic [4:0] rd_wb,
@@ -177,31 +178,79 @@ module svc_rv_hazard #(
 
   if (FWD != 0) begin : g_external_forwarding
     //
+    // Decode result source to determine if instruction in MEM is a CSR
+    //
+    logic is_csr_mem;
+
+    assign is_csr_mem = (res_src_mem == RES_CSR);
+
+    //
     // Load-use hazard detection
     //
-    // Load instructions produce result in MEM stage, but consumer
-    // needs it in EX stage.
+    // TIMING NOTE: WB→EX forwarding was removed to improve timing (reduces
+    // EX stage mux depth). Instead, forwarding happens earlier at ID stage:
+    // - MEM→ID: Forwards ALU results (cheap, data ready in MEM)
+    // - WB→ID: Forwards all results including loads (before ID→EX register)
     //
-    // For BRAM: Cannot forward (data not ready), must stall
-    // For SRAM: Can forward (data ready in MEM), no stall needed
+    // This moves expensive WB forwarding path off EX critical path, but
+    // requires more aggressive stall detection for loads on BRAM:
     //
-    // CSR instructions produce result in WB stage, so we also cannot
-    // forward from MEM→EX for CSR hazards. Stall for CSR-use too.
+    // For BRAM loads:
+    // - EX stage: Data not computed yet → must stall
+    // - MEM stage: Data being read but not ready → must stall until WB
+    // - WB stage: Data ready → WB→ID can forward (no stall)
+    //
+    // For SRAM loads:
+    // - MEM stage: Data ready → MEM→ID can forward (no stall)
+    //
+    // CSR results only ready in WB stage, similar to BRAM loads.
+    //
+    // TODO: Consider making WB→EX configurable for timing-relaxed designs
+    // where the extra mux depth is acceptable.
     //
     logic load_use_hazard;
+    logic load_use_ex;
+    logic load_use_mem;
 
     if (MEM_TYPE == MEM_TYPE_BRAM) begin : g_bram_stall
       //
-      // BRAM: Must stall on load-use hazards
+      // BRAM: Must stall on load-use hazards in EX and MEM stages
       //
-      assign load_use_hazard = ((is_load_ex || is_csr_ex) &&
-                                (ex_hazard_rs1 || ex_hazard_rs2));
-      `SVC_UNUSED({mem_read_mem});
+      // Load in EX, consumer in ID: Data not computed yet
+      //
+      assign load_use_ex = ((is_load_ex || is_csr_ex) &&
+                            (ex_hazard_rs1 || ex_hazard_rs2));
+
+      //
+      // Load/CSR in MEM, consumer in ID: Data not ready yet (BRAM latency)
+      //
+      // MEM→ID forwarding skips loads on BRAM and CSRs (checked via
+      // !is_load_mem && !is_csr_mem in svc_rv_fwd_id). Must stall until
+      // load/CSR reaches WB where WB→ID can forward the result.
+      //
+      assign load_use_mem = ((mem_read_mem || is_csr_mem) &&
+                             (mem_hazard_rs1 || mem_hazard_rs2));
+
+      assign load_use_hazard = load_use_ex || load_use_mem;
     end else begin : g_sram_no_stall
       //
-      // SRAM: Load data forwarded, only stall on CSR-use
+      // SRAM: Load data forwarded from MEM stage, only stall on CSR-use
       //
-      assign load_use_hazard = (is_csr_ex && (ex_hazard_rs1 || ex_hazard_rs2));
+      // CSR in EX, consumer in ID: Data not computed yet
+      //
+      assign load_use_ex = (is_csr_ex && (ex_hazard_rs1 || ex_hazard_rs2));
+
+      //
+      // CSR in MEM, consumer in ID: Data not ready yet
+      //
+      // SRAM loads are ready in MEM stage and can be forwarded, but CSRs
+      // are not ready until WB. Must stall until CSR reaches WB where
+      // WB→ID can forward the result.
+      //
+      assign load_use_mem = (is_csr_mem && (mem_hazard_rs1 || mem_hazard_rs2));
+
+      assign load_use_hazard = load_use_ex || load_use_mem;
+
       `SVC_UNUSED({is_load_ex, mem_read_mem});
     end
 
@@ -222,7 +271,7 @@ module svc_rv_hazard #(
     // Non-forwarding: stall on all hazards
     //
     assign data_hazard = ex_hazard || mem_hazard || wb_hazard;
-    `SVC_UNUSED({is_load_ex, is_csr_ex, mem_read_mem});
+    `SVC_UNUSED({is_load_ex, is_csr_ex, mem_read_mem, res_src_mem});
   end
 
   //

@@ -24,9 +24,6 @@ module svc_rv_fwd_ex_tb;
   logic [     2:0] res_src_mem;
   logic [XLEN-1:0] result_mem;
   logic [XLEN-1:0] load_data_mem;
-  logic [     4:0] rd_wb;
-  logic            reg_write_wb;
-  logic [XLEN-1:0] rd_data_wb;
   logic [XLEN-1:0] fwd_rs1_ex;
   logic [XLEN-1:0] fwd_rs2_ex;
 
@@ -44,9 +41,6 @@ module svc_rv_fwd_ex_tb;
       .res_src_mem  (res_src_mem),
       .result_mem   (result_mem),
       .load_data_mem(load_data_mem),
-      .rd_wb        (rd_wb),
-      .reg_write_wb (reg_write_wb),
-      .rd_data_wb   (rd_data_wb),
       .fwd_rs1_ex   (fwd_rs1_ex),
       .fwd_rs2_ex   (fwd_rs2_ex)
   );
@@ -61,9 +55,6 @@ module svc_rv_fwd_ex_tb;
     res_src_mem   = 3'd0;
     result_mem    = 32'h0;
     load_data_mem = 32'h0;
-    rd_wb         = 5'd0;
-    reg_write_wb  = 1'b0;
-    rd_data_wb    = 32'h0;
   endtask
 
   //
@@ -80,10 +71,6 @@ module svc_rv_fwd_ex_tb;
     rd_mem        = 5'd3;
     reg_write_mem = 1'b1;
     result_mem    = 32'hCCCCCCCC;
-
-    rd_wb         = 5'd4;
-    reg_write_wb  = 1'b1;
-    rd_data_wb    = 32'hDDDDDDDD;
 
     `TICK(clk);
 
@@ -158,82 +145,6 @@ module svc_rv_fwd_ex_tb;
   endtask
 
   //
-  // Test: WB→EX forwarding for rs1 (MEM hazard)
-  //
-  task automatic test_wb_to_ex_fwd_rs1;
-    reset_inputs();
-    rs1_ex        = 5'd10;
-    rs2_ex        = 5'd2;
-    // rs1_ex/rs2_ex non-zero indicates used
-    rs1_data_ex   = 32'hAAAAAAAA;
-    rs2_data_ex   = 32'hBBBBBBBB;
-
-    rd_mem        = 5'd3;
-    reg_write_mem = 1'b0;
-    result_mem    = 32'hCCCCCCCC;
-
-    rd_wb         = 5'd10;
-    reg_write_wb  = 1'b1;
-    rd_data_wb    = 32'h12345678;
-
-    `TICK(clk);
-
-    `CHECK_EQ(fwd_rs1_ex, 32'h12345678);
-    `CHECK_EQ(fwd_rs2_ex, 32'hBBBBBBBB);
-  endtask
-
-  //
-  // Test: WB→EX forwarding for rs2 (MEM hazard)
-  //
-  task automatic test_wb_to_ex_fwd_rs2;
-    reset_inputs();
-    rs1_ex        = 5'd1;
-    rs2_ex        = 5'd10;
-    // rs1_ex/rs2_ex non-zero indicates used
-    rs1_data_ex   = 32'hAAAAAAAA;
-    rs2_data_ex   = 32'hBBBBBBBB;
-
-    rd_mem        = 5'd3;
-    reg_write_mem = 1'b0;
-    result_mem    = 32'hCCCCCCCC;
-
-    rd_wb         = 5'd10;
-    reg_write_wb  = 1'b1;
-    rd_data_wb    = 32'h87654321;
-
-    `TICK(clk);
-
-    `CHECK_EQ(fwd_rs1_ex, 32'hAAAAAAAA);
-    `CHECK_EQ(fwd_rs2_ex, 32'h87654321);
-  endtask
-
-  //
-  // Test: Priority - MEM stage takes priority over WB stage
-  //
-  task automatic test_mem_priority_over_wb;
-    reset_inputs();
-    rs1_ex        = 5'd10;
-    rs2_ex        = 5'd2;
-    // rs1_ex/rs2_ex non-zero indicates used
-    rs1_data_ex   = 32'hAAAAAAAA;
-    rs2_data_ex   = 32'hBBBBBBBB;
-
-    rd_mem        = 5'd10;
-    reg_write_mem = 1'b1;
-    res_src_mem   = 3'd0;
-    result_mem    = 32'h11110000;
-
-    rd_wb         = 5'd10;
-    reg_write_wb  = 1'b1;
-    rd_data_wb    = 32'h22220000;
-
-    `TICK(clk);
-
-    `CHECK_EQ(fwd_rs1_ex, 32'h11110000);
-    `CHECK_EQ(fwd_rs2_ex, 32'hBBBBBBBB);
-  endtask
-
-  //
   // Test: Load forwarding for SRAM (data ready in MEM stage)
   //
   // This testbench uses MEM_TYPE=0 (SRAM), so load data can be forwarded
@@ -252,10 +163,6 @@ module svc_rv_fwd_ex_tb;
     res_src_mem   = 3'd1;
     result_mem    = 32'h99990000;
     load_data_mem = 32'h12340000;
-
-    rd_wb         = 5'd11;
-    reg_write_wb  = 1'b0;
-    rd_data_wb    = 32'h0;
 
     `TICK(clk);
 
@@ -281,10 +188,6 @@ module svc_rv_fwd_ex_tb;
     result_mem    = 32'h99990000;
     load_data_mem = 32'hFEEDBEEF;
 
-    rd_wb         = 5'd10;
-    reg_write_wb  = 1'b1;
-    rd_data_wb    = 32'h88880000;
-
     `TICK(clk);
 
     `CHECK_EQ(fwd_rs1_ex, 32'hFEEDBEEF);
@@ -307,10 +210,6 @@ module svc_rv_fwd_ex_tb;
     res_src_mem   = 3'd4;
     result_mem    = 32'h99990000;
 
-    rd_wb         = 5'd11;
-    reg_write_wb  = 1'b0;
-    rd_data_wb    = 32'h0;
-
     `TICK(clk);
 
     `CHECK_EQ(fwd_rs1_ex, 32'hAAAAAAAA);
@@ -318,7 +217,7 @@ module svc_rv_fwd_ex_tb;
   endtask
 
   //
-  // Test: No forwarding to x0 (even if write to x0 in MEM/WB)
+  // Test: No forwarding to x0 (even if write to x0 in MEM)
   //
   task automatic test_no_fwd_to_x0;
     reset_inputs();
@@ -332,10 +231,6 @@ module svc_rv_fwd_ex_tb;
     reg_write_mem = 1'b1;
     res_src_mem   = 3'd0;
     result_mem    = 32'h99990000;
-
-    rd_wb         = 5'd0;
-    reg_write_wb  = 1'b1;
-    rd_data_wb    = 32'h99990000;
 
     `TICK(clk);
 
@@ -357,39 +252,9 @@ module svc_rv_fwd_ex_tb;
     res_src_mem   = 3'd0;
     result_mem    = 32'h99990000;
 
-    rd_wb         = 5'd10;
-    reg_write_wb  = 1'b1;
-    rd_data_wb    = 32'h99990000;
-
     `TICK(clk);
 
     `CHECK_EQ(fwd_rs1_ex, 32'hAAAAAAAA);
-    `CHECK_EQ(fwd_rs2_ex, 32'hBBBBBBBB);
-  endtask
-
-  //
-  // Test: Load-use case - WB forwards after stall
-  //
-  task automatic test_load_use_wb_forward;
-    reset_inputs();
-    rs1_ex        = 5'd10;
-    rs2_ex        = 5'd2;
-    // rs1_ex/rs2_ex non-zero indicates used
-    rs1_data_ex   = 32'hAAAAAAAA;
-    rs2_data_ex   = 32'hBBBBBBBB;
-
-    rd_mem        = 5'd11;
-    reg_write_mem = 1'b0;
-    res_src_mem   = 3'd0;
-    result_mem    = 32'hCCCCCCCC;
-
-    rd_wb         = 5'd10;
-    reg_write_wb  = 1'b1;
-    rd_data_wb    = 32'h99990000;
-
-    `TICK(clk);
-
-    `CHECK_EQ(fwd_rs1_ex, 32'h99990000);
     `CHECK_EQ(fwd_rs2_ex, 32'hBBBBBBBB);
   endtask
 
@@ -398,15 +263,11 @@ module svc_rv_fwd_ex_tb;
   `TEST_CASE(test_mem_to_ex_fwd_rs1);
   `TEST_CASE(test_mem_to_ex_fwd_rs2);
   `TEST_CASE(test_mem_to_ex_fwd_both);
-  `TEST_CASE(test_wb_to_ex_fwd_rs1);
-  `TEST_CASE(test_wb_to_ex_fwd_rs2);
-  `TEST_CASE(test_mem_priority_over_wb);
   `TEST_CASE(test_sram_load_fwd);
   `TEST_CASE(test_sram_load_priority);
   `TEST_CASE(test_no_fwd_from_csr);
   `TEST_CASE(test_no_fwd_to_x0);
   `TEST_CASE(test_no_fwd_if_not_used);
-  `TEST_CASE(test_load_use_wb_forward);
   `TEST_SUITE_END();
 
 endmodule

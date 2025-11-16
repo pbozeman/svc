@@ -81,13 +81,6 @@ module svc_rv_stage_ex #(
     input logic [XLEN-1:0] load_data_mem,
 
     //
-    // Forwarding from WB stage
-    //
-    input logic [     4:0] rd_wb,
-    input logic            reg_write_wb,
-    input logic [XLEN-1:0] rd_data_wb,
-
-    //
     // Instruction retirement (for CSR)
     //
     input logic instr_retired,
