@@ -1,5 +1,5 @@
-`ifndef SVC_RV_FORWARD_SV
-`define SVC_RV_FORWARD_SV
+`ifndef SVC_RV_FWD_EX_SV
+`define SVC_RV_FWD_EX_SV
 
 `include "svc.sv"
 `include "svc_unused.sv"
@@ -21,7 +21,7 @@
 // - CSR results in MEM stage (data not ready until WB)
 // - Load results for SRAM are available in MEM stage and CAN be forwarded
 //
-module svc_rv_forward #(
+module svc_rv_fwd_ex #(
     parameter int XLEN     = 32,
     parameter int FWD      = 0,
     parameter int MEM_TYPE = 0

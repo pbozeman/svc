@@ -89,7 +89,7 @@ encapsulate all logic for each pipeline stage:
   - Jump/branch target calculation
   - CSR operations (instantiates svc_rv_csr.sv)
   - M extension support (instantiates svc_rv_ext_m.sv or svc_rv_ext_zmmul.sv)
-  - Data forwarding (instantiates svc_rv_forward.sv)
+  - Data forwarding (instantiates svc_rv_fwd_ex.sv)
   - Multi-cycle operation control
   - EX/MEM pipeline register
 
@@ -144,7 +144,7 @@ Memory-specific instruction fetch adapters handle timing differences:
   - Detects load-use hazards and branch hazards
   - Generates stall and flush signals for hazard resolution
   - Configurable forwarding mode (FWD parameter)
-- **svc_rv_forward.sv** - Data forwarding unit
+- **svc_rv_fwd_ex.sv** - Data forwarding unit
   - MEM→EX forwarding (EX hazard resolution)
   - WB→EX forwarding (MEM hazard resolution)
   - Forwarding priority: MEM > WB > regfile
