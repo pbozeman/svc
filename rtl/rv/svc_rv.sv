@@ -655,7 +655,7 @@ module svc_rv #(
         "IF %s%s %08x   %s   %08x %08x -> %08x%s",
         stall_str,
         flush_str,
-        stage_if.pc,
+        imem_raddr,
         pc_sel_str,
         stage_if.pred_target,
         stage_if.pc_redirect_target,
