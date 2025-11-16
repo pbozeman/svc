@@ -70,7 +70,7 @@ $(SIM_BUILD_DIR)/rv_$(1)_$(2)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_
 	@$$(IVERILOG) -M $$(@).dep \
 		-DRV_IMEM_DEPTH=$$(or $$($(1)_RV_IMEM_DEPTH),$$(RV_IMEM_DEPTH)) \
 		-DRV_DMEM_DEPTH=$$(or $$($(1)_RV_DMEM_DEPTH),$$(RV_DMEM_DEPTH)) \
-		-DRV_$(shell echo $(1) | tr 'a-z' 'A-Z')_HEX='"$(3)/$(1)/$(1).hex"' \
+		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
 		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
 		$(if $(filter im,$(2)),-DRV_ARCH_M) \
 		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
@@ -92,7 +92,7 @@ $(SIM_BUILD_DIR)/rv_$(1)_sram_$(2)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1
 		-DSVC_MEM_SRAM \
 		-DRV_IMEM_DEPTH=$$(or $$($(1)_RV_IMEM_DEPTH),$$(RV_IMEM_DEPTH)) \
 		-DRV_DMEM_DEPTH=$$(or $$($(1)_RV_DMEM_DEPTH),$$(RV_DMEM_DEPTH)) \
-		-DRV_$(shell echo $(1) | tr 'a-z' 'A-Z')_HEX='"$(3)/$(1)/$(1).hex"' \
+		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
 		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
 		$(if $(filter im,$(2)),-DRV_ARCH_M) \
 		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
@@ -115,7 +115,7 @@ $(SIM_BUILD_DIR)/rv_$(1)_sram_sc_$(2)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_
 		-DSVC_CPU_SINGLE_CYCLE \
 		-DRV_IMEM_DEPTH=$$(or $$($(1)_RV_IMEM_DEPTH),$$(RV_IMEM_DEPTH)) \
 		-DRV_DMEM_DEPTH=$$(or $$($(1)_RV_DMEM_DEPTH),$$(RV_DMEM_DEPTH)) \
-		-DRV_$(shell echo $(1) | tr 'a-z' 'A-Z')_HEX='"$(3)/$(1)/$(1).hex"' \
+		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
 		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
 		$(if $(filter im,$(2)),-DRV_ARCH_M) \
 		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
@@ -144,36 +144,47 @@ RV_SRAM_SC_I_SIMS := $(addprefix rv_,$(addsuffix _sram_sc_i_sim,$(RV_SIM_MODULES
 RV_SRAM_SC_IM_SIMS := $(addprefix rv_,$(addsuffix _sram_sc_im_sim,$(RV_SIM_MODULES)))
 RV_SRAM_SC_I_ZMMUL_SIMS := $(addprefix rv_,$(addsuffix _sram_sc_i_zmmul_sim,$(RV_SIM_MODULES)))
 
+# VVP debug flags for all sim targets
+VVP_DBG_FLAGS := \
+	$(if $(SVC_RV_DBG_CPU),+SVC_RV_DBG_CPU=$(SVC_RV_DBG_CPU)) \
+	$(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) \
+	$(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) \
+	$(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) \
+	$(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) \
+	$(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) \
+	$(if $(SVC_RV_DBG_HAZ),+SVC_RV_DBG_HAZ=$(SVC_RV_DBG_HAZ)) \
+	$(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
+
 .PHONY: $(RV_I_SIMS) $(RV_IM_SIMS) $(RV_I_ZMMUL_SIMS) $(RV_SRAM_I_SIMS) $(RV_SRAM_IM_SIMS) $(RV_SRAM_I_ZMMUL_SIMS) $(RV_SRAM_SC_I_SIMS) $(RV_SRAM_SC_IM_SIMS) $(RV_SRAM_SC_I_ZMMUL_SIMS)
 
 $(RV_I_SIMS): rv_%_i_sim: $(SIM_BUILD_DIR)/rv_%_i_sim
-	@$(VVP) $< $(if $(SVC_RV_DBG_CPU),+SVC_RV_DBG_CPU=$(SVC_RV_DBG_CPU)) $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) $(if $(SVC_RV_DBG_HAZ),+SVC_RV_DBG_HAZ=$(SVC_RV_DBG_HAZ)) $(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
+	@$(VVP) $< $(VVP_DBG_FLAGS)
 
 $(RV_IM_SIMS): rv_%_im_sim: $(SIM_BUILD_DIR)/rv_%_im_sim
-	@$(VVP) $< $(if $(SVC_RV_DBG_CPU),+SVC_RV_DBG_CPU=$(SVC_RV_DBG_CPU)) $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) $(if $(SVC_RV_DBG_HAZ),+SVC_RV_DBG_HAZ=$(SVC_RV_DBG_HAZ)) $(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
+	@$(VVP) $< $(VVP_DBG_FLAGS)
 
 $(RV_I_ZMMUL_SIMS): rv_%_i_zmmul_sim: $(SIM_BUILD_DIR)/rv_%_i_zmmul_sim
-	@$(VVP) $< $(if $(SVC_RV_DBG_CPU),+SVC_RV_DBG_CPU=$(SVC_RV_DBG_CPU)) $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) $(if $(SVC_RV_DBG_HAZ),+SVC_RV_DBG_HAZ=$(SVC_RV_DBG_HAZ)) $(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
+	@$(VVP) $< $(VVP_DBG_FLAGS)
 
 # SRAM pipelined execution targets
 $(RV_SRAM_I_SIMS): rv_%_sram_i_sim: $(SIM_BUILD_DIR)/rv_%_sram_i_sim
-	@$(VVP) $< $(if $(SVC_RV_DBG_CPU),+SVC_RV_DBG_CPU=$(SVC_RV_DBG_CPU)) $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) $(if $(SVC_RV_DBG_HAZ),+SVC_RV_DBG_HAZ=$(SVC_RV_DBG_HAZ)) $(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
+	@$(VVP) $< $(VVP_DBG_FLAGS)
 
 $(RV_SRAM_IM_SIMS): rv_%_sram_im_sim: $(SIM_BUILD_DIR)/rv_%_sram_im_sim
-	@$(VVP) $< $(if $(SVC_RV_DBG_CPU),+SVC_RV_DBG_CPU=$(SVC_RV_DBG_CPU)) $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) $(if $(SVC_RV_DBG_HAZ),+SVC_RV_DBG_HAZ=$(SVC_RV_DBG_HAZ)) $(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
+	@$(VVP) $< $(VVP_DBG_FLAGS)
 
 $(RV_SRAM_I_ZMMUL_SIMS): rv_%_sram_i_zmmul_sim: $(SIM_BUILD_DIR)/rv_%_sram_i_zmmul_sim
-	@$(VVP) $< $(if $(SVC_RV_DBG_CPU),+SVC_RV_DBG_CPU=$(SVC_RV_DBG_CPU)) $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) $(if $(SVC_RV_DBG_HAZ),+SVC_RV_DBG_HAZ=$(SVC_RV_DBG_HAZ)) $(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
+	@$(VVP) $< $(VVP_DBG_FLAGS)
 
 # SRAM single-cycle execution targets
 $(RV_SRAM_SC_I_SIMS): rv_%_sram_sc_i_sim: $(SIM_BUILD_DIR)/rv_%_sram_sc_i_sim
-	@$(VVP) $< $(if $(SVC_RV_DBG_CPU),+SVC_RV_DBG_CPU=$(SVC_RV_DBG_CPU)) $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) $(if $(SVC_RV_DBG_HAZ),+SVC_RV_DBG_HAZ=$(SVC_RV_DBG_HAZ)) $(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
+	@$(VVP) $< $(VVP_DBG_FLAGS)
 
 $(RV_SRAM_SC_IM_SIMS): rv_%_sram_sc_im_sim: $(SIM_BUILD_DIR)/rv_%_sram_sc_im_sim
-	@$(VVP) $< $(if $(SVC_RV_DBG_CPU),+SVC_RV_DBG_CPU=$(SVC_RV_DBG_CPU)) $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) $(if $(SVC_RV_DBG_HAZ),+SVC_RV_DBG_HAZ=$(SVC_RV_DBG_HAZ)) $(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
+	@$(VVP) $< $(VVP_DBG_FLAGS)
 
 $(RV_SRAM_SC_I_ZMMUL_SIMS): rv_%_sram_sc_i_zmmul_sim: $(SIM_BUILD_DIR)/rv_%_sram_sc_i_zmmul_sim
-	@$(VVP) $< $(if $(SVC_RV_DBG_CPU),+SVC_RV_DBG_CPU=$(SVC_RV_DBG_CPU)) $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) $(if $(SVC_RV_DBG_HAZ),+SVC_RV_DBG_HAZ=$(SVC_RV_DBG_HAZ)) $(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
+	@$(VVP) $< $(VVP_DBG_FLAGS)
 
 # Hex files are built by targeted sw builds (recursive make into sw/<module>)
 # The .hex.d files (included above) provide source dependencies for rebuild detection
@@ -229,7 +240,7 @@ $(foreach sim, $(SIM_MODULES), $(eval $(call lint_sim_rule,$(sim))))
 # Pattern rule to build and run a standalone sim
 .PHONY: $(SIM_MODULES)
 $(SIM_MODULES): % : $(SIM_BUILD_DIR)/%
-	@$(VVP) $< $(if $(SVC_RV_DBG_CPU),+SVC_RV_DBG_CPU=$(SVC_RV_DBG_CPU)) $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) $(if $(SVC_RV_DBG_HAZ),+SVC_RV_DBG_HAZ=$(SVC_RV_DBG_HAZ)) $(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
+	@$(VVP) $< $(VVP_DBG_FLAGS)
 
 # Determine the source subdirectory for each sim
 SIM_PRJ_INC = $(PRJ_RTL_DIR)/$(patsubst %_sim,%, $(notdir $(*)))
@@ -240,7 +251,8 @@ $(SIM_BUILD_DIR)/%: %.sv Makefile | $(SIM_BUILD_DIR)
 	@$(IVERILOG) -M $(@).dep \
 		$(if $(filter rv_%,$(notdir $*)),\
 			-DRV_IMEM_DEPTH=$(or $($(patsubst rv_%_sim,%,$(notdir $*))_RV_IMEM_DEPTH),$(RV_IMEM_DEPTH)) \
-			-DRV_DMEM_DEPTH=$(or $($(patsubst rv_%_sim,%,$(notdir $*))_RV_DMEM_DEPTH),$(RV_DMEM_DEPTH))) \
+			-DRV_DMEM_DEPTH=$(or $($(patsubst rv_%_sim,%,$(notdir $*))_RV_DMEM_DEPTH),$(RV_DMEM_DEPTH)) \
+			-DRV_SIM_HEX='"$(BUILD_DIR)/sw/rv32i/$(patsubst rv_%_sim,%,$(notdir $*))/$(patsubst rv_%_sim,%,$(notdir $*)).hex"') \
 		$(I_RTL) -I$(PRJ_TB_DIR) -I$(SIM_PRJ_INC) -o $@ $< 2>&1 | \
 		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
 		exit $${PIPESTATUS[0]}
