@@ -48,6 +48,7 @@ module svc_rv_hazard #(
     input logic       reg_write_ex,
     input logic       is_load_ex,
     input logic       is_csr_ex,
+    input logic       is_m_ex,
     input logic       op_active_ex,
 
     // MEM stage control signals and destination
@@ -178,11 +179,13 @@ module svc_rv_hazard #(
 
   if (FWD != 0) begin : g_external_forwarding
     //
-    // Decode result source to determine if instruction in MEM is a CSR
+    // Decode result source to determine if instruction in MEM is a CSR or M extension
     //
     logic is_csr_mem;
+    logic is_m_result_mem;
 
-    assign is_csr_mem = (res_src_mem == RES_CSR);
+    assign is_csr_mem      = (res_src_mem == RES_CSR);
+    assign is_m_result_mem = (res_src_mem == RES_M);
 
     //
     // Load-use hazard detection
@@ -216,38 +219,40 @@ module svc_rv_hazard #(
       //
       // BRAM: Must stall on load-use hazards in EX and MEM stages
       //
-      // Load in EX, consumer in ID: Data not computed yet
+      // Load/CSR/M-ext in EX, consumer in ID: Data not computed yet
       //
-      assign load_use_ex = ((is_load_ex || is_csr_ex) &&
+      assign load_use_ex = ((is_load_ex || is_csr_ex || is_m_ex) &&
                             (ex_hazard_rs1 || ex_hazard_rs2));
 
       //
-      // Load/CSR in MEM, consumer in ID: Data not ready yet (BRAM latency)
+      // Load/CSR/M-ext in MEM, consumer in ID: Data not ready yet (BRAM latency)
       //
-      // MEM→ID forwarding skips loads on BRAM and CSRs (checked via
-      // !is_load_mem && !is_csr_mem in svc_rv_fwd_id). Must stall until
-      // load/CSR reaches WB where WB→ID can forward the result.
+      // MEM→ID forwarding skips loads, CSRs, and M extension results (checked via
+      // !is_load_mem && !is_csr_mem && !is_m_result_mem in svc_rv_fwd_id).
+      // Must stall until result reaches WB where WB→ID can forward it.
       //
-      assign load_use_mem = ((mem_read_mem || is_csr_mem) &&
+      assign load_use_mem = ((mem_read_mem || is_csr_mem || is_m_result_mem) &&
                              (mem_hazard_rs1 || mem_hazard_rs2));
 
       assign load_use_hazard = load_use_ex || load_use_mem;
     end else begin : g_sram_no_stall
       //
-      // SRAM: Load data forwarded from MEM stage, only stall on CSR-use
+      // SRAM: Load data forwarded from MEM stage, only stall on CSR-use and M-ext-use
       //
-      // CSR in EX, consumer in ID: Data not computed yet
+      // CSR/M-ext in EX, consumer in ID: Data not computed yet
       //
-      assign load_use_ex = (is_csr_ex && (ex_hazard_rs1 || ex_hazard_rs2));
+      assign load_use_ex = ((is_csr_ex || is_m_ex) &&
+                            (ex_hazard_rs1 || ex_hazard_rs2));
 
       //
-      // CSR in MEM, consumer in ID: Data not ready yet
+      // CSR/M-ext in MEM, consumer in ID: Data not ready yet
       //
-      // SRAM loads are ready in MEM stage and can be forwarded, but CSRs
-      // are not ready until WB. Must stall until CSR reaches WB where
-      // WB→ID can forward the result.
+      // SRAM loads are ready in MEM stage and can be forwarded, but CSRs and
+      // M extension results are not ready until WB. Must stall until result
+      // reaches WB where WB→ID can forward it.
       //
-      assign load_use_mem = (is_csr_mem && (mem_hazard_rs1 || mem_hazard_rs2));
+      assign load_use_mem = ((is_csr_mem || is_m_result_mem) &&
+                             (mem_hazard_rs1 || mem_hazard_rs2));
 
       assign load_use_hazard = load_use_ex || load_use_mem;
 
@@ -271,7 +276,7 @@ module svc_rv_hazard #(
     // Non-forwarding: stall on all hazards
     //
     assign data_hazard = ex_hazard || mem_hazard || wb_hazard;
-    `SVC_UNUSED({is_load_ex, is_csr_ex, mem_read_mem, res_src_mem});
+    `SVC_UNUSED({is_load_ex, is_csr_ex, is_m_ex, mem_read_mem, res_src_mem});
   end
 
   //

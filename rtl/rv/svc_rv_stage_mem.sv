@@ -6,6 +6,7 @@
 
 `include "svc_rv_ld_fmt.sv"
 `include "svc_rv_st_fmt.sv"
+`include "svc_rv_ext_mul_mem.sv"
 
 //
 // RISC-V Memory (MEM) Stage
@@ -44,11 +45,16 @@ module svc_rv_stage_mem #(
     input logic [     4:0] rd_mem,
     input logic [     2:0] funct3_mem,
     input logic [XLEN-1:0] alu_result_mem,
+    input logic [XLEN-1:0] rs1_data_mem,
     input logic [XLEN-1:0] rs2_data_mem,
     input logic [XLEN-1:0] pc_plus4_mem,
     input logic [XLEN-1:0] jb_target_mem,
     input logic [XLEN-1:0] csr_rdata_mem,
     input logic [XLEN-1:0] m_result_mem,
+    input logic [XLEN-1:0] mul_ll_mem,
+    input logic [XLEN-1:0] mul_lh_mem,
+    input logic [XLEN-1:0] mul_hl_mem,
+    input logic [XLEN-1:0] mul_hh_mem,
 
     //
     // Data memory interface
@@ -165,7 +171,7 @@ module svc_rv_stage_mem #(
   //
   always_comb begin
     case (res_src_mem)
-      RES_M:   result_mem = m_result_mem;
+      RES_M:   result_mem = m_final_result_mem;
       RES_PC4: result_mem = pc_plus4_mem;
       RES_TGT: result_mem = jb_target_mem;
       default: result_mem = alu_result_mem;
@@ -173,6 +179,23 @@ module svc_rv_stage_mem #(
   end
 
   assign load_data_mem = dmem_rdata_ext_mem;
+
+  //
+  // M Extension MEM stage: combine partial products
+  //
+  logic [XLEN-1:0] m_final_result_mem;
+
+  svc_rv_ext_mul_mem ext_mul_mem (
+      .mul_ll    (mul_ll_mem),
+      .mul_lh    (mul_lh_mem),
+      .mul_hl    (mul_hl_mem),
+      .mul_hh    (mul_hh_mem),
+      .div_result(m_result_mem),
+      .rs1_data  (rs1_data_mem),
+      .rs2_data  (rs2_data_mem),
+      .op        (funct3_mem),
+      .result    (m_final_result_mem)
+  );
 
   //
   // MEM/WB Pipeline Register
@@ -198,7 +221,7 @@ module svc_rv_stage_mem #(
         pc_plus4_wb   <= pc_plus4_mem;
         jb_target_wb  <= jb_target_mem;
         csr_rdata_wb  <= csr_rdata_mem;
-        m_result_wb   <= m_result_mem;
+        m_result_wb   <= m_final_result_mem;
       end
     end
 
@@ -241,7 +264,7 @@ module svc_rv_stage_mem #(
     assign pc_plus4_wb   = pc_plus4_mem;
     assign jb_target_wb  = jb_target_mem;
     assign csr_rdata_wb  = csr_rdata_mem;
-    assign m_result_wb   = m_result_mem;
+    assign m_result_wb   = m_final_result_mem;
 
     //
     // Pass through SRAM load data

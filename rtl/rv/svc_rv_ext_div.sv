@@ -1,29 +1,24 @@
-`ifndef SVC_RV_EXT_M_SV
-`define SVC_RV_EXT_M_SV
+`ifndef SVC_RV_EXT_DIV_SV
+`define SVC_RV_EXT_DIV_SV
 
 `include "svc.sv"
 `include "svc_divu.sv"
 `include "svc_unused.sv"
 
 //
-// RISC-V M extension unit
+// RISC-V M extension division unit
 //
-// Implements MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM, REMU instructions.
+// Implements DIV, DIVU, REM, REMU instructions using restoring division.
 //
-// Multiplication operations complete in 1 cycle (combinational).
-// Division/remainder operations take 32 cycles using restoring division.
+// Division is a 32-cycle sequential operation.
 //
 // Operation encoding (matches funct3):
-//   000 (MUL):    Lower 32 bits of rs1 * rs2 (signed × signed)
-//   001 (MULH):   Upper 32 bits of rs1 * rs2 (signed × signed)
-//   010 (MULHSU): Upper 32 bits of rs1 * rs2 (signed × unsigned)
-//   011 (MULHU):  Upper 32 bits of rs1 * rs2 (unsigned × unsigned)
-//   100 (DIV):    Signed division quotient
-//   101 (DIVU):   Unsigned division quotient
-//   110 (REM):    Signed division remainder
-//   111 (REMU):   Unsigned division remainder
+//   100 (DIV):  Signed division quotient
+//   101 (DIVU): Unsigned division quotient
+//   110 (REM):  Signed division remainder
+//   111 (REMU): Unsigned division remainder
 //
-module svc_rv_ext_m (
+module svc_rv_ext_div (
     input logic clk,
     input logic rst_n,
 
@@ -32,41 +27,12 @@ module svc_rv_ext_m (
     input  logic [31:0] rs2,
     input  logic [ 2:0] op,
     output logic        busy,
-
     output logic [31:0] result
 );
 
   //
-  // Operation type decode
+  // Division unit (unsigned restoring division)
   //
-  logic is_mul;
-  logic is_div;
-
-  assign is_mul = !op[2];
-  assign is_div = op[2];
-
-  //
-  // Multiplication logic (combinational, from zmmul)
-  //
-  logic [32:0] rs1_ext;
-  logic [32:0] rs2_ext;
-  logic [65:0] product;
-  logic [31:0] mul_result;
-
-  assign rs1_ext    = (op[1:0] == 2'b11) ? {1'b0, rs1} : {rs1[31], rs1};
-  assign rs2_ext    = (op[1]) ? {1'b0, rs2} : {rs2[31], rs2};
-
-  assign product    = $signed(rs1_ext) * $signed(rs2_ext);
-
-  //
-  // Select upper or lower 32 bits
-  //
-  assign mul_result = (op[1:0] == 2'b00) ? product[31:0] : product[63:32];
-
-  //
-  // Division logic (sequential, using svc_divu)
-  //
-  logic        div_en;
   logic        div_busy;
   logic        div_valid;
   logic        div_zero;
@@ -86,7 +52,7 @@ module svc_rv_ext_m (
   logic [31:0] quotient_signed;
   logic [31:0] remainder_signed;
 
-  assign is_signed_div = is_div && !op[0];
+  assign is_signed_div = !op[0];
   assign rs1_neg = rs1[31];
   assign rs2_neg = rs2[31];
 
@@ -106,14 +72,12 @@ module svc_rv_ext_m (
   //
   // Division unit instantiation
   //
-  assign div_en = en && is_div;
-
   svc_divu #(
       .WIDTH(32)
   ) divu (
       .clk      (clk),
       .rst_n    (rst_n),
-      .en       (div_en),
+      .en       (en),
       .dividend (dividend_abs),
       .divisor  (divisor_abs),
       .busy     (div_busy),
@@ -126,8 +90,7 @@ module svc_rv_ext_m (
   //
   // Result selection
   //
-  logic [31:0] div_result;
-  logic        div_result_is_rem;
+  logic div_result_is_rem;
 
   //
   // Handle division by zero per RISC-V spec
@@ -140,28 +103,25 @@ module svc_rv_ext_m (
   always_comb begin
     if (div_zero) begin
       if (div_result_is_rem) begin
-        div_result = rs1;
+        result = rs1;
       end else begin
-        div_result = 32'hFFFFFFFF;
+        result = 32'hFFFFFFFF;
       end
     end else begin
       if (div_result_is_rem) begin
-        div_result = remainder_signed;
+        result = remainder_signed;
       end else begin
-        div_result = quotient_signed;
+        result = quotient_signed;
       end
     end
   end
 
   //
-  // Output selection
+  // Output busy signal
   //
-  // Result selection and busy signal
-  //
-  assign result = is_mul ? mul_result : div_result;
-  assign busy   = div_busy;
+  assign busy = div_busy;
 
-  `SVC_UNUSED({product[65:64], div_valid, div_zero});
+  `SVC_UNUSED({div_valid, div_zero, op[2]});
 
 endmodule
 

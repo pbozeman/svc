@@ -15,6 +15,7 @@ module svc_rv_hazard_tb;
   logic       reg_write_ex;
   logic       is_load_ex;
   logic       is_csr_ex;
+  logic       is_m_ex;
   logic       op_active_ex;
   logic [4:0] rd_mem;
   logic       reg_write_mem;
@@ -46,6 +47,7 @@ module svc_rv_hazard_tb;
       .reg_write_ex   (reg_write_ex),
       .is_load_ex     (is_load_ex),
       .is_csr_ex      (is_csr_ex),
+      .is_m_ex        (is_m_ex),
       .op_active_ex   (op_active_ex),
       .rd_mem         (rd_mem),
       .reg_write_mem  (reg_write_mem),
@@ -74,6 +76,7 @@ module svc_rv_hazard_tb;
     reg_write_ex    = 1'b0;
     is_load_ex      = 1'b0;
     is_csr_ex       = 1'b0;
+    is_m_ex         = 1'b0;
     op_active_ex    = 1'b0;
     rd_mem          = 5'd0;
     reg_write_mem   = 1'b0;
@@ -268,6 +271,7 @@ module svc_rv_hazard_tb;
     reg_write_ex    = 1'b0;
     is_load_ex      = 1'b0;
     is_csr_ex       = 1'b0;
+    is_m_ex         = 1'b0;
     op_active_ex    = 1'b0;
     rd_mem          = 5'd0;
     reg_write_mem   = 1'b0;

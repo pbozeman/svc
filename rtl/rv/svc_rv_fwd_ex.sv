@@ -68,14 +68,18 @@ module svc_rv_fwd_ex #(
     //
     logic is_load_mem;
     logic is_csr_mem;
+    logic is_m_result_mem;
 
-    assign is_load_mem = (res_src_mem == RES_MEM);
-    assign is_csr_mem  = (res_src_mem == RES_CSR);
+    assign is_load_mem     = (res_src_mem == RES_MEM);
+    assign is_csr_mem      = (res_src_mem == RES_CSR);
+    assign is_m_result_mem = (res_src_mem == RES_M);
 
     //
     // MEM→EX result forwarding (common to both SRAM and BRAM)
     //
-    // Forward results from MEM stage (ALU, Zmmul, etc - not loads or CSRs)
+    // Forward results from MEM stage (ALU, etc).
+    // Do NOT forward: loads, CSRs, or M extension results (2-stage multiply).
+    // M extension results are treated like BRAM loads - not available until WB.
     //
     logic mem_to_ex_fwd_a;
     logic mem_to_ex_fwd_b;
@@ -84,7 +88,8 @@ module svc_rv_fwd_ex #(
       mem_to_ex_fwd_a = 1'b0;
       mem_to_ex_fwd_b = 1'b0;
 
-      if (reg_write_mem && rd_mem != 5'd0 && !is_load_mem && !is_csr_mem) begin
+      if (reg_write_mem && rd_mem != 5'd0 && !is_load_mem && !is_csr_mem &&
+          !is_m_result_mem) begin
         mem_to_ex_fwd_a = (rd_mem == rs1_ex);
         mem_to_ex_fwd_b = (rd_mem == rs2_ex);
       end

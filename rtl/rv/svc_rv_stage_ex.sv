@@ -9,8 +9,8 @@
 `include "svc_rv_alu_dec.sv"
 `include "svc_rv_bcmp.sv"
 `include "svc_rv_csr.sv"
-`include "svc_rv_ext_m.sv"
-`include "svc_rv_ext_zmmul.sv"
+`include "svc_rv_ext_mul_ex.sv"
+`include "svc_rv_ext_div.sv"
 `include "svc_rv_fwd_ex.sv"
 
 //
@@ -104,16 +104,22 @@ module svc_rv_stage_ex #(
     output logic [     4:0] rs2_mem,
     output logic [     2:0] funct3_mem,
     output logic [XLEN-1:0] alu_result_mem,
+    output logic [XLEN-1:0] rs1_data_mem,
     output logic [XLEN-1:0] rs2_data_mem,
     output logic [XLEN-1:0] pc_plus4_mem,
     output logic [XLEN-1:0] jb_target_mem,
     output logic [XLEN-1:0] csr_rdata_mem,
     output logic [XLEN-1:0] m_result_mem,
+    output logic [XLEN-1:0] mul_ll_mem,
+    output logic [XLEN-1:0] mul_lh_mem,
+    output logic [XLEN-1:0] mul_hl_mem,
+    output logic [XLEN-1:0] mul_hh_mem,
 
     //
     // Outputs to hazard unit
     //
     output logic is_csr_ex,
+    output logic is_m_ex,
     output logic op_active_ex,
 
     //
@@ -144,6 +150,14 @@ module svc_rv_stage_ex #(
   logic            m_busy_ex;
 
   //
+  // M extension partial products (for 2-stage multiply)
+  //
+  logic [XLEN-1:0] mul_ll_ex;
+  logic [XLEN-1:0] mul_lh_ex;
+  logic [XLEN-1:0] mul_hl_ex;
+  logic [XLEN-1:0] mul_hh_ex;
+
+  //
   // Branch signals
   //
   logic            branch_taken_ex;
@@ -157,6 +171,7 @@ module svc_rv_stage_ex #(
   // Decode result sources
   //
   assign is_csr_ex = (res_src_ex == RES_CSR);
+  assign is_m_ex   = (res_src_ex == RES_M);
 
   //
   // ALU Decoder
@@ -282,33 +297,77 @@ module svc_rv_stage_ex #(
   end
 
   //
-  // M Extension Unit
+  // M Extension Units
   //
-  if (EXT_ZMMUL != 0) begin : g_m_ext
-    svc_rv_ext_zmmul ext_zmmul (
-        .clk   (clk),
-        .rst_n (rst_n),
-        .en    (op_en_ex),
+  // Multiply and division are split into separate units:
+  // - Multiply: combinational 16-bit partial products (EX stage)
+  // - Division: sequential 32-cycle operation (multi-cycle)
+  //
+  // ZMMUL: multiply only
+  // M:     multiply + division
+  //
+  if (EXT_ZMMUL != 0 || EXT_M != 0) begin : g_m_ext
+    //
+    // Multiply unit (used by both ZMMUL and M)
+    //
+    // Produces 16-bit partial products that are combined in MEM stage.
+    // This is a pure combinational unit.
+    //
+    svc_rv_ext_mul_ex ext_mul (
         .rs1   (fwd_rs1_ex),
         .rs2   (fwd_rs2_ex),
         .op    (funct3_ex),
-        .busy  (m_busy_ex),
-        .result(m_result_ex)
+        .mul_ll(mul_ll_ex),
+        .mul_lh(mul_lh_ex),
+        .mul_hl(mul_hl_ex),
+        .mul_hh(mul_hh_ex)
     );
-  end else if (EXT_M != 0) begin : g_m_ext
-    svc_rv_ext_m ext_m (
-        .clk   (clk),
-        .rst_n (rst_n),
-        .en    (op_en_ex),
-        .rs1   (fwd_rs1_ex),
-        .rs2   (fwd_rs2_ex),
-        .op    (funct3_ex),
-        .busy  (m_busy_ex),
-        .result(m_result_ex)
-    );
+
+    if (EXT_M != 0) begin : g_div
+      //
+      // Division unit (only for full M extension)
+      //
+      // Multi-cycle sequential divider.
+      // Only enable for division operations (funct3[2] = 1).
+      //
+      logic div_en;
+      logic div_busy;
+
+      assign div_en = op_en_ex && funct3_ex[2];
+
+      svc_rv_ext_div ext_div (
+          .clk   (clk),
+          .rst_n (rst_n),
+          .en    (div_en),
+          .rs1   (fwd_rs1_ex),
+          .rs2   (fwd_rs2_ex),
+          .op    (funct3_ex),
+          .busy  (div_busy),
+          .result(m_result_ex)
+      );
+
+      assign m_busy_ex = div_busy;
+
+    end else begin : g_no_div
+      //
+      // ZMMUL: no division unit
+      //
+      assign m_result_ex = '0;
+      assign m_busy_ex   = 1'b0;
+
+      `SVC_UNUSED({op_en_ex, op_active_ex});
+    end
+
   end else begin : g_no_m_ext
+    //
+    // No M extension
+    //
     assign m_result_ex = '0;
     assign m_busy_ex   = 1'b0;
+    assign mul_ll_ex   = '0;
+    assign mul_lh_ex   = '0;
+    assign mul_hl_ex   = '0;
+    assign mul_hh_ex   = '0;
 
     `SVC_UNUSED({op_en_ex, op_active_ex});
   end
@@ -511,11 +570,16 @@ module svc_rv_stage_ex #(
         rs2_mem        <= '0;
         funct3_mem     <= '0;
         alu_result_mem <= '0;
+        rs1_data_mem   <= '0;
         rs2_data_mem   <= '0;
         pc_plus4_mem   <= '0;
         jb_target_mem  <= '0;
         csr_rdata_mem  <= '0;
         m_result_mem   <= '0;
+        mul_ll_mem     <= '0;
+        mul_lh_mem     <= '0;
+        mul_hl_mem     <= '0;
+        mul_hh_mem     <= '0;
       end else if (!ex_mem_stall) begin
         reg_write_mem  <= reg_write_ex;
         mem_read_mem   <= mem_read_ex;
@@ -526,11 +590,16 @@ module svc_rv_stage_ex #(
         rs2_mem        <= rs2_ex;
         funct3_mem     <= funct3_ex;
         alu_result_mem <= alu_result_ex;
+        rs1_data_mem   <= fwd_rs1_ex;
         rs2_data_mem   <= fwd_rs2_ex;
         pc_plus4_mem   <= pc_plus4_ex;
         jb_target_mem  <= jb_target_ex;
         csr_rdata_mem  <= csr_rdata_ex;
         m_result_mem   <= m_result_ex;
+        mul_ll_mem     <= mul_ll_ex;
+        mul_lh_mem     <= mul_lh_ex;
+        mul_hl_mem     <= mul_hl_ex;
+        mul_hh_mem     <= mul_hh_ex;
       end
     end
 
@@ -544,11 +613,16 @@ module svc_rv_stage_ex #(
     assign rs2_mem        = rs2_ex;
     assign funct3_mem     = funct3_ex;
     assign alu_result_mem = alu_result_ex;
+    assign rs1_data_mem   = fwd_rs1_ex;
     assign rs2_data_mem   = fwd_rs2_ex;
     assign pc_plus4_mem   = pc_plus4_ex;
     assign jb_target_mem  = jb_target_ex;
     assign csr_rdata_mem  = csr_rdata_ex;
     assign m_result_mem   = m_result_ex;
+    assign mul_ll_mem     = mul_ll_ex;
+    assign mul_lh_mem     = mul_lh_ex;
+    assign mul_hl_mem     = mul_hl_ex;
+    assign mul_hh_mem     = mul_hh_ex;
 
     `SVC_UNUSED({ex_mem_stall});
   end
