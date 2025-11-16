@@ -11,7 +11,7 @@
 `include "svc_rv_csr.sv"
 `include "svc_rv_ext_m.sv"
 `include "svc_rv_ext_zmmul.sv"
-`include "svc_rv_forward.sv"
+`include "svc_rv_fwd_ex.sv"
 
 //
 // RISC-V Execute (EX) Stage
@@ -182,7 +182,7 @@ module svc_rv_stage_ex #(
   logic [XLEN-1:0] fwd_rs1_ex;
   logic [XLEN-1:0] fwd_rs2_ex;
 
-  svc_rv_forward #(
+  svc_rv_fwd_ex #(
       .XLEN    (XLEN),
       .FWD     ((PIPELINED != 0 && FWD != 0) ? 1 : 0),
       .MEM_TYPE(MEM_TYPE)

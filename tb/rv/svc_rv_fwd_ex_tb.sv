@@ -1,6 +1,6 @@
 `include "svc_unit.sv"
 
-`include "svc_rv_forward.sv"
+`include "svc_rv_fwd_ex.sv"
 
 //
 // Forward unit testbench
@@ -10,7 +10,7 @@
 // - svc_rv_soc_bram_fwd_tb
 // - svc_rv_soc_bram_bpred_tb
 //
-module svc_rv_forward_tb;
+module svc_rv_fwd_ex_tb;
   `TEST_CLK_NS(clk, 10);
 
   localparam int XLEN = 32;
@@ -30,7 +30,7 @@ module svc_rv_forward_tb;
   logic [XLEN-1:0] fwd_rs1_ex;
   logic [XLEN-1:0] fwd_rs2_ex;
 
-  svc_rv_forward #(
+  svc_rv_fwd_ex #(
       .XLEN    (XLEN),
       .FWD     (1),
       .MEM_TYPE(0)
@@ -393,7 +393,7 @@ module svc_rv_forward_tb;
     `CHECK_EQ(fwd_rs2_ex, 32'hBBBBBBBB);
   endtask
 
-  `TEST_SUITE_BEGIN(svc_rv_forward_tb);
+  `TEST_SUITE_BEGIN(svc_rv_fwd_ex_tb);
   `TEST_CASE(test_no_forwarding);
   `TEST_CASE(test_mem_to_ex_fwd_rs1);
   `TEST_CASE(test_mem_to_ex_fwd_rs2);
