@@ -3,6 +3,7 @@
 
 `include "svc.sv"
 `include "svc_muxn.sv"
+`include "svc_rv_ext_mul_wb.sv"
 `include "svc_unused.sv"
 
 //
@@ -32,6 +33,10 @@ module svc_rv_stage_wb #(
     input logic [XLEN-1:0] jb_target_wb,
     input logic [XLEN-1:0] csr_rdata_wb,
     input logic [XLEN-1:0] m_result_wb,
+    input logic [     2:0] funct3_wb,
+    input logic [XLEN-1:0] rs1_data_wb,
+    input logic [XLEN-1:0] rs2_data_wb,
+    input logic [    63:0] product_64_wb,
 
     //
     // Output to register file in ID stage
@@ -47,6 +52,33 @@ module svc_rv_stage_wb #(
   `include "svc_rv_defs.svh"
 
   //
+  // Multiply sign correction (WB stage)
+  //
+  // Applies sign correction to unsigned product from MEM stage.
+  // This is done in WB stage to improve timing (VexRiscv algorithm).
+  //
+  logic [XLEN-1:0] mul_result_wb;
+
+  svc_rv_ext_mul_wb ext_mul_wb (
+      .product_64(product_64_wb),
+      .rs1_data  (rs1_data_wb),
+      .rs2_data  (rs2_data_wb),
+      .op        (funct3_wb),
+      .result    (mul_result_wb)
+  );
+
+  //
+  // M extension result selection
+  //
+  // Division results (m_result_wb) complete in MEM stage.
+  // Multiply results (mul_result_wb) complete in WB stage.
+  // Select based on operation type (funct3[2]: 0=multiply, 1=division).
+  //
+  logic [XLEN-1:0] m_ext_result_wb;
+
+  assign m_ext_result_wb = funct3_wb[2] ? m_result_wb : mul_result_wb;
+
+  //
   // Result mux
   //
   // Selects final result to write back to register file based on instruction type
@@ -57,7 +89,7 @@ module svc_rv_stage_wb #(
   ) mux_res (
       .sel(res_src_wb),
       .data({
-        m_result_wb,
+        m_ext_result_wb,
         csr_rdata_wb,
         jb_target_wb,
         pc_plus4_wb,

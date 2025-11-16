@@ -5,6 +5,7 @@
 `include "svc_rv_ext_mul_ex.sv"
 `include "svc_rv_ext_div.sv"
 `include "svc_rv_ext_mul_mem.sv"
+`include "svc_rv_ext_mul_wb.sv"
 
 // verilator lint_off UNUSEDSIGNAL
 
@@ -23,6 +24,8 @@ module svc_rv_ext_m_tb;
   logic [31:0] mul_lh;
   logic [31:0] mul_hl;
   logic [31:0] mul_hh;
+  logic [63:0] product_64;
+  logic [31:0] mul_result;
   logic [31:0] result;
 
   //
@@ -59,7 +62,7 @@ module svc_rv_ext_m_tb;
   );
 
   //
-  // MEM stage: combine partial products
+  // MEM stage: combine partial products (unsigned)
   //
   svc_rv_ext_mul_mem dut_mem (
       .mul_ll    (mul_ll),
@@ -67,11 +70,24 @@ module svc_rv_ext_m_tb;
       .mul_hl    (mul_hl),
       .mul_hh    (mul_hh),
       .div_result(div_result),
+      .product_64(product_64)
+  );
+
+  //
+  // WB stage: apply sign correction to multiply result
+  //
+  svc_rv_ext_mul_wb dut_wb (
+      .product_64(product_64),
       .rs1_data  (rs1),
       .rs2_data  (rs2),
       .op        (op),
-      .result    (result)
+      .result    (mul_result)
   );
+
+  //
+  // Result selection: multiply or division
+  //
+  assign result = op[2] ? div_result : mul_result;
 
   //
   // Test helper for multiplication (1 cycle)
