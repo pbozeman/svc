@@ -158,11 +158,16 @@ module svc_rv #(
   logic [     4:0] rs2_mem;
   logic [     2:0] funct3_mem;
   logic [XLEN-1:0] alu_result_mem;
+  logic [XLEN-1:0] rs1_data_mem;
   logic [XLEN-1:0] rs2_data_mem;
   logic [XLEN-1:0] pc_plus4_mem;
   logic [XLEN-1:0] jb_target_mem;
   logic [XLEN-1:0] csr_rdata_mem;
   logic [XLEN-1:0] m_result_mem;
+  logic [XLEN-1:0] mul_ll_mem;
+  logic [XLEN-1:0] mul_lh_mem;
+  logic [XLEN-1:0] mul_hl_mem;
+  logic [XLEN-1:0] mul_hh_mem;
 
   // MEM -> WB
   logic            reg_write_wb;
@@ -199,6 +204,7 @@ module svc_rv #(
 
   // EX -> Hazard
   logic            is_csr_ex;
+  logic            is_m_ex;
   logic            op_active_ex;
 
   // Hazard control signals
@@ -289,7 +295,7 @@ module svc_rv #(
 
     // verilog_format: off
     `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_load_ex,
-                mispredicted_ex, is_csr_ex, btb_pred_taken});
+                mispredicted_ex, is_csr_ex, is_m_ex, btb_pred_taken});
     // verilog_format: on
   end else begin : g_no_hazard
     //
@@ -305,7 +311,7 @@ module svc_rv #(
 
     // verilog_format: off
     `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_load_ex,
-                mispredicted_ex, is_csr_ex, op_active_ex, btb_pred_taken});
+                mispredicted_ex, is_csr_ex, is_m_ex, op_active_ex, btb_pred_taken});
     // verilog_format: on
   end
 

@@ -2,7 +2,9 @@
 `define SVC_RV_EXT_M_TB_SV
 
 `include "svc_unit.sv"
-`include "svc_rv_ext_m.sv"
+`include "svc_rv_ext_mul_ex.sv"
+`include "svc_rv_ext_div.sv"
+`include "svc_rv_ext_mul_mem.sv"
 
 // verilator lint_off UNUSEDSIGNAL
 
@@ -16,17 +18,59 @@ module svc_rv_ext_m_tb;
   logic [31:0] rs2;
   logic [ 2:0] op;
   logic        busy;
+  logic [31:0] div_result;
+  logic [31:0] mul_ll;
+  logic [31:0] mul_lh;
+  logic [31:0] mul_hl;
+  logic [31:0] mul_hh;
   logic [31:0] result;
 
-  svc_rv_ext_m dut (
+  //
+  // EX stage: Multiply unit (combinational partial products)
+  //
+  svc_rv_ext_mul_ex dut_mul (
+      .rs1   (rs1),
+      .rs2   (rs2),
+      .op    (op),
+      .mul_ll(mul_ll),
+      .mul_lh(mul_lh),
+      .mul_hl(mul_hl),
+      .mul_hh(mul_hh)
+  );
+
+  //
+  // EX stage: Division unit (multi-cycle)
+  //
+  // Only enable for division operations (op[2] = 1)
+  //
+  logic div_en;
+
+  assign div_en = en && op[2];
+
+  svc_rv_ext_div dut_div (
       .clk   (clk),
       .rst_n (rst_n),
-      .en    (en),
+      .en    (div_en),
       .rs1   (rs1),
       .rs2   (rs2),
       .op    (op),
       .busy  (busy),
-      .result(result)
+      .result(div_result)
+  );
+
+  //
+  // MEM stage: combine partial products
+  //
+  svc_rv_ext_mul_mem dut_mem (
+      .mul_ll    (mul_ll),
+      .mul_lh    (mul_lh),
+      .mul_hl    (mul_hl),
+      .mul_hh    (mul_hh),
+      .div_result(div_result),
+      .rs1_data  (rs1),
+      .rs2_data  (rs2),
+      .op        (op),
+      .result    (result)
   );
 
   //
