@@ -1,0 +1,333 @@
+#!/usr/bin/env python3
+"""
+Find the first divergence in EX stage between two CPU trace files.
+
+Extracts all EX stage executions (excluding NOPs), then compares the two
+lists to find the first difference.
+"""
+
+import argparse
+import re
+import sys
+from dataclasses import dataclass
+from typing import List, Optional
+
+
+@dataclass
+class ExEntry:
+    """Represents an EX stage execution"""
+    line_num: int
+    time: int
+    pc: str
+    instr: str
+    operands: str
+    raw_line: str
+
+
+@dataclass
+class MemEntry:
+    """Represents a memory operation (MR or MW)"""
+    line_num: int
+    time: int
+    op_type: str  # "MR" or "MW"
+    addr: str
+    data: str
+    raw_line: str
+
+
+@dataclass
+class WbEntry:
+    """Represents a register writeback (WB)"""
+    line_num: int
+    time: int
+    data: str
+    reg: str
+    raw_line: str
+
+
+def is_nop(instr: str) -> bool:
+    """Check if instruction is a NOP (addi x0, x0, 0)"""
+    return "addi  x0,  x0, 0" in instr or "addi x0, x0, 0" in instr
+
+
+def extract_ex_entries(filename: str) -> List[ExEntry]:
+    """Extract all EX stage entries (excluding NOPs) from a trace file"""
+    entries = []
+
+    with open(filename, 'r') as f:
+        for line_num, line in enumerate(f, 1):
+            line = line.strip()
+            if not line:
+                continue
+
+            if not (line.startswith("svc_rv") or line.startswith("[")):
+                continue
+
+            time_match = re.search(r'\[\s*(\d+)\]', line)
+            if not time_match:
+                continue
+
+            time = int(time_match.group(1))
+
+            parts = line.split('|')
+            if len(parts) < 3:
+                continue
+
+            ex_part = parts[2]
+
+            ex_match = re.search(r'EX\s+[fs]?\s*([0-9a-fA-Fx]+)\s+(.+?)\s+([0-9a-fA-Fx]+\s+[0-9a-fA-Fx]+\s+->\s+[0-9a-fA-Fx]+)', ex_part)
+            if not ex_match:
+                ex_match = re.search(r'EX\s+[fs]?\s*([0-9a-fA-Fx]+)\s+(.+?)(?:\s*\|)', ex_part)
+                if not ex_match:
+                    continue
+                ex_pc = ex_match.group(1)
+                ex_instr = ex_match.group(2).strip()
+                ex_operands = ""
+            else:
+                ex_pc = ex_match.group(1)
+                ex_instr = ex_match.group(2).strip()
+                ex_operands = ex_match.group(3).strip()
+
+            if is_nop(ex_instr):
+                continue
+
+            entries.append(ExEntry(
+                line_num=line_num,
+                time=time,
+                pc=ex_pc,
+                instr=ex_instr,
+                operands=ex_operands,
+                raw_line=line
+            ))
+
+    return entries
+
+
+def extract_mem_entries(filename: str) -> List[MemEntry]:
+    """Extract all memory operations (MR/MW) from a trace file"""
+    entries = []
+
+    with open(filename, 'r') as f:
+        for line_num, line in enumerate(f, 1):
+            line = line.strip()
+            if not line:
+                continue
+
+            if not (line.startswith("svc_rv") or line.startswith("[")):
+                continue
+
+            time_match = re.search(r'\[\s*(\d+)\]', line)
+            if not time_match:
+                continue
+
+            time = int(time_match.group(1))
+
+            parts = line.split('|')
+            if len(parts) < 4:
+                continue
+
+            mem_part = parts[3]
+
+            mr_match = re.search(r'MR\s+([0-9a-fA-Fx]+)\s+->\s+([0-9a-fA-Fx]+)', mem_part)
+            if mr_match:
+                entries.append(MemEntry(
+                    line_num=line_num,
+                    time=time,
+                    op_type="MR",
+                    addr=mr_match.group(1),
+                    data=mr_match.group(2),
+                    raw_line=line
+                ))
+
+            mw_match = re.search(r'MW\s+([0-9a-fA-Fx]+)\s+->\s+([0-9a-fA-Fx]+)', mem_part)
+            if mw_match:
+                entries.append(MemEntry(
+                    line_num=line_num,
+                    time=time,
+                    op_type="MW",
+                    addr=mw_match.group(2),
+                    data=mw_match.group(1),
+                    raw_line=line
+                ))
+
+    return entries
+
+
+def extract_wb_entries(filename: str) -> List[WbEntry]:
+    """Extract all register writeback operations (WB) from a trace file"""
+    entries = []
+
+    with open(filename, 'r') as f:
+        for line_num, line in enumerate(f, 1):
+            line = line.strip()
+            if not line:
+                continue
+
+            if not (line.startswith("svc_rv") or line.startswith("[")):
+                continue
+
+            time_match = re.search(r'\[\s*(\d+)\]', line)
+            if not time_match:
+                continue
+
+            time = int(time_match.group(1))
+
+            parts = line.split('|')
+            if len(parts) < 5:
+                continue
+
+            wb_part = parts[4]
+
+            wb_match = re.search(r'WB\s+([0-9a-fA-Fx]+)\s+->\s+(x\d+)', wb_part)
+            if wb_match:
+                entries.append(WbEntry(
+                    line_num=line_num,
+                    time=time,
+                    data=wb_match.group(1),
+                    reg=wb_match.group(2),
+                    raw_line=line
+                ))
+
+    return entries
+
+
+def compare_ex_entries(good_entries: List[ExEntry], bad_entries: List[ExEntry], verbose: bool = False) -> Optional[tuple]:
+    """Compare EX entries and return (index, good_entry, bad_entry, time) if divergence found"""
+
+    max_entries = max(len(good_entries), len(bad_entries))
+
+    for i in range(max_entries):
+        if i >= len(good_entries):
+            return (i, None, bad_entries[i], bad_entries[i].time)
+
+        if i >= len(bad_entries):
+            return (i, good_entries[i], None, good_entries[i].time)
+
+        good = good_entries[i]
+        bad = bad_entries[i]
+
+        if verbose:
+            print(f"EX Entry {i}: Good time={good.time}, Bad time={bad.time}")
+
+        if good.instr != bad.instr or good.operands != bad.operands:
+            return (i, good, bad, min(good.time, bad.time))
+
+    return None
+
+
+def compare_mem_entries(good_entries: List[MemEntry], bad_entries: List[MemEntry], verbose: bool = False) -> Optional[tuple]:
+    """Compare MEM entries and return (index, good_entry, bad_entry, time) if divergence found"""
+
+    max_entries = max(len(good_entries), len(bad_entries))
+
+    for i in range(max_entries):
+        if i >= len(good_entries):
+            return (i, None, bad_entries[i], bad_entries[i].time)
+
+        if i >= len(bad_entries):
+            return (i, good_entries[i], None, good_entries[i].time)
+
+        good = good_entries[i]
+        bad = bad_entries[i]
+
+        if verbose:
+            print(f"MEM Entry {i}: Good time={good.time}, Bad time={bad.time}")
+
+        if good.op_type != bad.op_type or good.addr != bad.addr or good.data != bad.data:
+            return (i, good, bad, min(good.time, bad.time))
+
+    return None
+
+
+def compare_wb_entries(good_entries: List[WbEntry], bad_entries: List[WbEntry], verbose: bool = False) -> Optional[tuple]:
+    """Compare WB entries and return (index, good_entry, bad_entry, time) if divergence found"""
+
+    max_entries = max(len(good_entries), len(bad_entries))
+
+    for i in range(max_entries):
+        if i >= len(good_entries):
+            return (i, None, bad_entries[i], bad_entries[i].time)
+
+        if i >= len(bad_entries):
+            return (i, good_entries[i], None, good_entries[i].time)
+
+        good = good_entries[i]
+        bad = bad_entries[i]
+
+        if verbose:
+            print(f"WB Entry {i}: Good time={good.time}, Bad time={bad.time}")
+
+        if good.data != bad.data or good.reg != bad.reg:
+            return (i, good, bad, min(good.time, bad.time))
+
+    return None
+
+
+def find_divergence(good_file: str, bad_file: str, verbose: bool = False):
+    """Find and report the earliest divergence between traces"""
+
+    good_ex = extract_ex_entries(good_file)
+    bad_ex = extract_ex_entries(bad_file)
+    good_mem = extract_mem_entries(good_file)
+    bad_mem = extract_mem_entries(bad_file)
+    good_wb = extract_wb_entries(good_file)
+    bad_wb = extract_wb_entries(bad_file)
+
+    ex_div = compare_ex_entries(good_ex, bad_ex, verbose)
+    mem_div = compare_mem_entries(good_mem, bad_mem, verbose)
+    wb_div = compare_wb_entries(good_wb, bad_wb, verbose)
+
+    if ex_div is None and mem_div is None and wb_div is None:
+        print("No divergence found")
+        return
+
+    # Find the earliest divergence
+    divergences = []
+    if ex_div:
+        divergences.append(("EX", ex_div))
+    if mem_div:
+        divergences.append(("MEM", mem_div))
+    if wb_div:
+        divergences.append(("WB", wb_div))
+
+    divergences.sort(key=lambda x: x[1][3])  # Sort by time
+    earliest_type, earliest_div = divergences[0]
+
+    idx, good, bad, _ = earliest_div
+
+    if good:
+        print(f"GOOD: {good.raw_line}")
+    else:
+        print(f"GOOD: (trace ended)")
+
+    if bad:
+        print(f"BAD:  {bad.raw_line}")
+    else:
+        print(f"BAD:  (trace ended)")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Find the first divergence between two CPU trace files (EX, MEM, and WB)"
+    )
+    parser.add_argument(
+        "good_trace",
+        help="Path to the good (passing) trace file"
+    )
+    parser.add_argument(
+        "bad_trace",
+        help="Path to the bad (failing) trace file"
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Verbose output (show progress)"
+    )
+
+    args = parser.parse_args()
+
+    find_divergence(args.good_trace, args.bad_trace, args.verbose)
+
+
+if __name__ == "__main__":
+    main()
