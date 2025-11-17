@@ -526,8 +526,8 @@ module svc_rv #(
   //
   localparam int DBG_ID_PRED_WIDTH = 13;
   localparam int DBG_EX_FLAGS_WIDTH = 5;
-  localparam int DBG_WB_WIDTH = 18;
-  localparam int DBG_MEM_WIDTH = 24;
+  localparam int DBG_WB_WIDTH = 27;
+  localparam int DBG_MEM_WIDTH = 22;
 
   logic dbg_if;
   logic dbg_id;
@@ -652,13 +652,11 @@ module svc_rv #(
     end
 
     return $sformatf(
-        "IF %s%s %08x   %s   %08x %08x -> %08x%s",
+        "IF %s%s %08x %s %08x%s",
         stall_str,
         flush_str,
         imem_raddr,
         pc_sel_str,
-        stage_if.pred_target,
-        stage_if.pc_redirect_target,
         stage_if.pc_next,
         btb_str
     );
@@ -803,9 +801,47 @@ module svc_rv #(
                 ex_mem_stall ? "s" : " "
             )
           };
+        end else if (mem_write_ex) begin
+          //
+          // Store ops: show data to write and target address
+          //
+          line = {
+            line,
+            $sformatf(
+                "EX %s%s %08x  %-30s   %08x %08x -> %08x     ",
+                id_ex_stall ? "s" : " ",
+                id_ex_flush ? "f" : " ",
+                pc_ex,
+                dasm_inst(
+                  instr_ex
+                ),
+                stage_ex.fwd_rs2_ex,
+                stage_ex.alu_a_ex,
+                stage_ex.alu_result_ex
+            )
+          };
+        end else if (mem_read_ex) begin
+          //
+          // Load ops: show address calculation
+          //
+          line = {
+            line,
+            $sformatf(
+                "EX %s%s %08x  %-30s   %08x %08x -> %08x     ",
+                id_ex_stall ? "s" : " ",
+                id_ex_flush ? "f" : " ",
+                pc_ex,
+                dasm_inst(
+                  instr_ex
+                ),
+                stage_ex.alu_a_ex,
+                stage_ex.alu_b_ex,
+                stage_ex.alu_result_ex
+            )
+          };
         end else begin
           //
-          // Non-M ops: show ALU operation
+          // Other ops: show ALU operation
           //
           line = {
             line,
@@ -835,11 +871,13 @@ module svc_rv #(
         if (MEM_TYPE == MEM_TYPE_SRAM) begin
           if (dmem_ren) begin
             line = {
-              line, $sformatf("MR %08x -> %08x ", alu_result_mem, dmem_rdata)
+              line,
+              $sformatf("M %08x r %08x ", pc_plus4_mem - 4, alu_result_mem)
             };
           end else if (dmem_we) begin
             line = {
-              line, $sformatf("MW %08x -> %08x ", dmem_wdata, alu_result_mem)
+              line,
+              $sformatf("M %08x w %08x ", pc_plus4_mem - 4, alu_result_mem)
             };
           end else begin
             line = {line, {DBG_MEM_WIDTH{" "}}};
@@ -847,11 +885,13 @@ module svc_rv #(
         end else begin
           if (mem_read_mem) begin
             line = {
-              line, $sformatf("MR %08x -> %08x ", alu_result_mem, dmem_rdata)
+              line,
+              $sformatf("M %08x r %08x ", pc_plus4_mem - 4, alu_result_mem)
             };
           end else if (mem_write_mem) begin
             line = {
-              line, $sformatf("MW %08x -> %08x ", dmem_wdata, alu_result_mem)
+              line,
+              $sformatf("M %08x w %08x ", pc_plus4_mem - 4, alu_result_mem)
             };
           end else begin
             line = {line, {DBG_MEM_WIDTH{" "}}};
@@ -867,7 +907,13 @@ module svc_rv #(
         if (line != "") line = {line, " | "};
         if (reg_write_wb && (rd_wb != 5'h0)) begin
           line = {
-            line, $sformatf("WB %08x -> x%02d", stage_wb.rd_data_wb, rd_wb)
+            line,
+            $sformatf(
+                "WB %08x %08x -> x%02d",
+                pc_plus4_wb - 4,
+                stage_wb.rd_data_wb,
+                rd_wb
+            )
           };
         end else begin
           line = {line, {DBG_WB_WIDTH{" "}}};
