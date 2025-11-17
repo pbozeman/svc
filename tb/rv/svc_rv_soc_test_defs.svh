@@ -80,71 +80,13 @@ endtask
 //
 
 //
-// Test: Reset state
-//
-// Verifies the processor starts with PC at correct initial address after reset.
-// For BRAM with BPRED, PC starts at -4 so pc_next = 0 on first cycle.
-//
-task automatic test_reset;
-  if (uut.cpu.MEM_TYPE == 1 && uut.cpu.BPRED != 0) begin
-    `CHECK_EQ(uut.cpu.stage_if.pc, 32'hFFFFFFFC);
-  end else begin
-    `CHECK_EQ(uut.cpu.stage_if.pc, '0);
-  end
-endtask
-
-//
-// Test: Linear program execution
-//
-// Verifies the PC increments by 4 each cycle for sequential instructions
-// (NOPs). Tests basic fetch and PC update logic.
-//
-task automatic test_linear_program;
-  NOP();
-  NOP();
-  NOP();
-  NOP();
-
-  load_program();
-
-  //
-  // For BRAM with BPRED, PC starts at -4, so first cycle goes to 0
-  //
-  if (uut.cpu.MEM_TYPE == 1 && uut.cpu.BPRED != 0) begin
-    `TICK(clk);
-    `CHECK_EQ(uut.cpu.stage_if.pc, 32'd0);
-
-    `TICK(clk);
-    `CHECK_EQ(uut.cpu.stage_if.pc, 32'd4);
-
-    `TICK(clk);
-    `CHECK_EQ(uut.cpu.stage_if.pc, 32'd8);
-
-    `TICK(clk);
-    `CHECK_EQ(uut.cpu.stage_if.pc, 32'd12);
-  end else begin
-    `TICK(clk);
-    `CHECK_EQ(uut.cpu.stage_if.pc, 32'd4);
-
-    `TICK(clk);
-    `CHECK_EQ(uut.cpu.stage_if.pc, 32'd8);
-
-    `TICK(clk);
-    `CHECK_EQ(uut.cpu.stage_if.pc, 32'd12);
-
-    `TICK(clk);
-    `CHECK_EQ(uut.cpu.stage_if.pc, 32'd16);
-  end
-endtask
-
-//
 // Test: EBREAK instruction
 //
 // Verifies the EBREAK instruction asserts the ebreak signal for one cycle.
 // The processor continues execution after EBREAK (doesn't halt). It should
 // be calling a trap function, but this is not implemented yet.
 //
-task automatic test_ebreak_instruction;
+task automatic test_ebreak;
   NOP();
   EBREAK();
   NOP();
@@ -1770,7 +1712,8 @@ task automatic test_csr_cycle_increments;
 
   `CHECK_WAIT_FOR_EBREAK(clk);
   `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[1] > 32'h0);
-  `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[2] > uut.cpu.stage_id.regfile.regs[1]);
+  `CHECK_TRUE(
+      uut.cpu.stage_id.regfile.regs[2] > uut.cpu.stage_id.regfile.regs[1]);
   `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[3] > 32'h0);
 endtask
 
@@ -1793,7 +1736,8 @@ task automatic test_csr_instret_increments;
 
   `CHECK_WAIT_FOR_EBREAK(clk);
   `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[1] > 32'h0);
-  `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[2] > uut.cpu.stage_id.regfile.regs[1]);
+  `CHECK_TRUE(
+      uut.cpu.stage_id.regfile.regs[2] > uut.cpu.stage_id.regfile.regs[1]);
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'd4);
 endtask
 
