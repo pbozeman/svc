@@ -423,17 +423,13 @@ module svc_rv_stage_ex #(
   //
   // Branch prediction and misprediction detection
   //
-  if (BPRED != 0) begin : g_bpred
-    //
-    // Misprediction detection (actual outcome vs prediction)
-    //
-    always_comb begin
-      mispredicted_ex = is_branch_ex && (bpred_taken_ex != branch_taken_ex);
-    end
-  end else begin : g_no_bpred
-    assign mispredicted_ex = 1'b0;
-    `SVC_UNUSED(bpred_taken_ex);
-  end
+  svc_rv_bpred_ex #(
+      .XLEN      (XLEN),
+      .BPRED     (BPRED),
+      .BTB_ENABLE(BTB_ENABLE)
+  ) bpred (
+      .*
+  );
 
   //
   // PC redirect target calculation
@@ -505,44 +501,6 @@ module svc_rv_stage_ex #(
     end
   end
 
-  //
-  // BTB Update Logic
-  //
-  // Update BTB for all branches and PC-relative jumps (JAL).
-  // JALR excluded because target depends on register values unknown at fetch.
-  //
-  if (BTB_ENABLE != 0) begin : g_btb_update
-    logic is_predictable;
-    logic is_jalr;
-
-    //
-    // Predictable: branches and PC-relative jumps (JAL), but not JALR
-    //
-    assign is_predictable = is_branch_ex || (is_jump_ex && !jb_target_src_ex);
-    assign is_jalr        = is_jump_ex && jb_target_src_ex;
-
-    `SVC_UNUSED({is_jalr});
-
-    //
-    // Update BTB for all predictable instructions
-    // This allows 2-bit counter to train on both taken and not-taken outcomes
-    //
-    assign btb_update_en     = is_predictable;
-    assign btb_update_pc     = pc_ex;
-    assign btb_update_target = jb_target_ex;
-
-    //
-    // For branches: pass actual outcome to train counter
-    // For JAL: always taken
-    //
-    assign btb_update_taken  = is_jump_ex ? 1'b1 : branch_taken_ex;
-
-  end else begin : g_no_btb_update
-    assign btb_update_en     = 1'b0;
-    assign btb_update_pc     = '0;
-    assign btb_update_target = '0;
-    assign btb_update_taken  = 1'b0;
-  end
 
   //
   // CSR (Control and Status Registers) - Zicntr

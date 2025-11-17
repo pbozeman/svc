@@ -155,49 +155,48 @@ module svc_rv_stage_if #(
     assign pc_plus4_id = pc_plus4_id_buf;
 
     //
-    // BTB signal buffering: conditional on memory type
+    // BTB signal buffering
     //
-    // SRAM (0-cycle latency): BTB signals passthrough from stage, need buffering here
-    // BRAM (1-cycle latency): BTB signals already buffered by stage, passthrough to avoid double-buffering
-    //
-    if (MEM_TYPE == MEM_TYPE_SRAM) begin : g_btb_buffered
-      logic            btb_hit_id_buf;
-      logic            btb_pred_taken_id_buf;
-      logic [XLEN-1:0] btb_target_id_buf;
-
-      always_ff @(posedge clk) begin
-        if (!rst_n || if_id_flush) begin
-          btb_hit_id_buf        <= 1'b0;
-          btb_pred_taken_id_buf <= 1'b0;
-          btb_target_id_buf     <= '0;
-        end else if (!if_id_stall) begin
-          btb_hit_id_buf        <= btb_hit_to_if_id;
-          btb_pred_taken_id_buf <= btb_pred_taken_to_if_id;
-          btb_target_id_buf     <= btb_target_to_if_id;
-        end
-      end
-
-      assign btb_hit_id        = btb_hit_id_buf;
-      assign btb_pred_taken_id = btb_pred_taken_id_buf;
-      assign btb_target_id     = btb_target_id_buf;
-
-    end else begin : g_btb_passthrough
-      //
-      // BRAM: Stage already buffers for latency alignment, passthrough here
-      //
-      assign btb_hit_id        = btb_hit_to_if_id;
-      assign btb_pred_taken_id = btb_pred_taken_to_if_id;
-      assign btb_target_id     = btb_target_to_if_id;
-    end
+    svc_rv_bpred_if #(
+        .XLEN     (XLEN),
+        .PIPELINED(PIPELINED),
+        .MEM_TYPE (MEM_TYPE)
+    ) bpred (
+        .clk              (clk),
+        .rst_n            (rst_n),
+        .if_id_stall      (if_id_stall),
+        .if_id_flush      (if_id_flush),
+        .btb_hit_if       (btb_hit_to_if_id),
+        .btb_pred_taken_if(btb_pred_taken_to_if_id),
+        .btb_target_if    (btb_target_to_if_id),
+        .btb_hit_id       (btb_hit_id),
+        .btb_pred_taken_id(btb_pred_taken_id),
+        .btb_target_id    (btb_target_id)
+    );
 
   end else begin : g_passthrough
-    assign pc_id             = pc_to_if_id;
-    assign pc_plus4_id       = pc_plus4_to_if_id;
-    assign btb_hit_id        = btb_hit_to_if_id;
-    assign btb_pred_taken_id = btb_pred_taken_to_if_id;
-    assign btb_target_id     = btb_target_to_if_id;
+    assign pc_id       = pc_to_if_id;
+    assign pc_plus4_id = pc_plus4_to_if_id;
 
-    `SVC_UNUSED({if_id_stall, if_id_flush})
+    //
+    // BTB passthrough for non-pipelined
+    //
+    svc_rv_bpred_if #(
+        .XLEN     (XLEN),
+        .PIPELINED(PIPELINED),
+        .MEM_TYPE (MEM_TYPE)
+    ) bpred (
+        .clk              (clk),
+        .rst_n            (rst_n),
+        .if_id_stall      (if_id_stall),
+        .if_id_flush      (if_id_flush),
+        .btb_hit_if       (btb_hit_to_if_id),
+        .btb_pred_taken_if(btb_pred_taken_to_if_id),
+        .btb_target_if    (btb_target_to_if_id),
+        .btb_hit_id       (btb_hit_id),
+        .btb_pred_taken_id(btb_pred_taken_id),
+        .btb_target_id    (btb_target_id)
+    );
   end
 
 endmodule
