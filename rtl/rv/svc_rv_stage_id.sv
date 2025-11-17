@@ -144,6 +144,7 @@ module svc_rv_stage_id #(
   logic [XLEN-1:0] imm_id;
   logic [XLEN-1:0] rs1_data_id;
   logic [XLEN-1:0] rs2_data_id;
+  logic            bpred_taken_id;
 
   //
   // Instruction Decoder
@@ -253,111 +254,33 @@ module svc_rv_stage_id #(
   //
   // Branch Prediction: BTB with static BTFNT fallback
   //
-  if (BPRED != 0) begin : g_bpred
-    if (BTB_ENABLE != 0) begin : g_btb_pred
-      //
-      // Hybrid prediction: BTB hit > Static BTFNT fallback
-      //
-      logic is_predictable;
-      logic static_taken;
+  svc_rv_bpred_id #(
+      .XLEN      (XLEN),
+      .BPRED     (BPRED),
+      .BTB_ENABLE(BTB_ENABLE)
+  ) bpred (
+      .pc_id            (pc_id),
+      .imm_id           (imm_id),
+      .is_branch_id     (is_branch_id),
+      .is_jump_id       (is_jump_id),
+      .jb_target_src_id (jb_target_src_id),
+      .btb_hit_id       (btb_hit_id),
+      .btb_pred_taken_id(btb_pred_taken_id),
+      .pc_sel_id        (pc_sel_id),
+      .pred_target      (pred_target),
+      .pred_taken_id    (pred_taken_id),
+      .bpred_taken_id   (bpred_taken_id)
+  );
 
-      //
-      // Predictable: branches and PC-relative jumps (JAL), but not JALR
-      //
-      assign is_predictable = is_branch_id || (is_jump_id && !jb_target_src_id);
-
-      //
-      // Static BTFNT: backward branches taken, JAL taken
-      //
-      assign static_taken = ((is_branch_id && imm_id[XLEN-1]) ||
-                             (is_jump_id && !jb_target_src_id));
-
-      //
-      // Three-tier prediction: BTB (IF) > Static BTFNT (ID) > No prediction
-      //
-      // This implements the standard predictor hierarchy:
-      // 1. BTB hit in IF stage → immediate speculation (highest priority)
-      // 2. BTB miss → Static BTFNT in ID stage (fallback)
-      // 3. Not predictable → No prediction
-      //
-      // CRITICAL: Check btb_hit_id (buffered from IF) not btb_hit (current lookup)
-      // to avoid double-prediction. When BTB already predicted this instruction
-      // in IF stage, ID must NOT issue another redirect or it will flush the
-      // wrong PC (the instruction after the target, not the target itself).
-      //
-      // For BRAM with 2-cycle latency (BRAM + IF/ID register), by the time
-      // instruction reaches ID, IF has already moved to the target. ID's redirect
-      // would flush that target instruction, skipping it - architectural bug!
-      //
-      always_comb begin
-        if (btb_hit_id && is_predictable) begin
-          // BTB already handled this in IF stage - ID must NOT redirect
-          // Setting pred_taken_id=0 prevents pc_sel_id from issuing another redirect
-          // BTB prediction is tracked separately via btb_pred_taken_id for misprediction detection
-          pred_taken_id = 1'b0;
-          pred_target   = '0;
-        end else if (is_predictable) begin
-          // BTB missed - use static BTFNT prediction
-          pred_taken_id = static_taken;
-          pred_target   = pc_id + imm_id;
-        end else begin
-          pred_taken_id = 1'b0;
-          pred_target   = '0;
-        end
-      end
-
-      //
-      // Current BTB lookup signals unused - we use buffered signals from IF
-      //
-      `SVC_UNUSED({btb_hit, btb_target, btb_taken, btb_target_id});
-
-    end else begin : g_static_pred
-      //
-      // Static BTFNT only (original logic)
-      //
-      assign pred_taken_id = ((is_branch_id && imm_id[XLEN-1]) ||
-                              (is_jump_id && !jb_target_src_id));
-      assign pred_target = pc_id + imm_id;
-
-      `SVC_UNUSED({btb_hit, btb_target, btb_taken, btb_hit_id, btb_target_id});
-    end
-
-    //
-    // PC selection output to IF stage
-    //
-    assign pc_sel_id = pred_taken_id ? PC_SEL_PREDICTED : PC_SEL_SEQUENTIAL;
-
-  end else begin : g_no_bpred
-    assign pred_taken_id = 1'b0;
-    assign pred_target   = '0;
-    assign pc_sel_id     = PC_SEL_SEQUENTIAL;
-
-    `SVC_UNUSED({
-                btb_hit,
-                btb_target,
-                btb_taken,
-                btb_hit_id,
-                btb_pred_taken_id,
-                btb_target_id
-                });
-  end
+  //
+  // Current BTB lookup signals unused - we use buffered signals from IF
+  //
+  `SVC_UNUSED({btb_hit, btb_target, btb_taken, btb_target_id});
 
   //
   // ID/EX Pipeline Register
   //
   if (PIPELINED != 0) begin : g_registered
-    logic bpred_taken_id;
-
-    if (BPRED != 0) begin : g_bpred_pipe
-      //
-      // Use BTB prediction from IF stage if BTB made a prediction,
-      // otherwise use ID stage's static prediction
-      //
-      assign bpred_taken_id = btb_hit_id ? btb_pred_taken_id : pred_taken_id;
-    end else begin : g_no_bpred_pipe
-      assign bpred_taken_id = 1'b0;
-    end
-
     always_ff @(posedge clk) begin
       if (!rst_n) begin
         reg_write_ex     <= 1'b0;
@@ -464,7 +387,8 @@ module svc_rv_stage_id #(
     assign pc_plus4_ex      = pc_plus4_id;
     assign bpred_taken_ex   = 1'b0;
 
-    `SVC_UNUSED({id_ex_stall, id_ex_flush, fwd_rs1_id, fwd_rs2_id});
+    `SVC_UNUSED(
+        {id_ex_stall, id_ex_flush, fwd_rs1_id, fwd_rs2_id, bpred_taken_id});
   end
 
 endmodule

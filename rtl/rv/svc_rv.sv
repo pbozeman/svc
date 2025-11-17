@@ -5,6 +5,9 @@
 `include "svc_unused.sv"
 
 `include "svc_rv_btb.sv"
+`include "svc_rv_bpred_if.sv"
+`include "svc_rv_bpred_id.sv"
+`include "svc_rv_bpred_ex.sv"
 `include "svc_rv_hazard.sv"
 `include "svc_rv_stage_if_sram.sv"
 `include "svc_rv_stage_if_bram.sv"
