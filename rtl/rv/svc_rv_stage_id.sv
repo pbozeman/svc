@@ -353,13 +353,13 @@ module svc_rv_stage_id #(
       // Use BTB prediction from IF stage if BTB made a prediction,
       // otherwise use ID stage's static prediction
       //
-      assign bpred_taken_id = btb_pred_taken_id ? 1'b1 : pred_taken_id;
+      assign bpred_taken_id = btb_hit_id ? btb_pred_taken_id : pred_taken_id;
     end else begin : g_no_bpred_pipe
       assign bpred_taken_id = 1'b0;
     end
 
     always_ff @(posedge clk) begin
-      if (!rst_n || id_ex_flush) begin
+      if (!rst_n) begin
         reg_write_ex     <= 1'b0;
         mem_read_ex      <= 1'b0;
         mem_write_ex     <= 1'b0;
@@ -383,6 +383,35 @@ module svc_rv_stage_id #(
         pc_ex            <= '0;
         pc_plus4_ex      <= '0;
         bpred_taken_ex   <= 1'b0;
+      end else if (id_ex_flush) begin
+        reg_write_ex     <= 1'b0;
+        mem_read_ex      <= 1'b0;
+        mem_write_ex     <= 1'b0;
+        alu_a_src_ex     <= '0;
+        alu_b_src_ex     <= 1'b0;
+        alu_instr_ex     <= '0;
+        res_src_ex       <= '0;
+        is_branch_ex     <= 1'b0;
+        is_jump_ex       <= 1'b0;
+        jb_target_src_ex <= 1'b0;
+        is_mc_ex         <= 1'b0;
+        instr_ex         <= I_NOP;
+        rd_ex            <= '0;
+        rs1_ex           <= '0;
+        rs2_ex           <= '0;
+        funct3_ex        <= '0;
+        funct7_ex        <= '0;
+        rs1_data_ex      <= '0;
+        rs2_data_ex      <= '0;
+        imm_ex           <= '0;
+        pc_ex            <= '0;
+        pc_plus4_ex      <= '0;
+        //
+        // Capture bpred_taken_id even during flush
+        // When load-use hazards hold an instruction in ID, we need to latch its
+        // prediction before if_id_stall releases and BTB buffers get overwritten
+        //
+        bpred_taken_ex   <= bpred_taken_id;
       end else if (!id_ex_stall) begin
         reg_write_ex     <= reg_write_id;
         mem_read_ex      <= mem_read_id;

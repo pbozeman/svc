@@ -325,12 +325,24 @@ module svc_rv_hazard #(
   logic pc_redirect;
   logic pc_predicted;
 
+  //
+  // Static prediction flush: ID stage predicted a branch/jump (not from BTB)
+  //
+  // This occurs when ID decodes a branch/jump that wasn't predicted by BTB,
+  // and makes a static prediction (BTFNT for branches, always-taken for JAL).
+  // When this happens, instructions on the fall-through path (both in IF and
+  // ID) must be flushed since we're redirecting to the predicted target.
+  //
+  // Only flush if pipeline is advancing (!data_hazard && !op_active_ex).
+  //
+  logic static_pred_flush;
+
   assign pc_redirect = (pc_sel == PC_SEL_REDIRECT);
   assign pc_predicted = (pc_sel == PC_SEL_PREDICTED);
+  assign static_pred_flush = (pc_predicted && !btb_pred_taken && !data_hazard &&
+                              !op_active_ex);
 
-  assign if_id_flush = (
-      pc_redirect || mispredicted_ex ||
-          (pc_predicted && !btb_pred_taken && !data_hazard && !op_active_ex));
+  assign if_id_flush = (pc_redirect || mispredicted_ex || static_pred_flush);
   assign id_ex_flush = ((data_hazard && !op_active_ex) || pc_redirect ||
                         mispredicted_ex);
 

@@ -17,7 +17,8 @@
 module svc_rv_stage_if #(
     parameter int XLEN      = 32,
     parameter int PIPELINED = 0,
-    parameter int MEM_TYPE  = 0
+    parameter int MEM_TYPE  = 0,
+    parameter int BPRED     = 0
 ) (
     input logic clk,
     input logic rst_n,
@@ -80,6 +81,14 @@ module svc_rv_stage_if #(
   logic [XLEN-1:0] btb_target_to_if_id;
 
   //
+  // PC initialization
+  //
+  // For BRAM with BPRED, PC starts at -4 so that pc_next = 0 on first cycle
+  //
+  localparam logic [XLEN-1:0]
+      PC_INIT = (MEM_TYPE == MEM_TYPE_BRAM && BPRED != 0) ? 32'hFFFFFFFC : '0;
+
+  //
   // PC next calculation with 3-way mux
   //
   // - PC_SEL_REDIRECT: Actual branch/jump or misprediction
@@ -100,7 +109,7 @@ module svc_rv_stage_if #(
   //
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      pc <= '0;
+      pc <= PC_INIT;
     end else if (!pc_stall) begin
       pc <= pc_next;
     end
@@ -110,7 +119,12 @@ module svc_rv_stage_if #(
   // Memory-type specific fetch logic
   //
   if (MEM_TYPE == MEM_TYPE_BRAM) begin : g_bram
-    svc_rv_stage_if_bram #(.XLEN(XLEN)) stage (.*);
+    svc_rv_stage_if_bram #(
+        .XLEN (XLEN),
+        .BPRED(BPRED)
+    ) stage (
+        .*
+    );
   end else begin : g_sram
     svc_rv_stage_if_sram #(
         .XLEN     (XLEN),
@@ -129,29 +143,52 @@ module svc_rv_stage_if #(
   if (PIPELINED != 0) begin : g_registered
     logic [XLEN-1:0] pc_id_buf;
     logic [XLEN-1:0] pc_plus4_id_buf;
-    logic            btb_hit_id_buf;
-    logic            btb_pred_taken_id_buf;
-    logic [XLEN-1:0] btb_target_id_buf;
 
     always_ff @(posedge clk) begin
-      if (!rst_n || if_id_flush) begin
-        btb_hit_id_buf        <= 1'b0;
-        btb_pred_taken_id_buf <= 1'b0;
-        btb_target_id_buf     <= '0;
-      end else if (!if_id_stall) begin
-        pc_id_buf             <= pc_to_if_id;
-        pc_plus4_id_buf       <= pc_plus4_to_if_id;
-        btb_hit_id_buf        <= btb_hit_to_if_id;
-        btb_pred_taken_id_buf <= btb_pred_taken_to_if_id;
-        btb_target_id_buf     <= btb_target_to_if_id;
+      if (!if_id_stall) begin
+        pc_id_buf       <= pc_to_if_id;
+        pc_plus4_id_buf <= pc_plus4_to_if_id;
       end
     end
 
-    assign pc_id             = pc_id_buf;
-    assign pc_plus4_id       = pc_plus4_id_buf;
-    assign btb_hit_id        = btb_hit_id_buf;
-    assign btb_pred_taken_id = btb_pred_taken_id_buf;
-    assign btb_target_id     = btb_target_id_buf;
+    assign pc_id       = pc_id_buf;
+    assign pc_plus4_id = pc_plus4_id_buf;
+
+    //
+    // BTB signal buffering: conditional on memory type
+    //
+    // SRAM (0-cycle latency): BTB signals passthrough from stage, need buffering here
+    // BRAM (1-cycle latency): BTB signals already buffered by stage, passthrough to avoid double-buffering
+    //
+    if (MEM_TYPE == MEM_TYPE_SRAM) begin : g_btb_buffered
+      logic            btb_hit_id_buf;
+      logic            btb_pred_taken_id_buf;
+      logic [XLEN-1:0] btb_target_id_buf;
+
+      always_ff @(posedge clk) begin
+        if (!rst_n || if_id_flush) begin
+          btb_hit_id_buf        <= 1'b0;
+          btb_pred_taken_id_buf <= 1'b0;
+          btb_target_id_buf     <= '0;
+        end else if (!if_id_stall) begin
+          btb_hit_id_buf        <= btb_hit_to_if_id;
+          btb_pred_taken_id_buf <= btb_pred_taken_to_if_id;
+          btb_target_id_buf     <= btb_target_to_if_id;
+        end
+      end
+
+      assign btb_hit_id        = btb_hit_id_buf;
+      assign btb_pred_taken_id = btb_pred_taken_id_buf;
+      assign btb_target_id     = btb_target_id_buf;
+
+    end else begin : g_btb_passthrough
+      //
+      // BRAM: Stage already buffers for latency alignment, passthrough here
+      //
+      assign btb_hit_id        = btb_hit_to_if_id;
+      assign btb_pred_taken_id = btb_pred_taken_to_if_id;
+      assign btb_target_id     = btb_target_to_if_id;
+    end
 
   end else begin : g_passthrough
     assign pc_id             = pc_to_if_id;

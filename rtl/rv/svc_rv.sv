@@ -455,7 +455,8 @@ module svc_rv #(
   svc_rv_stage_if #(
       .XLEN     (XLEN),
       .PIPELINED(PIPELINED),
-      .MEM_TYPE (MEM_TYPE)
+      .MEM_TYPE (MEM_TYPE),
+      .BPRED    (BPRED)
   ) stage_if (
       .*
   );
@@ -655,7 +656,7 @@ module svc_rv #(
         "IF %s%s %08x %s %08x%s",
         stall_str,
         flush_str,
-        imem_raddr,
+        stage_if.pc,
         pc_sel_str,
         stage_if.pc_next,
         btb_str
@@ -860,6 +861,10 @@ module svc_rv #(
       // BRAM: 1-cycle latency, display in MEM stage when mem_read_mem/mem_write_mem active
       //
       if (dbg_mem) begin
+        string stall_str;
+
+        stall_str = mem_wb_stall ? "s" : " ";
+
         if (line != "") line = {line, " | "};
         if (MEM_TYPE == MEM_TYPE_SRAM) begin
           if (dmem_ren) begin
@@ -867,7 +872,7 @@ module svc_rv #(
               line,
               $sformatf(
                   "M %s %08x r %08x ",
-                  mem_wb_stall ? "s" : " ",
+                  stall_str,
                   pc_plus4_mem - 4,
                   alu_result_mem
               )
@@ -877,7 +882,7 @@ module svc_rv #(
               line,
               $sformatf(
                   "M %s %08x w %08x ",
-                  mem_wb_stall ? "s" : " ",
+                  stall_str,
                   pc_plus4_mem - 4,
                   alu_result_mem
               )
@@ -891,7 +896,7 @@ module svc_rv #(
               line,
               $sformatf(
                   "M %s %08x r %08x ",
-                  mem_wb_stall ? "s" : " ",
+                  stall_str,
                   pc_plus4_mem - 4,
                   alu_result_mem
               )
@@ -901,7 +906,7 @@ module svc_rv #(
               line,
               $sformatf(
                   "M %s %08x w %08x ",
-                  mem_wb_stall ? "s" : " ",
+                  stall_str,
                   pc_plus4_mem - 4,
                   alu_result_mem
               )

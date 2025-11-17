@@ -243,10 +243,15 @@ endfunction
 //
 // Test: Reset state
 //
-// Verifies the processor starts with PC at address 0 after reset.
+// Verifies the processor starts with PC at correct initial address after reset.
+// For BRAM with BPRED, PC starts at -4 so pc_next = 0 on first cycle.
 //
 task automatic test_reset;
-  `CHECK_EQ(uut.cpu.stage_if.pc, '0);
+  if (uut.cpu.MEM_TYPE == 1 && uut.cpu.BPRED != 0) begin
+    `CHECK_EQ(uut.cpu.stage_if.pc, 32'hFFFFFFFC);
+  end else begin
+    `CHECK_EQ(uut.cpu.stage_if.pc, '0);
+  end
 endtask
 
 //
@@ -263,17 +268,34 @@ task automatic test_linear_program;
 
   load_program();
 
-  `TICK(clk);
-  `CHECK_EQ(uut.cpu.stage_if.pc, 32'd4);
+  //
+  // For BRAM with BPRED, PC starts at -4, so first cycle goes to 0
+  //
+  if (uut.cpu.MEM_TYPE == 1 && uut.cpu.BPRED != 0) begin
+    `TICK(clk);
+    `CHECK_EQ(uut.cpu.stage_if.pc, 32'd0);
 
-  `TICK(clk);
-  `CHECK_EQ(uut.cpu.stage_if.pc, 32'd8);
+    `TICK(clk);
+    `CHECK_EQ(uut.cpu.stage_if.pc, 32'd4);
 
-  `TICK(clk);
-  `CHECK_EQ(uut.cpu.stage_if.pc, 32'd12);
+    `TICK(clk);
+    `CHECK_EQ(uut.cpu.stage_if.pc, 32'd8);
 
-  `TICK(clk);
-  `CHECK_EQ(uut.cpu.stage_if.pc, 32'd16);
+    `TICK(clk);
+    `CHECK_EQ(uut.cpu.stage_if.pc, 32'd12);
+  end else begin
+    `TICK(clk);
+    `CHECK_EQ(uut.cpu.stage_if.pc, 32'd4);
+
+    `TICK(clk);
+    `CHECK_EQ(uut.cpu.stage_if.pc, 32'd8);
+
+    `TICK(clk);
+    `CHECK_EQ(uut.cpu.stage_if.pc, 32'd12);
+
+    `TICK(clk);
+    `CHECK_EQ(uut.cpu.stage_if.pc, 32'd16);
+  end
 endtask
 
 //
