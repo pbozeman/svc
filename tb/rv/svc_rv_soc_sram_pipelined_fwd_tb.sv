@@ -22,15 +22,15 @@ module svc_rv_soc_sram_pipelined_fwd_tb;
   // without branch prediction, so workloads with many branches will still
   // show elevated CPI even with perfect data forwarding.
   //
-  localparam real alu_indep_max_cpi = 1.35;
-  localparam real alu_chain_max_cpi = 1.5;
-  localparam real br_taken_max_cpi = 3.0;
-  localparam real br_not_taken_max_cpi = 2.5;
-  localparam real load_use_max_cpi = 2.0;
-  localparam real mixed_alu_max_cpi = 1.45;
-  localparam real fib12_max_cpi = 1.37;
+  localparam real alu_indep_max_cpi = 1.34;
+  localparam real alu_chain_max_cpi = 1.26;
+  localparam real br_taken_max_cpi = 2.05;
+  localparam real br_not_taken_max_cpi = 1.55;
+  localparam real load_use_max_cpi = 1.55;
+  localparam real mixed_alu_max_cpi = 1.25;
+  localparam real fib12_max_cpi = 1.35;
   localparam real fib100_max_cpi = 1.34;
-  localparam real bubble_max_cpi = 1.5;
+  localparam real bubble_max_cpi = 1.30;
   localparam real forward_taken_loop_max_cpi = 2.35;
   logic        ebreak;
 
