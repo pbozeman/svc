@@ -229,22 +229,36 @@ class Colorizer:
         line = re.sub(r"\b(pred|rdir)\b", repl_keyword, line)
         return line
 
-    def colorize_hazard_markers(self, line: str, line_bg: int = None) -> str:
+    def colorize_hazard_markers(self, line: str, line_bg: int = None, original_line: str = None) -> str:
         """Highlight flush flags and hazard markers with background color."""
-        # Check if this line contains a NOP - if so, reset to NOP bg instead of line bg
-        is_nop_line = bool(re.search(r"addi\s+x0+\s*,\s*x0+\s*,\s*0\b", line))
-        bg_reset_color = NOP_BG_COLOR if is_nop_line else (line_bg if line_bg is not None else None)
-        bg_reset = ansi_bg(bg_reset_color) if bg_reset_color is not None else "\x1b[49m"
+        if original_line is None:
+            original_line = line
+
+        original_parts = original_line.split('|')
 
         # Colorize flush/stall flags in pipeline stages
         def repl_flag(m):
-            stage = m.group(1)
+            stage_with_spaces = m.group(1)
+            stage_name = stage_with_spaces.strip()
             flag = m.group(2)
-            return f"{stage}{ansi_bg(HAZARD_BG_COLOR)}{ansi_fg(DIM_TEXT_COLOR)}{flag}{bg_reset}{ansi_fg(MEDIUM_DIM_COLOR)}"
+
+            # Check if THIS specific stage contains a NOP (not the entire line)
+            is_stage_nop = False
+            for part in original_parts:
+                part_stripped = part.strip()
+                if part_stripped.startswith(stage_name):
+                    is_stage_nop = bool(re.search(r"addi\s+x0+\s*,\s*x0+\s*,\s*0\b", part))
+                    break
+
+            bg_reset_color = NOP_BG_COLOR if is_stage_nop else (line_bg if line_bg is not None else None)
+            bg_reset = ansi_bg(bg_reset_color) if bg_reset_color is not None else "\x1b[49m"
+
+            return f"{stage_with_spaces}{ansi_bg(HAZARD_BG_COLOR)}{ansi_fg(DIM_TEXT_COLOR)}{flag}{bg_reset}{ansi_fg(MEDIUM_DIM_COLOR)}"
 
         line = re.sub(r"((?:IF|ID|EX)\s+)([fs])(?=\s)", repl_flag, line)
 
         # Colorize PR (pipeline register) and BR (branch) hazard markers
+        bg_reset = ansi_bg(line_bg) if line_bg is not None else "\x1b[49m"
         def repl_hazard(m):
             marker = m.group(0)
             return f"{ansi_bg(HAZARD_BG_COLOR)}{ansi_fg(DIM_TEXT_COLOR)}{marker}{bg_reset}{ansi_fg(MEDIUM_DIM_COLOR)}"
@@ -297,6 +311,7 @@ class Colorizer:
     def process_line(self, line: str) -> str:
         """Colorize jump target addresses in a line."""
         line = line.rstrip("\n")
+        original_line = line
 
         # Determine line background color
         line_bg = ALT_LINE_BG_COLOR if self.line_number % 2 == 1 else None
@@ -304,7 +319,7 @@ class Colorizer:
         # Process colorizations on plain text (without line background applied yet)
         line = self.colorize_id_ex_instructions(line, line_bg)
         line = self.colorize_if_non_seq(line)
-        line = self.colorize_hazard_markers(line, line_bg)
+        line = self.colorize_hazard_markers(line, line_bg, original_line)
         line = self.colorize_btb(line)
         line = self.colorize_addresses(line)
         line = self.colorize_registers(line)
