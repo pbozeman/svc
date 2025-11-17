@@ -128,22 +128,15 @@ module svc_rv_stage_if_bram #(
   //
   // Extended flush for BRAM
   //
-  // With BPRED and pc_next early fetch: Target is fetched immediately when
-  // prediction happens, so flush_extend would incorrectly flush the CORRECT
-  // target instruction. Must disable.
-  //
-  // Without BPRED: Sequential instruction is already fetched before redirect
-  // is detected, so we need flush_extend to clear the stale instruction.
-  //
   if (BPRED != 0) begin : g_no_flush_extend
-    always_ff @(posedge clk) begin
-      if (!rst_n) begin
-        flush_extend <= 1'b0;
-      end else begin
-        flush_extend <= 1'b0;
-      end
-    end
+    // Without BPRED: Sequential instruction is already fetched before redirect
+    // is detected, so we need flush_extend to clear the stale instruction.
+    assign flush_extend = 1'b0;
+
   end else begin : g_flush_extend
+    // With BPRED and pc_next early fetch: Target is fetched immediately when
+    // prediction happens, so flush_extend would incorrectly flush the CORRECT
+    // target instruction. Must disable.
     always_ff @(posedge clk) begin
       if (!rst_n) begin
         flush_extend <= 1'b0;
