@@ -11,7 +11,8 @@
 // buffering to align with the delayed instruction.
 //
 module svc_rv_stage_if_bram #(
-    parameter int XLEN = 32
+    parameter int XLEN  = 32,
+    parameter int BPRED = 0
 ) (
     input logic clk,
     input logic rst_n,
@@ -20,6 +21,7 @@ module svc_rv_stage_if_bram #(
     // PC input (from wrapper)
     //
     input logic [XLEN-1:0] pc,
+    input logic [XLEN-1:0] pc_next,
 
     //
     // Hazard control
@@ -55,7 +57,6 @@ module svc_rv_stage_if_bram #(
 
   `include "svc_rv_defs.svh"
 
-  logic [XLEN-1:0] pc_plus4;
   logic [XLEN-1:0] pc_buf;
   logic [XLEN-1:0] pc_plus4_buf;
   logic            btb_hit_buf;
@@ -65,22 +66,44 @@ module svc_rv_stage_if_bram #(
   logic [    31:0] instr;
   logic [    31:0] instr_buf;
 
-  assign pc_plus4   = pc + 4;
-
   //
   // Instruction memory interface
   //
-  // BRAM: Gated with PC stall to hold output
+  // BRAM with BPRED: Use pc_next for early speculative fetch
+  // BRAM without BPRED: Use pc for normal fetch
   //
-  assign imem_raddr = pc;
-  assign instr      = imem_rdata;
-  assign imem_ren   = !pc_stall;
+  if (BPRED != 0) begin : g_bpred_imem
+    //
+    // Early fetch: Address with pc_next to fetch target in same cycle as prediction
+    //
+    assign imem_raddr = pc_next;
+    assign instr      = imem_rdata;
+    assign imem_ren   = !rst_n || !pc_stall;
+
+    `SVC_UNUSED({pc});
+  end else begin : g_no_bpred_imem
+    //
+    // Normal fetch: Address with current PC
+    //
+    assign imem_raddr = pc;
+    assign instr      = imem_rdata;
+    assign imem_ren   = !pc_stall;
+
+    `SVC_UNUSED({pc_next})
+  end
 
   //
   // PC and BTB prediction buffering to match instruction latency
   //
   // BRAM has 1-cycle latency, so we buffer PC and BTB prediction by one
   // cycle to align with the instruction coming out of memory.
+  //
+  // We buffer imem_raddr (the actual fetch address):
+  // - With BPRED: imem_raddr = pc_next (early speculative fetch)
+  // - Without BPRED: imem_raddr = pc (normal fetch)
+  //
+  // This ensures the buffered PC always matches the instruction address,
+  // even during stalls when pc might not have advanced to match pc_next.
   //
   // NOTE: PC buffer continues tracking even during flushes. Only instructions
   // are flushed to NOP, PC values must remain correct for pipeline tracking.
@@ -89,13 +112,13 @@ module svc_rv_stage_if_bram #(
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       pc_buf             <= '0;
-      pc_plus4_buf       <= '0;
+      pc_plus4_buf       <= 32'd4;
       btb_hit_buf        <= 1'b0;
       btb_pred_taken_buf <= 1'b0;
       btb_target_buf     <= '0;
     end else if (!if_id_stall) begin
-      pc_buf             <= pc;
-      pc_plus4_buf       <= pc_plus4;
+      pc_buf             <= imem_raddr;
+      pc_plus4_buf       <= imem_raddr + 4;
       btb_hit_buf        <= btb_hit_if;
       btb_pred_taken_buf <= btb_pred_taken_if;
       btb_target_buf     <= btb_target_if;
@@ -105,15 +128,28 @@ module svc_rv_stage_if_bram #(
   //
   // Extended flush for BRAM
   //
-  // With BRAM's 1-cycle latency, when a branch is taken the BRAM output
-  // contains a stale instruction for one more cycle. We need to extend the
-  // flush signal to cover this case and insert NOPs for 2 cycles total.
+  // With BPRED and pc_next early fetch: Target is fetched immediately when
+  // prediction happens, so flush_extend would incorrectly flush the CORRECT
+  // target instruction. Must disable.
   //
-  always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      flush_extend <= 1'b0;
-    end else begin
-      flush_extend <= if_id_flush;
+  // Without BPRED: Sequential instruction is already fetched before redirect
+  // is detected, so we need flush_extend to clear the stale instruction.
+  //
+  if (BPRED != 0) begin : g_no_flush_extend
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        flush_extend <= 1'b0;
+      end else begin
+        flush_extend <= 1'b0;
+      end
+    end
+  end else begin : g_flush_extend
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        flush_extend <= 1'b0;
+      end else begin
+        flush_extend <= if_id_flush;
+      end
     end
   end
 
