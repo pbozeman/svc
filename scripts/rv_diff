@@ -191,91 +191,91 @@ def extract_wb_entries(filename: str) -> List[WbEntry]:
     return entries
 
 
-def compare_ex_entries(good_entries: List[ExEntry], bad_entries: List[ExEntry], verbose: bool = False) -> Optional[tuple]:
-    """Compare EX entries and return (index, good_entry, bad_entry, time) if divergence found"""
+def compare_ex_entries(file1_entries: List[ExEntry], file2_entries: List[ExEntry], verbose: bool = False) -> Optional[tuple]:
+    """Compare EX entries and return (index, file1_entry, file2_entry, time) if divergence found"""
 
-    max_entries = max(len(good_entries), len(bad_entries))
+    max_entries = max(len(file1_entries), len(file2_entries))
 
     for i in range(max_entries):
-        if i >= len(good_entries):
-            return (i, None, bad_entries[i], bad_entries[i].time)
+        if i >= len(file1_entries):
+            return (i, None, file2_entries[i], file2_entries[i].time)
 
-        if i >= len(bad_entries):
-            return (i, good_entries[i], None, good_entries[i].time)
+        if i >= len(file2_entries):
+            return (i, file1_entries[i], None, file1_entries[i].time)
 
-        good = good_entries[i]
-        bad = bad_entries[i]
+        entry1 = file1_entries[i]
+        entry2 = file2_entries[i]
 
         if verbose:
-            print(f"EX Entry {i}: Good time={good.time}, Bad time={bad.time}")
+            print(f"EX Entry {i}: File1 time={entry1.time}, File2 time={entry2.time}")
 
-        if good.instr != bad.instr or good.operands != bad.operands:
-            return (i, good, bad, min(good.time, bad.time))
+        if entry1.instr != entry2.instr or entry1.operands != entry2.operands:
+            return (i, entry1, entry2, min(entry1.time, entry2.time))
 
     return None
 
 
-def compare_mem_entries(good_entries: List[MemEntry], bad_entries: List[MemEntry], verbose: bool = False) -> Optional[tuple]:
-    """Compare MEM entries and return (index, good_entry, bad_entry, time) if divergence found"""
+def compare_mem_entries(file1_entries: List[MemEntry], file2_entries: List[MemEntry], verbose: bool = False) -> Optional[tuple]:
+    """Compare MEM entries and return (index, file1_entry, file2_entry, time) if divergence found"""
 
-    max_entries = max(len(good_entries), len(bad_entries))
+    max_entries = max(len(file1_entries), len(file2_entries))
 
     for i in range(max_entries):
-        if i >= len(good_entries):
-            return (i, None, bad_entries[i], bad_entries[i].time)
+        if i >= len(file1_entries):
+            return (i, None, file2_entries[i], file2_entries[i].time)
 
-        if i >= len(bad_entries):
-            return (i, good_entries[i], None, good_entries[i].time)
+        if i >= len(file2_entries):
+            return (i, file1_entries[i], None, file1_entries[i].time)
 
-        good = good_entries[i]
-        bad = bad_entries[i]
+        entry1 = file1_entries[i]
+        entry2 = file2_entries[i]
 
         if verbose:
-            print(f"MEM Entry {i}: Good time={good.time}, Bad time={bad.time}")
+            print(f"MEM Entry {i}: File1 time={entry1.time}, File2 time={entry2.time}")
 
-        if good.op_type != bad.op_type or good.addr != bad.addr or good.data != bad.data:
-            return (i, good, bad, min(good.time, bad.time))
+        if entry1.op_type != entry2.op_type or entry1.addr != entry2.addr or entry1.data != entry2.data:
+            return (i, entry1, entry2, min(entry1.time, entry2.time))
 
     return None
 
 
-def compare_wb_entries(good_entries: List[WbEntry], bad_entries: List[WbEntry], verbose: bool = False) -> Optional[tuple]:
-    """Compare WB entries and return (index, good_entry, bad_entry, time) if divergence found"""
+def compare_wb_entries(file1_entries: List[WbEntry], file2_entries: List[WbEntry], verbose: bool = False) -> Optional[tuple]:
+    """Compare WB entries and return (index, file1_entry, file2_entry, time) if divergence found"""
 
-    max_entries = max(len(good_entries), len(bad_entries))
+    max_entries = max(len(file1_entries), len(file2_entries))
 
     for i in range(max_entries):
-        if i >= len(good_entries):
-            return (i, None, bad_entries[i], bad_entries[i].time)
+        if i >= len(file1_entries):
+            return (i, None, file2_entries[i], file2_entries[i].time)
 
-        if i >= len(bad_entries):
-            return (i, good_entries[i], None, good_entries[i].time)
+        if i >= len(file2_entries):
+            return (i, file1_entries[i], None, file1_entries[i].time)
 
-        good = good_entries[i]
-        bad = bad_entries[i]
+        entry1 = file1_entries[i]
+        entry2 = file2_entries[i]
 
         if verbose:
-            print(f"WB Entry {i}: Good time={good.time}, Bad time={bad.time}")
+            print(f"WB Entry {i}: File1 time={entry1.time}, File2 time={entry2.time}")
 
-        if good.data != bad.data or good.reg != bad.reg:
-            return (i, good, bad, min(good.time, bad.time))
+        if entry1.data != entry2.data or entry1.reg != entry2.reg:
+            return (i, entry1, entry2, min(entry1.time, entry2.time))
 
     return None
 
 
-def find_divergence(good_file: str, bad_file: str, verbose: bool = False):
+def find_divergence(file1: str, file2: str, verbose: bool = False):
     """Find and report the earliest divergence between traces"""
 
-    good_ex = extract_ex_entries(good_file)
-    bad_ex = extract_ex_entries(bad_file)
-    good_mem = extract_mem_entries(good_file)
-    bad_mem = extract_mem_entries(bad_file)
-    good_wb = extract_wb_entries(good_file)
-    bad_wb = extract_wb_entries(bad_file)
+    file1_ex = extract_ex_entries(file1)
+    file2_ex = extract_ex_entries(file2)
+    file1_mem = extract_mem_entries(file1)
+    file2_mem = extract_mem_entries(file2)
+    file1_wb = extract_wb_entries(file1)
+    file2_wb = extract_wb_entries(file2)
 
-    ex_div = compare_ex_entries(good_ex, bad_ex, verbose)
-    mem_div = compare_mem_entries(good_mem, bad_mem, verbose)
-    wb_div = compare_wb_entries(good_wb, bad_wb, verbose)
+    ex_div = compare_ex_entries(file1_ex, file2_ex, verbose)
+    mem_div = compare_mem_entries(file1_mem, file2_mem, verbose)
+    wb_div = compare_wb_entries(file1_wb, file2_wb, verbose)
 
     if ex_div is None and mem_div is None and wb_div is None:
         print("No divergence found")
@@ -293,17 +293,17 @@ def find_divergence(good_file: str, bad_file: str, verbose: bool = False):
     divergences.sort(key=lambda x: x[1][3])  # Sort by time
     earliest_type, earliest_div = divergences[0]
 
-    idx, good, bad, _ = earliest_div
+    idx, entry1, entry2, _ = earliest_div
 
-    if good:
-        print(f"GOOD: {good.raw_line}")
+    if entry1:
+        print(f"FILE1: {entry1.raw_line}")
     else:
-        print(f"GOOD: (trace ended)")
+        print(f"FILE1: (trace ended)")
 
-    if bad:
-        print(f"BAD:  {bad.raw_line}")
+    if entry2:
+        print(f"FILE2: {entry2.raw_line}")
     else:
-        print(f"BAD:  (trace ended)")
+        print(f"FILE2: (trace ended)")
 
 
 def main():
@@ -311,12 +311,12 @@ def main():
         description="Find the first divergence between two CPU trace files (EX, MEM, and WB)"
     )
     parser.add_argument(
-        "good_trace",
-        help="Path to the good (passing) trace file"
+        "file1",
+        help="Path to the first trace file"
     )
     parser.add_argument(
-        "bad_trace",
-        help="Path to the bad (failing) trace file"
+        "file2",
+        help="Path to the second trace file"
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -326,7 +326,7 @@ def main():
 
     args = parser.parse_args()
 
-    find_divergence(args.good_trace, args.bad_trace, args.verbose)
+    find_divergence(args.file1, args.file2, args.verbose)
 
 
 if __name__ == "__main__":
