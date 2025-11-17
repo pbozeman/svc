@@ -30,10 +30,10 @@ module svc_rv_soc_bram_all_tb;
   localparam real br_not_taken_max_cpi = 1.01;
   localparam real load_use_max_cpi = 1.52;
   localparam real mixed_alu_max_cpi = 1.01;
-  localparam real fib12_max_cpi = 1.08;
+  localparam real fib12_max_cpi = 1.06;
   localparam real fib100_max_cpi = 1.02;
-  localparam real bubble_max_cpi = 1.31;
-  localparam real forward_taken_loop_max_cpi = 1.20;
+  localparam real bubble_max_cpi = 1.25;
+  localparam real forward_taken_loop_max_cpi = 1.03;
   logic        ebreak;
 
   //

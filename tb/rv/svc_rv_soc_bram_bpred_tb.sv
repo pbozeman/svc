@@ -18,16 +18,16 @@ module svc_rv_soc_bram_bpred_tb;
   // BRAM latency still adds overhead compared to SRAM
   // BTB has learning overhead for initial branch executions
   //
-  localparam real alu_indep_max_cpi = 1.34;
-  localparam real alu_chain_max_cpi = 2.75;
-  localparam real br_taken_max_cpi = 3.0;
-  localparam real br_not_taken_max_cpi = 2.5;
-  localparam real load_use_max_cpi = 2.5;
-  localparam real mixed_alu_max_cpi = 2.56;
-  localparam real fib12_max_cpi = 1.54;
-  localparam real fib100_max_cpi = 1.51;
-  localparam real bubble_max_cpi = 2.08;
-  localparam real forward_taken_loop_max_cpi = 3.35;
+  localparam real alu_indep_max_cpi = 1.17;
+  localparam real alu_chain_max_cpi = 2.63;
+  localparam real br_taken_max_cpi = 2.50;
+  localparam real br_not_taken_max_cpi = 2.26;
+  localparam real load_use_max_cpi = 2.26;
+  localparam real mixed_alu_max_cpi = 2.45;
+  localparam real fib12_max_cpi = 1.37;
+  localparam real fib100_max_cpi = 1.34;
+  localparam real bubble_max_cpi = 1.94;
+  localparam real forward_taken_loop_max_cpi = 2.70;
   logic        ebreak;
 
   //
