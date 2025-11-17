@@ -20,7 +20,12 @@ logic [31:0] MEM[1024];
   begin                                                                       \
     real cpi_real;                                                            \
     string msg;                                                               \
-    cpi_real = calc_cpi(name, cycles, instrs);                                \
+    cpi_real = real'(cycles) / real'(instrs);                                 \
+    if (cpi_report_en) begin                                                  \
+      $display("\nCPI: %-70s  %8d  %8d   %4.4f  %4.4f%s",                     \
+               {svc_tb_module_name, ".", name}, cycles, instrs, cpi_real,     \
+               max_cpi, (cpi_real < (max_cpi * 0.95)) ? "  WIN" : "");        \
+    end                                                                       \
     if (cpi_real > max_cpi) begin                                             \
       $sformat(msg, "%s%s%s:%s%0d%s CHECK_LTE(%scpi_real%s=%f, max_cpi=%f)",  \
                `COLOR_YELLOW, `__FILE__, `COLOR_RESET,                        \
@@ -33,118 +38,12 @@ logic [31:0] MEM[1024];
 //
 // CPI reporting control
 //
-bit          cpi_report_en;
-logic [31:0] fib12_cpi_cycles;
-logic [31:0] fib12_cpi_instrs;
-real         fib12_cpi_real;
-bit          fib12_cpi_valid;
-
-logic [31:0] fib100_cpi_cycles;
-logic [31:0] fib100_cpi_instrs;
-real         fib100_cpi_real;
-bit          fib100_cpi_valid;
-
-logic [31:0] bubble_cpi_cycles;
-logic [31:0] bubble_cpi_instrs;
-real         bubble_cpi_real;
-bit          bubble_cpi_valid;
-
-logic [31:0] cpi_alu_indep_cycles;
-logic [31:0] cpi_alu_indep_instrs;
-real         cpi_alu_indep_real;
-bit          cpi_alu_indep_valid;
-
-logic [31:0] cpi_alu_chain_cycles;
-logic [31:0] cpi_alu_chain_instrs;
-real         cpi_alu_chain_real;
-bit          cpi_alu_chain_valid;
-
-logic [31:0] cpi_br_taken_cycles;
-logic [31:0] cpi_br_taken_instrs;
-real         cpi_br_taken_real;
-bit          cpi_br_taken_valid;
-
-logic [31:0] cpi_br_not_taken_cycles;
-logic [31:0] cpi_br_not_taken_instrs;
-real         cpi_br_not_taken_real;
-bit          cpi_br_not_taken_valid;
-
-logic [31:0] cpi_load_use_cycles;
-logic [31:0] cpi_load_use_instrs;
-real         cpi_load_use_real;
-bit          cpi_load_use_valid;
-
-logic [31:0] cpi_mixed_alu_cycles;
-logic [31:0] cpi_mixed_alu_instrs;
-real         cpi_mixed_alu_real;
-bit          cpi_mixed_alu_valid;
+bit cpi_report_en;
 
 initial begin
   bit svc_tb_rpt;
   if ($value$plusargs("SVC_TB_RPT=%b", svc_tb_rpt) && svc_tb_rpt) begin
     cpi_report_en = 1;
-  end
-end
-
-final begin
-  if (cpi_report_en) begin
-    $display("");
-    $display("CPI Benchmark Results:");
-    $display("=====================");
-    if (cpi_alu_indep_valid) begin
-      $display("  %s.ALU_Independent:", svc_tb_module_name);
-      $display("    Cycles:       %0d", cpi_alu_indep_cycles);
-      $display("    Instructions: %0d", cpi_alu_indep_instrs);
-      $display("    CPI:          %f\n", cpi_alu_indep_real);
-    end
-    if (cpi_alu_chain_valid) begin
-      $display("  %s.ALU_Chain:", svc_tb_module_name);
-      $display("    Cycles:       %0d", cpi_alu_chain_cycles);
-      $display("    Instructions: %0d", cpi_alu_chain_instrs);
-      $display("    CPI:          %f\n", cpi_alu_chain_real);
-    end
-    if (cpi_br_taken_valid) begin
-      $display("  %s.Branch_Taken:", svc_tb_module_name);
-      $display("    Cycles:       %0d", cpi_br_taken_cycles);
-      $display("    Instructions: %0d", cpi_br_taken_instrs);
-      $display("    CPI:          %f\n", cpi_br_taken_real);
-    end
-    if (cpi_br_not_taken_valid) begin
-      $display("  %s.Branch_NotTaken:", svc_tb_module_name);
-      $display("    Cycles:       %0d", cpi_br_not_taken_cycles);
-      $display("    Instructions: %0d", cpi_br_not_taken_instrs);
-      $display("    CPI:          %f\n", cpi_br_not_taken_real);
-    end
-    if (cpi_load_use_valid) begin
-      $display("  %s.Load_Use:", svc_tb_module_name);
-      $display("    Cycles:       %0d", cpi_load_use_cycles);
-      $display("    Instructions: %0d", cpi_load_use_instrs);
-      $display("    CPI:          %f\n", cpi_load_use_real);
-    end
-    if (cpi_mixed_alu_valid) begin
-      $display("  %s.Mixed_ALU:", svc_tb_module_name);
-      $display("    Cycles:       %0d", cpi_mixed_alu_cycles);
-      $display("    Instructions: %0d", cpi_mixed_alu_instrs);
-      $display("    CPI:          %f\n", cpi_mixed_alu_real);
-    end
-    if (fib12_cpi_valid) begin
-      $display("  %s.Fib12:", svc_tb_module_name);
-      $display("    Cycles:       %0d", fib12_cpi_cycles);
-      $display("    Instructions: %0d", fib12_cpi_instrs);
-      $display("    CPI:          %f\n", fib12_cpi_real);
-    end
-    if (fib100_cpi_valid) begin
-      $display("  %s.Fib100:", svc_tb_module_name);
-      $display("    Cycles:       %0d", fib100_cpi_cycles);
-      $display("    Instructions: %0d", fib100_cpi_instrs);
-      $display("    CPI:          %f\n", fib100_cpi_real);
-    end
-    if (bubble_cpi_valid) begin
-      $display("  %s.BubbleSort:", svc_tb_module_name);
-      $display("    Cycles:       %0d", bubble_cpi_cycles);
-      $display("    Instructions: %0d", bubble_cpi_instrs);
-      $display("    CPI:          %f\n", bubble_cpi_real);
-    end
   end
 end
 
@@ -167,66 +66,6 @@ task automatic load_program;
   end
 endtask
 
-//
-// CPI calculation function
-//
-function automatic real calc_cpi;
-  input string name;
-  input logic [31:0] cycles;
-  input logic [31:0] instrs;
-  real cpi_real;
-
-  cpi_real = real'(cycles) / real'(instrs);
-  if (cpi_report_en) begin
-    if (name == "fib12") begin
-      fib12_cpi_cycles = cycles;
-      fib12_cpi_instrs = instrs;
-      fib12_cpi_real   = cpi_real;
-      fib12_cpi_valid  = 1;
-    end else if (name == "fib100") begin
-      fib100_cpi_cycles = cycles;
-      fib100_cpi_instrs = instrs;
-      fib100_cpi_real   = cpi_real;
-      fib100_cpi_valid  = 1;
-    end else if (name == "bubble") begin
-      bubble_cpi_cycles = cycles;
-      bubble_cpi_instrs = instrs;
-      bubble_cpi_real   = cpi_real;
-      bubble_cpi_valid  = 1;
-    end else if (name == "cpi_alu_indep") begin
-      cpi_alu_indep_cycles = cycles;
-      cpi_alu_indep_instrs = instrs;
-      cpi_alu_indep_real   = cpi_real;
-      cpi_alu_indep_valid  = 1;
-    end else if (name == "cpi_alu_chain") begin
-      cpi_alu_chain_cycles = cycles;
-      cpi_alu_chain_instrs = instrs;
-      cpi_alu_chain_real   = cpi_real;
-      cpi_alu_chain_valid  = 1;
-    end else if (name == "cpi_br_taken") begin
-      cpi_br_taken_cycles = cycles;
-      cpi_br_taken_instrs = instrs;
-      cpi_br_taken_real   = cpi_real;
-      cpi_br_taken_valid  = 1;
-    end else if (name == "cpi_br_not_taken") begin
-      cpi_br_not_taken_cycles = cycles;
-      cpi_br_not_taken_instrs = instrs;
-      cpi_br_not_taken_real   = cpi_real;
-      cpi_br_not_taken_valid  = 1;
-    end else if (name == "cpi_load_use") begin
-      cpi_load_use_cycles = cycles;
-      cpi_load_use_instrs = instrs;
-      cpi_load_use_real   = cpi_real;
-      cpi_load_use_valid  = 1;
-    end else if (name == "cpi_mixed_alu") begin
-      cpi_mixed_alu_cycles = cycles;
-      cpi_mixed_alu_instrs = instrs;
-      cpi_mixed_alu_real   = cpi_real;
-      cpi_mixed_alu_valid  = 1;
-    end
-  end
-  return cpi_real;
-endfunction
 //
 // Shared test cases for RISC-V SoC testbenches
 //
@@ -1931,8 +1770,7 @@ task automatic test_csr_cycle_increments;
 
   `CHECK_WAIT_FOR_EBREAK(clk);
   `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[1] > 32'h0);
-  `CHECK_TRUE(
-      uut.cpu.stage_id.regfile.regs[2] > uut.cpu.stage_id.regfile.regs[1]);
+  `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[2] > uut.cpu.stage_id.regfile.regs[1]);
   `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[3] > 32'h0);
 endtask
 
@@ -1955,8 +1793,7 @@ task automatic test_csr_instret_increments;
 
   `CHECK_WAIT_FOR_EBREAK(clk);
   `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[1] > 32'h0);
-  `CHECK_TRUE(
-      uut.cpu.stage_id.regfile.regs[2] > uut.cpu.stage_id.regfile.regs[1]);
+  `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[2] > uut.cpu.stage_id.regfile.regs[1]);
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'd4);
 endtask
 
