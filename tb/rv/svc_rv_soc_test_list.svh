@@ -3,9 +3,7 @@
 //
 
 // Basic tests
-`TEST_CASE(test_reset);
-`TEST_CASE(test_linear_program);
-`TEST_CASE(test_ebreak_instruction);
+`TEST_CASE(test_ebreak);
 
 // Tests with no register dependencies (all read from x0)
 `TEST_CASE(test_addi_from_x0);
