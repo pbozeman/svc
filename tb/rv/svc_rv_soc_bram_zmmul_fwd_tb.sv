@@ -21,15 +21,15 @@ module svc_rv_soc_bram_zmmul_fwd_tb;
   // BRAM has 1-cycle read latency, so load-use hazards are more expensive
   // than SRAM configs. However, ALU forwarding should still provide benefit.
   //
-  localparam real alu_indep_max_cpi = 1.5;
-  localparam real alu_chain_max_cpi = 1.65;
-  localparam real br_taken_max_cpi = 3.5;
-  localparam real br_not_taken_max_cpi = 2.8;
-  localparam real load_use_max_cpi = 2.5;
-  localparam real mixed_alu_max_cpi = 1.56;
-  localparam real fib12_max_cpi = 1.6;
-  localparam real fib100_max_cpi = 1.6;
-  localparam real bubble_max_cpi = 1.8;
+  localparam real alu_indep_max_cpi = 1.50;
+  localparam real alu_chain_max_cpi = 1.40;
+  localparam real br_taken_max_cpi = 2.55;
+  localparam real br_not_taken_max_cpi = 1.80;
+  localparam real load_use_max_cpi = 2.30;
+  localparam real mixed_alu_max_cpi = 1.35;
+  localparam real fib12_max_cpi = 1.52;
+  localparam real fib100_max_cpi = 1.52;
+  localparam real bubble_max_cpi = 1.58;
   localparam real forward_taken_loop_max_cpi = 3.0;
   logic        ebreak;
 
