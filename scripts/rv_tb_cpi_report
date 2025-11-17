@@ -1,0 +1,203 @@
+#!/usr/bin/env python3
+"""
+CPI Performance Report Generator
+
+Parses testbench output and generates markdown tables showing CPI improvements
+across different memory types and optimization levels.
+
+Usage:
+  make tb | rv_tb_cpi_report
+
+  # or
+  make tb > tb_out.txt
+  rv_tb_cpi_report tb_out.txt
+"""
+
+import sys
+from typing import Dict, List, Tuple
+
+#
+# Test configuration definitions
+#
+SRAM_TESTS = [
+    ("Base", "svc_rv_soc_sram_pipelined_tb"),
+    ("Fwd", "svc_rv_soc_sram_pipelined_fwd_tb"),
+    ("BP", "svc_rv_soc_sram_pipelined_bpred_tb"),
+    ("BP w/BTB", "svc_rv_soc_sram_pipelined_bpred_btb_tb"),
+    ("BP Fwd", "svc_rv_soc_sram_pipelined_bpred_fwd_tb"),
+    ("All", "svc_rv_soc_sram_pipelined_all_tb"),
+]
+
+BRAM_TESTS = [
+    ("Base", "svc_rv_soc_bram_tb"),
+    ("Fwd", "svc_rv_soc_bram_fwd_tb"),
+    ("BP", "svc_rv_soc_bram_bpred_tb"),
+    ("BP w/BTB", "svc_rv_soc_bram_bpred_btb_tb"),
+    ("BP Fwd", "svc_rv_soc_bram_bpred_fwd_tb"),
+    ("All", "svc_rv_soc_bram_all_tb"),
+]
+
+
+def parse_cpi_output(lines: List[str]) -> Dict[str, Dict[str, float]]:
+    """
+    Parse testbench output and extract CPI values.
+
+    Returns dict mapping test_name -> {benchmark_name -> cpi_value}
+    """
+    results = {}
+
+    #
+    # Parse CPI output lines
+    # Format: CPI: test_name.benchmark_name   cycles   instrs   actual_cpi   max_cpi
+    #
+    for line in lines:
+        line = line.strip()
+        if line.startswith("CPI:"):
+            parts = line.split()
+            if len(parts) >= 5:
+                full_name = parts[1]
+                actual_cpi = float(parts[4])
+
+                #
+                # Extract test name and benchmark name
+                #
+                if "." in full_name:
+                    test_name, benchmark = full_name.rsplit(".", 1)
+
+                    if test_name not in results:
+                        results[test_name] = {}
+
+                    results[test_name][benchmark] = actual_cpi
+
+    return results
+
+
+def format_cpi(value: float) -> str:
+    """Format CPI value to 2 decimal places."""
+    return f"{value:.2f}"
+
+
+def calculate_column_widths(headers: List[str], data: List[List[str]]) -> List[int]:
+    """Calculate column width for each column based on its content."""
+    widths = [len(h) for h in headers]
+
+    for row in data:
+        for i, cell in enumerate(row):
+            widths[i] = max(widths[i], len(cell))
+
+    return [max(w, 15) if i == 0 else max(w, 10) for i, w in enumerate(widths)]
+
+
+def generate_table(
+    title: str,
+    tests: List[Tuple[str, str]],
+    results: Dict[str, Dict[str, float]],
+    benchmarks: List[str],
+) -> str:
+    """Generate a markdown table with uniform column widths."""
+
+    headers = ["Benchmark"] + [name for name, _ in tests]
+
+    #
+    # Build data rows
+    #
+    rows = []
+    for benchmark in benchmarks:
+        row = [benchmark]
+        for _, test_name in tests:
+            if test_name in results and benchmark in results[test_name]:
+                row.append(format_cpi(results[test_name][benchmark]))
+            else:
+                row.append("---")
+        rows.append(row)
+
+    #
+    # Calculate column widths
+    #
+    col_widths = calculate_column_widths(headers, rows)
+
+    #
+    # Build table
+    #
+    lines = []
+    lines.append(f"\n## {title}\n")
+
+    #
+    # Header row
+    #
+    header_line = "|"
+    for i, h in enumerate(headers):
+        if i == 0:
+            header_line += f" {h:<{col_widths[i]}} |"
+        else:
+            header_line += f" {h:>{col_widths[i]}} |"
+    lines.append(header_line)
+
+    #
+    # Separator row
+    #
+    separator = "|"
+    for i, h in enumerate(headers):
+        if i == 0:
+            separator += f":{'-' * col_widths[i]}:|"
+        else:
+            separator += f" {'-' * col_widths[i]}:|"
+    lines.append(separator)
+
+    #
+    # Data rows
+    #
+    for row in rows:
+        line = "|"
+        for i, cell in enumerate(row):
+            if i == 0:
+                line += f" {cell:<{col_widths[i]}} |"
+            else:
+                line += f" {cell:>{col_widths[i]}} |"
+        lines.append(line)
+
+    return "\n".join(lines)
+
+
+def main():
+    """Main entry point."""
+
+    #
+    # Read input from file or stdin
+    #
+    if len(sys.argv) > 1:
+        with open(sys.argv[1], "r") as f:
+            lines = f.readlines()
+    else:
+        lines = sys.stdin.readlines()
+
+    #
+    # Parse CPI data from input
+    #
+    results = parse_cpi_output(lines)
+
+    if not results:
+        print("Error: No CPI data found in input", file=sys.stderr)
+        sys.exit(1)
+
+    #
+    # Extract benchmark names from results
+    #
+    benchmarks = set()
+    for test_results in results.values():
+        benchmarks.update(test_results.keys())
+    benchmarks = sorted(benchmarks)
+
+    #
+    # Generate markdown output
+    #
+    print("# RISC-V CPI Performance Report\n")
+    print("This report shows Cycles Per Instruction (CPI) across different")
+    print("memory types and optimization levels. Lower is better.\n")
+
+    print(generate_table("SRAM Performance", SRAM_TESTS, results, benchmarks))
+    print(generate_table("BRAM Performance", BRAM_TESTS, results, benchmarks))
+
+
+if __name__ == "__main__":
+    main()
