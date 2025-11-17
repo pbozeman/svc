@@ -178,13 +178,13 @@ def extract_wb_entries(filename: str) -> List[WbEntry]:
 
             wb_part = parts[4]
 
-            wb_match = re.search(r'WB\s+([0-9a-fA-Fx]+)\s+->\s+(x\d+)', wb_part)
+            wb_match = re.search(r'WB\s+([0-9a-fA-Fx]+)\s+([0-9a-fA-Fx]+)\s+->\s+(x\d+)', wb_part)
             if wb_match:
                 entries.append(WbEntry(
                     line_num=line_num,
                     time=time,
-                    data=wb_match.group(1),
-                    reg=wb_match.group(2),
+                    data=wb_match.group(2),
+                    reg=wb_match.group(3),
                     raw_line=line
                 ))
 
@@ -295,15 +295,61 @@ def find_divergence(file1: str, file2: str, verbose: bool = False):
 
     idx, entry1, entry2, _ = earliest_div
 
+    # Print divergence header
+    time1 = entry1.time if entry1 else "END"
+    time2 = entry2.time if entry2 else "END"
+    print(f"\n{earliest_type} divergence at time {time1} / {time2}:")
+    print()
+
+    # Print stage-specific details
+    if earliest_type == "EX":
+        if entry1:
+            operands_str = f" {entry1.operands}" if entry1.operands else ""
+            print(f"  FILE1: EX {entry1.pc} {entry1.instr}{operands_str}")
+        else:
+            print(f"  FILE1: (trace ended)")
+
+        if entry2:
+            operands_str = f" {entry2.operands}" if entry2.operands else ""
+            print(f"  FILE2: EX {entry2.pc} {entry2.instr}{operands_str}")
+        else:
+            print(f"  FILE2: (trace ended)")
+
+    elif earliest_type == "MEM":
+        if entry1:
+            print(f"  FILE1: {entry1.op_type} {entry1.addr} -> {entry1.data}")
+        else:
+            print(f"  FILE1: (trace ended)")
+
+        if entry2:
+            print(f"  FILE2: {entry2.op_type} {entry2.addr} -> {entry2.data}")
+        else:
+            print(f"  FILE2: (trace ended)")
+
+    elif earliest_type == "WB":
+        if entry1:
+            print(f"  FILE1: WB {entry1.data} -> {entry1.reg}")
+        else:
+            print(f"  FILE1: (trace ended)")
+
+        if entry2:
+            print(f"  FILE2: WB {entry2.data} -> {entry2.reg}")
+        else:
+            print(f"  FILE2: (trace ended)")
+
+    print()
+
+    # Print full trace lines for context
+    print("Full trace lines:")
     if entry1:
-        print(f"FILE1: {entry1.raw_line}")
+        print(f"  FILE1: {entry1.raw_line}")
     else:
-        print(f"FILE1: (trace ended)")
+        print(f"  FILE1: (trace ended)")
 
     if entry2:
-        print(f"FILE2: {entry2.raw_line}")
+        print(f"  FILE2: {entry2.raw_line}")
     else:
-        print(f"FILE2: (trace ended)")
+        print(f"  FILE2: (trace ended)")
 
 
 def main():
