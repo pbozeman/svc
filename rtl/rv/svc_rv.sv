@@ -527,7 +527,7 @@ module svc_rv #(
   localparam int DBG_ID_PRED_WIDTH = 13;
   localparam int DBG_EX_FLAGS_WIDTH = 5;
   localparam int DBG_WB_WIDTH = 27;
-  localparam int DBG_MEM_WIDTH = 22;
+  localparam int DBG_MEM_WIDTH = 24;
 
   logic dbg_if;
   logic dbg_id;
@@ -631,8 +631,8 @@ module svc_rv #(
       default:           pc_sel_str = "????";
     endcase
 
-    stall_str = stage_if.pc_stall ? "s" : " ";
-    flush_str = stage_if.if_id_flush ? "f" : " ";
+    stall_str = if_id_stall ? "s" : " ";
+    flush_str = if_id_flush ? "f" : " ";
 
     if (BTB_ENABLE != 0) begin
       string hit_str;
@@ -747,9 +747,8 @@ module svc_rv #(
           line = {
             line,
             $sformatf(
-                "EX %s%s %08x  %-30s   %08x %08x -> %08x %s %s ",
-                id_ex_stall ? "s" : " ",
-                id_ex_flush ? "f" : " ",
+                "EX %s  %08x  %-30s   %08x %08x -> %08x %s %s ",
+                ex_mem_stall ? "s" : " ",
                 pc_ex,
                 dasm_inst(
                   instr_ex
@@ -768,9 +767,8 @@ module svc_rv #(
           line = {
             line,
             $sformatf(
-                "EX %s%s %08x  %-30s   %08x %08x -> %08x     ",
-                id_ex_stall ? "s" : " ",
-                id_ex_flush ? "f" : " ",
+                "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
+                ex_mem_stall ? "s" : " ",
                 pc_ex,
                 dasm_inst(
                   instr_ex
@@ -788,17 +786,15 @@ module svc_rv #(
           line = {
             line,
             $sformatf(
-                "EX %s%s %08x  %-30s   %08x %08x -> %08x %s   ",
-                id_ex_stall ? "s" : " ",
-                id_ex_flush ? "f" : " ",
+                "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
+                ex_mem_stall ? "s" : " ",
                 pc_ex,
                 dasm_inst(
                   instr_ex
                 ),
                 stage_ex.fwd_rs1_ex,
                 stage_ex.fwd_rs2_ex,
-                stage_ex.m_result_ex,
-                ex_mem_stall ? "s" : " "
+                stage_ex.m_result_ex
             )
           };
         end else if (mem_write_ex) begin
@@ -808,9 +804,8 @@ module svc_rv #(
           line = {
             line,
             $sformatf(
-                "EX %s%s %08x  %-30s   %08x %08x -> %08x     ",
-                id_ex_stall ? "s" : " ",
-                id_ex_flush ? "f" : " ",
+                "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
+                ex_mem_stall ? "s" : " ",
                 pc_ex,
                 dasm_inst(
                   instr_ex
@@ -827,9 +822,8 @@ module svc_rv #(
           line = {
             line,
             $sformatf(
-                "EX %s%s %08x  %-30s   %08x %08x -> %08x     ",
-                id_ex_stall ? "s" : " ",
-                id_ex_flush ? "f" : " ",
+                "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
+                ex_mem_stall ? "s" : " ",
                 pc_ex,
                 dasm_inst(
                   instr_ex
@@ -846,9 +840,8 @@ module svc_rv #(
           line = {
             line,
             $sformatf(
-                "EX %s%s %08x  %-30s   %08x %08x -> %08x     ",
-                id_ex_stall ? "s" : " ",
-                id_ex_flush ? "f" : " ",
+                "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
+                ex_mem_stall ? "s" : " ",
                 pc_ex,
                 dasm_inst(
                   instr_ex
@@ -872,12 +865,22 @@ module svc_rv #(
           if (dmem_ren) begin
             line = {
               line,
-              $sformatf("M %08x r %08x ", pc_plus4_mem - 4, alu_result_mem)
+              $sformatf(
+                  "M %s %08x r %08x ",
+                  mem_wb_stall ? "s" : " ",
+                  pc_plus4_mem - 4,
+                  alu_result_mem
+              )
             };
           end else if (dmem_we) begin
             line = {
               line,
-              $sformatf("M %08x w %08x ", pc_plus4_mem - 4, alu_result_mem)
+              $sformatf(
+                  "M %s %08x w %08x ",
+                  mem_wb_stall ? "s" : " ",
+                  pc_plus4_mem - 4,
+                  alu_result_mem
+              )
             };
           end else begin
             line = {line, {DBG_MEM_WIDTH{" "}}};
@@ -886,12 +889,22 @@ module svc_rv #(
           if (mem_read_mem) begin
             line = {
               line,
-              $sformatf("M %08x r %08x ", pc_plus4_mem - 4, alu_result_mem)
+              $sformatf(
+                  "M %s %08x r %08x ",
+                  mem_wb_stall ? "s" : " ",
+                  pc_plus4_mem - 4,
+                  alu_result_mem
+              )
             };
           end else if (mem_write_mem) begin
             line = {
               line,
-              $sformatf("M %08x w %08x ", pc_plus4_mem - 4, alu_result_mem)
+              $sformatf(
+                  "M %s %08x w %08x ",
+                  mem_wb_stall ? "s" : " ",
+                  pc_plus4_mem - 4,
+                  alu_result_mem
+              )
             };
           end else begin
             line = {line, {DBG_MEM_WIDTH{" "}}};
