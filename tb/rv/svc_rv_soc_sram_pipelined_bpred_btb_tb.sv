@@ -17,15 +17,15 @@ module svc_rv_soc_sram_pipelined_bpred_btb_tb;
   // JAL early resolution helps, but lack of forwarding increases stalls
   // BTB improves branch prediction accuracy
   //
-  localparam real alu_indep_max_cpi = 1.17;
-  localparam real alu_chain_max_cpi = 2.65;
-  localparam real br_taken_max_cpi = 2.5;
-  localparam real br_not_taken_max_cpi = 2.25;
-  localparam real load_use_max_cpi = 2.25;
-  localparam real mixed_alu_max_cpi = 2.45;
+  localparam real alu_indep_max_cpi = 1.01;
+  localparam real alu_chain_max_cpi = 2.55;
+  localparam real br_taken_max_cpi = 2.05;
+  localparam real br_not_taken_max_cpi = 2.05;
+  localparam real load_use_max_cpi = 2.05;
+  localparam real mixed_alu_max_cpi = 2.35;
   localparam real fib12_max_cpi = 1.37;
   localparam real fib100_max_cpi = 1.34;
-  localparam real bubble_max_cpi = 1.94;
+  localparam real bubble_max_cpi = 1.91;
   localparam real forward_taken_loop_max_cpi = 1.7;
   logic        ebreak;
 

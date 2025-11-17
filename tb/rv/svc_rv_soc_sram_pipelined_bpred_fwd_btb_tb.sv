@@ -18,15 +18,15 @@ module svc_rv_soc_sram_pipelined_bpred_fwd_btb_tb;
   // With JAL early resolution in ID stage, MEM->EX load forwarding, and BTB,
   // we achieve near-optimal performance.
   //
-  localparam real alu_indep_max_cpi = 1.17;
-  localparam real alu_chain_max_cpi = 1.38;
-  localparam real br_taken_max_cpi = 2.5;
-  localparam real br_not_taken_max_cpi = 2.25;
-  localparam real load_use_max_cpi = 1.75;
-  localparam real mixed_alu_max_cpi = 1.34;
-  localparam real fib12_max_cpi = 1.22;
-  localparam real fib100_max_cpi = 1.18;
-  localparam real bubble_max_cpi = 1.41;
+  localparam real alu_indep_max_cpi = 1.01;
+  localparam real alu_chain_max_cpi = 1.01;
+  localparam real br_taken_max_cpi = 1.01;
+  localparam real br_not_taken_max_cpi = 1.01;
+  localparam real load_use_max_cpi = 1.01;
+  localparam real mixed_alu_max_cpi = 1.01;
+  localparam real fib12_max_cpi = 1.06;
+  localparam real fib100_max_cpi = 1.02;
+  localparam real bubble_max_cpi = 1.11;
   localparam real forward_taken_loop_max_cpi = 1.17;
   logic        ebreak;
 
