@@ -26,11 +26,9 @@ module svc_rv_idec_tb;
   logic [ 4:0] rs2;
   logic [ 2:0] funct3;
   logic [ 6:0] funct7;
-  // verilator lint_off UNUSEDSIGNAL
+  logic        is_m;
   logic        rs1_used;
   logic        rs2_used;
-  logic        is_m;
-  // verilator lint_on UNUSEDSIGNAL
 
   logic [31:0] imm_i;
   logic [31:0] imm_s;
@@ -38,7 +36,9 @@ module svc_rv_idec_tb;
   logic [31:0] imm_u;
   logic [31:0] imm_j;
 
-  svc_rv_idec uut (
+  svc_rv_idec #(
+      .EXT_M(1)
+  ) uut (
       .instr(instr),
 
       .reg_write    (reg_write),
@@ -76,7 +76,8 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(mem_write);
     `CHECK_FALSE(is_branch);
     `CHECK_FALSE(is_jump);
-    // rs1/rs2 not checked - contain instruction bits when not used
+    `CHECK_FALSE(rs1_used);
+    `CHECK_FALSE(rs2_used);
   endtask
 
   //
@@ -94,11 +95,12 @@ module svc_rv_idec_tb;
     `CHECK_EQ(imm_type, IMM_I);
     `CHECK_FALSE(is_branch);
     `CHECK_FALSE(is_jump);
+    `CHECK_TRUE(rs1_used);
+    `CHECK_FALSE(rs2_used);
     `CHECK_EQ(rd, 5'd1);
     `CHECK_EQ(rs1, 5'd0);
     `CHECK_EQ(funct3, FUNCT3_CSRRS);
     `CHECK_EQ(imm_i[11:0], CSR_CYCLE);
-    // rs2 not used for this instruction (but contains instruction bits)
   endtask
 
   task automatic test_lw_decode;
@@ -113,13 +115,14 @@ module svc_rv_idec_tb;
     `CHECK_EQ(imm_type, IMM_I);
     `CHECK_FALSE(is_branch);
     `CHECK_FALSE(is_jump);
+    `CHECK_TRUE(rs1_used);
+    `CHECK_FALSE(rs2_used);
 
     `CHECK_EQ(rd, 5'd2);
     `CHECK_EQ(rs1, 5'd1);
     `CHECK_EQ(funct3, 3'b010);
 
     `CHECK_EQ(imm_i, 32'd4);
-    // rs2 not used for this instruction (but contains instruction bits)
   endtask
 
   task automatic test_sw_decode;
@@ -133,6 +136,8 @@ module svc_rv_idec_tb;
     `CHECK_EQ(imm_type, IMM_S);
     `CHECK_FALSE(is_branch);
     `CHECK_FALSE(is_jump);
+    `CHECK_TRUE(rs1_used);
+    `CHECK_TRUE(rs2_used);
 
     `CHECK_EQ(rd, 5'd8);
     `CHECK_EQ(rs1, 5'd2);
@@ -140,8 +145,6 @@ module svc_rv_idec_tb;
     `CHECK_EQ(funct3, 3'b010);
 
     `CHECK_EQ(imm_s, 32'd8);
-    // rs1 is set to actual register, should not be forced to 0
-    // rs1/rs2 not used for this instruction (but contains instruction bits)
   endtask
 
   task automatic test_add_decode;
@@ -155,14 +158,14 @@ module svc_rv_idec_tb;
     `CHECK_EQ(res_src, RES_ALU);
     `CHECK_FALSE(is_branch);
     `CHECK_FALSE(is_jump);
+    `CHECK_TRUE(rs1_used);
+    `CHECK_TRUE(rs2_used);
 
     `CHECK_EQ(rd, 5'd4);
     `CHECK_EQ(rs1, 5'd2);
     `CHECK_EQ(rs2, 5'd3);
     `CHECK_EQ(funct3, 3'b000);
     `CHECK_EQ(funct7, 7'b0000000);
-    // rs1 is set to actual register, should not be forced to 0
-    // rs1/rs2 not used for this instruction (but contains instruction bits)
   endtask
 
   task automatic test_beq_decode;
@@ -176,14 +179,14 @@ module svc_rv_idec_tb;
     `CHECK_EQ(imm_type, IMM_B);
     `CHECK_TRUE(is_branch);
     `CHECK_FALSE(is_jump);
+    `CHECK_TRUE(rs1_used);
+    `CHECK_TRUE(rs2_used);
 
     `CHECK_EQ(rs1, 5'd2);
     `CHECK_EQ(rs2, 5'd3);
     `CHECK_EQ(funct3, 3'b000);
 
     `CHECK_EQ(imm_b, 32'd32);
-    // rs1 is set to actual register, should not be forced to 0
-    // rs1/rs2 not used for this instruction (but contains instruction bits)
   endtask
 
   task automatic test_addi_decode;
@@ -198,13 +201,14 @@ module svc_rv_idec_tb;
     `CHECK_EQ(imm_type, IMM_I);
     `CHECK_FALSE(is_branch);
     `CHECK_FALSE(is_jump);
+    `CHECK_TRUE(rs1_used);
+    `CHECK_FALSE(rs2_used);
 
     `CHECK_EQ(rd, 5'd2);
     `CHECK_EQ(rs1, 5'd1);
     `CHECK_EQ(funct3, 3'b000);
 
     `CHECK_EQ(imm_i, 32'd8);
-    // rs2 not used for this instruction (but contains instruction bits)
   endtask
 
   task automatic test_jal_decode;
@@ -216,11 +220,12 @@ module svc_rv_idec_tb;
     `CHECK_EQ(imm_type, IMM_J);
     `CHECK_FALSE(is_branch);
     `CHECK_TRUE(is_jump);
+    `CHECK_FALSE(rs1_used);
+    `CHECK_FALSE(rs2_used);
 
     `CHECK_EQ(rd, 5'd1);
 
     `CHECK_EQ(imm_j, 32'd2);
-    // rs1/rs2 not checked - contain instruction bits when not used
   endtask
 
   task automatic test_auipc_decode;
@@ -232,11 +237,12 @@ module svc_rv_idec_tb;
     `CHECK_EQ(imm_type, IMM_U);
     `CHECK_FALSE(is_branch);
     `CHECK_FALSE(is_jump);
+    `CHECK_FALSE(rs1_used);
+    `CHECK_FALSE(rs2_used);
 
     `CHECK_EQ(rd, 5'd1);
 
     `CHECK_EQ(imm_u, 32'h00001000);
-    // rs1/rs2 not checked - contain instruction bits when not used
   endtask
 
   task automatic test_lui_decode;
@@ -250,11 +256,12 @@ module svc_rv_idec_tb;
     `CHECK_EQ(imm_type, IMM_U);
     `CHECK_FALSE(is_branch);
     `CHECK_FALSE(is_jump);
+    `CHECK_FALSE(rs1_used);
+    `CHECK_FALSE(rs2_used);
 
     `CHECK_EQ(rd, 5'd1);
 
     `CHECK_EQ(imm_u, 32'h00001000);
-    // rs1/rs2 not checked - contain instruction bits when not used
   endtask
 
   task automatic test_jalr_decode;
@@ -269,19 +276,47 @@ module svc_rv_idec_tb;
     `CHECK_EQ(imm_type, IMM_I);
     `CHECK_FALSE(is_branch);
     `CHECK_TRUE(is_jump);
+    `CHECK_TRUE(rs1_used);
+    `CHECK_FALSE(rs2_used);
     `CHECK_EQ(jb_target_src, JB_TARGET_ALU);
 
     `CHECK_EQ(rd, 5'd2);
     `CHECK_EQ(rs1, 5'd1);
 
     `CHECK_EQ(imm_i, 32'd4);
-    // rs2 not used for this instruction (but contains instruction bits)
   endtask
 
   task automatic test_negative_immediate;
     instr = 32'b111111111111_00001_010_00010_0000011;
     `CHECK_EQ(imm_i, 32'hFFFFFFFF);
     // rs2 not used for this instruction (but contains instruction bits)
+  endtask
+
+  //
+  // Test: M extension instruction decode (MUL)
+  //
+  task automatic test_mul_decode;
+    //
+    // MUL x4, x2, x3
+    //
+    instr = 32'b0000001_00011_00010_000_00100_0110011;
+    `CHECK_TRUE(reg_write);
+    `CHECK_FALSE(mem_read);
+    `CHECK_FALSE(mem_write);
+    `CHECK_EQ(alu_a_src, ALU_A_RS1);
+    `CHECK_EQ(alu_b_src, ALU_B_RS2);
+    `CHECK_EQ(res_src, RES_M);
+    `CHECK_FALSE(is_branch);
+    `CHECK_FALSE(is_jump);
+    `CHECK_TRUE(is_m);
+    `CHECK_TRUE(rs1_used);
+    `CHECK_TRUE(rs2_used);
+
+    `CHECK_EQ(rd, 5'd4);
+    `CHECK_EQ(rs1, 5'd2);
+    `CHECK_EQ(rs2, 5'd3);
+    `CHECK_EQ(funct3, 3'b000);
+    `CHECK_EQ(funct7, 7'b0000001);
   endtask
 
   `TEST_SUITE_BEGIN(svc_rv_idec_tb);
@@ -297,6 +332,7 @@ module svc_rv_idec_tb;
   `TEST_CASE(test_lui_decode);
   `TEST_CASE(test_jalr_decode);
   `TEST_CASE(test_negative_immediate);
+  `TEST_CASE(test_mul_decode);
   `TEST_SUITE_END();
 
 endmodule
