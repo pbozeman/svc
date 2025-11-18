@@ -44,6 +44,7 @@
 `TEST_CASE(test_jal_short_forward_pipeline);
 `TEST_CASE(test_jalr_forward_pipeline);
 `TEST_CASE(test_ras_jalr_return_flush);
+`TEST_CASE(test_jalr_mispred_ex_flush);
 
 // jal/jalr result forwarding
 `TEST_CASE(test_jal_forwarding);
