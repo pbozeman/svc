@@ -61,6 +61,8 @@ module svc_rv_stage_ex #(
     input logic            is_branch_ex,
     input logic            is_jump_ex,
     input logic            jb_target_src_ex,
+    input logic            is_jal_ex,
+    input logic            is_jalr_ex,
     input logic            is_mc_ex,
     input logic            is_m_ex,
     input logic            is_csr_ex,
@@ -118,6 +120,7 @@ module svc_rv_stage_ex #(
     output logic [XLEN-1:0] mul_lh_mem,
     output logic [XLEN-1:0] mul_hl_mem,
     output logic [XLEN-1:0] mul_hh_mem,
+    output logic            is_jalr_mem,
 
     //
     // Outputs to hazard unit
@@ -528,6 +531,7 @@ module svc_rv_stage_ex #(
         mul_lh_mem     <= '0;
         mul_hl_mem     <= '0;
         mul_hh_mem     <= '0;
+        is_jalr_mem    <= 1'b0;
       end else if (!ex_mem_stall) begin
         reg_write_mem  <= reg_write_ex;
         mem_read_mem   <= mem_read_ex;
@@ -548,6 +552,7 @@ module svc_rv_stage_ex #(
         mul_lh_mem     <= mul_lh_ex;
         mul_hl_mem     <= mul_hl_ex;
         mul_hh_mem     <= mul_hh_ex;
+        is_jalr_mem    <= is_jalr_ex;
       end
     end
 
@@ -571,11 +576,12 @@ module svc_rv_stage_ex #(
     assign mul_lh_mem     = mul_lh_ex;
     assign mul_hl_mem     = mul_hl_ex;
     assign mul_hh_mem     = mul_hh_ex;
+    assign is_jalr_mem    = is_jalr_ex;
 
     `SVC_UNUSED({ex_mem_stall});
   end
 
-  `SVC_UNUSED({funct7_ex[6:5], funct7_ex[4:0], is_m_ex, is_csr_ex});
+  `SVC_UNUSED({funct7_ex[6:5], funct7_ex[4:0], is_jump_ex, is_m_ex, is_csr_ex});
 
 endmodule
 

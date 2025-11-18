@@ -21,8 +21,8 @@ module svc_rv_bpred_ex #(
     // Branch/jump analysis from EX stage
     //
     input logic            is_branch_ex,
-    input logic            is_jump_ex,
-    input logic            jb_target_src_ex,
+    input logic            is_jal_ex,
+    input logic            is_jalr_ex,
     input logic            bpred_taken_ex,
     input logic            branch_taken_ex,
     input logic [XLEN-1:0] pc_ex,
@@ -67,10 +67,7 @@ module svc_rv_bpred_ex #(
   // JALR misprediction detection
   //
   if (BPRED != 0 && RAS_ENABLE != 0) begin : g_jalr_mispred
-    logic is_jalr_ex;
     logic jalr_mispredicted;
-
-    assign is_jalr_ex = is_jump_ex && jb_target_src_ex;
 
     //
     // JALR mispredicted if: not predicted OR predicted target doesn't match actual
@@ -87,7 +84,7 @@ module svc_rv_bpred_ex #(
     //
     // Without RAS, always redirect on JALR (not predicted)
     //
-    assign pc_sel_jump_ex = is_jump_ex && jb_target_src_ex;
+    assign pc_sel_jump_ex = is_jalr_ex;
 
     `SVC_UNUSED(pred_target_ex);
 
@@ -95,7 +92,7 @@ module svc_rv_bpred_ex #(
     //
     // Without BPRED, all jumps cause redirects (JAL and JALR)
     //
-    assign pc_sel_jump_ex = is_jump_ex;
+    assign pc_sel_jump_ex = is_jal_ex || is_jalr_ex;
 
     `SVC_UNUSED(pred_target_ex);
   end
@@ -112,22 +109,22 @@ module svc_rv_bpred_ex #(
     //
     // Predictable: branches and PC-relative jumps (JAL), but not JALR
     //
-    assign is_predictable = is_branch_ex || (is_jump_ex && !jb_target_src_ex);
+    assign is_predictable    = is_branch_ex || is_jal_ex;
 
     //
     // Update BTB for all predictable instructions
     //
     // This allows 2-bit counter to train on both taken and not-taken outcomes
     //
-    assign btb_update_en = is_predictable;
-    assign btb_update_pc = pc_ex;
+    assign btb_update_en     = is_predictable;
+    assign btb_update_pc     = pc_ex;
     assign btb_update_target = jb_target_ex;
 
     //
     // For branches: pass actual outcome to train counter
     // For JAL: always taken
     //
-    assign btb_update_taken = is_jump_ex ? 1'b1 : branch_taken_ex;
+    assign btb_update_taken  = is_jal_ex ? 1'b1 : branch_taken_ex;
 
   end else begin : g_no_btb_update
     assign btb_update_en     = 1'b0;
@@ -136,8 +133,8 @@ module svc_rv_bpred_ex #(
     assign btb_update_taken  = 1'b0;
 
     // verilog_format: off
-    `SVC_UNUSED({is_branch_ex, is_jump_ex, jb_target_src_ex, pc_ex,
-                 jb_target_ex, branch_taken_ex});
+    `SVC_UNUSED({is_branch_ex, is_jal_ex, is_jalr_ex, pc_ex, jb_target_ex,
+                 branch_taken_ex});
     // verilog_format: on
   end
 

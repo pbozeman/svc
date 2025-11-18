@@ -140,6 +140,8 @@ module svc_rv #(
   logic            is_branch_ex;
   logic            is_jump_ex;
   logic            jb_target_src_ex;
+  logic            is_jal_ex;
+  logic            is_jalr_ex;
   logic            is_mc_ex;
   logic [    31:0] instr_ex;
   logic [     4:0] rd_ex;
@@ -175,6 +177,7 @@ module svc_rv #(
   logic [XLEN-1:0] rs2_data_mem;
   logic [XLEN-1:0] pc_plus4_mem;
   logic [XLEN-1:0] jb_target_mem;
+  logic            is_jalr_mem;
   logic [XLEN-1:0] csr_rdata_mem;
   logic [XLEN-1:0] m_result_mem;
   logic [XLEN-1:0] mul_ll_mem;

@@ -85,6 +85,8 @@ module svc_rv_stage_id #(
     output logic            is_mc_ex,
     output logic            is_m_ex,
     output logic            is_csr_ex,
+    output logic            is_jal_ex,
+    output logic            is_jalr_ex,
     output logic [    31:0] instr_ex,
     output logic [     4:0] rd_ex,
     output logic [     4:0] rs1_ex,
@@ -141,6 +143,7 @@ module svc_rv_stage_id #(
   logic            jb_target_src_id;
   logic            is_m_id;
   logic            is_csr_id;
+  logic            is_jal_id;
   logic            is_mc_id;
   logic [     4:0] rd_id;
   logic [     2:0] funct3_id;
@@ -176,6 +179,8 @@ module svc_rv_stage_id #(
       .jb_target_src(jb_target_src_id),
       .is_m         (is_m_id),
       .is_csr       (is_csr_id),
+      .is_jal       (is_jal_id),
+      .is_jalr      (is_jalr_id),
       .rd           (rd_id),
       .rs1          (rs1_id),
       .rs2          (rs2_id),
@@ -270,8 +275,8 @@ module svc_rv_stage_id #(
       .pc_id            (pc_id),
       .imm_id           (imm_id),
       .is_branch_id     (is_branch_id),
-      .is_jump_id       (is_jump_id),
-      .jb_target_src_id (jb_target_src_id),
+      .is_jal_id        (is_jal_id),
+      .is_jalr_id       (is_jalr_id),
       .btb_hit_id       (btb_hit_id),
       .btb_pred_taken_id(btb_pred_taken_id),
       .ras_valid_id     (ras_valid_id),
@@ -279,8 +284,7 @@ module svc_rv_stage_id #(
       .pc_sel_id        (pc_sel_id),
       .pred_target      (pred_target),
       .pred_taken_id    (pred_taken_id),
-      .bpred_taken_id   (bpred_taken_id),
-      .is_jalr_id       (is_jalr_id)
+      .bpred_taken_id   (bpred_taken_id)
   );
 
   //
@@ -299,10 +303,7 @@ module svc_rv_stage_id #(
       // RAS prediction signal: valid when RAS has a target and instruction is JALR
       //
       logic ras_pred_taken_id;
-      logic is_jalr;
-
-      assign is_jalr = is_jump_id && jb_target_src_id;
-      assign ras_pred_taken_id = ras_valid_id && is_jalr;
+      assign ras_pred_taken_id = ras_valid_id && is_jalr_id;
 
       //
       // Final predicted target: RAS > BTB > static (matches bpred module priority)
@@ -328,6 +329,8 @@ module svc_rv_stage_id #(
         is_mc_ex         <= 1'b0;
         is_m_ex          <= 1'b0;
         is_csr_ex        <= 1'b0;
+        is_jal_ex        <= 1'b0;
+        is_jalr_ex       <= 1'b0;
         instr_ex         <= I_NOP;
         rd_ex            <= '0;
         rs1_ex           <= '0;
@@ -355,6 +358,8 @@ module svc_rv_stage_id #(
         is_mc_ex         <= 1'b0;
         is_m_ex          <= 1'b0;
         is_csr_ex        <= 1'b0;
+        is_jal_ex        <= 1'b0;
+        is_jalr_ex       <= 1'b0;
         instr_ex         <= I_NOP;
         rd_ex            <= '0;
         rs1_ex           <= '0;
@@ -387,6 +392,8 @@ module svc_rv_stage_id #(
         is_mc_ex         <= is_mc_id;
         is_m_ex          <= is_m_id;
         is_csr_ex        <= is_csr_id;
+        is_jal_ex        <= is_jal_id;
+        is_jalr_ex       <= is_jalr_id;
         instr_ex         <= instr_id;
         rd_ex            <= rd_id;
         rs1_ex           <= rs1_id;
@@ -417,6 +424,8 @@ module svc_rv_stage_id #(
     assign is_mc_ex         = is_mc_id;
     assign is_m_ex          = is_m_id;
     assign is_csr_ex        = is_csr_id;
+    assign is_jal_ex        = is_jal_id;
+    assign is_jalr_ex       = is_jalr_id;
     assign instr_ex         = instr_id;
     assign rd_ex            = rd_id;
     assign rs1_ex           = rs1_id;

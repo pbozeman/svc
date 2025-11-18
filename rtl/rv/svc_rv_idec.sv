@@ -34,6 +34,8 @@ module svc_rv_idec #(
     output logic       is_branch,
     output logic       is_jump,
     output logic       jb_target_src,
+    output logic       is_jal,
+    output logic       is_jalr,
     output logic       is_m,
     output logic       is_csr,
 
@@ -96,7 +98,7 @@ module svc_rv_idec #(
   // Control signal decoder
   //
   always_comb begin
-    logic [16:0] c;
+    logic [19:0] c;
 
     //
     // Short aliases for decode table
@@ -142,25 +144,25 @@ module svc_rv_idec #(
     // Control signal decode
     //
     case (opcode)
-      //              r mr mw   alu  alu  alu  res    imm  b  j    jb
+      //              r mr mw   alu  alu  alu  res    imm  b  j    jb  jal jalr csr
       //                          a    b   op
-      OP_LOAD:   c = {y, y, n,  RS1, IMM, ADD, MEM,     I, n, n,    x};
-      OP_STORE:  c = {n, n, y,  RS1, IMM, ADD, xxx,     S, n, n,    x};
-      OP_RTYPE:  c = {y, n, n,  RS1, RS2, FN3, ALU,   xxx, n, n,    x};
-      OP_BRANCH: c = {n, n, n,   xx,   x,  xx, xxx,     B, y, n,   PC};
-      OP_ITYPE:  c = {y, n, n,  RS1, IMM, FN3, ALU,     I, n, n,    x};
-      OP_JAL:    c = {y, n, n,   xx,   x,  xx, PC4,     J, n, y,   PC};
-      OP_AUIPC:  c = {y, n, n,   xx,   x,  xx, TGT,     U, n, n,   PC};
-      OP_LUI:    c = {y, n, n, ZERO, IMM, ADD, ALU,     U, n, n,    x};
-      OP_JALR:   c = {y, n, n,  RS1, IMM, ADD, PC4,     I, n, y, ALUR};
-      OP_SYSTEM: c = {y, n, n,   xx,   x,  xx, CSR,     I, n, n,    x};
-      OP_RESET:  c = {n, n, n,   xx,   x,  xx, xxx,   xxx, n, n,    x};
-      default:   c = {x, x, x,   xx,   x,  xx, xxx,   xxx, x, x,    x};
+      OP_LOAD:   c = {y, y, n,  RS1, IMM, ADD, MEM,     I, n, n,    x,   n,   n,  n};
+      OP_STORE:  c = {n, n, y,  RS1, IMM, ADD, xxx,     S, n, n,    x,   n,   n,  n};
+      OP_RTYPE:  c = {y, n, n,  RS1, RS2, FN3, ALU,   xxx, n, n,    x,   n,   n,  n};
+      OP_BRANCH: c = {n, n, n,   xx,   x,  xx, xxx,     B, y, n,   PC,   n,   n,  n};
+      OP_ITYPE:  c = {y, n, n,  RS1, IMM, FN3, ALU,     I, n, n,    x,   n,   n,  n};
+      OP_JAL:    c = {y, n, n,   xx,   x,  xx, PC4,     J, n, y,   PC,   y,   n,  n};
+      OP_AUIPC:  c = {y, n, n,   xx,   x,  xx, TGT,     U, n, n,   PC,   n,   n,  n};
+      OP_LUI:    c = {y, n, n, ZERO, IMM, ADD, ALU,     U, n, n,    x,   n,   n,  n};
+      OP_JALR:   c = {y, n, n,  RS1, IMM, ADD, PC4,     I, n, y, ALUR,   n,   y,  n};
+      OP_SYSTEM: c = {y, n, n,   xx,   x,  xx, CSR,     I, n, n,    x,   n,   n,  y};
+      OP_RESET:  c = {n, n, n,   xx,   x,  xx, xxx,   xxx, n, n,    x,   n,   n,  n};
+      default:   c = {x, x, x,   xx,   x,  xx, xxx,   xxx, x, x,    x,   x,   x,  x};
     endcase
 
     { reg_write, mem_read, mem_write,
-      alu_a_src, alu_b_src, alu_instr,
-      res_src, imm_type, is_branch, is_jump, jb_target_src } = c;
+      alu_a_src, alu_b_src, alu_instr, res_src, imm_type,
+      is_branch, is_jump, jb_target_src, is_jal, is_jalr, is_csr } = c;
 
     //
     // Override res_src for M extension instructions
@@ -195,11 +197,6 @@ module svc_rv_idec #(
   end else begin : g_no_m_ext
     assign is_m = 1'b0;
   end
-
-  //
-  // CSR instruction detection
-  //
-  assign is_csr = (opcode == OP_SYSTEM);
 
 endmodule
 
