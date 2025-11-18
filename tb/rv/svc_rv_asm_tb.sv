@@ -32,6 +32,7 @@ module svc_rv_asm_tb;
   logic        is_jump;
   logic        jb_target_src;
   logic        is_m;
+  logic        is_csr;
   logic [ 4:0] rd;
   logic [ 4:0] rs1;
   logic [ 4:0] rs2;
@@ -61,6 +62,7 @@ module svc_rv_asm_tb;
       .is_jump      (is_jump),
       .jb_target_src(jb_target_src),
       .is_m         (is_m),
+      .is_csr       (is_csr),
       .rd           (rd),
       .rs1          (rs1),
       .rs2          (rs2),

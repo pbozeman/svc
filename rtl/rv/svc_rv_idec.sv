@@ -35,6 +35,7 @@ module svc_rv_idec #(
     output logic       is_jump,
     output logic       jb_target_src,
     output logic       is_m,
+    output logic       is_csr,
 
     output logic [4:0] rd,
     output logic [4:0] rs1,
@@ -189,13 +190,16 @@ module svc_rv_idec #(
   //
   // M extension detection
   //
-  // M extension instructions are R-type with funct7[0] = 1
-  //
   if (EXT_M != 0) begin : g_m_ext
     assign is_m = (opcode == OP_RTYPE) && (funct7[0] == 1'b1);
   end else begin : g_no_m_ext
     assign is_m = 1'b0;
   end
+
+  //
+  // CSR instruction detection
+  //
+  assign is_csr = (opcode == OP_SYSTEM);
 
 endmodule
 
