@@ -84,6 +84,7 @@ module svc_rv_stage_id #(
     output logic            jb_target_src_ex,
     output logic            is_mc_ex,
     output logic            is_m_ex,
+    output logic            is_csr_ex,
     output logic [    31:0] instr_ex,
     output logic [     4:0] rd_ex,
     output logic [     4:0] rs1_ex,
@@ -139,6 +140,7 @@ module svc_rv_stage_id #(
   logic            is_jump_id;
   logic            jb_target_src_id;
   logic            is_m_id;
+  logic            is_csr_id;
   logic            is_mc_id;
   logic [     4:0] rd_id;
   logic [     2:0] funct3_id;
@@ -173,6 +175,7 @@ module svc_rv_stage_id #(
       .is_jump      (is_jump_id),
       .jb_target_src(jb_target_src_id),
       .is_m         (is_m_id),
+      .is_csr       (is_csr_id),
       .rd           (rd_id),
       .rs1          (rs1_id),
       .rs2          (rs2_id),
@@ -324,6 +327,7 @@ module svc_rv_stage_id #(
         jb_target_src_ex <= 1'b0;
         is_mc_ex         <= 1'b0;
         is_m_ex          <= 1'b0;
+        is_csr_ex        <= 1'b0;
         instr_ex         <= I_NOP;
         rd_ex            <= '0;
         rs1_ex           <= '0;
@@ -350,6 +354,7 @@ module svc_rv_stage_id #(
         jb_target_src_ex <= 1'b0;
         is_mc_ex         <= 1'b0;
         is_m_ex          <= 1'b0;
+        is_csr_ex        <= 1'b0;
         instr_ex         <= I_NOP;
         rd_ex            <= '0;
         rs1_ex           <= '0;
@@ -381,6 +386,7 @@ module svc_rv_stage_id #(
         jb_target_src_ex <= jb_target_src_id;
         is_mc_ex         <= is_mc_id;
         is_m_ex          <= is_m_id;
+        is_csr_ex        <= is_csr_id;
         instr_ex         <= instr_id;
         rd_ex            <= rd_id;
         rs1_ex           <= rs1_id;
@@ -410,6 +416,7 @@ module svc_rv_stage_id #(
     assign jb_target_src_ex = jb_target_src_id;
     assign is_mc_ex         = is_mc_id;
     assign is_m_ex          = is_m_id;
+    assign is_csr_ex        = is_csr_id;
     assign instr_ex         = instr_id;
     assign rd_ex            = rd_id;
     assign rs1_ex           = rs1_id;
