@@ -1,0 +1,3 @@
+[submodule "tb/riscv-formal"]
+	path = tb/riscv-formal
+	url = git@github.com:pbozeman/riscv-formal.git
