@@ -36,6 +36,8 @@ REGULAR_BG_COLOR = 232  # Regular background color
 ALT_LINE_BG_COLOR = 233  # Very mild darker background for alternating lines
 NOP_BG_COLOR = 52  # Nordic dark red for NOP instructions (addi x0, x0, 0)
 HAZARD_BG_COLOR = 52  # Red background for flush/hazard markers
+MMIO_BUG_BG_COLOR = 52  # Red background for MMIO bug (repeated mem ops)
+MMIO_BUG_FG_COLOR = 220  # Bright yellow foreground for MMIO bug
 
 
 def ansi_fg(code: int) -> str:
@@ -136,6 +138,7 @@ class Colorizer:
         self.color_cache = {}
         self.jump_targets = set()
         self.line_number = 0
+        self.prev_mem_op = None  # Track previous memory operation
 
     def hash_to_color(self, key: str, palette):
         """Hash a key to a stable color from the palette.
@@ -329,6 +332,38 @@ class Colorizer:
         # Match x0 through x31 (with or without leading zero)
         return re.sub(r"\bx(0?[0-9]|[12][0-9]|3[01])\b", repl_reg, line)
 
+    def colorize_mmio_bug(self, line: str, line_bg: int = None) -> str:
+        """Highlight repeated memory operations (same PC + operation type)."""
+        # Extract memory operation from this line: | M [s] <PC> <r/w> <addr> |
+        mem_match = re.search(r"\|\s*M\s+[s ]?\s*([0-9a-fA-F]{8})\s+([rw])\s+([0-9a-fA-F]{8})\s+\|", line)
+
+        if mem_match:
+            pc = mem_match.group(1)
+            op_type = mem_match.group(2)
+            current_mem_op = (pc, op_type)
+
+            # Check if this is a repeated operation (same PC + same operation type)
+            is_repeat = (self.prev_mem_op == current_mem_op)
+
+            # Update previous operation
+            self.prev_mem_op = current_mem_op
+
+            if is_repeat:
+                # Split the line and colorize the MEM section
+                parts = line.split("|")
+                result_parts = []
+
+                for part in parts:
+                    if re.search(r"^\s*M\s+[s ]?\s*[0-9a-fA-F]{8}\s+[rw]\s+[0-9a-fA-F]{8}\s+$", part):
+                        bg_reset = ansi_bg(line_bg) if line_bg is not None else "\x1b[49m"
+                        part = f"{ansi_bg(MMIO_BUG_BG_COLOR)}{ansi_fg(MMIO_BUG_FG_COLOR)}{part}{bg_reset}{ansi_fg(MEDIUM_DIM_COLOR)}"
+                    result_parts.append(part)
+
+                return "|".join(result_parts)
+
+        # Don't clear prev_mem_op - keep tracking across non-pipeline lines
+        return line
+
     def process_line(self, line: str) -> str:
         """Colorize jump target addresses in a line."""
         line = line.rstrip("\n")
@@ -337,7 +372,10 @@ class Colorizer:
         # Determine line background color
         line_bg = ALT_LINE_BG_COLOR if self.line_number % 2 == 1 else None
 
-        # Process colorizations on plain text (without line background applied yet)
+        # Check for MMIO bug and apply red coloring if detected
+        line = self.colorize_mmio_bug(line, line_bg)
+
+        # Process other colorizations
         line = self.colorize_id_ex_instructions(line, line_bg)
         line = self.colorize_if_non_seq(line)
         line = self.colorize_hazard_markers(line, line_bg, original_line)
