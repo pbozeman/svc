@@ -205,3 +205,28 @@ task automatic test_mul_div_mixed;
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[5], 32'd5);
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[6], 32'd0);
 endtask
+
+//
+// MMIO bug test: STORE followed by multi-cycle DIV
+//
+// This test triggers a bug where memory writes repeat during pipeline stalls.
+// When a STORE is in MEM stage and a DIV starts in EX stage, the pipeline
+// stalls but the MEM stage continues to assert dmem_we with the same address,
+// causing repeated writes to MMIO addresses.
+//
+task automatic test_store_div_mmio_bug;
+  ADDI(x3, x0, 100);
+  ADDI(x4, x0, 3);
+  LI(x1, 32'h80000000);
+  LI(x2, 32'hDEADBEEF);
+  NOP();
+  NOP();
+  SW(x2, x1, 0);
+  DIV(x5, x3, x4);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk, 256);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[5], 32'd33);
+endtask

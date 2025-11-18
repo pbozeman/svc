@@ -578,6 +578,12 @@ module svc_rv_stage_ex #(
         bpred_taken_mem <= bpred_taken_ex;
         pred_target_mem <= pred_target_ex;
         trap_mem        <= trap_ex;
+      end else begin
+        //
+        // Stall case: flush memory operations, freeze other signals
+        //
+        mem_read_mem  <= 1'b0;
+        mem_write_mem <= 1'b0;
       end
     end
 
