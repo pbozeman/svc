@@ -90,6 +90,7 @@ module svc_rv_hazard #(
     output logic id_ex_stall,
     output logic id_ex_flush,
     output logic ex_mem_stall,
+    output logic ex_mem_flush,
     output logic mem_wb_stall
 );
 
@@ -360,6 +361,7 @@ module svc_rv_hazard #(
                         jalr_mispredicted_mem || pred_flush);
   assign id_ex_flush = ((data_hazard && !op_active_ex) || pc_redirect ||
                         mispredicted_ex || jalr_mispredicted_mem);
+  assign ex_mem_flush = jalr_mispredicted_mem;
 
 endmodule
 

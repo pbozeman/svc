@@ -46,6 +46,7 @@ module svc_rv_stage_ex #(
     // Hazard control
     //
     input logic ex_mem_stall,
+    input logic ex_mem_flush,
 
     //
     // From ID stage
@@ -543,11 +544,11 @@ module svc_rv_stage_ex #(
         bpred_taken_mem <= 1'b0;
         pred_target_mem <= '0;
       end else if (!ex_mem_stall) begin
-        reg_write_mem   <= reg_write_ex;
-        mem_read_mem    <= mem_read_ex;
-        mem_write_mem   <= mem_write_ex;
+        reg_write_mem   <= ex_mem_flush ? 1'b0 : reg_write_ex;
+        mem_read_mem    <= ex_mem_flush ? 1'b0 : mem_read_ex;
+        mem_write_mem   <= ex_mem_flush ? 1'b0 : mem_write_ex;
         res_src_mem     <= res_src_ex;
-        instr_mem       <= instr_ex;
+        instr_mem       <= ex_mem_flush ? I_NOP : instr_ex;
         rd_mem          <= rd_ex;
         rs2_mem         <= rs2_ex;
         funct3_mem      <= funct3_ex;
@@ -592,7 +593,7 @@ module svc_rv_stage_ex #(
     assign bpred_taken_mem = bpred_taken_ex;
     assign pred_target_mem = pred_target_ex;
 
-    `SVC_UNUSED({ex_mem_stall});
+    `SVC_UNUSED({ex_mem_stall, ex_mem_flush});
   end
 
   `SVC_UNUSED({funct7_ex[6:5], funct7_ex[4:0], is_jump_ex, is_m_ex, is_csr_ex});

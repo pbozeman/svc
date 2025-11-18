@@ -771,11 +771,89 @@ task automatic test_ras_jalr_return_flush;
 endtask
 
 //
+// Test: JALR misprediction EX stage flush
+//
+// Tests that when JALR misprediction is detected in MEM stage, the
+// wrong-path instruction in EX stage is properly flushed and does not
+// write to the register file.
+//
+// With JALR misprediction detection moved to MEM stage for timing optimization,
+// there is a one-cycle delay between when the wrong-path instruction enters EX
+// and when the misprediction is detected. This test verifies that EX/MEM flush
+// signal properly cancels the wrong-path instruction.
+//
+// Memory layout:
+//   PC 0:  ADDI x10=42 (test value, should not be overwritten)
+//   PC 4:  ADDI x15=2 (loop counter)
+//   PC 8:  ADDI x2=44 (JALR target address)
+//   PC 12: JAL to PC 20, pushes return address (PC 16) onto RAS
+//   PC 16: ADDI x10=99 (WRONG PATH - RAS predicts JALR returns here)
+//   PC 20: ADDI x3=1 (JAL lands here, work before JALR)
+//   PC 24: ADDI x4=2
+//   PC 28: ADDI x5=3
+//   PC 32: ADDI x6=4
+//   PC 36: ADDI x7=5 (several instructions to delay JALR)
+//   PC 40: JALR to PC 44 (RAS predicts PC 16, actual is PC 44 - MISPREDICTION)
+//   PC 44: ADDI x11=1 (correct path continues here)
+//   PC 48: ADDI x12=2
+//   PC 52: ADDI x13=3
+//   PC 56: ADDI x14=4
+//   PC 60: ADDI x15-- (decrement loop counter)
+//   PC 64: BNE loop if x15!=0
+//   PC 68: EBREAK
+//
+// First iteration (BTB/RAS training):
+//   - JAL at PC 12 pushes PC 16 onto RAS
+//   - BTB learns: JALR at PC 40 is a return instruction
+//   - No misprediction yet (BTB/RAS not trained on first pass)
+//
+// Second iteration (triggers bug):
+//   - JAL at PC 12 pushes PC 16 onto RAS (again)
+//   - JALR at PC 40 reaches ID stage, BTB predicts as return
+//   - RAS pops and predicts return to PC 16
+//   - Pipeline speculatively fetches wrong-path ADDI at PC 16
+//   - JALR advances to EX, computes actual target = PC 44
+//   - Wrong-path ADDI advances from ID to EX
+//   - JALR advances to MEM, misprediction detected (pred=16, actual=44)
+//   - Pipeline redirects to PC 44, flushes IF/ID stages
+//   - BUG: Wrong-path ADDI in EX stage not flushed (missing ex_mem_flush)
+//   - Wrong-path ADDI completes and writes x10=99
+//
+// Expected (with bug): x10=99 (wrong-path instruction executed)
+// Expected (fixed): x10=42 (wrong-path instruction flushed)
+//
+task automatic test_jalr_mispred_ex_flush;
+  ADDI(x10, x0, 42);
+  ADDI(x15, x0, 2);
+  ADDI(x2, x0, 44);
+  JAL(x1, 8);
+  ADDI(x10, x0, 99);
+  ADDI(x3, x0, 1);
+  ADDI(x4, x0, 2);
+  ADDI(x5, x0, 3);
+  ADDI(x6, x0, 4);
+  ADDI(x7, x0, 5);
+  JALR(x0, x2, 0);
+  ADDI(x11, x0, 1);
+  ADDI(x12, x0, 2);
+  ADDI(x13, x0, 3);
+  ADDI(x14, x0, 4);
+  ADDI(x15, x15, -1);
+  BNE(x15, x0, -56);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[10], 32'd42);
+endtask
+
+//
 // Test: JAL with immediate forwarding
 //
 // Tests JAL result (PC+4) being forwarded to the next instruction.
 // This creates a RAW hazard where the following instruction immediately
-// uses the JAL link register before it reaches WB stage.
+// uses the JALR link register before it reaches WB stage.
 //
 task automatic test_jal_forwarding;
   JAL(x1, 4);

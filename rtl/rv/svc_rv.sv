@@ -249,6 +249,7 @@ module svc_rv #(
   logic            id_ex_stall;
   logic            id_ex_flush;
   logic            ex_mem_stall;
+  logic            ex_mem_flush;
   logic            mem_wb_stall;
 
   //
@@ -350,6 +351,7 @@ module svc_rv #(
     assign id_ex_stall  = 1'b0;
     assign id_ex_flush  = 1'b0;
     assign ex_mem_stall = 1'b0;
+    assign ex_mem_flush = 1'b0;
     assign mem_wb_stall = 1'b0;
 
     // verilog_format: off
@@ -366,6 +368,7 @@ module svc_rv #(
     assign id_ex_stall  = 1'b0;
     assign id_ex_flush  = 1'b0;
     assign ex_mem_stall = 1'b0;
+    assign ex_mem_flush = 1'b0;
     assign mem_wb_stall = 1'b0;
 
     // verilog_format: off
@@ -830,7 +833,7 @@ module svc_rv #(
             line,
             $sformatf(
                 "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
-                ex_mem_stall ? "s" : " ",
+                ex_mem_stall ? "s" : (ex_mem_flush ? "f" : " "),
                 pc_ex,
                 dasm_inst(
                   instr_ex
@@ -848,7 +851,7 @@ module svc_rv #(
             line,
             $sformatf(
                 "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
-                ex_mem_stall ? "s" : " ",
+                ex_mem_stall ? "s" : (ex_mem_flush ? "f" : " "),
                 pc_ex,
                 dasm_inst(
                   instr_ex
@@ -866,7 +869,7 @@ module svc_rv #(
             line,
             $sformatf(
                 "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
-                ex_mem_stall ? "s" : " ",
+                ex_mem_stall ? "s" : (ex_mem_flush ? "f" : " "),
                 pc_ex,
                 dasm_inst(
                   instr_ex
