@@ -62,6 +62,7 @@ module svc_rv_stage_ex #(
     input logic            is_jump_ex,
     input logic            jb_target_src_ex,
     input logic            is_mc_ex,
+    input logic            is_m_ex,
     input logic [    31:0] instr_ex,
     input logic [     4:0] rd_ex,
     input logic [     4:0] rs1_ex,
@@ -121,7 +122,6 @@ module svc_rv_stage_ex #(
     // Outputs to hazard unit
     //
     output logic is_csr_ex,
-    output logic is_m_ex,
     output logic op_active_ex,
 
     //
@@ -173,7 +173,6 @@ module svc_rv_stage_ex #(
   // Decode result sources
   //
   assign is_csr_ex = (res_src_ex == RES_CSR);
-  assign is_m_ex   = (res_src_ex == RES_M);
 
   //
   // ALU Decoder
@@ -581,7 +580,7 @@ module svc_rv_stage_ex #(
     `SVC_UNUSED({ex_mem_stall});
   end
 
-  `SVC_UNUSED({funct7_ex[6:5], funct7_ex[4:0]});
+  `SVC_UNUSED({funct7_ex[6:5], funct7_ex[4:0], is_m_ex});
 
 endmodule
 
