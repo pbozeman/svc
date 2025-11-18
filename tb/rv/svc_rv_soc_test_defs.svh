@@ -38,7 +38,13 @@ logic [31:0] MEM[1024];
 //
 // CPI reporting control
 //
-bit cpi_report_en;
+bit          cpi_report_en;
+
+//
+// MMIO duplicate write detection
+//
+logic [31:0] prev_pc_mem;
+bit          mmio_dup_detected;
 
 initial begin
   bit svc_tb_rpt;
@@ -57,6 +63,32 @@ always_ff @(posedge clk) begin
       MEM[i] <= 32'b0;
     end
   end
+end
+
+//
+// MMIO duplicate write detector
+//
+always_ff @(posedge clk) begin
+  if (!rst_n) begin
+    prev_pc_mem       <= '0;
+    mmio_dup_detected <= 1'b0;
+  end else begin
+    prev_pc_mem <= uut.cpu.pc_plus4_mem;
+
+    if (io_wen && (uut.cpu.pc_plus4_mem == prev_pc_mem)) begin
+      mmio_dup_detected <= 1'b1;
+    end
+  end
+end
+
+//
+// Automatic failure on MMIO duplicate write
+//
+// (using negedge because of a subtle timing bug and expectations in other
+// tests, this ensures we don't tiny_tick unexpectedly)
+//
+always @(negedge clk) begin
+  `CHECK_FALSE(mmio_dup_detected);
 end
 
 task automatic load_program;

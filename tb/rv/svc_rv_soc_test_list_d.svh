@@ -15,3 +15,4 @@
 `TEST_CASE(test_div_chained_dependencies);
 `TEST_CASE(test_div_mixed_ops);
 `TEST_CASE(test_mul_div_mixed);
+`TEST_CASE(test_store_div_mmio_bug);
