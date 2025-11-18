@@ -7,12 +7,19 @@
 //
 // RISC-V Branch Prediction - IF Stage
 //
-// Handles BTB signal buffering for pipeline registers.
+// Handles BTB and RAS signal buffering for pipeline registers.
 //
 // Different memory types require different buffering strategies:
-// - SRAM (0-cycle latency): BTB signals need buffering in IF/ID register
-// - BRAM (1-cycle latency): BTB signals already buffered, passthrough
+// - SRAM (0-cycle latency): BTB/RAS signals need buffering in IF/ID register
+// - BRAM (1-cycle latency): BTB/RAS signals already buffered, passthrough
 // - Non-pipelined: Passthrough
+//
+// Signal naming convention:
+// - Inputs use `_to_if_id` suffix: These are "backward-flowing" signals that
+//   originate from top-level (PC selection) and flow through the IF stage
+//   memory modules (which buffer them) before arriving here. The suffix
+//   indicates they're destined for the IF/ID pipeline boundary.
+// - Outputs use `_id` suffix: Final buffered signals going to ID stage.
 //
 module svc_rv_bpred_if #(
     parameter int XLEN      = 32,
@@ -29,72 +36,79 @@ module svc_rv_bpred_if #(
     input logic if_id_flush,
 
     //
-    // BTB prediction from IF stage (current PC lookup)
+    // BTB prediction from IF stage memory modules
     //
-    input logic            btb_hit_if,
-    input logic            btb_pred_taken_if,
-    input logic [XLEN-1:0] btb_target_if,
+    input logic            btb_hit_to_if_id,
+    input logic            btb_pred_taken_to_if_id,
+    input logic [XLEN-1:0] btb_target_to_if_id,
+
+    //
+    // RAS prediction from IF stage memory modules
+    //
+    input logic            ras_valid_to_if_id,
+    input logic [XLEN-1:0] ras_target_to_if_id,
 
     //
     // Buffered outputs to ID stage
     //
     output logic            btb_hit_id,
     output logic            btb_pred_taken_id,
-    output logic [XLEN-1:0] btb_target_id
+    output logic [XLEN-1:0] btb_target_id,
+    output logic            ras_valid_id,
+    output logic [XLEN-1:0] ras_target_id
 );
 
   `include "svc_rv_defs.svh"
 
   //
-  // BTB signal buffering: conditional on pipelined mode and memory type
+  // BTB and RAS signal buffering: conditional on pipelined mode and memory type
   //
-  if (PIPELINED != 0) begin : g_pipelined
+  // Two cases:
+  // 1. SRAM + pipelined: Buffer signals for IF/ID pipeline register
+  // 2. BRAM + pipelined OR non-pipelined: Passthrough (already buffered)
+  //
+  if (PIPELINED != 0 && MEM_TYPE == MEM_TYPE_SRAM) begin : g_buffered
+    //
+    // SRAM pipelined: Signals from IF memory modules need buffering here
+    //
+    logic            btb_hit_id_buf;
+    logic            btb_pred_taken_id_buf;
+    logic [XLEN-1:0] btb_target_id_buf;
+    logic            ras_valid_id_buf;
+    logic [XLEN-1:0] ras_target_id_buf;
 
-    if (MEM_TYPE == MEM_TYPE_SRAM) begin : g_btb_buffered
-      //
-      // SRAM (0-cycle latency): BTB signals passthrough from BTB lookup,
-      // need buffering here for IF/ID pipeline register
-      //
-      logic            btb_hit_id_buf;
-      logic            btb_pred_taken_id_buf;
-      logic [XLEN-1:0] btb_target_id_buf;
-
-      always_ff @(posedge clk) begin
-        if (!rst_n || if_id_flush) begin
-          btb_hit_id_buf        <= 1'b0;
-          btb_pred_taken_id_buf <= 1'b0;
-          btb_target_id_buf     <= '0;
-        end else if (!if_id_stall) begin
-          btb_hit_id_buf        <= btb_hit_if;
-          btb_pred_taken_id_buf <= btb_pred_taken_if;
-          btb_target_id_buf     <= btb_target_if;
-        end
+    always_ff @(posedge clk) begin
+      if (!rst_n || if_id_flush) begin
+        btb_hit_id_buf        <= 1'b0;
+        btb_pred_taken_id_buf <= 1'b0;
+        btb_target_id_buf     <= '0;
+        ras_valid_id_buf      <= 1'b0;
+        ras_target_id_buf     <= '0;
+      end else if (!if_id_stall) begin
+        btb_hit_id_buf        <= btb_hit_to_if_id;
+        btb_pred_taken_id_buf <= btb_pred_taken_to_if_id;
+        btb_target_id_buf     <= btb_target_to_if_id;
+        ras_valid_id_buf      <= ras_valid_to_if_id;
+        ras_target_id_buf     <= ras_target_to_if_id;
       end
-
-      assign btb_hit_id        = btb_hit_id_buf;
-      assign btb_pred_taken_id = btb_pred_taken_id_buf;
-      assign btb_target_id     = btb_target_id_buf;
-
-    end else begin : g_btb_passthrough
-      //
-      // BRAM (1-cycle latency): BTB signals already buffered by BRAM read
-      // latency and stage-specific buffering, passthrough here to avoid
-      // double-buffering
-      //
-      assign btb_hit_id        = btb_hit_if;
-      assign btb_pred_taken_id = btb_pred_taken_if;
-      assign btb_target_id     = btb_target_if;
-
-      `SVC_UNUSED({clk, rst_n, if_id_stall, if_id_flush});
     end
 
-  end else begin : g_not_pipelined
+    assign btb_hit_id        = btb_hit_id_buf;
+    assign btb_pred_taken_id = btb_pred_taken_id_buf;
+    assign btb_target_id     = btb_target_id_buf;
+    assign ras_valid_id      = ras_valid_id_buf;
+    assign ras_target_id     = ras_target_id_buf;
+
+  end else begin : g_passthrough
     //
-    // Non-pipelined: Passthrough
+    // BRAM pipelined: Already buffered by IF memory modules
+    // Non-pipelined: No buffering needed
     //
-    assign btb_hit_id        = btb_hit_if;
-    assign btb_pred_taken_id = btb_pred_taken_if;
-    assign btb_target_id     = btb_target_if;
+    assign btb_hit_id        = btb_hit_to_if_id;
+    assign btb_pred_taken_id = btb_pred_taken_to_if_id;
+    assign btb_target_id     = btb_target_to_if_id;
+    assign ras_valid_id      = ras_valid_to_if_id;
+    assign ras_target_id     = ras_target_to_if_id;
 
     `SVC_UNUSED({clk, rst_n, if_id_stall, if_id_flush});
   end

@@ -31,7 +31,7 @@ module svc_rv_stage_if #(
     input logic if_id_flush,
 
     //
-    // PC control from EX stage
+    // Final PC selection and redirect target
     //
     input logic [     1:0] pc_sel,
     input logic [XLEN-1:0] pc_redirect_target,
@@ -42,11 +42,17 @@ module svc_rv_stage_if #(
     input logic [XLEN-1:0] pred_target,
 
     //
-    // BTB prediction signals (from top level)
+    // BTB prediction signals
     //
     input logic            btb_hit_if,
     input logic            btb_pred_taken_if,
     input logic [XLEN-1:0] btb_target_if,
+
+    //
+    // RAS prediction signals
+    //
+    input logic            ras_valid_if,
+    input logic [XLEN-1:0] ras_target_if,
 
     //
     // Instruction memory interface
@@ -68,7 +74,9 @@ module svc_rv_stage_if #(
     output logic [XLEN-1:0] pc_plus4_id,
     output logic            btb_hit_id,
     output logic            btb_pred_taken_id,
-    output logic [XLEN-1:0] btb_target_id
+    output logic [XLEN-1:0] btb_target_id,
+    output logic            ras_valid_id,
+    output logic [XLEN-1:0] ras_target_id
 );
 
   `include "svc_rv_defs.svh"
@@ -79,6 +87,8 @@ module svc_rv_stage_if #(
   logic            btb_hit_to_if_id;
   logic            btb_pred_taken_to_if_id;
   logic [XLEN-1:0] btb_target_to_if_id;
+  logic            ras_valid_to_if_id;
+  logic [XLEN-1:0] ras_target_to_if_id;
 
   //
   // PC initialization
@@ -155,23 +165,14 @@ module svc_rv_stage_if #(
     assign pc_plus4_id = pc_plus4_id_buf;
 
     //
-    // BTB signal buffering
+    // BTB and RAS signal buffering
     //
     svc_rv_bpred_if #(
         .XLEN     (XLEN),
         .PIPELINED(PIPELINED),
         .MEM_TYPE (MEM_TYPE)
     ) bpred (
-        .clk              (clk),
-        .rst_n            (rst_n),
-        .if_id_stall      (if_id_stall),
-        .if_id_flush      (if_id_flush),
-        .btb_hit_if       (btb_hit_to_if_id),
-        .btb_pred_taken_if(btb_pred_taken_to_if_id),
-        .btb_target_if    (btb_target_to_if_id),
-        .btb_hit_id       (btb_hit_id),
-        .btb_pred_taken_id(btb_pred_taken_id),
-        .btb_target_id    (btb_target_id)
+        .*
     );
 
   end else begin : g_passthrough
@@ -179,23 +180,14 @@ module svc_rv_stage_if #(
     assign pc_plus4_id = pc_plus4_to_if_id;
 
     //
-    // BTB passthrough for non-pipelined
+    // BTB and RAS passthrough for non-pipelined
     //
     svc_rv_bpred_if #(
         .XLEN     (XLEN),
         .PIPELINED(PIPELINED),
         .MEM_TYPE (MEM_TYPE)
     ) bpred (
-        .clk              (clk),
-        .rst_n            (rst_n),
-        .if_id_stall      (if_id_stall),
-        .if_id_flush      (if_id_flush),
-        .btb_hit_if       (btb_hit_to_if_id),
-        .btb_pred_taken_if(btb_pred_taken_to_if_id),
-        .btb_target_if    (btb_target_to_if_id),
-        .btb_hit_id       (btb_hit_id),
-        .btb_pred_taken_id(btb_pred_taken_id),
-        .btb_target_id    (btb_target_id)
+        .*
     );
   end
 

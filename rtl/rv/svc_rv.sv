@@ -5,9 +5,11 @@
 `include "svc_unused.sv"
 
 `include "svc_rv_btb.sv"
+`include "svc_rv_ras.sv"
 `include "svc_rv_bpred_if.sv"
 `include "svc_rv_bpred_id.sv"
 `include "svc_rv_bpred_ex.sv"
+`include "svc_rv_pc_sel.sv"
 `include "svc_rv_hazard.sv"
 `include "svc_rv_stage_if_sram.sv"
 `include "svc_rv_stage_if_bram.sv"
@@ -50,6 +52,8 @@ module svc_rv #(
     parameter int BPRED       = 0,
     parameter int BTB_ENABLE  = 0,
     parameter int BTB_ENTRIES = 16,
+    parameter int RAS_ENABLE  = 0,
+    parameter int RAS_DEPTH   = 8,
     parameter int EXT_ZMMUL   = 0,
     parameter int EXT_M       = 0
 ) (
@@ -102,6 +106,9 @@ module svc_rv #(
     if ((BTB_ENABLE == 1) && (BPRED == 0)) begin
       $fatal(1, "BTB_ENABLE=1 requires BPRED=1");
     end
+    if ((RAS_ENABLE == 1) && (BPRED == 0)) begin
+      $fatal(1, "RAS_ENABLE=1 requires BPRED=1");
+    end
     if ((EXT_ZMMUL == 1) && (EXT_M == 1)) begin
       $fatal(1, "EXT_ZMMUL and EXT_M are mutually exclusive");
     end
@@ -146,6 +153,7 @@ module svc_rv #(
   logic [XLEN-1:0] pc_ex;
   logic [XLEN-1:0] pc_plus4_ex;
   logic            bpred_taken_ex;
+  logic [XLEN-1:0] pred_target_ex;
 
   // ID -> Hazard
   logic [     4:0] rs1_id;
@@ -203,6 +211,7 @@ module svc_rv #(
   logic [XLEN-1:0] pred_target_id;
   logic [XLEN-1:0] pred_target;
   logic            pred_taken_id;
+  logic            is_jalr_id;
 
   // Combined PC selection to IF
   logic [     1:0] pc_sel;
@@ -247,6 +256,14 @@ module svc_rv #(
   logic            btb_pred_taken;
 
   //
+  // RAS prediction signals
+  //
+  logic            ras_valid_if;
+  logic [XLEN-1:0] ras_target_if;
+  logic            ras_valid_id;
+  logic [XLEN-1:0] ras_target_id;
+
+  //
   // Instruction retirement tracking
   //
   // An instruction retires when it reaches WB and is not a bubble.
@@ -267,6 +284,15 @@ module svc_rv #(
   logic [XLEN-1:0] btb_update_pc;
   logic [XLEN-1:0] btb_update_target;
   logic            btb_update_taken;
+
+  //
+  // RAS signals
+  //
+  logic            ras_valid;
+  logic [XLEN-1:0] ras_target;
+  logic            ras_push_en;
+  logic [XLEN-1:0] ras_push_addr;
+  logic            ras_pop_en;
 
   //
   // Hazard Detection Unit
@@ -332,92 +358,18 @@ module svc_rv #(
   assign is_load_ex = (res_src_ex == RES_MEM);
 
   //
-  // Combine PC selection signals from EX, ID, and BTB
+  // PC Selection Arbiter
   //
-  // Priority: EX (redirect) > BTB (IF prediction) > ID (prediction) > sequential
-  // - EX stage overrides all on actual branch resolution
-  // - BTB provides immediate prediction in IF stage when validated by ID
-  // - ID stage provides static prediction fallback
+  // Combines PC selection from EX, ID, RAS, and BTB with priority:
+  // EX (redirect) > RAS (IF JALR) > BTB (IF branch/JAL) > ID (static) > sequential
   //
-  // IMPORTANT: BTB predictions are only used when ID stage confirms a predictable
-  // instruction (branch/jump). This prevents BTB from mispredicting on non-branch
-  // instructions that happen to be in the BTB.
-  //
-  logic [1:0] pc_sel_btb;
-
-  if (BTB_ENABLE != 0) begin : g_btb_pc_sel
-    logic btb_prediction_valid;
-
-    //
-    // BTB prediction is valid when:
-    // - BTB hits and predicts taken
-    //
-    // No ID stage validation needed - BTB only contains entries for actual
-    // branch/jump instructions (updated only for is_predictable in EX stage)
-    //
-    assign btb_prediction_valid = btb_hit && btb_taken;
-    assign btb_hit_if = btb_hit;
-    assign btb_pred_taken_if = btb_prediction_valid;
-    assign btb_target_if = btb_target;
-
-    //
-    // BTB + Static prediction arbitration
-    //
-    // With BRAM's 1-cycle latency, by the time an instruction reaches ID stage
-    // and gets decoded, the IF stage has moved ahead by 1-2 PCs. This creates
-    // a timing conflict:
-    //
-    // Example:
-    //   Cycle N:   IF fetches PC=0x58 (BTB misses)
-    //   Cycle N+1: IF at PC=0x5c, instruction from 0x58 propagating
-    //   Cycle N+2: IF at PC=0x60, ID decodes 0x58 as JAL → static predicts 0x28
-    //              BUT: BTB hits for current IF PC=0x60 → predicts 0x14
-    //
-    // If BTB takes priority (old logic), pred_target becomes 0x14 instead of
-    // 0x28, causing ID's JAL prediction to be ignored and the program jumps
-    // to the wrong address!
-    //
-    // Solution: When ID makes a prediction (pc_sel_id==PREDICTED), it must
-    // override BTB's speculation for the current IF PC. ID's prediction is for
-    // a concrete, decoded instruction already in the pipeline. BTB's prediction
-    // is speculative for an instruction not yet decoded. The decoded instruction
-    // must take priority.
-    //
-    // For SRAM this doesn't matter because IF and ID are only 1 cycle apart,
-    // so conflicts are rare. For BRAM, this fix is essential.
-    //
-    assign pc_sel_btb = ((pc_sel_id == PC_SEL_PREDICTED) ? pc_sel_id :
-                         (btb_prediction_valid ? PC_SEL_PREDICTED : pc_sel_id));
-    assign pred_target = ((pc_sel_id == PC_SEL_PREDICTED) ? pred_target_id :
-                          (btb_prediction_valid ? btb_target : pred_target_id));
-
-    //
-    // PC-mux-synchronous signal indicating this prediction came from BTB
-    //
-    // This signal is used by the hazard unit to distinguish BTB predictions
-    // from static predictions. It must be synchronous with pc_sel_btb to
-    // correctly answer: "Is this PC_SEL_PREDICTED from BTB or from static?"
-    //
-    // For BTB predictions: pc_sel_btb == PREDICTED && btb_pred_taken == 1
-    //   -> Hazard unit does NOT flush (prediction already speculated)
-    // For static predictions: pc_sel_btb == PREDICTED && btb_pred_taken == 0
-    //   -> Hazard unit DOES flush (kill fall-through instruction)
-    //
-    // Must match the pc_sel_btb arbitration logic: if ID predicted, this is
-    // NOT a BTB prediction even if BTB is also predicting for current IF PC.
-    //
-    assign btb_pred_taken = ((pc_sel_id == PC_SEL_PREDICTED) ? 1'b0 :
-                             btb_prediction_valid);
-  end else begin : g_no_btb_pc_sel
-    assign pc_sel_btb        = pc_sel_id;
-    assign pred_target       = pred_target_id;
-    assign btb_pred_taken    = 1'b0;
-    assign btb_hit_if        = 1'b0;
-    assign btb_pred_taken_if = 1'b0;
-    assign btb_target_if     = '0;
-  end
-
-  assign pc_sel = (pc_sel_ex == PC_SEL_REDIRECT) ? pc_sel_ex : pc_sel_btb;
+  svc_rv_pc_sel #(
+      .XLEN      (XLEN),
+      .RAS_ENABLE(RAS_ENABLE),
+      .BTB_ENABLE(BTB_ENABLE)
+  ) pc_sel_arbiter (
+      .*
+  );
 
   // Branch Target Buffer
   //
@@ -448,6 +400,31 @@ module svc_rv #(
     // verilog_format: on
   end
 
+  //
+  // Return Address Stack
+  //
+  if (RAS_ENABLE == 1) begin : g_ras
+    svc_rv_ras #(
+        .XLEN (XLEN),
+        .DEPTH(RAS_DEPTH)
+    ) ras (
+        .clk       (clk),
+        .rst_n     (rst_n),
+        .ras_valid (ras_valid),
+        .ras_target(ras_target),
+        .push_en   (ras_push_en),
+        .push_addr (ras_push_addr),
+        .pop_en    (ras_pop_en)
+    );
+  end else begin : g_no_ras
+    assign ras_valid  = 1'b0;
+    assign ras_target = '0;
+
+    // verilog_format: off
+    `SVC_UNUSED({ras_valid, ras_target, ras_push_en, ras_push_addr, ras_pop_en});
+    // verilog_format: on
+  end
+
   //----------------------------------------------------------------------------
   // Pipeline Stages
   //----------------------------------------------------------------------------
@@ -473,6 +450,7 @@ module svc_rv #(
       .FWD_REGFILE(FWD_REGFILE),
       .BPRED      (BPRED),
       .BTB_ENABLE (BTB_ENABLE),
+      .RAS_ENABLE (RAS_ENABLE),
       .EXT_ZMMUL  (EXT_ZMMUL),
       .EXT_M      (EXT_M)
   ) stage_id (
@@ -490,6 +468,7 @@ module svc_rv #(
       .MEM_TYPE  (MEM_TYPE),
       .BPRED     (BPRED),
       .BTB_ENABLE(BTB_ENABLE),
+      .RAS_ENABLE(RAS_ENABLE),
       .EXT_ZMMUL (EXT_ZMMUL),
       .EXT_M     (EXT_M)
   ) stage_ex (

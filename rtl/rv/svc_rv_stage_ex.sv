@@ -36,6 +36,7 @@ module svc_rv_stage_ex #(
     parameter int MEM_TYPE   = 0,
     parameter int BPRED      = 0,
     parameter int BTB_ENABLE = 0,
+    parameter int RAS_ENABLE = 0,
     parameter int EXT_ZMMUL  = 0,
     parameter int EXT_M      = 0
 ) (
@@ -73,6 +74,7 @@ module svc_rv_stage_ex #(
     input logic [XLEN-1:0] pc_ex,
     input logic [XLEN-1:0] pc_plus4_ex,
     input logic            bpred_taken_ex,
+    input logic [XLEN-1:0] pred_target_ex,
 
     //
     // Forwarding from MEM stage
@@ -423,10 +425,13 @@ module svc_rv_stage_ex #(
   //
   // Branch prediction and misprediction detection
   //
+  logic pc_sel_jump_ex;
+
   svc_rv_bpred_ex #(
       .XLEN      (XLEN),
       .BPRED     (BPRED),
-      .BTB_ENABLE(BTB_ENABLE)
+      .BTB_ENABLE(BTB_ENABLE),
+      .RAS_ENABLE(RAS_ENABLE)
   ) bpred (
       .*
   );
@@ -461,29 +466,20 @@ module svc_rv_stage_ex #(
   //
   // When BPRED is enabled:
   //   - JAL is handled by predictor in ID stage, so don't redirect in EX
-  //   - JALR still needs EX stage redirect (requires ALU result)
+  //   - JALR misprediction handled by bpred module (RAS-aware)
   //   - Branches handled by predictor, only redirect on misprediction
   //   - Mispredictions trigger recovery
   //
-  logic pc_sel_jump;
+  // pc_sel_jump_ex comes from bpred module and handles JALR correctly with/without RAS
+  //
   logic pc_sel_branch;
 
-  if (BPRED != 0) begin : g_pc_sel_jump
-    //
-    // Only JALR triggers redirect (JAL is predicted in ID)
-    //
-    assign pc_sel_jump   = is_jump_ex && jb_target_src_ex;
-
+  if (BPRED != 0) begin : g_pc_sel_branch
     //
     // Branches don't trigger redirect (handled by predictor or misprediction)
     //
     assign pc_sel_branch = 1'b0;
-  end else begin : g_no_pc_sel_jump
-    //
-    // All jumps trigger redirect
-    //
-    assign pc_sel_jump   = is_jump_ex;
-
+  end else begin : g_no_pc_sel_branch
     //
     // Taken branches trigger redirect
     //
@@ -494,7 +490,7 @@ module svc_rv_stage_ex #(
   // Calculate PC selection mode
   //
   always_comb begin
-    if (pc_sel_branch || pc_sel_jump || mispredicted_ex) begin
+    if (pc_sel_branch || pc_sel_jump_ex || mispredicted_ex) begin
       pc_sel_ex = PC_SEL_REDIRECT;
     end else begin
       pc_sel_ex = PC_SEL_SEQUENTIAL;

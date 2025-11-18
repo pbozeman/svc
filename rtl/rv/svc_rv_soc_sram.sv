@@ -22,11 +22,15 @@ module svc_rv_soc_sram #(
     parameter int BPRED       = 0,
     parameter int BTB_ENABLE  = 0,
     parameter int BTB_ENTRIES = 16,
+    parameter int RAS_ENABLE  = 0,
+    parameter int RAS_DEPTH   = 8,
     parameter int EXT_ZMMUL   = 0,
     parameter int EXT_M       = 0,
 
     // verilog_lint: waive explicit-parameter-storage-type
     parameter IMEM_INIT = "",
+
+    // verilog_lint: waive explicit-parameter-storage-type
     parameter DMEM_INIT = ""
 ) (
     input logic clk,
@@ -110,6 +114,8 @@ module svc_rv_soc_sram #(
       .BPRED      (BPRED),
       .BTB_ENABLE (BTB_ENABLE),
       .BTB_ENTRIES(BTB_ENTRIES),
+      .RAS_ENABLE (RAS_ENABLE),
+      .RAS_DEPTH  (RAS_DEPTH),
       .EXT_ZMMUL  (EXT_ZMMUL),
       .EXT_M      (EXT_M)
   ) cpu (

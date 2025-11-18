@@ -38,6 +38,12 @@ module svc_rv_stage_if_bram #(
     input logic [XLEN-1:0] btb_target_if,
 
     //
+    // RAS prediction signals
+    //
+    input logic            ras_valid_if,
+    input logic [XLEN-1:0] ras_target_if,
+
+    //
     // Instruction memory interface
     //
     output logic        imem_ren,
@@ -52,7 +58,9 @@ module svc_rv_stage_if_bram #(
     output logic [XLEN-1:0] pc_plus4_to_if_id,
     output logic            btb_hit_to_if_id,
     output logic            btb_pred_taken_to_if_id,
-    output logic [XLEN-1:0] btb_target_to_if_id
+    output logic [XLEN-1:0] btb_target_to_if_id,
+    output logic            ras_valid_to_if_id,
+    output logic [XLEN-1:0] ras_target_to_if_id
 );
 
   `include "svc_rv_defs.svh"
@@ -62,6 +70,8 @@ module svc_rv_stage_if_bram #(
   logic            btb_hit_buf;
   logic            btb_pred_taken_buf;
   logic [XLEN-1:0] btb_target_buf;
+  logic            ras_valid_buf;
+  logic [XLEN-1:0] ras_target_buf;
   logic            flush_extend;
   logic [    31:0] instr;
   logic [    31:0] instr_buf;
@@ -93,9 +103,9 @@ module svc_rv_stage_if_bram #(
   end
 
   //
-  // PC and BTB prediction buffering to match instruction latency
+  // PC, BTB, and RAS prediction buffering to match instruction latency
   //
-  // BRAM has 1-cycle latency, so we buffer PC and BTB prediction by one
+  // BRAM has 1-cycle latency, so we buffer PC, BTB, and RAS predictions by one
   // cycle to align with the instruction coming out of memory.
   //
   // We buffer imem_raddr (the actual fetch address):
@@ -107,7 +117,7 @@ module svc_rv_stage_if_bram #(
   //
   // NOTE: PC buffer continues tracking even during flushes. Only instructions
   // are flushed to NOP, PC values must remain correct for pipeline tracking.
-  // BTB prediction must track with PC, so it also continues during flushes.
+  // BTB and RAS predictions must track with PC, so they also continue during flushes.
   //
   always_ff @(posedge clk) begin
     if (!rst_n) begin
@@ -116,12 +126,16 @@ module svc_rv_stage_if_bram #(
       btb_hit_buf        <= 1'b0;
       btb_pred_taken_buf <= 1'b0;
       btb_target_buf     <= '0;
+      ras_valid_buf      <= 1'b0;
+      ras_target_buf     <= '0;
     end else if (!if_id_stall) begin
       pc_buf             <= imem_raddr;
       pc_plus4_buf       <= imem_raddr + 4;
       btb_hit_buf        <= btb_hit_if;
       btb_pred_taken_buf <= btb_pred_taken_if;
       btb_target_buf     <= btb_target_if;
+      ras_valid_buf      <= ras_valid_if;
+      ras_target_buf     <= ras_target_if;
     end
   end
 
@@ -166,6 +180,8 @@ module svc_rv_stage_if_bram #(
   assign btb_hit_to_if_id        = btb_hit_buf;
   assign btb_pred_taken_to_if_id = btb_pred_taken_buf;
   assign btb_target_to_if_id     = btb_target_buf;
+  assign ras_valid_to_if_id      = ras_valid_buf;
+  assign ras_target_to_if_id     = ras_target_buf;
 
 endmodule
 

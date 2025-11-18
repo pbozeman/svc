@@ -14,7 +14,8 @@
 module svc_rv_bpred_ex #(
     parameter int XLEN       = 32,
     parameter int BPRED      = 0,
-    parameter int BTB_ENABLE = 0
+    parameter int BTB_ENABLE = 0,
+    parameter int RAS_ENABLE = 0
 ) (
     //
     // Branch/jump analysis from EX stage
@@ -26,11 +27,17 @@ module svc_rv_bpred_ex #(
     input logic            branch_taken_ex,
     input logic [XLEN-1:0] pc_ex,
     input logic [XLEN-1:0] jb_target_ex,
+    input logic [XLEN-1:0] pred_target_ex,
 
     //
     // Misprediction detection output
     //
     output logic mispredicted_ex,
+
+    //
+    // PC control output
+    //
+    output logic pc_sel_jump_ex,
 
     //
     // BTB update interface
@@ -46,7 +53,7 @@ module svc_rv_bpred_ex #(
   //
   if (BPRED != 0) begin : g_bpred
     //
-    // Misprediction detection (actual outcome vs prediction)
+    // Branch misprediction: actual outcome vs prediction
     //
     always_comb begin
       mispredicted_ex = is_branch_ex && (bpred_taken_ex != branch_taken_ex);
@@ -57,6 +64,43 @@ module svc_rv_bpred_ex #(
   end
 
   //
+  // JALR misprediction detection
+  //
+  if (BPRED != 0 && RAS_ENABLE != 0) begin : g_jalr_mispred
+    logic is_jalr_ex;
+    logic jalr_mispredicted;
+
+    assign is_jalr_ex = is_jump_ex && jb_target_src_ex;
+
+    //
+    // JALR mispredicted if: not predicted OR predicted target doesn't match actual
+    //
+    assign jalr_mispredicted = is_jalr_ex &&
+        (!bpred_taken_ex || (pred_target_ex != jb_target_ex));
+
+    //
+    // Only redirect on JALR misprediction (JAL is predicted in ID)
+    //
+    assign pc_sel_jump_ex = jalr_mispredicted;
+
+  end else if (BPRED != 0) begin : g_jalr_no_ras
+    //
+    // Without RAS, always redirect on JALR (not predicted)
+    //
+    assign pc_sel_jump_ex = is_jump_ex && jb_target_src_ex;
+
+    `SVC_UNUSED(pred_target_ex);
+
+  end else begin : g_no_jalr_mispred
+    //
+    // Without BPRED, all jumps cause redirects (JAL and JALR)
+    //
+    assign pc_sel_jump_ex = is_jump_ex;
+
+    `SVC_UNUSED(pred_target_ex);
+  end
+
+  //
   // BTB Update Logic
   //
   // Update BTB for all branches and PC-relative jumps (JAL).
@@ -64,30 +108,26 @@ module svc_rv_bpred_ex #(
   //
   if (BTB_ENABLE != 0) begin : g_btb_update
     logic is_predictable;
-    logic is_jalr;
 
     //
     // Predictable: branches and PC-relative jumps (JAL), but not JALR
     //
     assign is_predictable = is_branch_ex || (is_jump_ex && !jb_target_src_ex);
-    assign is_jalr        = is_jump_ex && jb_target_src_ex;
-
-    `SVC_UNUSED({is_jalr});
 
     //
     // Update BTB for all predictable instructions
     //
     // This allows 2-bit counter to train on both taken and not-taken outcomes
     //
-    assign btb_update_en     = is_predictable;
-    assign btb_update_pc     = pc_ex;
+    assign btb_update_en = is_predictable;
+    assign btb_update_pc = pc_ex;
     assign btb_update_target = jb_target_ex;
 
     //
     // For branches: pass actual outcome to train counter
     // For JAL: always taken
     //
-    assign btb_update_taken  = is_jump_ex ? 1'b1 : branch_taken_ex;
+    assign btb_update_taken = is_jump_ex ? 1'b1 : branch_taken_ex;
 
   end else begin : g_no_btb_update
     assign btb_update_en     = 1'b0;
@@ -96,8 +136,8 @@ module svc_rv_bpred_ex #(
     assign btb_update_taken  = 1'b0;
 
     // verilog_format: off
-    `SVC_UNUSED({is_branch_ex, is_jump_ex, jb_target_src_ex, pc_ex, jb_target_ex,
-                 branch_taken_ex});
+    `SVC_UNUSED({is_branch_ex, is_jump_ex, jb_target_src_ex, pc_ex,
+                 jb_target_ex, branch_taken_ex});
     // verilog_format: on
   end
 

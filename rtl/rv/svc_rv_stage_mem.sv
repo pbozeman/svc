@@ -89,7 +89,14 @@ module svc_rv_stage_mem #(
     // Outputs for forwarding (MEM stage result)
     //
     output logic [XLEN-1:0] result_mem,
-    output logic [XLEN-1:0] load_data_mem
+    output logic [XLEN-1:0] load_data_mem,
+
+    //
+    // RAS update outputs
+    //
+    output logic            ras_push_en,
+    output logic [XLEN-1:0] ras_push_addr,
+    output logic            ras_pop_en
 );
 
   `include "svc_rv_defs.svh"
@@ -184,6 +191,35 @@ module svc_rv_stage_mem #(
   end
 
   assign load_data_mem = dmem_rdata_ext_mem;
+
+  //
+  // RAS Update Logic
+  //
+  // Detect JAL/JALR instructions and generate push/pop signals for RAS
+  // - Push: JAL or JALR with rd != x0 (call instructions)
+  // - Pop: JALR (return instructions)
+  // - Push address: PC+4 (return address)
+  //
+  logic [6:0] opcode;
+  logic [4:0] rd;
+  logic       is_jal;
+  logic       is_jalr;
+
+  assign opcode        = instr_mem[6:0];
+  assign rd            = instr_mem[11:7];
+  assign is_jal        = (opcode == OP_JAL);
+  assign is_jalr       = (opcode == OP_JALR);
+
+  //
+  // Push on call: JAL/JALR with rd != x0
+  //
+  assign ras_push_en   = (is_jal || is_jalr) && (rd != 5'b0);
+  assign ras_push_addr = pc_plus4_mem;
+
+  //
+  // Pop on return: any JALR
+  //
+  assign ras_pop_en    = is_jalr;
 
   //
   // M Extension MEM stage: combine partial products
