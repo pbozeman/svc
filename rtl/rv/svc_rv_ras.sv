@@ -56,7 +56,7 @@ module svc_rv_ras #(
   //
   // RAS Storage
   //
-  logic [      XLEN-1:0] stack      [DEPTH];
+  logic [      XLEN-1:0] stack         [DEPTH];
   logic [   SP_BITS-1:0] sp;
   logic [COUNT_BITS-1:0] count;
 
@@ -69,8 +69,21 @@ module svc_rv_ras #(
   //
   // Lookup path (combinational)
   //
-  assign ras_valid  = (count > 0);
-  assign ras_target = ras_valid ? stack[sp] : '0;
+  // Forward push data for simultaneous push/lookup in same cycle.
+  // When JAL pushes in MEM stage while JALR looks up in IF stage (same cycle),
+  // we need to see the updated count and forward the push_addr being written.
+  //
+  // Use count_next only when push is active to see the incremented count.
+  // Otherwise use registered count (already reflects completed push/pop).
+  //
+  logic                  lookup_valid;
+  logic [      XLEN-1:0] lookup_target;
+
+  assign lookup_valid  = push_en ? (count_next > 0) : (count > 0);
+  assign lookup_target = push_en ? push_addr : stack[sp];
+
+  assign ras_valid     = lookup_valid;
+  assign ras_target    = lookup_valid ? lookup_target : '0;
 
   //
   // Update path (combinational next-state logic)

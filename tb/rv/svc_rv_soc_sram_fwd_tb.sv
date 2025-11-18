@@ -3,7 +3,7 @@
 `include "svc_mem_sram.sv"
 `include "svc_rv_soc_sram.sv"
 
-module svc_rv_soc_sram_pipelined_bpred_fwd_btb_tb;
+module svc_rv_soc_sram_fwd_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
@@ -12,22 +12,27 @@ module svc_rv_soc_sram_pipelined_bpred_fwd_btb_tb;
   localparam int IO_AW = 10;
 
   //
-  // CPI expectations with SRAM, pipelined mode, forwarding, and branch prediction + BTB
+  // CPI expectations with SRAM, pipelined mode, and forwarding
   //
-  // This is the most aggressive configuration with best expected CPI.
-  // With JAL early resolution in ID stage, MEM->EX load forwarding, and BTB,
-  // we achieve near-optimal performance.
+  // With MEM->EX ALU and load data forwarding, hazards are handled without
+  // stalling. Major improvements in ALU chains, mixed ALU, and load-use
+  // workloads.
   //
-  localparam real alu_indep_max_cpi = 1.01;
-  localparam real alu_chain_max_cpi = 1.01;
-  localparam real br_taken_max_cpi = 1.01;
-  localparam real br_not_taken_max_cpi = 1.01;
-  localparam real load_use_max_cpi = 1.01;
-  localparam real mixed_alu_max_cpi = 1.01;
-  localparam real fib12_max_cpi = 1.06;
-  localparam real fib100_max_cpi = 1.02;
-  localparam real bubble_max_cpi = 1.11;
-  localparam real forward_taken_loop_max_cpi = 1.17;
+  // Note: Branch penalties (2 cycles for taken branches) are unavoidable
+  // without branch prediction, so workloads with many branches will still
+  // show elevated CPI even with perfect data forwarding.
+  //
+  localparam real alu_indep_max_cpi = 1.34;
+  localparam real alu_chain_max_cpi = 1.26;
+  localparam real br_taken_max_cpi = 2.05;
+  localparam real br_not_taken_max_cpi = 1.55;
+  localparam real load_use_max_cpi = 1.55;
+  localparam real mixed_alu_max_cpi = 1.25;
+  localparam real function_calls_max_cpi = 2.0;
+  localparam real fib12_max_cpi = 1.35;
+  localparam real fib100_max_cpi = 1.34;
+  localparam real bubble_max_cpi = 1.30;
+  localparam real forward_taken_loop_max_cpi = 2.35;
   logic        ebreak;
 
   //
@@ -48,10 +53,7 @@ module svc_rv_soc_sram_pipelined_bpred_fwd_btb_tb;
       .DMEM_DEPTH (DMEM_DEPTH),
       .PIPELINED  (1),
       .FWD_REGFILE(1),
-      .FWD        (1),
-      .BPRED      (1),
-      .BTB_ENABLE (1),
-      .BTB_ENTRIES(16)
+      .FWD        (1)
   ) uut (
       .clk  (clk),
       .rst_n(rst_n),
@@ -91,7 +93,7 @@ module svc_rv_soc_sram_pipelined_bpred_fwd_btb_tb;
   //
   // Test suite
   //
-  `TEST_SUITE_BEGIN(svc_rv_soc_sram_pipelined_bpred_fwd_btb_tb, 100000);
+  `TEST_SUITE_BEGIN(svc_rv_soc_sram_fwd_tb, 100000);
   `include "svc_rv_soc_test_list.svh"
   `TEST_SUITE_END();
 

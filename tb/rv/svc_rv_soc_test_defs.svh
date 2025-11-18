@@ -738,6 +738,39 @@ task automatic test_jalr_forward_pipeline;
 endtask
 
 //
+// Test: RAS prediction with pipeline flush
+//
+// Tests that when RAS predicts a return address for JALR, the speculatively
+// fetched instruction from the sequential PC is properly flushed.
+//
+// Bug scenario: JALR x0, x1, 0 returns to saved address, but the instruction
+// immediately following the JALR (which should be flushed) incorrectly executes
+// when RAS prediction is active.
+//
+// Setup: Set x10=42, JAL to function, function returns. The instruction after
+// JALR should NOT execute (x10 should stay 42, not become 0).
+//
+task automatic test_ras_jalr_return_flush;
+  ADDI(x10, x0, 42);
+  JAL(x1, 12);
+  EBREAK();
+
+  NOP();
+  NOP();
+
+  ADDI(x2, x0, 5);
+  JALR(x0, x1, 0);
+  ADDI(x10, x0, 0);
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[1], 32'd8);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[2], 32'd5);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[10], 32'd42);
+endtask
+
+//
 // Test: JAL with immediate forwarding
 //
 // Tests JAL result (PC+4) being forwarded to the next instruction.
@@ -1964,6 +1997,41 @@ task automatic test_cpi_mixed_alu;
   cycles = uut.cpu.stage_id.regfile.regs[24];
   instrs = uut.cpu.stage_id.regfile.regs[25];
   `CHECK_CPI("cpi_mixed_alu", mixed_alu_max_cpi, cycles, instrs);
+endtask
+
+//
+// Test: Function call/return CPI
+//
+// Measures CPI for function call patterns to demonstrate RAS benefit.
+// Calls a simple function 64 times in a loop.
+//
+task automatic test_cpi_function_calls;
+  logic [31:0] cycles;
+  logic [31:0] instrs;
+
+  RDCYCLE(x20);
+  RDINSTRET(x21);
+  ADDI(x10, x0, 64);
+  ADDI(x11, x0, 0);
+  JAL(ra, 16);
+  ADDI(x11, x11, 1);
+  BNE(x11, x10, -8);
+  JAL(x0, 16);
+  ADDI(x12, x12, 3);
+  SLLI(x12, x12, 1);
+  JALR(x0, ra, 0);
+  RDCYCLE(x22);
+  RDINSTRET(x23);
+  SUB(x24, x22, x20);
+  SUB(x25, x23, x21);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR(clk, ebreak, 4096);
+  cycles = uut.cpu.stage_id.regfile.regs[24];
+  instrs = uut.cpu.stage_id.regfile.regs[25];
+  `CHECK_CPI("cpi_function_calls", function_calls_max_cpi, cycles, instrs);
 endtask
 
 //

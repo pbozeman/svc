@@ -41,6 +41,7 @@ module svc_rv_bpred_if #(
     input logic            btb_hit_to_if_id,
     input logic            btb_pred_taken_to_if_id,
     input logic [XLEN-1:0] btb_target_to_if_id,
+    input logic            btb_is_return_to_if_id,
 
     //
     // RAS prediction from IF stage memory modules
@@ -54,6 +55,7 @@ module svc_rv_bpred_if #(
     output logic            btb_hit_id,
     output logic            btb_pred_taken_id,
     output logic [XLEN-1:0] btb_target_id,
+    output logic            btb_is_return_id,
     output logic            ras_valid_id,
     output logic [XLEN-1:0] ras_target_id
 );
@@ -74,6 +76,7 @@ module svc_rv_bpred_if #(
     logic            btb_hit_id_buf;
     logic            btb_pred_taken_id_buf;
     logic [XLEN-1:0] btb_target_id_buf;
+    logic            btb_is_return_id_buf;
     logic            ras_valid_id_buf;
     logic [XLEN-1:0] ras_target_id_buf;
 
@@ -82,12 +85,14 @@ module svc_rv_bpred_if #(
         btb_hit_id_buf        <= 1'b0;
         btb_pred_taken_id_buf <= 1'b0;
         btb_target_id_buf     <= '0;
+        btb_is_return_id_buf  <= 1'b0;
         ras_valid_id_buf      <= 1'b0;
         ras_target_id_buf     <= '0;
       end else if (!if_id_stall) begin
         btb_hit_id_buf        <= btb_hit_to_if_id;
         btb_pred_taken_id_buf <= btb_pred_taken_to_if_id;
         btb_target_id_buf     <= btb_target_to_if_id;
+        btb_is_return_id_buf  <= btb_is_return_to_if_id;
         ras_valid_id_buf      <= ras_valid_to_if_id;
         ras_target_id_buf     <= ras_target_to_if_id;
       end
@@ -96,6 +101,7 @@ module svc_rv_bpred_if #(
     assign btb_hit_id        = btb_hit_id_buf;
     assign btb_pred_taken_id = btb_pred_taken_id_buf;
     assign btb_target_id     = btb_target_id_buf;
+    assign btb_is_return_id  = btb_is_return_id_buf;
     assign ras_valid_id      = ras_valid_id_buf;
     assign ras_target_id     = ras_target_id_buf;
 
@@ -107,6 +113,7 @@ module svc_rv_bpred_if #(
     assign btb_hit_id        = btb_hit_to_if_id;
     assign btb_pred_taken_id = btb_pred_taken_to_if_id;
     assign btb_target_id     = btb_target_to_if_id;
+    assign btb_is_return_id  = btb_is_return_to_if_id;
     assign ras_valid_id      = ras_valid_to_if_id;
     assign ras_target_id     = ras_target_to_if_id;
 

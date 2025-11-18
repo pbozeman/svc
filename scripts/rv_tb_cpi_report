@@ -19,22 +19,32 @@ from typing import Dict, List, Tuple
 #
 # Test configuration definitions
 #
-SRAM_TESTS = [
-    ("Base", "svc_rv_soc_sram_pipelined_tb"),
-    ("Fwd", "svc_rv_soc_sram_pipelined_fwd_tb"),
-    ("BP", "svc_rv_soc_sram_pipelined_bpred_tb"),
-    ("BP w/BTB", "svc_rv_soc_sram_pipelined_bpred_btb_tb"),
-    ("BP Fwd", "svc_rv_soc_sram_pipelined_bpred_fwd_tb"),
-    ("All", "svc_rv_soc_sram_pipelined_all_tb"),
+SRAM_NOFWD_TESTS = [
+    ("Base", "svc_rv_soc_sram_tb"),
+    ("BP", "svc_rv_soc_sram_bpred_tb"),
+    ("BTB", "svc_rv_soc_sram_btb_tb"),
+    ("RAS", "svc_rv_soc_sram_ras_tb"),
 ]
 
-BRAM_TESTS = [
+SRAM_FWD_TESTS = [
+    ("Fwd", "svc_rv_soc_sram_fwd_tb"),
+    ("BP Fwd", "svc_rv_soc_sram_bpred_fwd_tb"),
+    ("BTB Fwd", "svc_rv_soc_sram_btb_fwd_tb"),
+    ("RAS Fwd", "svc_rv_soc_sram_ras_fwd_tb"),
+]
+
+BRAM_NOFWD_TESTS = [
     ("Base", "svc_rv_soc_bram_tb"),
-    ("Fwd", "svc_rv_soc_bram_fwd_tb"),
     ("BP", "svc_rv_soc_bram_bpred_tb"),
-    ("BP w/BTB", "svc_rv_soc_bram_bpred_btb_tb"),
+    ("BTB", "svc_rv_soc_bram_btb_tb"),
+    ("RAS", "svc_rv_soc_bram_ras_tb"),
+]
+
+BRAM_FWD_TESTS = [
+    ("Fwd", "svc_rv_soc_bram_fwd_tb"),
     ("BP Fwd", "svc_rv_soc_bram_bpred_fwd_tb"),
-    ("All", "svc_rv_soc_bram_all_tb"),
+    ("BTB Fwd", "svc_rv_soc_bram_btb_fwd_tb"),
+    ("RAS Fwd", "svc_rv_soc_bram_ras_fwd_tb"),
 ]
 
 
@@ -195,8 +205,26 @@ def main():
     print("This report shows Cycles Per Instruction (CPI) across different")
     print("memory types and optimization levels. Lower is better.\n")
 
-    print(generate_table("SRAM Performance", SRAM_TESTS, results, benchmarks))
-    print(generate_table("BRAM Performance", BRAM_TESTS, results, benchmarks))
+    print(
+        generate_table(
+            "SRAM Performance (No Forwarding)", SRAM_NOFWD_TESTS, results, benchmarks
+        )
+    )
+    print(
+        generate_table(
+            "SRAM Performance (With Forwarding)", SRAM_FWD_TESTS, results, benchmarks
+        )
+    )
+    print(
+        generate_table(
+            "BRAM Performance (No Forwarding)", BRAM_NOFWD_TESTS, results, benchmarks
+        )
+    )
+    print(
+        generate_table(
+            "BRAM Performance (With Forwarding)", BRAM_FWD_TESTS, results, benchmarks
+        )
+    )
 
 
 if __name__ == "__main__":

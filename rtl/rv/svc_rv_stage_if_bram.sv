@@ -36,6 +36,7 @@ module svc_rv_stage_if_bram #(
     input logic            btb_hit_if,
     input logic            btb_pred_taken_if,
     input logic [XLEN-1:0] btb_target_if,
+    input logic            btb_is_return_if,
 
     //
     // RAS prediction signals
@@ -59,6 +60,7 @@ module svc_rv_stage_if_bram #(
     output logic            btb_hit_to_if_id,
     output logic            btb_pred_taken_to_if_id,
     output logic [XLEN-1:0] btb_target_to_if_id,
+    output logic            btb_is_return_to_if_id,
     output logic            ras_valid_to_if_id,
     output logic [XLEN-1:0] ras_target_to_if_id
 );
@@ -70,6 +72,7 @@ module svc_rv_stage_if_bram #(
   logic            btb_hit_buf;
   logic            btb_pred_taken_buf;
   logic [XLEN-1:0] btb_target_buf;
+  logic            btb_is_return_buf;
   logic            ras_valid_buf;
   logic [XLEN-1:0] ras_target_buf;
   logic            flush_extend;
@@ -126,6 +129,7 @@ module svc_rv_stage_if_bram #(
       btb_hit_buf        <= 1'b0;
       btb_pred_taken_buf <= 1'b0;
       btb_target_buf     <= '0;
+      btb_is_return_buf  <= 1'b0;
       ras_valid_buf      <= 1'b0;
       ras_target_buf     <= '0;
     end else if (!if_id_stall) begin
@@ -134,6 +138,7 @@ module svc_rv_stage_if_bram #(
       btb_hit_buf        <= btb_hit_if;
       btb_pred_taken_buf <= btb_pred_taken_if;
       btb_target_buf     <= btb_target_if;
+      btb_is_return_buf  <= btb_is_return_if;
       ras_valid_buf      <= ras_valid_if;
       ras_target_buf     <= ras_target_if;
     end
@@ -180,6 +185,7 @@ module svc_rv_stage_if_bram #(
   assign btb_hit_to_if_id        = btb_hit_buf;
   assign btb_pred_taken_to_if_id = btb_pred_taken_buf;
   assign btb_target_to_if_id     = btb_target_buf;
+  assign btb_is_return_to_if_id  = btb_is_return_buf;
   assign ras_valid_to_if_id      = ras_valid_buf;
   assign ras_target_to_if_id     = ras_target_buf;
 

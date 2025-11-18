@@ -43,6 +43,7 @@ module svc_rv_btb #(
     output logic            hit,
     output logic [XLEN-1:0] predicted_target,
     output logic            predicted_taken,
+    output logic            is_return,
 
     //
     // Update Interface (sequential, used in Execute Stage)
@@ -50,7 +51,8 @@ module svc_rv_btb #(
     input logic            update_en,
     input logic [XLEN-1:0] update_pc,
     input logic [XLEN-1:0] update_target,
-    input logic            update_taken
+    input logic            update_taken,
+    input logic            update_is_return
 );
 
   //
@@ -65,9 +67,10 @@ module svc_rv_btb #(
   // BTB Storage
   //
   logic [  NENTRIES-1:0] valid;
-  logic [  TAG_BITS-1:0] tags         [NENTRIES];
-  logic [      XLEN-1:0] targets      [NENTRIES];
-  logic [           1:0] counters     [NENTRIES];
+  logic [  TAG_BITS-1:0] tags            [NENTRIES];
+  logic [      XLEN-1:0] targets         [NENTRIES];
+  logic [           1:0] counters        [NENTRIES];
+  logic [  NENTRIES-1:0] is_return_flags;
 
   //
   // Lookup path signals
@@ -92,12 +95,13 @@ module svc_rv_btb #(
   assign hit              = valid[lookup_index] && tag_match;
 
   //
-  // Output predicted target and taken signal
+  // Output predicted target, taken signal, and return flag
   //
   // Only output valid predictions on a hit, otherwise output zeros
   //
   assign predicted_target = hit ? targets[lookup_index] : '0;
   assign predicted_taken  = hit ? counters[lookup_index][1] : 1'b0;
+  assign is_return        = hit ? is_return_flags[lookup_index] : 1'b0;
 
   //
   // Update path (combinational next-state logic)
@@ -131,13 +135,15 @@ module svc_rv_btb #(
   //
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      valid <= '0;
+      valid           <= '0;
+      is_return_flags <= '0;
     end else begin
       if (update_en) begin
-        valid[update_index]    <= 1'b1;
-        tags[update_index]     <= update_tag;
-        targets[update_index]  <= update_target;
-        counters[update_index] <= counter_next;
+        valid[update_index]           <= 1'b1;
+        tags[update_index]            <= update_tag;
+        targets[update_index]         <= update_target;
+        counters[update_index]        <= counter_next;
+        is_return_flags[update_index] <= update_is_return;
       end
     end
   end

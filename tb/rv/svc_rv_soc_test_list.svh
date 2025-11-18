@@ -43,6 +43,7 @@
 `TEST_CASE(test_jal_forward_pipeline);
 `TEST_CASE(test_jal_short_forward_pipeline);
 `TEST_CASE(test_jalr_forward_pipeline);
+`TEST_CASE(test_ras_jalr_return_flush);
 
 // jal/jalr result forwarding
 `TEST_CASE(test_jal_forwarding);
@@ -115,6 +116,7 @@
 `TEST_CASE(test_cpi_branch_not_taken);
 `TEST_CASE(test_cpi_load_use);
 `TEST_CASE(test_cpi_mixed_alu);
+`TEST_CASE(test_cpi_function_calls);
 
 // Memory-mapped I/O tests
 `TEST_CASE(test_mmio_write_basic);

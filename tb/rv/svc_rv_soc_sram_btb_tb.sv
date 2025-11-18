@@ -3,7 +3,7 @@
 `include "svc_mem_sram.sv"
 `include "svc_rv_soc_sram.sv"
 
-module svc_rv_soc_sram_pipelined_all_tb;
+module svc_rv_soc_sram_btb_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
@@ -12,28 +12,22 @@ module svc_rv_soc_sram_pipelined_all_tb;
   localparam int IO_AW = 10;
 
   //
-  // CPI expectations with all features enabled
+  // CPI expectations with SRAM, pipelined mode, no forwarding, with branch prediction + BTB
   //
-  // With forwarding, branch prediction with BTB, and M extension enabled.
-  // This configuration provides the best performance with:
-  // - FWD=1: EX and MEM hazards handled without stalling
-  // - BPRED=1: Branch prediction reduces branch penalty
-  // - BTB_ENABLE=1: Dynamic branch target buffer
-  // - EXT_M=1: Hardware multiply/divide support
-  //
-  // SRAM has zero-latency reads, achieving near-ideal CPI (~1.0) for all
-  // instruction sequences, even load-use hazards.
+  // JAL early resolution helps, but lack of forwarding increases stalls
+  // BTB improves branch prediction accuracy
   //
   localparam real alu_indep_max_cpi = 1.01;
-  localparam real alu_chain_max_cpi = 1.01;
-  localparam real br_taken_max_cpi = 1.01;
-  localparam real br_not_taken_max_cpi = 1.01;
-  localparam real load_use_max_cpi = 1.01;
-  localparam real mixed_alu_max_cpi = 1.01;
-  localparam real fib12_max_cpi = 1.06;
-  localparam real fib100_max_cpi = 1.01;
-  localparam real bubble_max_cpi = 1.11;
-  localparam real forward_taken_loop_max_cpi = 1.02;
+  localparam real alu_chain_max_cpi = 2.55;
+  localparam real br_taken_max_cpi = 2.05;
+  localparam real br_not_taken_max_cpi = 2.05;
+  localparam real load_use_max_cpi = 2.05;
+  localparam real mixed_alu_max_cpi = 2.35;
+  localparam real function_calls_max_cpi = 2.01;
+  localparam real fib12_max_cpi = 1.37;
+  localparam real fib100_max_cpi = 1.34;
+  localparam real bubble_max_cpi = 1.91;
+  localparam real forward_taken_loop_max_cpi = 1.7;
   logic        ebreak;
 
   //
@@ -47,18 +41,17 @@ module svc_rv_soc_sram_pipelined_all_tb;
   logic [ 3:0] io_wstrb;
 
   //
-  // System under test - all features enabled
+  // System under test
   //
   svc_rv_soc_sram #(
       .IMEM_DEPTH (IMEM_DEPTH),
       .DMEM_DEPTH (DMEM_DEPTH),
       .PIPELINED  (1),
       .FWD_REGFILE(1),
-      .FWD        (1),
+      .FWD        (0),
       .BPRED      (1),
       .BTB_ENABLE (1),
-      .BTB_ENTRIES(16),
-      .EXT_M      (1)
+      .BTB_ENTRIES(16)
   ) uut (
       .clk  (clk),
       .rst_n(rst_n),
@@ -94,16 +87,12 @@ module svc_rv_soc_sram_pipelined_all_tb;
   );
 
   `include "svc_rv_soc_test_defs.svh"
-  `include "svc_rv_soc_test_defs_m.svh"
-  `include "svc_rv_soc_test_defs_d.svh"
 
   //
   // Test suite
   //
-  `TEST_SUITE_BEGIN(svc_rv_soc_sram_pipelined_all_tb, 100000);
+  `TEST_SUITE_BEGIN(svc_rv_soc_sram_btb_tb, 100000);
   `include "svc_rv_soc_test_list.svh"
-  `include "svc_rv_soc_test_list_m.svh"
-  `include "svc_rv_soc_test_list_d.svh"
   `TEST_SUITE_END();
 
 endmodule
