@@ -3,7 +3,7 @@
 `include "svc_mem_bram.sv"
 `include "svc_rv_soc_bram.sv"
 
-module svc_rv_soc_bram_bpred_btb_tb;
+module svc_rv_soc_bram_ras_fwd_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
@@ -12,22 +12,29 @@ module svc_rv_soc_bram_bpred_btb_tb;
   localparam int IO_AW = 10;
 
   //
-  // CPI expectations with BRAM memories and branch prediction with BTB
+  // CPI expectations with all features enabled
   //
-  // With JAL early resolution, BTFNT prediction, and dynamic BTB
-  // BRAM latency still adds overhead compared to SRAM
-  // BTB has learning overhead for initial branch executions
+  // With forwarding, branch prediction with BTB, and M extension enabled.
+  // This configuration provides the best performance with:
+  // - FWD=1: EX and MEM hazards handled without stalling
+  // - BPRED=1: Branch prediction reduces branch penalty
+  // - BTB_ENABLE=1: Dynamic branch target buffer
+  // - EXT_M=1: Hardware multiply/divide support
+  //
+  // This achieves near-ideal CPI (~1.0) for most instruction sequences.
+  // Only load-use hazards and bubble sort have noticeable overhead.
   //
   localparam real alu_indep_max_cpi = 1.01;
-  localparam real alu_chain_max_cpi = 2.50;
-  localparam real br_taken_max_cpi = 2.05;
-  localparam real br_not_taken_max_cpi = 2.05;
-  localparam real load_use_max_cpi = 2.05;
-  localparam real mixed_alu_max_cpi = 2.34;
-  localparam real fib12_max_cpi = 1.37;
-  localparam real fib100_max_cpi = 1.34;
-  localparam real bubble_max_cpi = 1.90;
-  localparam real forward_taken_loop_max_cpi = 1.75;
+  localparam real alu_chain_max_cpi = 1.01;
+  localparam real br_taken_max_cpi = 1.01;
+  localparam real br_not_taken_max_cpi = 1.01;
+  localparam real load_use_max_cpi = 1.52;
+  localparam real mixed_alu_max_cpi = 1.01;
+  localparam real function_calls_max_cpi = 1.02;
+  localparam real fib12_max_cpi = 1.06;
+  localparam real fib100_max_cpi = 1.02;
+  localparam real bubble_max_cpi = 1.25;
+  localparam real forward_taken_loop_max_cpi = 1.03;
   logic        ebreak;
 
   //
@@ -42,16 +49,20 @@ module svc_rv_soc_bram_bpred_btb_tb;
   logic [ 3:0] io_wstrb;
 
   //
-  // System under test
+  // System under test - all features enabled
   //
   svc_rv_soc_bram #(
       .IMEM_DEPTH (IMEM_DEPTH),
       .DMEM_DEPTH (DMEM_DEPTH),
       .PIPELINED  (1),
       .FWD_REGFILE(1),
+      .FWD        (1),
       .BPRED      (1),
       .BTB_ENABLE (1),
-      .BTB_ENTRIES(16)
+      .BTB_ENTRIES(16),
+      .RAS_ENABLE (1),
+      .RAS_DEPTH  (8),
+      .EXT_M      (1)
   ) uut (
       .clk  (clk),
       .rst_n(rst_n),
@@ -89,12 +100,16 @@ module svc_rv_soc_bram_bpred_btb_tb;
   );
 
   `include "svc_rv_soc_test_defs.svh"
+  `include "svc_rv_soc_test_defs_m.svh"
+  `include "svc_rv_soc_test_defs_d.svh"
 
   //
   // Test suite
   //
-  `TEST_SUITE_BEGIN(svc_rv_soc_bram_bpred_btb_tb, 100000);
+  `TEST_SUITE_BEGIN(svc_rv_soc_bram_ras_fwd_tb, 100000);
   `include "svc_rv_soc_test_list.svh"
+  `include "svc_rv_soc_test_list_m.svh"
+  `include "svc_rv_soc_test_list_d.svh"
   `TEST_SUITE_END();
 
 endmodule

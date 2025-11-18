@@ -10,16 +10,24 @@ module svc_rv_soc_sram_tb;
   localparam int IMEM_DEPTH = 2 ** 10;
   localparam int DMEM_DEPTH = 2 ** 10;
   localparam int IO_AW = 10;
-  localparam real alu_indep_max_cpi = 1.0;
-  localparam real alu_chain_max_cpi = 1.0;
-  localparam real br_taken_max_cpi = 1.0;
-  localparam real br_not_taken_max_cpi = 1.0;
-  localparam real load_use_max_cpi = 1.0;
-  localparam real mixed_alu_max_cpi = 1.0;
-  localparam real fib12_max_cpi = 1.0;
-  localparam real fib100_max_cpi = 1.0;
-  localparam real bubble_max_cpi = 1.0;
-  localparam real forward_taken_loop_max_cpi = 1.0;
+
+  //
+  // CPI expectations without regfile internal forwarding
+  //
+  // No regfile forwarding for better fmax on ice40 and similar FPGAs.
+  // WB hazards require stalling, increasing CPI.
+  //
+  localparam real alu_indep_max_cpi = 1.35;
+  localparam real alu_chain_max_cpi = 3.5;
+  localparam real br_taken_max_cpi = 3.5;
+  localparam real br_not_taken_max_cpi = 3.0;
+  localparam real load_use_max_cpi = 3.0;
+  localparam real mixed_alu_max_cpi = 3.3;
+  localparam real function_calls_max_cpi = 3.0;
+  localparam real fib12_max_cpi = 1.7;
+  localparam real fib100_max_cpi = 1.7;
+  localparam real bubble_max_cpi = 2.5;
+  localparam real forward_taken_loop_max_cpi = 3.35;
   logic        ebreak;
 
   //
@@ -38,7 +46,7 @@ module svc_rv_soc_sram_tb;
   svc_rv_soc_sram #(
       .IMEM_DEPTH (IMEM_DEPTH),
       .DMEM_DEPTH (DMEM_DEPTH),
-      .PIPELINED  (0),
+      .PIPELINED  (1),
       .FWD_REGFILE(0)
   ) uut (
       .clk  (clk),

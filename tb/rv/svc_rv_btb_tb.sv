@@ -19,11 +19,13 @@ module svc_rv_btb_tb;
   logic            hit;
   logic [XLEN-1:0] predicted_target;
   logic            predicted_taken;
+  logic            is_return;
 
   logic            update_en;
   logic [XLEN-1:0] update_pc;
   logic [XLEN-1:0] update_target;
   logic            update_taken;
+  logic            update_is_return;
 
   //
   // UUT instantiation
@@ -38,19 +40,24 @@ module svc_rv_btb_tb;
       .hit             (hit),
       .predicted_target(predicted_target),
       .predicted_taken (predicted_taken),
+      .is_return       (is_return),
       .update_en       (update_en),
       .update_pc       (update_pc),
       .update_target   (update_target),
-      .update_taken    (update_taken)
+      .update_taken    (update_taken),
+      .update_is_return(update_is_return)
   );
+
+  `SVC_UNUSED({is_return});
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      lookup_pc     <= '0;
-      update_en     <= 1'b0;
-      update_pc     <= '0;
-      update_target <= '0;
-      update_taken  <= 1'b0;
+      lookup_pc        <= '0;
+      update_en        <= 1'b0;
+      update_pc        <= '0;
+      update_target    <= '0;
+      update_taken     <= 1'b0;
+      update_is_return <= 1'b0;
     end
   end
 

@@ -3,7 +3,7 @@
 `include "svc_mem_sram.sv"
 `include "svc_rv_soc_sram.sv"
 
-module svc_rv_soc_sram_pipelined_bpred_tb;
+module svc_rv_soc_sram_bpred_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
@@ -22,6 +22,7 @@ module svc_rv_soc_sram_pipelined_bpred_tb;
   localparam real br_not_taken_max_cpi = 2.25;
   localparam real load_use_max_cpi = 2.25;
   localparam real mixed_alu_max_cpi = 2.45;
+  localparam real function_calls_max_cpi = 2.35;
   localparam real fib12_max_cpi = 1.37;
   localparam real fib100_max_cpi = 1.34;
   localparam real bubble_max_cpi = 1.94;
@@ -87,7 +88,7 @@ module svc_rv_soc_sram_pipelined_bpred_tb;
   //
   // Test suite
   //
-  `TEST_SUITE_BEGIN(svc_rv_soc_sram_pipelined_bpred_tb, 100000);
+  `TEST_SUITE_BEGIN(svc_rv_soc_sram_bpred_tb, 100000);
   `include "svc_rv_soc_test_list.svh"
   `TEST_SUITE_END();
 

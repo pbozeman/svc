@@ -34,6 +34,7 @@ module svc_rv_stage_if_sram #(
     input logic            btb_hit_if,
     input logic            btb_pred_taken_if,
     input logic [XLEN-1:0] btb_target_if,
+    input logic            btb_is_return_if,
 
     //
     // RAS prediction signals
@@ -57,6 +58,7 @@ module svc_rv_stage_if_sram #(
     output logic            btb_hit_to_if_id,
     output logic            btb_pred_taken_to_if_id,
     output logic [XLEN-1:0] btb_target_to_if_id,
+    output logic            btb_is_return_to_if_id,
     output logic            ras_valid_to_if_id,
     output logic [XLEN-1:0] ras_target_to_if_id
 );
@@ -110,6 +112,7 @@ module svc_rv_stage_if_sram #(
   assign btb_hit_to_if_id        = btb_hit_if;
   assign btb_pred_taken_to_if_id = btb_pred_taken_if;
   assign btb_target_to_if_id     = btb_target_if;
+  assign btb_is_return_to_if_id  = btb_is_return_if;
   assign ras_valid_to_if_id      = ras_valid_if;
   assign ras_target_to_if_id     = ras_target_if;
 

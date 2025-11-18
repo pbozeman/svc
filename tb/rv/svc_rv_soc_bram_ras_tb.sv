@@ -1,9 +1,9 @@
 `include "svc_unit.sv"
 
-`include "svc_mem_sram.sv"
-`include "svc_rv_soc_sram.sv"
+`include "svc_mem_bram.sv"
+`include "svc_rv_soc_bram.sv"
 
-module svc_rv_soc_sram_pipelined_opt_tb;
+module svc_rv_soc_bram_ras_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
@@ -12,10 +12,11 @@ module svc_rv_soc_sram_pipelined_opt_tb;
   localparam int IO_AW = 10;
 
   //
-  // CPI expectations with regfile internal forwarding (optimized)
+  // CPI expectations with BRAM memories and full branch prediction (BTB + RAS)
   //
-  // With forwarding, WB hazards are handled in the regfile, reducing CPI.
-  // Based on actual benchmark results, tightened expectations.
+  // BTB provides dynamic branch prediction, RAS improves return prediction
+  // Combined BTB + RAS gives best prediction accuracy
+  // BRAM latency still adds overhead compared to SRAM
   //
   localparam real alu_indep_max_cpi = 1.34;
   localparam real alu_chain_max_cpi = 2.75;
@@ -23,15 +24,17 @@ module svc_rv_soc_sram_pipelined_opt_tb;
   localparam real br_not_taken_max_cpi = 2.5;
   localparam real load_use_max_cpi = 2.5;
   localparam real mixed_alu_max_cpi = 2.56;
+  localparam real function_calls_max_cpi = 1.68;
   localparam real fib12_max_cpi = 1.52;
-  localparam real fib100_max_cpi = 1.52;
-  localparam real bubble_max_cpi = 2.03;
-  localparam real forward_taken_loop_max_cpi = 3.0;
+  localparam real fib100_max_cpi = 1.49;
+  localparam real bubble_max_cpi = 2.08;
+  localparam real forward_taken_loop_max_cpi = 1.75;
   logic        ebreak;
 
   //
   // MMIO interface signals
   //
+  logic        io_ren;
   logic [31:0] io_raddr;
   logic [31:0] io_rdata;
   logic        io_wen;
@@ -42,15 +45,21 @@ module svc_rv_soc_sram_pipelined_opt_tb;
   //
   // System under test
   //
-  svc_rv_soc_sram #(
+  svc_rv_soc_bram #(
       .IMEM_DEPTH (IMEM_DEPTH),
       .DMEM_DEPTH (DMEM_DEPTH),
       .PIPELINED  (1),
-      .FWD_REGFILE(1)
+      .FWD_REGFILE(1),
+      .BPRED      (1),
+      .BTB_ENABLE (1),
+      .BTB_ENTRIES(16),
+      .RAS_ENABLE (1),
+      .RAS_DEPTH  (8)
   ) uut (
       .clk  (clk),
       .rst_n(rst_n),
 
+      .io_ren  (io_ren),
       .io_raddr(io_raddr),
       .io_rdata(io_rdata),
 
@@ -65,13 +74,14 @@ module svc_rv_soc_sram_pipelined_opt_tb;
   //
   // Memory-mapped I/O memory
   //
-  svc_mem_sram #(
+  svc_mem_bram #(
       .DW   (32),
       .DEPTH(2 ** IO_AW)
   ) io_mem (
       .clk  (clk),
       .rst_n(rst_n),
 
+      .rd_en  (io_ren),
       .rd_addr(io_raddr),
       .rd_data(io_rdata),
 
@@ -86,7 +96,7 @@ module svc_rv_soc_sram_pipelined_opt_tb;
   //
   // Test suite
   //
-  `TEST_SUITE_BEGIN(svc_rv_soc_sram_pipelined_opt_tb, 100000);
+  `TEST_SUITE_BEGIN(svc_rv_soc_bram_ras_tb, 100000);
   `include "svc_rv_soc_test_list.svh"
   `TEST_SUITE_END();
 

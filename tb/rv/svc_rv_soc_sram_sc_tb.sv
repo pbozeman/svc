@@ -1,36 +1,31 @@
 `include "svc_unit.sv"
 
-`include "svc_mem_bram.sv"
-`include "svc_rv_soc_bram.sv"
+`include "svc_mem_sram.sv"
+`include "svc_rv_soc_sram.sv"
 
-module svc_rv_soc_bram_tb;
+module svc_rv_soc_sram_sc_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
   localparam int IMEM_DEPTH = 2 ** 10;
   localparam int DMEM_DEPTH = 2 ** 10;
   localparam int IO_AW = 10;
-
-  //
-  // CPI expectations with BRAM memories
-  //
-  localparam real alu_indep_max_cpi = 1.5;
-  localparam real alu_chain_max_cpi = 2.9;
-  localparam real br_taken_max_cpi = 3.5;
-  localparam real br_not_taken_max_cpi = 2.8;
-  localparam real load_use_max_cpi = 2.8;
-  localparam real mixed_alu_max_cpi = 2.7;
-  localparam real function_calls_max_cpi = 3.15;
-  localparam real fib12_max_cpi = 1.7;
-  localparam real fib100_max_cpi = 1.7;
-  localparam real bubble_max_cpi = 2.2;
-  localparam real forward_taken_loop_max_cpi = 3.7;
+  localparam real alu_indep_max_cpi = 1.0;
+  localparam real alu_chain_max_cpi = 1.0;
+  localparam real br_taken_max_cpi = 1.0;
+  localparam real br_not_taken_max_cpi = 1.0;
+  localparam real load_use_max_cpi = 1.0;
+  localparam real mixed_alu_max_cpi = 1.0;
+  localparam real function_calls_max_cpi = 1.0;
+  localparam real fib12_max_cpi = 1.0;
+  localparam real fib100_max_cpi = 1.0;
+  localparam real bubble_max_cpi = 1.0;
+  localparam real forward_taken_loop_max_cpi = 1.0;
   logic        ebreak;
 
   //
   // MMIO interface signals
   //
-  logic        io_ren;
   logic [31:0] io_raddr;
   logic [31:0] io_rdata;
   logic        io_wen;
@@ -41,16 +36,15 @@ module svc_rv_soc_bram_tb;
   //
   // System under test
   //
-  svc_rv_soc_bram #(
+  svc_rv_soc_sram #(
       .IMEM_DEPTH (IMEM_DEPTH),
       .DMEM_DEPTH (DMEM_DEPTH),
-      .PIPELINED  (1),
-      .FWD_REGFILE(1)
+      .PIPELINED  (0),
+      .FWD_REGFILE(0)
   ) uut (
       .clk  (clk),
       .rst_n(rst_n),
 
-      .io_ren  (io_ren),
       .io_raddr(io_raddr),
       .io_rdata(io_rdata),
 
@@ -65,14 +59,13 @@ module svc_rv_soc_bram_tb;
   //
   // Memory-mapped I/O memory
   //
-  svc_mem_bram #(
+  svc_mem_sram #(
       .DW   (32),
       .DEPTH(2 ** IO_AW)
   ) io_mem (
       .clk  (clk),
       .rst_n(rst_n),
 
-      .rd_en  (io_ren),
       .rd_addr(io_raddr),
       .rd_data(io_rdata),
 
@@ -87,7 +80,7 @@ module svc_rv_soc_bram_tb;
   //
   // Test suite
   //
-  `TEST_SUITE_BEGIN(svc_rv_soc_bram_tb, 100000);
+  `TEST_SUITE_BEGIN(svc_rv_soc_sram_sc_tb, 100000);
   `include "svc_rv_soc_test_list.svh"
   `TEST_SUITE_END();
 

@@ -127,8 +127,8 @@ ADDR_COLORS = [
 
 # Regex for matching 8-hex addresses
 re_pc_addr = re.compile(r"\b([0-9a-fA-F]{8})\b")
-# Regex for BTB entries
-re_btb = re.compile(r"(BTB\[(HT|--|-N):[0-9a-fA-F]{8}\])")
+# Regex for BTB entries: [AB:addr] where A=H/-, B=-/T/N/R
+re_btb = re.compile(r"(BTB\[(H|-)([TNRS-]):[0-9a-fA-F]{8}\])")
 
 
 class Colorizer:
@@ -205,7 +205,9 @@ class Colorizer:
                         rest = m.group(5) if m.lastindex >= 5 else ""
                         instr = m.group(4)
                         colored_instr = f"{ansi_fg(DIM_TEXT_COLOR)}{instr}{ansi_fg(MEDIUM_DIM_COLOR)}"
-                        return m.group(1) + m.group(2) + m.group(3) + colored_instr + rest
+                        return (
+                            m.group(1) + m.group(2) + m.group(3) + colored_instr + rest
+                        )
 
                     # Capture: (stage)(PC)(spaces)(instruction area)(optional: delimiter+rest)
                     # Allow for optional flags (f, s) between stage and PC
@@ -221,6 +223,7 @@ class Colorizer:
 
     def colorize_if_non_seq(self, line: str) -> str:
         """Set pred/rdir keywords to chill white."""
+
         # Colorize just the "pred" and "rdir" keywords
         def repl_keyword(m):
             keyword = m.group(0)
@@ -229,12 +232,14 @@ class Colorizer:
         line = re.sub(r"\b(pred|rdir)\b", repl_keyword, line)
         return line
 
-    def colorize_hazard_markers(self, line: str, line_bg: int = None, original_line: str = None) -> str:
+    def colorize_hazard_markers(
+        self, line: str, line_bg: int = None, original_line: str = None
+    ) -> str:
         """Highlight flush flags and hazard markers with background color."""
         if original_line is None:
             original_line = line
 
-        original_parts = original_line.split('|')
+        original_parts = original_line.split("|")
 
         # Colorize flush/stall flags in pipeline stages
         def repl_flag(m):
@@ -247,11 +252,19 @@ class Colorizer:
             for part in original_parts:
                 part_stripped = part.strip()
                 if part_stripped.startswith(stage_name):
-                    is_stage_nop = bool(re.search(r"addi\s+x0+\s*,\s*x0+\s*,\s*0\b", part))
+                    is_stage_nop = bool(
+                        re.search(r"addi\s+x0+\s*,\s*x0+\s*,\s*0\b", part)
+                    )
                     break
 
-            bg_reset_color = NOP_BG_COLOR if is_stage_nop else (line_bg if line_bg is not None else None)
-            bg_reset = ansi_bg(bg_reset_color) if bg_reset_color is not None else "\x1b[49m"
+            bg_reset_color = (
+                NOP_BG_COLOR
+                if is_stage_nop
+                else (line_bg if line_bg is not None else None)
+            )
+            bg_reset = (
+                ansi_bg(bg_reset_color) if bg_reset_color is not None else "\x1b[49m"
+            )
 
             return f"{stage_with_spaces}{ansi_bg(HAZARD_BG_COLOR)}{ansi_fg(DIM_TEXT_COLOR)}{flag}{bg_reset}{ansi_fg(MEDIUM_DIM_COLOR)}"
 
@@ -259,6 +272,7 @@ class Colorizer:
 
         # Colorize PR (pipeline register) and BR (branch) hazard markers
         bg_reset = ansi_bg(line_bg) if line_bg is not None else "\x1b[49m"
+
         def repl_hazard(m):
             marker = m.group(0)
             return f"{ansi_bg(HAZARD_BG_COLOR)}{ansi_fg(DIM_TEXT_COLOR)}{marker}{bg_reset}{ansi_fg(MEDIUM_DIM_COLOR)}"
@@ -268,23 +282,29 @@ class Colorizer:
         return line
 
     def colorize_btb(self, line: str) -> str:
-        """Massively dim BTB entries when they are not hits."""
+        """Color BTB entries: white for hits, very dim for misses."""
+
         def repl_btb(m):
             btb_entry = m.group(1)
-            hit_type = m.group(2)
+            hit_char = m.group(2)  # 'H' or '-'
+            status_char = m.group(3)  # '-', 'T', 'N', or 'R'
 
-            # If not a hit (-- or -N), make it very dim
-            if hit_type != "HT":
+            if hit_char == "H":
+                # Hit: use bright white like instructions
+                return (
+                    f"{ansi_fg(DIM_TEXT_COLOR)}{btb_entry}{ansi_fg(MEDIUM_DIM_COLOR)}"
+                )
+            else:
+                # Miss: very dim
                 return (
                     f"{ansi_fg(VERY_DIM_COLOR)}{btb_entry}{ansi_fg(MEDIUM_DIM_COLOR)}"
                 )
-
-            return btb_entry
 
         return re_btb.sub(repl_btb, line)
 
     def colorize_addresses(self, line: str) -> str:
         """Color addresses that are jump/branch targets with stable colors."""
+
         def repl_addr(m):
             addr = m.group(1).lower()
 
@@ -298,6 +318,7 @@ class Colorizer:
 
     def colorize_registers(self, line: str) -> str:
         """Color register references with Nordic colors."""
+
         def repl_reg(m):
             # Normalize register number (handles x2 and x02 as same register)
             reg_num = int(m.group(1))

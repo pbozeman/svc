@@ -68,13 +68,17 @@ module svc_rv_hazard #(
     input logic mispredicted_ex,
 
     //
-    // BTB prediction indicator (IF stage, synchronous with PC mux)
+    // Prediction indicators (IF stage, synchronous with PC mux)
     //
-    // This signal indicates whether the current PC_SEL_PREDICTED came from BTB
-    // in this cycle. It must be IF-synchronous (not ID-aligned) to correctly
-    // gate the static prediction flush logic.
+    // btb_pred_taken: BTB predicted (early prediction, no flush needed)
+    // ras_pred_taken: RAS predicted (late prediction, flush needed)
+    //
+    // These signals indicate whether the current PC_SEL_PREDICTED came from BTB
+    // or RAS in this cycle. They must be IF-synchronous (not ID-aligned) to
+    // correctly control flush logic.
     //
     input logic btb_pred_taken,
+    input logic ras_pred_taken,
 
     // Hazard control outputs
     output logic pc_stall,
@@ -326,23 +330,29 @@ module svc_rv_hazard #(
   logic pc_predicted;
 
   //
-  // Static prediction flush: ID stage predicted a branch/jump (not from BTB)
+  // Prediction flush: ID stage predicted a branch/jump
   //
-  // This occurs when ID decodes a branch/jump that wasn't predicted by BTB,
-  // and makes a static prediction (BTFNT for branches, always-taken for JAL).
-  // When this happens, instructions on the fall-through path (both in IF and
-  // ID) must be flushed since we're redirecting to the predicted target.
+  // Flush is needed when the instruction from the sequential PC (already
+  // fetched in IF stage) must be discarded due to a prediction redirect:
+  //
+  // - Static: ID decodes JAL or makes BTFNT prediction (flush needed)
+  // - RAS: Return Address Stack predicts JALR return (flush needed)
+  // - BTB: Branch Target Buffer predicts early in IF (NO flush needed)
+  //
+  // BTB predictions happen early enough that the sequential instruction hasn't
+  // been fetched yet. But RAS predictions happen when JALR is in ID, after
+  // the sequential instruction is already in the pipeline.
   //
   // Only flush if pipeline is advancing (!data_hazard && !op_active_ex).
   //
-  logic static_pred_flush;
+  logic pred_flush;
 
   assign pc_redirect = (pc_sel == PC_SEL_REDIRECT);
   assign pc_predicted = (pc_sel == PC_SEL_PREDICTED);
-  assign static_pred_flush = (pc_predicted && !btb_pred_taken && !data_hazard &&
-                              !op_active_ex);
+  assign pred_flush = (pc_predicted && (!btb_pred_taken || ras_pred_taken) &&
+                       !data_hazard && !op_active_ex);
 
-  assign if_id_flush = (pc_redirect || mispredicted_ex || static_pred_flush);
+  assign if_id_flush = (pc_redirect || mispredicted_ex || pred_flush);
   assign id_ex_flush = ((data_hazard && !op_active_ex) || pc_redirect ||
                         mispredicted_ex);
 

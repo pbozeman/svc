@@ -109,6 +109,9 @@ module svc_rv #(
     if ((RAS_ENABLE == 1) && (BPRED == 0)) begin
       $fatal(1, "RAS_ENABLE=1 requires BPRED=1");
     end
+    if ((RAS_ENABLE == 1) && (BTB_ENABLE == 0)) begin
+      $fatal(1, "RAS_ENABLE=1 requires BTB_ENABLE=1");
+    end
     if ((EXT_ZMMUL == 1) && (EXT_M == 1)) begin
       $fatal(1, "EXT_ZMMUL and EXT_M are mutually exclusive");
     end
@@ -243,9 +246,11 @@ module svc_rv #(
   // btb_hit_if: BTB hit input to IF stage (from BTB lookup)
   // btb_pred_taken_if: BTB prediction input to IF stage (from BTB lookup)
   // btb_target_if: BTB target input to IF stage (from BTB lookup)
+  // btb_is_return_if: BTB is_return input to IF stage (from BTB lookup)
   // btb_hit_id: BTB hit output from IF/ID register
   // btb_pred_taken_id: BTB prediction output from IF/ID register
   // btb_target_id: BTB target output from IF/ID register
+  // btb_is_return_id: BTB is_return output from IF/ID register
   // btb_pred_taken: IF-stage synchronous signal to hazard unit indicating
   //                 "this PC_SEL_PREDICTED came from BTB in this cycle"
   //                 (NOT ID-aligned - must be synchronous with PC mux)
@@ -253,10 +258,13 @@ module svc_rv #(
   logic            btb_hit_if;
   logic            btb_pred_taken_if;
   logic [XLEN-1:0] btb_target_if;
+  logic            btb_is_return_if;
   logic            btb_hit_id;
   logic            btb_pred_taken_id;
   logic [XLEN-1:0] btb_target_id;
+  logic            btb_is_return_id;
   logic            btb_pred_taken;
+  logic            ras_pred_taken;
 
   //
   // RAS prediction signals
@@ -283,10 +291,12 @@ module svc_rv #(
   logic            btb_hit;
   logic [XLEN-1:0] btb_target;
   logic            btb_taken;
+  logic            btb_is_return;
   logic            btb_update_en;
   logic [XLEN-1:0] btb_update_pc;
   logic [XLEN-1:0] btb_update_target;
   logic            btb_update_taken;
+  logic            btb_update_is_return;
 
   //
   // RAS signals
@@ -333,7 +343,7 @@ module svc_rv #(
 
     // verilog_format: off
     `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_load_ex,
-                mispredicted_ex, is_csr_ex, is_m_ex, btb_pred_taken});
+                mispredicted_ex, is_csr_ex, is_m_ex, btb_pred_taken, ras_pred_taken});
     // verilog_format: on
   end else begin : g_no_hazard
     //
@@ -349,7 +359,8 @@ module svc_rv #(
 
     // verilog_format: off
     `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_load_ex,
-                mispredicted_ex, is_csr_ex, is_m_ex, op_active_ex, btb_pred_taken});
+                mispredicted_ex, is_csr_ex, is_m_ex, op_active_ex, btb_pred_taken,
+                ras_pred_taken});
     // verilog_format: on
   end
 
@@ -387,19 +398,23 @@ module svc_rv #(
         .hit             (btb_hit),
         .predicted_target(btb_target),
         .predicted_taken (btb_taken),
+        .is_return       (btb_is_return),
         .update_en       (btb_update_en),
         .update_pc       (btb_update_pc),
         .update_target   (btb_update_target),
-        .update_taken    (btb_update_taken)
+        .update_taken    (btb_update_taken),
+        .update_is_return(btb_update_is_return)
     );
   end else begin : g_no_btb
-    assign btb_hit    = 1'b0;
-    assign btb_target = '0;
-    assign btb_taken  = 1'b0;
+    assign btb_hit       = 1'b0;
+    assign btb_target    = '0;
+    assign btb_taken     = 1'b0;
+    assign btb_is_return = 1'b0;
 
     // verilog_format: off
-    `SVC_UNUSED({pc, btb_hit, btb_target, btb_taken, btb_update_en, btb_update_pc,
-                 btb_update_target, btb_update_taken});
+    `SVC_UNUSED({pc, btb_hit, btb_target, btb_taken, btb_is_return,
+                 btb_update_en, btb_update_pc, btb_update_target, btb_update_taken,
+                 btb_update_is_return});
     // verilog_format: on
   end
 
@@ -622,17 +637,29 @@ module svc_rv #(
 
     if (BTB_ENABLE != 0) begin
       string hit_str;
-      string taken_str;
+      string status_str;
 
+      //
+      // First char: H=hit, -=miss
+      //
       if (btb_hit === 1'b1) hit_str = "H";
       else if (btb_hit === 1'b0) hit_str = "-";
       else hit_str = "X";
 
-      if (btb_taken === 1'b1) taken_str = "T";
-      else if (btb_taken === 1'b0) taken_str = "N";
-      else taken_str = "?";
+      //
+      // Second char: -=miss, R=return, T=taken, N=not-taken
+      //
+      if (btb_hit === 1'b0) begin
+        status_str = "-";
+      end else if (btb_is_return === 1'b1) begin
+        status_str = "R";
+      end else if (btb_taken === 1'b1) begin
+        status_str = "T";
+      end else begin
+        status_str = "N";
+      end
 
-      btb_str = $sformatf(" BTB[%s%s:%08x]", hit_str, taken_str, btb_target);
+      btb_str = $sformatf(" BTB[%s%s:%08x]", hit_str, status_str, btb_target);
     end else begin
       btb_str = "";
     end

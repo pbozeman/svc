@@ -58,6 +58,7 @@ module svc_rv_hazard_tb;
       .pc_sel         (pc_sel),
       .mispredicted_ex(mispredicted_ex),
       .btb_pred_taken (1'b0),
+      .ras_pred_taken (1'b0),
       .pc_stall       (pc_stall),
       .if_id_stall    (if_id_stall),
       .if_id_flush    (if_id_flush),
