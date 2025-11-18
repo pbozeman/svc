@@ -8,11 +8,12 @@
 // RISC-V PC Selection Arbiter
 //
 // Combines PC selection signals from multiple sources with priority:
-// 1. EX stage redirects (highest priority) - actual branch/jump resolution
-// 2. RAS predictions (IF stage) - JALR return predictions
-// 3. BTB predictions (IF stage) - branch/JAL predictions
-// 4. ID stage predictions - static BTFNT fallback
-// 5. Sequential PC (default)
+// 1. MEM stage JALR redirects (highest priority) - JALR misprediction
+// 2. EX stage redirects - branch mispredictions/actual jump resolution
+// 3. RAS predictions (IF stage) - JALR return predictions
+// 4. BTB predictions (IF stage) - branch/JAL predictions
+// 5. ID stage predictions - static BTFNT fallback
+// 6. Sequential PC (default)
 //
 module svc_rv_pc_sel #(
     parameter int XLEN       = 32,
@@ -20,9 +21,16 @@ module svc_rv_pc_sel #(
     parameter int BTB_ENABLE = 0
 ) (
     //
-    // PC selection from EX stage (redirects)
+    // PC selection from MEM stage (JALR misprediction)
     //
-    input logic [1:0] pc_sel_ex,
+    input logic            jalr_mispredicted_mem,
+    input logic [XLEN-1:0] pc_redirect_target_mem,
+
+    //
+    // PC selection from EX stage (branch redirects)
+    //
+    input logic [     1:0] pc_sel_ex,
+    input logic [XLEN-1:0] pc_redirect_target_ex,
 
     //
     // PC selection and target from ID stage (static prediction)
@@ -56,6 +64,7 @@ module svc_rv_pc_sel #(
     //
     output logic [     1:0] pc_sel,
     output logic [XLEN-1:0] pred_target,
+    output logic [XLEN-1:0] pc_redirect_target,
     output logic            btb_pred_taken,
     output logic            ras_pred_taken,
 
@@ -215,9 +224,25 @@ module svc_rv_pc_sel #(
   end
 
   //
-  // Final PC selection: EX redirects override all predictions
+  // Final PC selection: MEM JALR mispredictions override EX, EX overrides predictions
   //
-  assign pc_sel = (pc_sel_ex == PC_SEL_REDIRECT) ? pc_sel_ex : pc_sel_ras_btb;
+  // Priority:
+  // 1. MEM stage JALR misprediction (takes 2 cycles to detect, but rare)
+  // 2. EX stage branch/jump redirect (1 cycle, common for branches)
+  // 3. Predictions (speculative)
+  //
+  always_comb begin
+    if (jalr_mispredicted_mem) begin
+      pc_sel             = PC_SEL_REDIRECT;
+      pc_redirect_target = pc_redirect_target_mem;
+    end else if (pc_sel_ex == PC_SEL_REDIRECT) begin
+      pc_sel             = PC_SEL_REDIRECT;
+      pc_redirect_target = pc_redirect_target_ex;
+    end else begin
+      pc_sel             = pc_sel_ras_btb;
+      pc_redirect_target = '0;
+    end
+  end
 
 endmodule
 

@@ -24,7 +24,7 @@ module svc_rv_soc_bram_bpred_tb;
   localparam real br_not_taken_max_cpi = 2.26;
   localparam real load_use_max_cpi = 2.26;
   localparam real mixed_alu_max_cpi = 2.45;
-  localparam real function_calls_max_cpi = 2.35;
+  localparam real function_calls_max_cpi = 2.55;
   localparam real fib12_max_cpi = 1.37;
   localparam real fib100_max_cpi = 1.34;
   localparam real bubble_max_cpi = 1.94;
