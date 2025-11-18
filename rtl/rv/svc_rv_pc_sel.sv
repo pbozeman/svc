@@ -1,0 +1,182 @@
+`ifndef SVC_RV_PC_SEL_SV
+`define SVC_RV_PC_SEL_SV
+
+`include "svc.sv"
+`include "svc_unused.sv"
+
+//
+// RISC-V PC Selection Arbiter
+//
+// Combines PC selection signals from multiple sources with priority:
+// 1. EX stage redirects (highest priority) - actual branch/jump resolution
+// 2. RAS predictions (IF stage) - JALR return predictions
+// 3. BTB predictions (IF stage) - branch/JAL predictions
+// 4. ID stage predictions - static BTFNT fallback
+// 5. Sequential PC (default)
+//
+module svc_rv_pc_sel #(
+    parameter int XLEN       = 32,
+    parameter int RAS_ENABLE = 0,
+    parameter int BTB_ENABLE = 0
+) (
+    //
+    // PC selection from EX stage (redirects)
+    //
+    input logic [1:0] pc_sel_ex,
+
+    //
+    // PC selection and target from ID stage (static prediction)
+    //
+    input logic [     1:0] pc_sel_id,
+    input logic [XLEN-1:0] pred_target_id,
+
+    //
+    // RAS prediction
+    //
+    input logic            ras_valid,
+    input logic [XLEN-1:0] ras_target,
+    input logic            is_jalr_id,
+
+    //
+    // BTB prediction
+    //
+    input logic            btb_hit,
+    input logic            btb_taken,
+    input logic [XLEN-1:0] btb_target,
+
+    //
+    // Final PC selection outputs
+    //
+    output logic [     1:0] pc_sel,
+    output logic [XLEN-1:0] pred_target,
+    output logic            btb_pred_taken,
+
+    //
+    // Prediction signals to IF stage
+    //
+    output logic            ras_valid_if,
+    output logic [XLEN-1:0] ras_target_if,
+    output logic            btb_hit_if,
+    output logic            btb_pred_taken_if,
+    output logic [XLEN-1:0] btb_target_if
+);
+
+  `include "svc_rv_defs.svh"
+
+  //
+  // Internal PC selection (before EX override)
+  //
+  logic [1:0] pc_sel_ras_btb;
+
+  if (RAS_ENABLE != 0 || BTB_ENABLE != 0) begin : g_ras_btb_pc_sel
+    logic btb_prediction_valid;
+    logic ras_prediction_valid;
+
+    //
+    // RAS prediction is valid when:
+    // - RAS has valid entry (stack not empty)
+    // - ID stage confirms this is a JALR (return instruction)
+    //
+    if (RAS_ENABLE != 0) begin : g_ras_pred
+      assign ras_prediction_valid = ras_valid && is_jalr_id;
+      assign ras_valid_if         = ras_valid;
+      assign ras_target_if        = ras_target;
+    end else begin : g_no_ras_pred
+      assign ras_prediction_valid = 1'b0;
+      assign ras_valid_if         = 1'b0;
+      assign ras_target_if        = '0;
+
+      `SVC_UNUSED({ras_valid, ras_target, is_jalr_id});
+    end
+
+    //
+    // BTB prediction is valid when:
+    // - BTB hits and predicts taken
+    //
+    // No ID stage validation needed - BTB only contains entries for actual
+    // branch/jump instructions (updated only for is_predictable in EX stage)
+    //
+    if (BTB_ENABLE != 0) begin : g_btb_pred
+      assign btb_prediction_valid = btb_hit && btb_taken;
+      assign btb_hit_if           = btb_hit;
+      assign btb_pred_taken_if    = btb_prediction_valid;
+      assign btb_target_if        = btb_target;
+    end else begin : g_no_btb_pred
+      assign btb_prediction_valid = 1'b0;
+      assign btb_hit_if           = 1'b0;
+      assign btb_pred_taken_if    = 1'b0;
+      assign btb_target_if        = '0;
+
+      `SVC_UNUSED({btb_hit, btb_taken, btb_target});
+    end
+
+    //
+    // RAS + BTB + Static prediction arbitration
+    //
+    // Priority: ID prediction > RAS > BTB > static
+    // - ID prediction takes highest priority (for concrete decoded instructions)
+    // - RAS takes priority over BTB for return instructions
+    // - BTB handles other branches
+    // - Static prediction is the fallback
+    //
+    // When ID makes a prediction (pc_sel_id==PREDICTED), it must override
+    // RAS/BTB speculation for the current IF PC. ID's prediction is for a
+    // concrete, decoded instruction already in the pipeline. RAS/BTB predictions
+    // are speculative for instructions not yet decoded. The decoded instruction
+    // must take priority.
+    //
+    always_comb begin
+      unique case (1'b1)
+        (pc_sel_id == PC_SEL_PREDICTED): begin
+          pc_sel_ras_btb = pc_sel_id;
+          pred_target    = pred_target_id;
+        end
+        ras_prediction_valid: begin
+          pc_sel_ras_btb = PC_SEL_PREDICTED;
+          pred_target    = ras_target;
+        end
+        btb_prediction_valid: begin
+          pc_sel_ras_btb = PC_SEL_PREDICTED;
+          pred_target    = btb_target;
+        end
+        default: begin
+          pc_sel_ras_btb = pc_sel_id;
+          pred_target    = pred_target_id;
+        end
+      endcase
+    end
+
+    //
+    // PC-mux-synchronous signal indicating this prediction came from BTB
+    //
+    // This signal is used by the hazard unit to distinguish BTB predictions
+    // from static predictions. It must be synchronous with pc_sel_ras_btb.
+    //
+    // Note: RAS predictions are handled similarly to BTB - they speculate
+    // and don't require hazard unit flush.
+    //
+    assign btb_pred_taken = ((pc_sel_id != PC_SEL_PREDICTED) &&
+                             (ras_prediction_valid || btb_prediction_valid));
+
+  end else begin : g_no_ras_btb_pc_sel
+    assign pc_sel_ras_btb    = pc_sel_id;
+    assign pred_target       = pred_target_id;
+    assign btb_pred_taken    = 1'b0;
+    assign btb_hit_if        = 1'b0;
+    assign btb_pred_taken_if = 1'b0;
+    assign btb_target_if     = '0;
+    assign ras_valid_if      = 1'b0;
+    assign ras_target_if     = '0;
+
+    `SVC_UNUSED(
+        {ras_valid, ras_target, is_jalr_id, btb_hit, btb_taken, btb_target});
+  end
+
+  //
+  // Final PC selection: EX redirects override all predictions
+  //
+  assign pc_sel = (pc_sel_ex == PC_SEL_REDIRECT) ? pc_sel_ex : pc_sel_ras_btb;
+
+endmodule
+
+`endif

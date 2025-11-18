@@ -28,6 +28,7 @@ module svc_rv_stage_id #(
     parameter int FWD_REGFILE = PIPELINED,
     parameter int BPRED       = 0,
     parameter int BTB_ENABLE  = 0,
+    parameter int RAS_ENABLE  = 0,
     parameter int EXT_ZMMUL   = 0,
     parameter int EXT_M       = 0
 ) (
@@ -49,6 +50,8 @@ module svc_rv_stage_id #(
     input logic            btb_hit_id,
     input logic            btb_pred_taken_id,
     input logic [XLEN-1:0] btb_target_id,
+    input logic            ras_valid_id,
+    input logic [XLEN-1:0] ras_target_id,
 
     //
     // Write-back from WB stage
@@ -92,6 +95,7 @@ module svc_rv_stage_id #(
     output logic [XLEN-1:0] pc_ex,
     output logic [XLEN-1:0] pc_plus4_ex,
     output logic            bpred_taken_ex,
+    output logic [XLEN-1:0] pred_target_ex,
 
     //
     // Outputs to hazard unit (combinational from ID stage)
@@ -107,6 +111,7 @@ module svc_rv_stage_id #(
     output logic [     1:0] pc_sel_id,
     output logic [XLEN-1:0] pred_target,
     output logic            pred_taken_id,
+    output logic            is_jalr_id,
 
     //
     // BTB prediction inputs
@@ -252,12 +257,13 @@ module svc_rv_stage_id #(
   );
 
   //
-  // Branch Prediction: BTB with static BTFNT fallback
+  // Branch Prediction: RAS/BTB with static BTFNT fallback
   //
   svc_rv_bpred_id #(
       .XLEN      (XLEN),
       .BPRED     (BPRED),
-      .BTB_ENABLE(BTB_ENABLE)
+      .BTB_ENABLE(BTB_ENABLE),
+      .RAS_ENABLE(RAS_ENABLE)
   ) bpred (
       .pc_id            (pc_id),
       .imm_id           (imm_id),
@@ -266,10 +272,13 @@ module svc_rv_stage_id #(
       .jb_target_src_id (jb_target_src_id),
       .btb_hit_id       (btb_hit_id),
       .btb_pred_taken_id(btb_pred_taken_id),
+      .ras_valid_id     (ras_valid_id),
+      .ras_target_id    (ras_target_id),
       .pc_sel_id        (pc_sel_id),
       .pred_target      (pred_target),
       .pred_taken_id    (pred_taken_id),
-      .bpred_taken_id   (bpred_taken_id)
+      .bpred_taken_id   (bpred_taken_id),
+      .is_jalr_id       (is_jalr_id)
   );
 
   //
@@ -281,6 +290,27 @@ module svc_rv_stage_id #(
   // ID/EX Pipeline Register
   //
   if (PIPELINED != 0) begin : g_registered
+    logic [XLEN-1:0] final_pred_target_id;
+
+    if (BPRED != 0) begin : g_bpred_pipe
+      //
+      // RAS prediction signal: valid when RAS has a target and instruction is JALR
+      //
+      logic ras_pred_taken_id;
+      logic is_jalr;
+
+      assign is_jalr = is_jump_id && jb_target_src_id;
+      assign ras_pred_taken_id = ras_valid_id && is_jalr;
+
+      //
+      // Final predicted target: RAS > BTB > static (matches bpred module priority)
+      //
+      assign final_pred_target_id = ras_pred_taken_id ?
+          ras_target_id : (btb_pred_taken_id ? btb_target_id : pred_target);
+    end else begin : g_no_bpred_pipe
+      assign final_pred_target_id = '0;
+    end
+
     always_ff @(posedge clk) begin
       if (!rst_n) begin
         reg_write_ex     <= 1'b0;
@@ -306,6 +336,7 @@ module svc_rv_stage_id #(
         pc_ex            <= '0;
         pc_plus4_ex      <= '0;
         bpred_taken_ex   <= 1'b0;
+        pred_target_ex   <= '0;
       end else if (id_ex_flush) begin
         reg_write_ex     <= 1'b0;
         mem_read_ex      <= 1'b0;
@@ -330,11 +361,12 @@ module svc_rv_stage_id #(
         pc_ex            <= '0;
         pc_plus4_ex      <= '0;
         //
-        // Capture bpred_taken_id even during flush
+        // Capture bpred_taken_id and pred_target_ex even during flush
         // When load-use hazards hold an instruction in ID, we need to latch its
-        // prediction before if_id_stall releases and BTB buffers get overwritten
+        // prediction before if_id_stall releases and RAS/BTB buffers get overwritten
         //
         bpred_taken_ex   <= bpred_taken_id;
+        pred_target_ex   <= final_pred_target_id;
       end else if (!id_ex_stall) begin
         reg_write_ex     <= reg_write_id;
         mem_read_ex      <= mem_read_id;
@@ -359,6 +391,7 @@ module svc_rv_stage_id #(
         pc_ex            <= pc_id;
         pc_plus4_ex      <= pc_plus4_id;
         bpred_taken_ex   <= bpred_taken_id;
+        pred_target_ex   <= final_pred_target_id;
       end
     end
 
@@ -386,9 +419,12 @@ module svc_rv_stage_id #(
     assign pc_ex            = pc_id;
     assign pc_plus4_ex      = pc_plus4_id;
     assign bpred_taken_ex   = 1'b0;
+    assign pred_target_ex   = '0;
 
-    `SVC_UNUSED(
-        {id_ex_stall, id_ex_flush, fwd_rs1_id, fwd_rs2_id, bpred_taken_id});
+    // verilog_format: off
+    `SVC_UNUSED({id_ex_stall, id_ex_flush, fwd_rs1_id, fwd_rs2_id, bpred_taken_id,
+                 ras_valid_id, ras_target_id});
+    // verilog_format: on
   end
 
 endmodule

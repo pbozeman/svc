@@ -36,6 +36,12 @@ module svc_rv_stage_if_sram #(
     input logic [XLEN-1:0] btb_target_if,
 
     //
+    // RAS prediction signals
+    //
+    input logic            ras_valid_if,
+    input logic [XLEN-1:0] ras_target_if,
+
+    //
     // Instruction memory interface
     //
     output logic        imem_ren,
@@ -50,7 +56,9 @@ module svc_rv_stage_if_sram #(
     output logic [XLEN-1:0] pc_plus4_to_if_id,
     output logic            btb_hit_to_if_id,
     output logic            btb_pred_taken_to_if_id,
-    output logic [XLEN-1:0] btb_target_to_if_id
+    output logic [XLEN-1:0] btb_target_to_if_id,
+    output logic            ras_valid_to_if_id,
+    output logic [XLEN-1:0] ras_target_to_if_id
 );
 
   `include "svc_rv_defs.svh"
@@ -93,7 +101,7 @@ module svc_rv_stage_if_sram #(
   end
 
   //
-  // PC and BTB passthrough
+  // PC, BTB, and RAS passthrough
   //
   // SRAM: No buffering needed, values align with instruction
   //
@@ -102,6 +110,8 @@ module svc_rv_stage_if_sram #(
   assign btb_hit_to_if_id        = btb_hit_if;
   assign btb_pred_taken_to_if_id = btb_pred_taken_if;
   assign btb_target_to_if_id     = btb_target_if;
+  assign ras_valid_to_if_id      = ras_valid_if;
+  assign ras_target_to_if_id     = ras_target_if;
 
 endmodule
 
