@@ -55,6 +55,7 @@ module svc_rv_stage_mem #(
     input logic [XLEN-1:0] mul_lh_mem,
     input logic [XLEN-1:0] mul_hl_mem,
     input logic [XLEN-1:0] mul_hh_mem,
+    input logic            is_jalr_mem,
 
     //
     // Data memory interface
@@ -203,23 +204,21 @@ module svc_rv_stage_mem #(
   logic [6:0] opcode;
   logic [4:0] rd;
   logic       is_jal;
-  logic       is_jalr;
 
   assign opcode        = instr_mem[6:0];
   assign rd            = instr_mem[11:7];
   assign is_jal        = (opcode == OP_JAL);
-  assign is_jalr       = (opcode == OP_JALR);
 
   //
   // Push on call: JAL/JALR with rd != x0
   //
-  assign ras_push_en   = (is_jal || is_jalr) && (rd != 5'b0);
+  assign ras_push_en   = (is_jal || is_jalr_mem) && (rd != 5'b0);
   assign ras_push_addr = pc_plus4_mem;
 
   //
   // Pop on return: any JALR
   //
-  assign ras_pop_en    = is_jalr;
+  assign ras_pop_en    = is_jalr_mem;
 
   //
   // M Extension MEM stage: combine partial products

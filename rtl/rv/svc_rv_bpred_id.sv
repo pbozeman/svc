@@ -31,8 +31,8 @@ module svc_rv_bpred_id #(
     input logic [XLEN-1:0] pc_id,
     input logic [XLEN-1:0] imm_id,
     input logic            is_branch_id,
-    input logic            is_jump_id,
-    input logic            jb_target_src_id,
+    input logic            is_jal_id,
+    input logic            is_jalr_id,
 
     //
     // BTB prediction from IF stage (via pipeline register)
@@ -52,23 +52,10 @@ module svc_rv_bpred_id #(
     output logic [     1:0] pc_sel_id,
     output logic [XLEN-1:0] pred_target,
     output logic            pred_taken_id,
-    output logic            bpred_taken_id,
-
-    //
-    // RAS detection output
-    //
-    output logic is_jalr_id
+    output logic            bpred_taken_id
 );
 
   `include "svc_rv_defs.svh"
-
-  //
-  // JALR detection: used for RAS prediction
-  //
-  // JALR is indicated by: is_jump_id && jb_target_src_id
-  // This signal tells the pipeline that RAS prediction should be considered
-  //
-  assign is_jalr_id = is_jump_id && jb_target_src_id;
 
   if (BPRED != 0) begin : g_bpred
 
@@ -76,22 +63,27 @@ module svc_rv_bpred_id #(
       logic is_predictable;
       logic static_taken;
       logic ras_pred_taken;
+      logic btb_pred_valid;
 
       //
       // Predictable: branches and PC-relative jumps (JAL), but not JALR
       //
-      assign is_predictable = is_branch_id || (is_jump_id && !jb_target_src_id);
+      assign is_predictable = is_branch_id || is_jal_id;
 
       //
       // Static BTFNT: backward branches taken, JAL taken
       //
-      assign static_taken = ((is_branch_id && imm_id[XLEN-1]) ||
-                             (is_jump_id && !jb_target_src_id));
+      assign static_taken   = ((is_branch_id && imm_id[XLEN-1]) || is_jal_id);
 
       //
       // RAS prediction: valid when RAS has entry and instruction is JALR
       //
       assign ras_pred_taken = ras_valid_id && is_jalr_id;
+
+      //
+      // BTB prediction: valid when BTB hit and instruction is predictable
+      //
+      assign btb_pred_valid = btb_hit_id && is_predictable;
 
       //
       // Four-tier prediction: RAS (IF) > BTB (IF) > Static BTFNT (ID) > No prediction
@@ -107,38 +99,15 @@ module svc_rv_bpred_id #(
       // stage, ID must NOT issue another redirect or it will flush the wrong PC
       // (the instruction after the target, not the target itself).
       //
-      // For BRAM with 2-cycle latency (BRAM + IF/ID register), by the time
-      // instruction reaches ID, IF has already moved to the target. ID's redirect
-      // would flush that target instruction, skipping it - architectural bug!
-      //
       always_comb begin
-        if (ras_pred_taken) begin
-          //
-          // RAS already handled this in IF stage - ID must NOT redirect
-          //
-          // Setting pred_taken_id=0 prevents pc_sel_id from issuing another redirect
-          // RAS prediction is tracked separately via ras_pred_taken for misprediction detection
-          //
+        if (!is_predictable || (ras_pred_taken || btb_pred_valid)) begin
+          // No redirect from ID - either already predicted in IF or not predictable
           pred_taken_id = 1'b0;
           pred_target   = '0;
-        end else if (btb_hit_id && is_predictable) begin
-          //
-          // BTB already handled this in IF stage - ID must NOT redirect
-          //
-          // Setting pred_taken_id=0 prevents pc_sel_id from issuing another redirect
-          // BTB prediction is tracked separately via btb_pred_taken_id for misprediction detection
-          //
-          pred_taken_id = 1'b0;
-          pred_target   = '0;
-        end else if (is_predictable) begin
-          //
+        end else begin
           // RAS/BTB missed - use static BTFNT prediction
-          //
           pred_taken_id = static_taken;
           pred_target   = pc_id + imm_id;
-        end else begin
-          pred_taken_id = 1'b0;
-          pred_target   = '0;
         end
       end
 
@@ -150,8 +119,13 @@ module svc_rv_bpred_id #(
       //
       // RAS always predicts taken when valid, BTB uses its prediction counter
       //
-      assign bpred_taken_id = ras_pred_taken ? 1'b1 :
-          (btb_hit_id && is_predictable) ? btb_pred_taken_id : pred_taken_id;
+      always_comb begin
+        case (1'b1)
+          ras_pred_taken: bpred_taken_id = 1'b1;
+          btb_pred_valid: bpred_taken_id = btb_pred_taken_id;
+          default:        bpred_taken_id = pred_taken_id;
+        endcase
+      end
 
       //
       // ras_target_id is passed through from IF stage
@@ -163,12 +137,14 @@ module svc_rv_bpred_id #(
       //
       // Static BTFNT only (no RAS or BTB)
       //
-      assign pred_taken_id = ((is_branch_id && imm_id[XLEN-1]) ||
-                              (is_jump_id && !jb_target_src_id));
-      assign pred_target = pc_id + imm_id;
+      assign pred_taken_id  = ((is_branch_id && imm_id[XLEN-1]) || is_jal_id);
+      assign pred_target    = pc_id + imm_id;
       assign bpred_taken_id = pred_taken_id;
 
-      `SVC_UNUSED({btb_hit_id, btb_pred_taken_id, ras_valid_id, ras_target_id});
+      // verilog_format: off
+      `SVC_UNUSED({btb_hit_id, btb_pred_taken_id, ras_valid_id, ras_target_id,
+                   is_jalr_id});
+      // verilog_format: on
     end
 
     //
@@ -183,8 +159,8 @@ module svc_rv_bpred_id #(
     assign bpred_taken_id = 1'b0;
 
     // verilog_format: off
-    `SVC_UNUSED({pc_id, imm_id, is_branch_id, is_jump_id, jb_target_src_id,
-                 btb_hit_id, btb_pred_taken_id, ras_valid_id, ras_target_id});
+    `SVC_UNUSED({pc_id, imm_id, is_branch_id, is_jal_id, is_jalr_id, btb_hit_id,
+                 btb_pred_taken_id, ras_valid_id, ras_target_id});
     // verilog_format: on
   end
 

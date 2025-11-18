@@ -28,6 +28,8 @@ module svc_rv_idec_tb;
   logic [ 6:0] funct7;
   logic        is_m;
   logic        is_csr;
+  logic        is_jal;
+  logic        is_jalr;
   logic        rs1_used;
   logic        rs2_used;
 
@@ -55,6 +57,8 @@ module svc_rv_idec_tb;
       .jb_target_src(jb_target_src),
       .is_m         (is_m),
       .is_csr       (is_csr),
+      .is_jal       (is_jal),
+      .is_jalr      (is_jalr),
 
       .rd      (rd),
       .rs1     (rs1),
@@ -79,6 +83,8 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(is_branch);
     `CHECK_FALSE(is_jump);
     `CHECK_FALSE(is_csr);
+    `CHECK_FALSE(is_jal);
+    `CHECK_FALSE(is_jalr);
     `CHECK_FALSE(rs1_used);
     `CHECK_FALSE(rs2_used);
   endtask
@@ -99,6 +105,8 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(is_branch);
     `CHECK_FALSE(is_jump);
     `CHECK_TRUE(is_csr);
+    `CHECK_FALSE(is_jal);
+    `CHECK_FALSE(is_jalr);
     `CHECK_TRUE(rs1_used);
     `CHECK_FALSE(rs2_used);
     `CHECK_EQ(rd, 5'd1);
@@ -120,6 +128,8 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(is_branch);
     `CHECK_FALSE(is_jump);
     `CHECK_FALSE(is_csr);
+    `CHECK_FALSE(is_jal);
+    `CHECK_FALSE(is_jalr);
     `CHECK_TRUE(rs1_used);
     `CHECK_FALSE(rs2_used);
 
@@ -142,6 +152,8 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(is_branch);
     `CHECK_FALSE(is_jump);
     `CHECK_FALSE(is_csr);
+    `CHECK_FALSE(is_jal);
+    `CHECK_FALSE(is_jalr);
     `CHECK_TRUE(rs1_used);
     `CHECK_TRUE(rs2_used);
 
@@ -165,6 +177,8 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(is_branch);
     `CHECK_FALSE(is_jump);
     `CHECK_FALSE(is_csr);
+    `CHECK_FALSE(is_jal);
+    `CHECK_FALSE(is_jalr);
     `CHECK_TRUE(rs1_used);
     `CHECK_TRUE(rs2_used);
 
@@ -187,6 +201,8 @@ module svc_rv_idec_tb;
     `CHECK_TRUE(is_branch);
     `CHECK_FALSE(is_jump);
     `CHECK_FALSE(is_csr);
+    `CHECK_FALSE(is_jal);
+    `CHECK_FALSE(is_jalr);
     `CHECK_TRUE(rs1_used);
     `CHECK_TRUE(rs2_used);
 
@@ -210,6 +226,8 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(is_branch);
     `CHECK_FALSE(is_jump);
     `CHECK_FALSE(is_csr);
+    `CHECK_FALSE(is_jal);
+    `CHECK_FALSE(is_jalr);
     `CHECK_TRUE(rs1_used);
     `CHECK_FALSE(rs2_used);
 
@@ -230,6 +248,8 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(is_branch);
     `CHECK_TRUE(is_jump);
     `CHECK_FALSE(is_csr);
+    `CHECK_TRUE(is_jal);
+    `CHECK_FALSE(is_jalr);
     `CHECK_FALSE(rs1_used);
     `CHECK_FALSE(rs2_used);
 
@@ -248,6 +268,8 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(is_branch);
     `CHECK_FALSE(is_jump);
     `CHECK_FALSE(is_csr);
+    `CHECK_FALSE(is_jal);
+    `CHECK_FALSE(is_jalr);
     `CHECK_FALSE(rs1_used);
     `CHECK_FALSE(rs2_used);
 
@@ -268,6 +290,8 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(is_branch);
     `CHECK_FALSE(is_jump);
     `CHECK_FALSE(is_csr);
+    `CHECK_FALSE(is_jal);
+    `CHECK_FALSE(is_jalr);
     `CHECK_FALSE(rs1_used);
     `CHECK_FALSE(rs2_used);
 
@@ -289,6 +313,8 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(is_branch);
     `CHECK_TRUE(is_jump);
     `CHECK_FALSE(is_csr);
+    `CHECK_FALSE(is_jal);
+    `CHECK_TRUE(is_jalr);
     `CHECK_TRUE(rs1_used);
     `CHECK_FALSE(rs2_used);
     `CHECK_EQ(jb_target_src, JB_TARGET_ALU);
@@ -323,6 +349,8 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(is_jump);
     `CHECK_TRUE(is_m);
     `CHECK_FALSE(is_csr);
+    `CHECK_FALSE(is_jal);
+    `CHECK_FALSE(is_jalr);
     `CHECK_TRUE(rs1_used);
     `CHECK_TRUE(rs2_used);
 
