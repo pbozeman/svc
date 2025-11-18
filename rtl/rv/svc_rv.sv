@@ -181,6 +181,8 @@ module svc_rv #(
   logic [XLEN-1:0] pc_plus4_mem;
   logic [XLEN-1:0] jb_target_mem;
   logic            is_jalr_mem;
+  logic            bpred_taken_mem;
+  logic [XLEN-1:0] pred_target_mem;
   logic [XLEN-1:0] csr_rdata_mem;
   logic [XLEN-1:0] m_result_mem;
   logic [XLEN-1:0] mul_ll_mem;
@@ -207,20 +209,29 @@ module svc_rv #(
   // WB -> ID (register write-back)
   logic [XLEN-1:0] rd_data_wb;
 
+  //
+  // PC Control Signals
+  //
+
   // EX -> IF (PC control)
   logic [     1:0] pc_sel_ex;
-  logic [XLEN-1:0] pc_redirect_target;
+  logic [XLEN-1:0] pc_redirect_target_ex;
   logic            mispredicted_ex;
+
+  // MEM -> IF (PC control)
+  logic            jalr_mispredicted_mem;
+  logic [XLEN-1:0] pc_redirect_target_mem;
 
   // ID -> IF (branch prediction)
   logic [     1:0] pc_sel_id;
   logic [XLEN-1:0] pred_target_id;
-  logic [XLEN-1:0] pred_target;
   logic            pred_taken_id;
   logic            is_jalr_id;
 
-  // Combined PC selection to IF
+  // Arbitrated PC control to IF
   logic [     1:0] pc_sel;
+  logic [XLEN-1:0] pc_redirect_target;
+  logic [XLEN-1:0] pred_target;
 
   // MEM -> EX (forwarding)
   logic [XLEN-1:0] result_mem;
@@ -486,7 +497,6 @@ module svc_rv #(
       .MEM_TYPE  (MEM_TYPE),
       .BPRED     (BPRED),
       .BTB_ENABLE(BTB_ENABLE),
-      .RAS_ENABLE(RAS_ENABLE),
       .EXT_ZMMUL (EXT_ZMMUL),
       .EXT_M     (EXT_M)
   ) stage_ex (
@@ -497,9 +507,11 @@ module svc_rv #(
   // MEM Stage: Memory Access
   //
   svc_rv_stage_mem #(
-      .XLEN     (XLEN),
-      .PIPELINED(PIPELINED),
-      .MEM_TYPE (MEM_TYPE)
+      .XLEN      (XLEN),
+      .PIPELINED (PIPELINED),
+      .MEM_TYPE  (MEM_TYPE),
+      .BPRED     (BPRED),
+      .RAS_ENABLE(RAS_ENABLE)
   ) stage_mem (
       .*
   );

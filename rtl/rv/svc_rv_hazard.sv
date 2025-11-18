@@ -67,6 +67,9 @@ module svc_rv_hazard #(
     // Branch misprediction (EX stage)
     input logic mispredicted_ex,
 
+    // JALR misprediction (MEM stage)
+    input logic jalr_mispredicted_mem,
+
     //
     // Prediction indicators (IF stage, synchronous with PC mux)
     //
@@ -301,13 +304,14 @@ module svc_rv_hazard #(
   //
   logic stall_disable;
 
-  assign stall_disable = pc_redirect || mispredicted_ex;
+  assign
+      stall_disable = pc_redirect || mispredicted_ex || jalr_mispredicted_mem;
 
-  assign pc_stall      = (data_hazard || op_active_ex) && !stall_disable;
-  assign if_id_stall   = (data_hazard || op_active_ex) && !stall_disable;
-  assign id_ex_stall   = op_active_ex;
-  assign ex_mem_stall  = op_active_ex;
-  assign mem_wb_stall  = op_active_ex;
+  assign pc_stall = (data_hazard || op_active_ex) && !stall_disable;
+  assign if_id_stall = (data_hazard || op_active_ex) && !stall_disable;
+  assign id_ex_stall = op_active_ex;
+  assign ex_mem_stall = op_active_ex;
+  assign mem_wb_stall = op_active_ex;
 
   //
   // Flush logic with stall interaction
@@ -352,9 +356,10 @@ module svc_rv_hazard #(
   assign pred_flush = (pc_predicted && (!btb_pred_taken || ras_pred_taken) &&
                        !data_hazard && !op_active_ex);
 
-  assign if_id_flush = (pc_redirect || mispredicted_ex || pred_flush);
+  assign if_id_flush = (pc_redirect || mispredicted_ex ||
+                        jalr_mispredicted_mem || pred_flush);
   assign id_ex_flush = ((data_hazard && !op_active_ex) || pc_redirect ||
-                        mispredicted_ex);
+                        mispredicted_ex || jalr_mispredicted_mem);
 
 endmodule
 

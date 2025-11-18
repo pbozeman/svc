@@ -7,6 +7,7 @@
 `include "svc_rv_ld_fmt.sv"
 `include "svc_rv_st_fmt.sv"
 `include "svc_rv_ext_mul_mem.sv"
+`include "svc_rv_bpred_mem.sv"
 
 //
 // RISC-V Memory (MEM) Stage
@@ -22,9 +23,11 @@
 // writeback stage.
 //
 module svc_rv_stage_mem #(
-    parameter int XLEN      = 32,
-    parameter int PIPELINED = 0,
-    parameter int MEM_TYPE  = 0
+    parameter int XLEN       = 32,
+    parameter int PIPELINED  = 0,
+    parameter int MEM_TYPE   = 0,
+    parameter int BPRED      = 0,
+    parameter int RAS_ENABLE = 0
 ) (
     input logic clk,
     input logic rst_n,
@@ -56,6 +59,8 @@ module svc_rv_stage_mem #(
     input logic [XLEN-1:0] mul_hl_mem,
     input logic [XLEN-1:0] mul_hh_mem,
     input logic            is_jalr_mem,
+    input logic            bpred_taken_mem,
+    input logic [XLEN-1:0] pred_target_mem,
 
     //
     // Data memory interface
@@ -97,7 +102,13 @@ module svc_rv_stage_mem #(
     //
     output logic            ras_push_en,
     output logic [XLEN-1:0] ras_push_addr,
-    output logic            ras_pop_en
+    output logic            ras_pop_en,
+
+    //
+    // JALR misprediction detection (MEM stage)
+    //
+    output logic            jalr_mispredicted_mem,
+    output logic [XLEN-1:0] pc_redirect_target_mem
 );
 
   `include "svc_rv_defs.svh"
@@ -219,6 +230,30 @@ module svc_rv_stage_mem #(
   // Pop on return: any JALR
   //
   assign ras_pop_en    = is_jalr_mem;
+
+  //
+  // JALR misprediction detection (MEM stage)
+  //
+  // Moved from EX stage to break critical timing path:
+  // forwarding → ALU → JALR target → comparison → PC
+  //
+  svc_rv_bpred_mem #(
+      .XLEN      (XLEN),
+      .BPRED     (BPRED),
+      .RAS_ENABLE(RAS_ENABLE)
+  ) bpred_mem (
+      .is_jalr_mem          (is_jalr_mem),
+      .bpred_taken_mem      (bpred_taken_mem),
+      .jb_target_mem        (jb_target_mem),
+      .pred_target_mem      (pred_target_mem),
+      .jalr_mispredicted_mem(jalr_mispredicted_mem),
+      .pc_sel_jalr_mem      ()
+  );
+
+  //
+  // PC redirect target for JALR misprediction
+  //
+  assign pc_redirect_target_mem = jb_target_mem;
 
   //
   // M Extension MEM stage: combine partial products

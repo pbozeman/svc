@@ -14,8 +14,7 @@
 module svc_rv_bpred_ex #(
     parameter int XLEN       = 32,
     parameter int BPRED      = 0,
-    parameter int BTB_ENABLE = 0,
-    parameter int RAS_ENABLE = 0
+    parameter int BTB_ENABLE = 0
 ) (
     //
     // Branch/jump analysis from EX stage
@@ -34,11 +33,6 @@ module svc_rv_bpred_ex #(
     // Misprediction detection output
     //
     output logic mispredicted_ex,
-
-    //
-    // PC control output
-    //
-    output logic pc_sel_jump_ex,
 
     //
     // BTB update interface
@@ -66,38 +60,12 @@ module svc_rv_bpred_ex #(
   end
 
   //
-  // JALR misprediction detection
+  // JALR misprediction detection moved to MEM stage (svc_rv_bpred_mem)
   //
-  if (BPRED != 0 && RAS_ENABLE != 0) begin : g_jalr_mispred
-    logic jalr_mispredicted;
-
-    //
-    // JALR mispredicted if: not predicted OR predicted target doesn't match actual
-    //
-    assign jalr_mispredicted = is_jalr_ex &&
-        (!bpred_taken_ex || (pred_target_ex != jb_target_ex));
-
-    //
-    // Only redirect on JALR misprediction (JAL is predicted in ID)
-    //
-    assign pc_sel_jump_ex = jalr_mispredicted;
-
-  end else if (BPRED != 0) begin : g_jalr_no_ras
-    //
-    // Without RAS, always redirect on JALR (not predicted)
-    //
-    assign pc_sel_jump_ex = is_jalr_ex;
-
-    `SVC_UNUSED(pred_target_ex);
-
-  end else begin : g_no_jalr_mispred
-    //
-    // Without BPRED, all jumps cause redirects (JAL and JALR)
-    //
-    assign pc_sel_jump_ex = is_jal_ex || is_jalr_ex;
-
-    `SVC_UNUSED(pred_target_ex);
-  end
+  // This was moved to break the critical timing path from:
+  // forwarding → ALU → JALR target → misprediction comparison → PC selection
+  //
+  `SVC_UNUSED({is_jalr_ex, pred_target_ex});
 
   //
   // BTB Update Logic

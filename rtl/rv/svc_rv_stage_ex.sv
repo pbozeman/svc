@@ -36,7 +36,6 @@ module svc_rv_stage_ex #(
     parameter int MEM_TYPE   = 0,
     parameter int BPRED      = 0,
     parameter int BTB_ENABLE = 0,
-    parameter int RAS_ENABLE = 0,
     parameter int EXT_ZMMUL  = 0,
     parameter int EXT_M      = 0
 ) (
@@ -95,7 +94,7 @@ module svc_rv_stage_ex #(
     // PC control outputs to IF
     //
     output logic [     1:0] pc_sel_ex,
-    output logic [XLEN-1:0] pc_redirect_target,
+    output logic [XLEN-1:0] pc_redirect_target_ex,
     output logic            mispredicted_ex,
 
     //
@@ -121,6 +120,8 @@ module svc_rv_stage_ex #(
     output logic [XLEN-1:0] mul_hl_mem,
     output logic [XLEN-1:0] mul_hh_mem,
     output logic            is_jalr_mem,
+    output logic            bpred_taken_mem,
+    output logic [XLEN-1:0] pred_target_mem,
 
     //
     // Outputs to hazard unit
@@ -423,13 +424,10 @@ module svc_rv_stage_ex #(
   //
   // Branch prediction and misprediction detection
   //
-  logic pc_sel_jump_ex;
-
   svc_rv_bpred_ex #(
       .XLEN      (XLEN),
       .BPRED     (BPRED),
-      .BTB_ENABLE(BTB_ENABLE),
-      .RAS_ENABLE(RAS_ENABLE)
+      .BTB_ENABLE(BTB_ENABLE)
   ) bpred (
       .*
   );
@@ -443,15 +441,18 @@ module svc_rv_stage_ex #(
   // On actual taken branch/jump: jb_target
   //
   if (BPRED != 0) begin : g_pc_redirect
+    logic mispred_not_taken;
+
+    assign mispred_not_taken = mispredicted_ex && !branch_taken_ex;
+
     always_comb begin
-      case (1'b1)
-        mispredicted_ex && branch_taken_ex:  pc_redirect_target = jb_target_ex;
-        mispredicted_ex && !branch_taken_ex: pc_redirect_target = pc_ex + 4;
-        default:                             pc_redirect_target = jb_target_ex;
-      endcase
+      pc_redirect_target_ex = jb_target_ex;
+      if (mispred_not_taken) begin
+        pc_redirect_target_ex = pc_ex + 4;
+      end
     end
   end else begin : g_no_pc_redirect
-    assign pc_redirect_target = jb_target_ex;
+    assign pc_redirect_target_ex = jb_target_ex;
   end
 
   //
@@ -464,31 +465,37 @@ module svc_rv_stage_ex #(
   //
   // When BPRED is enabled:
   //   - JAL is handled by predictor in ID stage, so don't redirect in EX
-  //   - JALR misprediction handled by bpred module (RAS-aware)
+  //   - JALR misprediction handled in MEM stage (moved for timing)
   //   - Branches handled by predictor, only redirect on misprediction
   //   - Mispredictions trigger recovery
   //
-  // pc_sel_jump_ex comes from bpred module and handles JALR correctly with/without RAS
+  // Without BPRED:
+  //   - Taken branches and all jumps (JAL/JALR) redirect in EX
   //
-  logic pc_sel_branch;
+  logic pc_sel_branch_or_jump;
 
-  if (BPRED != 0) begin : g_pc_sel_branch
+  if (BPRED != 0) begin : g_bpred_ex_redirect
     //
-    // Branches don't trigger redirect (handled by predictor or misprediction)
+    // With prediction: only redirect on UNPREDICTED JALR
+    // - Predicted JALR: Wait for MEM stage misprediction check (timing opt)
+    // - Unpredicted JALR: Redirect immediately in EX (avoid wrong-path execution)
+    // - Branches: Never redirect in EX (handled by misprediction logic)
+    // - JAL: Predicted in ID stage, never reaches here
     //
-    assign pc_sel_branch = 1'b0;
-  end else begin : g_no_pc_sel_branch
+    assign pc_sel_branch_or_jump = is_jalr_ex && !bpred_taken_ex;
+  end else begin : g_no_bpred_redirect
     //
-    // Taken branches trigger redirect
+    // Without prediction: taken branches and all jumps redirect in EX
     //
-    assign pc_sel_branch = is_branch_ex & branch_taken_ex;
+    assign pc_sel_branch_or_jump = (is_branch_ex & branch_taken_ex) ||
+        is_jal_ex || is_jalr_ex;
   end
 
   //
   // Calculate PC selection mode
   //
   always_comb begin
-    if (pc_sel_branch || pc_sel_jump_ex || mispredicted_ex) begin
+    if (pc_sel_branch_or_jump || mispredicted_ex) begin
       pc_sel_ex = PC_SEL_REDIRECT;
     end else begin
       pc_sel_ex = PC_SEL_SEQUENTIAL;
@@ -513,71 +520,77 @@ module svc_rv_stage_ex #(
   if (PIPELINED != 0) begin : g_registered
     always_ff @(posedge clk) begin
       if (!rst_n) begin
-        reg_write_mem  <= 1'b0;
-        mem_read_mem   <= 1'b0;
-        mem_write_mem  <= 1'b0;
-        res_src_mem    <= '0;
-        instr_mem      <= I_NOP;
-        rd_mem         <= '0;
-        rs2_mem        <= '0;
-        funct3_mem     <= '0;
-        alu_result_mem <= '0;
-        rs1_data_mem   <= '0;
-        rs2_data_mem   <= '0;
-        pc_plus4_mem   <= '0;
-        jb_target_mem  <= '0;
-        csr_rdata_mem  <= '0;
-        m_result_mem   <= '0;
-        mul_ll_mem     <= '0;
-        mul_lh_mem     <= '0;
-        mul_hl_mem     <= '0;
-        mul_hh_mem     <= '0;
-        is_jalr_mem    <= 1'b0;
+        reg_write_mem   <= 1'b0;
+        mem_read_mem    <= 1'b0;
+        mem_write_mem   <= 1'b0;
+        res_src_mem     <= '0;
+        instr_mem       <= I_NOP;
+        rd_mem          <= '0;
+        rs2_mem         <= '0;
+        funct3_mem      <= '0;
+        alu_result_mem  <= '0;
+        rs1_data_mem    <= '0;
+        rs2_data_mem    <= '0;
+        pc_plus4_mem    <= '0;
+        jb_target_mem   <= '0;
+        csr_rdata_mem   <= '0;
+        m_result_mem    <= '0;
+        mul_ll_mem      <= '0;
+        mul_lh_mem      <= '0;
+        mul_hl_mem      <= '0;
+        mul_hh_mem      <= '0;
+        is_jalr_mem     <= 1'b0;
+        bpred_taken_mem <= 1'b0;
+        pred_target_mem <= '0;
       end else if (!ex_mem_stall) begin
-        reg_write_mem  <= reg_write_ex;
-        mem_read_mem   <= mem_read_ex;
-        mem_write_mem  <= mem_write_ex;
-        res_src_mem    <= res_src_ex;
-        instr_mem      <= instr_ex;
-        rd_mem         <= rd_ex;
-        rs2_mem        <= rs2_ex;
-        funct3_mem     <= funct3_ex;
-        alu_result_mem <= alu_result_ex;
-        rs1_data_mem   <= fwd_rs1_ex;
-        rs2_data_mem   <= fwd_rs2_ex;
-        pc_plus4_mem   <= pc_plus4_ex;
-        jb_target_mem  <= jb_target_ex;
-        csr_rdata_mem  <= csr_rdata_ex;
-        m_result_mem   <= m_result_ex;
-        mul_ll_mem     <= mul_ll_ex;
-        mul_lh_mem     <= mul_lh_ex;
-        mul_hl_mem     <= mul_hl_ex;
-        mul_hh_mem     <= mul_hh_ex;
-        is_jalr_mem    <= is_jalr_ex;
+        reg_write_mem   <= reg_write_ex;
+        mem_read_mem    <= mem_read_ex;
+        mem_write_mem   <= mem_write_ex;
+        res_src_mem     <= res_src_ex;
+        instr_mem       <= instr_ex;
+        rd_mem          <= rd_ex;
+        rs2_mem         <= rs2_ex;
+        funct3_mem      <= funct3_ex;
+        alu_result_mem  <= alu_result_ex;
+        rs1_data_mem    <= fwd_rs1_ex;
+        rs2_data_mem    <= fwd_rs2_ex;
+        pc_plus4_mem    <= pc_plus4_ex;
+        jb_target_mem   <= jb_target_ex;
+        csr_rdata_mem   <= csr_rdata_ex;
+        m_result_mem    <= m_result_ex;
+        mul_ll_mem      <= mul_ll_ex;
+        mul_lh_mem      <= mul_lh_ex;
+        mul_hl_mem      <= mul_hl_ex;
+        mul_hh_mem      <= mul_hh_ex;
+        is_jalr_mem     <= is_jalr_ex;
+        bpred_taken_mem <= bpred_taken_ex;
+        pred_target_mem <= pred_target_ex;
       end
     end
 
   end else begin : g_passthrough
-    assign reg_write_mem  = reg_write_ex;
-    assign mem_read_mem   = mem_read_ex;
-    assign mem_write_mem  = mem_write_ex;
-    assign res_src_mem    = res_src_ex;
-    assign instr_mem      = instr_ex;
-    assign rd_mem         = rd_ex;
-    assign rs2_mem        = rs2_ex;
-    assign funct3_mem     = funct3_ex;
-    assign alu_result_mem = alu_result_ex;
-    assign rs1_data_mem   = fwd_rs1_ex;
-    assign rs2_data_mem   = fwd_rs2_ex;
-    assign pc_plus4_mem   = pc_plus4_ex;
-    assign jb_target_mem  = jb_target_ex;
-    assign csr_rdata_mem  = csr_rdata_ex;
-    assign m_result_mem   = m_result_ex;
-    assign mul_ll_mem     = mul_ll_ex;
-    assign mul_lh_mem     = mul_lh_ex;
-    assign mul_hl_mem     = mul_hl_ex;
-    assign mul_hh_mem     = mul_hh_ex;
-    assign is_jalr_mem    = is_jalr_ex;
+    assign reg_write_mem   = reg_write_ex;
+    assign mem_read_mem    = mem_read_ex;
+    assign mem_write_mem   = mem_write_ex;
+    assign res_src_mem     = res_src_ex;
+    assign instr_mem       = instr_ex;
+    assign rd_mem          = rd_ex;
+    assign rs2_mem         = rs2_ex;
+    assign funct3_mem      = funct3_ex;
+    assign alu_result_mem  = alu_result_ex;
+    assign rs1_data_mem    = fwd_rs1_ex;
+    assign rs2_data_mem    = fwd_rs2_ex;
+    assign pc_plus4_mem    = pc_plus4_ex;
+    assign jb_target_mem   = jb_target_ex;
+    assign csr_rdata_mem   = csr_rdata_ex;
+    assign m_result_mem    = m_result_ex;
+    assign mul_ll_mem      = mul_ll_ex;
+    assign mul_lh_mem      = mul_lh_ex;
+    assign mul_hl_mem      = mul_hl_ex;
+    assign mul_hh_mem      = mul_hh_ex;
+    assign is_jalr_mem     = is_jalr_ex;
+    assign bpred_taken_mem = bpred_taken_ex;
+    assign pred_target_mem = pred_target_ex;
 
     `SVC_UNUSED({ex_mem_stall});
   end
