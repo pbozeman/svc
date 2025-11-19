@@ -592,6 +592,8 @@ module svc_rv #(
   logic [XLEN-1:0] f_commit_mem_wdata;
   logic [XLEN-1:0] f_dmem_waddr_wb;
   logic [XLEN-1:0] f_dmem_raddr_wb;
+  logic [XLEN-1:0] f_dmem_wdata_wb;
+  logic [     3:0] f_dmem_wstrb_wb;
 
   //
   // RVFI flush tracking signals
@@ -663,21 +665,27 @@ module svc_rv #(
   end
 
   //
-  // Pipeline memory addresses from MEM to WB for RVFI reporting
+  // Pipeline memory signals from MEM to WB for RVFI reporting
   //
-  if (PIPELINED != 0) begin : g_dmem_addr_wb_piped
+  if (PIPELINED != 0) begin : g_dmem_signals_wb_piped
     always_ff @(posedge clk) begin
       if (!rst_n) begin
         f_dmem_waddr_wb <= '0;
         f_dmem_raddr_wb <= '0;
+        f_dmem_wdata_wb <= '0;
+        f_dmem_wstrb_wb <= '0;
       end else begin
         f_dmem_waddr_wb <= dmem_waddr;
         f_dmem_raddr_wb <= dmem_raddr;
+        f_dmem_wdata_wb <= dmem_wdata;
+        f_dmem_wstrb_wb <= dmem_wstrb;
       end
     end
-  end else begin : g_dmem_addr_wb_comb
+  end else begin : g_dmem_signals_wb_comb
     assign f_dmem_waddr_wb = dmem_waddr;
     assign f_dmem_raddr_wb = dmem_raddr;
+    assign f_dmem_wdata_wb = dmem_wdata;
+    assign f_dmem_wstrb_wb = dmem_wstrb;
   end
 
   assign f_commit_pc = pc_plus4_wb - XLEN'(32'd4);
@@ -693,6 +701,9 @@ module svc_rv #(
     f_commit_mem_wdata = 32'h0;
 
     // Loads
+    //
+    // TODO: get these exposed so we don't have to do this logic here.
+    // We should be passing on the signals directly.
     if (res_src_wb == RES_MEM) begin
       f_commit_mem_valid = 1'b1;
       f_commit_mem_rdata = dmem_rdata_ext_wb;
@@ -706,19 +717,11 @@ module svc_rv #(
       endcase
     end
 
-    // Stores (use WB-aligned signal)
+    // Stores (use pipelined memory interface signals)
     if (f_mem_write_wb) begin
       f_commit_mem_valid = 1'b1;
-      // TODO: need WB-aligned dmem_wstrb and dmem_wdata
-      // For now, reconstruct from funct3 and rs2_data
-      case (funct3_wb)
-        3'b000: f_commit_mem_wmask = 4'b0001 << alu_result_wb[1:0];  // SB
-        3'b001:
-        f_commit_mem_wmask = alu_result_wb[1] ? 4'b1100 : 4'b0011;  // SH
-        3'b010: f_commit_mem_wmask = 4'b1111;  // SW
-        default: f_commit_mem_wmask = 4'b0000;
-      endcase
-      f_commit_mem_wdata = rs2_data_wb;  // store data
+      f_commit_mem_wmask = f_dmem_wstrb_wb;
+      f_commit_mem_wdata = f_dmem_wdata_wb;
     end
   end
 
@@ -797,10 +800,10 @@ module svc_rv #(
         // regfile. If we really care, we could add an assert.
         //
         f_prev_rd_addr   <= reg_write_wb ? rd_wb : 5'b0;
+        f_prev_rd_wdata  <= (reg_write_wb && rd_wb != 5'b0) ? rd_data_wb : '0;
 
         f_prev_rs1_rdata <= rs1_data_wb;  // forwarded values at WB
         f_prev_rs2_rdata <= rs2_data_wb;  // forwarded values at WB
-        f_prev_rd_wdata  <= (rd_wb == 5'b0) ? '0 : rd_data_wb;
         f_prev_trap      <= trap;
         f_prev_halt      <= ebreak;
         f_prev_intr      <= 1'b0;
