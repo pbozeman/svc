@@ -102,6 +102,10 @@
 `TEST_CASE(test_sh_partial_word);
 `TEST_CASE(test_mixed_byte_halfword_word);
 
+// Trap tests
+`TEST_CASE(test_trap_misaligned_sh);
+`TEST_CASE(test_trap_misaligned_lh);
+
 // CSR tests (Zicntr - performance counters)
 `TEST_CASE(test_rdcycle);
 `TEST_CASE(test_rdcycleh);

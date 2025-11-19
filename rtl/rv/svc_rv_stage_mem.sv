@@ -90,6 +90,7 @@ module svc_rv_stage_mem #(
     output logic [XLEN-1:0] csr_rdata_wb,
     output logic [XLEN-1:0] m_result_wb,
     output logic [    63:0] product_64_wb,
+    output logic            misalign_trap_wb,
 
     //
     // Outputs for forwarding (MEM stage result)
@@ -131,12 +132,38 @@ module svc_rv_stage_mem #(
   );
 
   //
+  // Misalignment trap detection
+  //
+  logic       misalign_trap;
+  logic [1:0] funct3_size;
+  logic       halfword_misalign;
+  logic       word_misalign;
+
+  assign funct3_size       = funct3_mem[1:0];
+  assign halfword_misalign = alu_result_mem[0];
+  assign word_misalign     = |alu_result_mem[1:0];
+
+  always_comb begin
+    misalign_trap = 1'b0;
+
+    if (mem_read_mem || mem_write_mem) begin
+      case (funct3_size)
+        2'b01:   misalign_trap = halfword_misalign;
+        2'b10:   misalign_trap = word_misalign;
+        default: misalign_trap = 1'b0;
+      endcase
+    end
+  end
+
+  //
   // Data memory interface
   //
-  assign dmem_ren   = mem_read_mem;
+  // Suppress memory operations on misalignment trap
+  //
+  assign dmem_ren   = mem_read_mem && !misalign_trap;
   assign dmem_raddr = alu_result_mem;
 
-  assign dmem_we    = mem_write_mem;
+  assign dmem_we    = mem_write_mem && !misalign_trap;
   assign dmem_waddr = alu_result_mem;
 
   //
@@ -275,33 +302,35 @@ module svc_rv_stage_mem #(
   if (PIPELINED != 0) begin : g_registered
     always_ff @(posedge clk) begin
       if (!rst_n) begin
-        reg_write_wb  <= 1'b0;
-        res_src_wb    <= '0;
-        instr_wb      <= I_NOP;
-        rd_wb         <= '0;
-        funct3_wb     <= '0;
-        alu_result_wb <= '0;
-        rs1_data_wb   <= '0;
-        rs2_data_wb   <= '0;
-        pc_plus4_wb   <= '0;
-        jb_target_wb  <= '0;
-        csr_rdata_wb  <= '0;
-        m_result_wb   <= '0;
-        product_64_wb <= '0;
+        reg_write_wb     <= 1'b0;
+        res_src_wb       <= '0;
+        instr_wb         <= I_NOP;
+        rd_wb            <= '0;
+        funct3_wb        <= '0;
+        alu_result_wb    <= '0;
+        rs1_data_wb      <= '0;
+        rs2_data_wb      <= '0;
+        pc_plus4_wb      <= '0;
+        jb_target_wb     <= '0;
+        csr_rdata_wb     <= '0;
+        m_result_wb      <= '0;
+        product_64_wb    <= '0;
+        misalign_trap_wb <= 1'b0;
       end else if (!mem_wb_stall) begin
-        reg_write_wb  <= reg_write_mem;
-        res_src_wb    <= res_src_mem;
-        instr_wb      <= instr_mem;
-        rd_wb         <= rd_mem;
-        funct3_wb     <= funct3_mem;
-        alu_result_wb <= alu_result_mem;
-        rs1_data_wb   <= rs1_data_mem;
-        rs2_data_wb   <= rs2_data_mem;
-        pc_plus4_wb   <= pc_plus4_mem;
-        jb_target_wb  <= jb_target_mem;
-        csr_rdata_wb  <= csr_rdata_mem;
-        m_result_wb   <= m_result_mem;
-        product_64_wb <= product_64_mem;
+        reg_write_wb     <= reg_write_mem && !misalign_trap;
+        res_src_wb       <= res_src_mem;
+        instr_wb         <= instr_mem;
+        rd_wb            <= rd_mem;
+        funct3_wb        <= funct3_mem;
+        alu_result_wb    <= alu_result_mem;
+        rs1_data_wb      <= rs1_data_mem;
+        rs2_data_wb      <= rs2_data_mem;
+        pc_plus4_wb      <= pc_plus4_mem;
+        jb_target_wb     <= jb_target_mem;
+        csr_rdata_wb     <= csr_rdata_mem;
+        m_result_wb      <= m_result_mem;
+        product_64_wb    <= product_64_mem;
+        misalign_trap_wb <= misalign_trap;
       end
     end
 
@@ -325,19 +354,20 @@ module svc_rv_stage_mem #(
     end
 
   end else begin : g_passthrough
-    assign reg_write_wb  = reg_write_mem;
-    assign res_src_wb    = res_src_mem;
-    assign instr_wb      = instr_mem;
-    assign rd_wb         = rd_mem;
-    assign funct3_wb     = funct3_mem;
-    assign alu_result_wb = alu_result_mem;
-    assign rs1_data_wb   = rs1_data_mem;
-    assign rs2_data_wb   = rs2_data_mem;
-    assign pc_plus4_wb   = pc_plus4_mem;
-    assign jb_target_wb  = jb_target_mem;
-    assign csr_rdata_wb  = csr_rdata_mem;
-    assign m_result_wb   = m_result_mem;
-    assign product_64_wb = product_64_mem;
+    assign reg_write_wb     = reg_write_mem && !misalign_trap;
+    assign res_src_wb       = res_src_mem;
+    assign instr_wb         = instr_mem;
+    assign rd_wb            = rd_mem;
+    assign funct3_wb        = funct3_mem;
+    assign alu_result_wb    = alu_result_mem;
+    assign rs1_data_wb      = rs1_data_mem;
+    assign rs2_data_wb      = rs2_data_mem;
+    assign pc_plus4_wb      = pc_plus4_mem;
+    assign jb_target_wb     = jb_target_mem;
+    assign csr_rdata_wb     = csr_rdata_mem;
+    assign m_result_wb      = m_result_mem;
+    assign product_64_wb    = product_64_mem;
+    assign misalign_trap_wb = misalign_trap;
 
     //
     // Pass through SRAM load data
