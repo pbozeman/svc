@@ -377,14 +377,14 @@ always @(posedge clk) begin
           line = {
             line,
             $sformatf(
-                "M %s %08x r %08x ", stall_str, pc_plus4_mem - 4, alu_result_mem
+                "M %s %08x r %08x ", stall_str, pc_plus4_mem - 4, dmem_raddr
             )
           };
         end else if (dmem_we) begin
           line = {
             line,
             $sformatf(
-                "M %s %08x w %08x ", stall_str, pc_plus4_mem - 4, alu_result_mem
+                "M %s %08x w %08x ", stall_str, pc_plus4_mem - 4, dmem_waddr
             )
           };
         end else begin
@@ -395,14 +395,14 @@ always @(posedge clk) begin
           line = {
             line,
             $sformatf(
-                "M %s %08x r %08x ", stall_str, pc_plus4_mem - 4, alu_result_mem
+                "M %s %08x r %08x ", stall_str, pc_plus4_mem - 4, dmem_raddr
             )
           };
         end else if (mem_write_mem) begin
           line = {
             line,
             $sformatf(
-                "M %s %08x w %08x ", stall_str, pc_plus4_mem - 4, alu_result_mem
+                "M %s %08x w %08x ", stall_str, pc_plus4_mem - 4, dmem_waddr
             )
           };
         end else begin
