@@ -1741,6 +1741,32 @@ task automatic test_mixed_byte_halfword_word;
 endtask
 
 //
+// Test: Word-aligned memory addresses
+//
+// Verifies that memory addresses are word-aligned and byte strobes are
+// correct for stores with unaligned offsets.
+//
+// Tests halfword store to address -6 (0xFFFFFFFA):
+// - Expected memory address: 0xFFFFFFF8 (word-aligned)
+// - Expected byte strobe: 4'b1100 (upper halfword)
+//
+task automatic test_word_aligned_mem_addr;
+  uut.dmem.mem[0] = 32'h00000000;
+
+  ADDI(x2, x0, -768);
+  SH(x2, x0, -6);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR(clk, uut.cpu.dmem_we, 128);
+  `CHECK_EQ(uut.cpu.dmem_waddr, 32'hFFFFFFF8);
+  `CHECK_EQ(uut.cpu.dmem_wstrb, 4'b1100);
+
+  `CHECK_WAIT_FOR_EBREAK(clk);
+endtask
+
+//
 //--------------------------------------------------------------------
 // Trap tests
 //--------------------------------------------------------------------

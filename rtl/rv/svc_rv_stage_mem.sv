@@ -160,11 +160,14 @@ module svc_rv_stage_mem #(
   //
   // Suppress memory operations on misalignment trap
   //
+  // Memory addresses are word-aligned (bits[1:0] cleared).
+  // Byte strobes indicate which bytes within the word are accessed.
+  //
   assign dmem_ren   = mem_read_mem && !misalign_trap;
-  assign dmem_raddr = alu_result_mem;
+  assign dmem_raddr = {alu_result_mem[31:2], 2'b00};
 
   assign dmem_we    = mem_write_mem && !misalign_trap;
-  assign dmem_waddr = alu_result_mem;
+  assign dmem_waddr = {alu_result_mem[31:2], 2'b00};
 
   //
   // Load data extension
