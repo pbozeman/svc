@@ -231,6 +231,7 @@ module svc_rv #(
   logic [XLEN-1:0] csr_rdata_wb;
   logic [XLEN-1:0] m_result_wb;
   logic [    63:0] product_64_wb;
+  logic            misalign_trap_wb;
 
   // WB -> ID (register write-back)
   logic [XLEN-1:0] rd_data_wb;
@@ -320,8 +321,10 @@ module svc_rv #(
   // which also should not count as retired.
   //
   logic            instr_retired;
+  logic            trap;
 
   assign instr_retired = (instr_wb != 32'h0) && (instr_wb != I_NOP);
+  assign trap          = misalign_trap_wb;
 
   //
   // BTB signals
@@ -550,7 +553,7 @@ module svc_rv #(
   //
   svc_rv_stage_wb #(.XLEN(XLEN)) stage_wb (.*);
 
-  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id});
+  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, trap});
 
   `include "svc_rv_dbg.svh"
 
@@ -772,7 +775,7 @@ module svc_rv #(
         f_prev_rs1_rdata <= rs1_data_wb;  // forwarded values at WB
         f_prev_rs2_rdata <= rs2_data_wb;  // forwarded values at WB
         f_prev_rd_wdata  <= (rd_wb == 5'b0) ? '0 : rd_data_wb;
-        f_prev_trap      <= 1'b0;
+        f_prev_trap      <= trap;
         f_prev_halt      <= ebreak;
         f_prev_intr      <= 1'b0;
         f_prev_mem_valid <= f_commit_mem_valid;
@@ -791,7 +794,6 @@ module svc_rv #(
   //
   assign rvfi_mode = 2'b11;  // M-mode
   assign rvfi_ixl  = 2'b01;  // RV32
-
 `endif
 
 endmodule

@@ -1742,6 +1742,52 @@ endtask
 
 //
 //--------------------------------------------------------------------
+// Trap tests
+//--------------------------------------------------------------------
+//
+
+//
+// Test: Misaligned halfword store trap
+//
+// Verifies that a halfword store to an odd address triggers a trap
+// and does not write to memory.
+// sh x0, 2047(x0) attempts to store to address 2047 (odd), which is
+// misaligned for a 2-byte halfword access and must trap.
+//
+task automatic test_trap_misaligned_sh;
+  uut.dmem.mem[511] = 32'hDEADBEEF;
+
+  SH(x0, x0, 2047);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR(clk, uut.cpu.trap, 128);
+  `CHECK_TRUE(uut.cpu.trap);
+  `CHECK_EQ(uut.dmem.mem[511], 32'hDEADBEEF);
+endtask
+
+//
+// Test: Misaligned halfword load trap
+//
+// Verifies that a halfword load from an odd address triggers a trap
+// and does not write to the destination register.
+// lh x1, 2047(x0) attempts to load from address 2047 (odd), which is
+// misaligned for a 2-byte halfword access and must trap.
+//
+task automatic test_trap_misaligned_lh;
+  LH(x1, x0, 2047);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR(clk, uut.cpu.trap, 128);
+  `CHECK_TRUE(uut.cpu.trap);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[1], 32'd0);
+endtask
+
+//
+//--------------------------------------------------------------------
 // CSR tests (Zicntr - Performance Counters)
 //--------------------------------------------------------------------
 //
