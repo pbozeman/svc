@@ -590,6 +590,8 @@ module svc_rv #(
   logic [     3:0] f_commit_mem_wmask;
   logic [XLEN-1:0] f_commit_mem_rdata;
   logic [XLEN-1:0] f_commit_mem_wdata;
+  logic [XLEN-1:0] f_dmem_waddr_wb;
+  logic [XLEN-1:0] f_dmem_raddr_wb;
 
   //
   // RVFI flush tracking signals
@@ -648,19 +650,35 @@ module svc_rv #(
   //
   logic f_mem_write_wb;
 
-  generate
-    if (PIPELINED != 0) begin : g_mem_write_wb_piped
-      always_ff @(posedge clk) begin
-        if (!rst_n) begin
-          f_mem_write_wb <= 1'b0;
-        end else begin
-          f_mem_write_wb <= mem_write_mem;
-        end
+  if (PIPELINED != 0) begin : g_mem_write_wb_piped
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        f_mem_write_wb <= 1'b0;
+      end else begin
+        f_mem_write_wb <= mem_write_mem;
       end
-    end else begin : g_mem_write_wb_comb
-      assign f_mem_write_wb = mem_write_mem;
     end
-  endgenerate
+  end else begin : g_mem_write_wb_comb
+    assign f_mem_write_wb = mem_write_mem;
+  end
+
+  //
+  // Pipeline memory addresses from MEM to WB for RVFI reporting
+  //
+  if (PIPELINED != 0) begin : g_dmem_addr_wb_piped
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        f_dmem_waddr_wb <= '0;
+        f_dmem_raddr_wb <= '0;
+      end else begin
+        f_dmem_waddr_wb <= dmem_waddr;
+        f_dmem_raddr_wb <= dmem_raddr;
+      end
+    end
+  end else begin : g_dmem_addr_wb_comb
+    assign f_dmem_waddr_wb = dmem_waddr;
+    assign f_dmem_raddr_wb = dmem_raddr;
+  end
 
   assign f_commit_pc = pc_plus4_wb - XLEN'(32'd4);
 
@@ -788,7 +806,7 @@ module svc_rv #(
         f_prev_intr      <= 1'b0;
         f_prev_mem_valid <= f_commit_mem_valid;
         f_prev_mem_instr <= 1'b0;
-        f_prev_mem_addr  <= alu_result_wb;
+        f_prev_mem_addr  <= f_mem_write_wb ? f_dmem_waddr_wb : f_dmem_raddr_wb;
         f_prev_mem_rmask <= f_commit_mem_rmask;
         f_prev_mem_wmask <= f_commit_mem_wmask;
         f_prev_mem_rdata <= f_commit_mem_rdata;

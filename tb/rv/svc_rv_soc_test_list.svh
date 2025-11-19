@@ -102,6 +102,9 @@
 `TEST_CASE(test_sh_partial_word);
 `TEST_CASE(test_mixed_byte_halfword_word);
 
+// Alignment
+`TEST_CASE(test_word_aligned_mem_addr);
+
 // Trap tests
 `TEST_CASE(test_trap_misaligned_sh);
 `TEST_CASE(test_trap_misaligned_lh);

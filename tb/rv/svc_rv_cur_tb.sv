@@ -53,11 +53,10 @@ module svc_rv_cur_tb;
     uut.imem.mem[1] = 32'h00000013;  // addi x0,x0,0
     uut.imem.mem[2] = 32'h00000013;  // addi x0,x0,0
     uut.imem.mem[3] = 32'h00000013;  // addi x0,x0,0
-    uut.imem.mem[4] = 32'hc1ffbd43;  // fmadd.s f26,f31,f31,f24,rup
-    uut.imem.mem[5] = 32'hd9bc353b;  // .insn 4, 0xd9bc353b
-    uut.imem.mem[6] = 32'h80ad2d22;  // c.fldsp f26,8(x2); c.srli x9,0xb
-    uut.imem.mem[7] = 32'h7fac1fa3;  // sh x26,2047(x24)
-    uut.imem.mem[8] = 32'h00100073;  // ebreak
+    uut.imem.mem[4] = 32'hb9e06081;  // c.fsd f8,240(x11); c.addi16sp x2,-768
+    uut.imem.mem[5] = 32'h8012810b;  // .insn 4, 0x8012810b
+    uut.imem.mem[6] = 32'hfe231d23;  // sh x2,-6(x6)
+    uut.imem.mem[7] = 32'h00100073;  // ebreak
 
     `CHECK_WAIT_FOR(clk, ebreak, 128);
     `CHECK_TRUE(ebreak);
