@@ -61,11 +61,9 @@ module svc_rv_regfile #(
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-`ifndef SYNTHESIS
       for (int i = 0; i < 32; i++) begin
         regs[i] <= '0;
       end
-`endif
     end else if (rd_en) begin
       regs[rd_addr] <= wdata;
     end
