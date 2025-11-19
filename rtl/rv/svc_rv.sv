@@ -771,7 +771,15 @@ module svc_rv #(
         f_prev_pc_next   <= pc_plus4_wb;
         f_prev_rs1_addr  <= instr_wb[19:15];  // decode from instruction
         f_prev_rs2_addr  <= instr_wb[24:20];  // decode from instruction
-        f_prev_rd_addr   <= rd_wb;
+
+        //
+        // Override rd_addr to 0 when not writing. Normally we won't want to be
+        // doing math or overrides in the formal in order not hide a real bug,
+        // but, in this case, we know that reg_write_wb is gating writes to the
+        // regfile. If we really care, we could add an assert.
+        //
+        f_prev_rd_addr   <= reg_write_wb ? rd_wb : 5'b0;
+
         f_prev_rs1_rdata <= rs1_data_wb;  // forwarded values at WB
         f_prev_rs2_rdata <= rs2_data_wb;  // forwarded values at WB
         f_prev_rd_wdata  <= (rd_wb == 5'b0) ? '0 : rd_data_wb;
