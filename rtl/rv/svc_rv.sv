@@ -554,6 +554,246 @@ module svc_rv #(
 
   `include "svc_rv_dbg.svh"
 
+`ifdef RISCV_FORMAL
+  //
+  // RISCV-FORMAL Interface (RVFI)
+  //
+  // Uses 1-instruction lag buffer: emit instruction i's RVFI record when
+  // instruction i+1 retires, using i+1's PC as i's pc_wdata.
+  // This way we never compute branches/jumps - just observe actual PCs.
+  //
+
+  // ---------------------------------------------------------------------------
+  // Buffer for previous retired instruction
+  // ---------------------------------------------------------------------------
+
+  logic            f_prev_valid;
+  logic [    31:0] f_prev_insn;
+  logic [XLEN-1:0] f_prev_pc;
+  logic [XLEN-1:0] f_prev_pc_next;
+  logic [4:0] f_prev_rs1_addr, f_prev_rs2_addr, f_prev_rd_addr;
+  logic [XLEN-1:0] f_prev_rs1_rdata, f_prev_rs2_rdata, f_prev_rd_wdata;
+  logic f_prev_trap, f_prev_halt, f_prev_intr;
+  logic f_prev_mem_valid, f_prev_mem_instr;
+  logic [XLEN-1:0] f_prev_mem_addr, f_prev_mem_rdata, f_prev_mem_wdata;
+  logic [3:0] f_prev_mem_rmask, f_prev_mem_wmask;
+
+  //
+  // Current commit signals (WB stage)
+  //
+  logic [XLEN-1:0] f_commit_pc;
+  logic            f_commit_mem_valid;
+  logic [     3:0] f_commit_mem_rmask;
+  logic [     3:0] f_commit_mem_wmask;
+  logic [XLEN-1:0] f_commit_mem_rdata;
+  logic [XLEN-1:0] f_commit_mem_wdata;
+
+  //
+  // RVFI flush tracking signals
+  //
+  logic            f_flushed_ex;
+  logic            f_flushed_mem;
+  logic            f_flushed_wb;
+
+  //
+  // Track flushed instructions through pipeline
+  //
+  // f_flushed_ex: Set when ID/EX flush occurs
+  // f_flushed_mem: Propagate from EX or set when EX/MEM flush occurs
+  // f_flushed_wb: Propagate from MEM
+  //
+  if (PIPELINED != 0) begin : g_flush_tracking_piped
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        f_flushed_ex  <= 1'b0;
+        f_flushed_mem <= 1'b0;
+        f_flushed_wb  <= 1'b0;
+      end else begin
+        //
+        // Track ID->EX flush
+        //
+        if (!id_ex_stall) begin
+          f_flushed_ex <= id_ex_flush;
+        end
+
+        //
+        // Propagate EX->MEM flush
+        //
+        if (!ex_mem_stall) begin
+          f_flushed_mem <= f_flushed_ex || ex_mem_flush;
+        end
+
+        //
+        // Propagate MEM->WB flush
+        //
+        if (!mem_wb_stall) begin
+          f_flushed_wb <= f_flushed_mem;
+        end
+      end
+    end
+  end else begin : g_flush_tracking_comb
+    //
+    // No flushes in combinational mode
+    //
+    assign f_flushed_ex  = 1'b0;
+    assign f_flushed_mem = 1'b0;
+    assign f_flushed_wb  = 1'b0;
+  end
+
+  //
+  // Bring mem_write forward from MEM to WB
+  //
+  logic f_mem_write_wb;
+
+  generate
+    if (PIPELINED != 0) begin : g_mem_write_wb_piped
+      always_ff @(posedge clk) begin
+        if (!rst_n) begin
+          f_mem_write_wb <= 1'b0;
+        end else begin
+          f_mem_write_wb <= mem_write_mem;
+        end
+      end
+    end else begin : g_mem_write_wb_comb
+      assign f_mem_write_wb = mem_write_mem;
+    end
+  endgenerate
+
+  assign f_commit_pc = pc_plus4_wb - XLEN'(32'd4);
+
+  //
+  // Memory interface decode
+  //
+  always_comb begin
+    f_commit_mem_valid = 1'b0;
+    f_commit_mem_rmask = 4'b0000;
+    f_commit_mem_wmask = 4'b0000;
+    f_commit_mem_rdata = 32'h0;
+    f_commit_mem_wdata = 32'h0;
+
+    // Loads
+    if (res_src_wb == RES_MEM) begin
+      f_commit_mem_valid = 1'b1;
+      f_commit_mem_rdata = dmem_rdata_ext_wb;
+
+      case (funct3_wb)
+        3'b000, 3'b100: f_commit_mem_rmask = 4'b0001 << alu_result_wb[1:0];
+        3'b001, 3'b101:
+        f_commit_mem_rmask = alu_result_wb[1] ? 4'b1100 : 4'b0011;
+        3'b010: f_commit_mem_rmask = 4'b1111;
+        default: f_commit_mem_rmask = 4'b0000;
+      endcase
+    end
+
+    // Stores (use WB-aligned signal)
+    if (f_mem_write_wb) begin
+      f_commit_mem_valid = 1'b1;
+      // TODO: need WB-aligned dmem_wstrb and dmem_wdata
+      // For now, reconstruct from funct3 and rs2_data
+      case (funct3_wb)
+        3'b000: f_commit_mem_wmask = 4'b0001 << alu_result_wb[1:0];  // SB
+        3'b001:
+        f_commit_mem_wmask = alu_result_wb[1] ? 4'b1100 : 4'b0011;  // SH
+        3'b010: f_commit_mem_wmask = 4'b1111;  // SW
+        default: f_commit_mem_wmask = 4'b0000;
+      endcase
+      f_commit_mem_wdata = rs2_data_wb;  // store data
+    end
+  end
+
+  // ---------------------------------------------------------------------------
+  // Lag buffer logic
+  // ---------------------------------------------------------------------------
+
+  //
+  // For RVFI, emit all instructions that weren't flushed
+  // This includes NOPs that actually executed
+  //
+  logic rvfi_retire;
+
+  assign rvfi_retire = !f_flushed_wb;
+
+  always_ff @(posedge clk) begin
+    $display("XXX: %d %08x %08x", rvfi_valid, rvfi_insn, rvfi_pc_rdata,
+             rvfi_pc_wdata);
+  end
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      f_prev_valid <= 1'b0;
+      rvfi_valid   <= 1'b0;
+      rvfi_order   <= 64'd0;
+    end else begin
+      rvfi_valid <= 1'b0;  // pulse when emitting
+
+      if (rvfi_retire) begin
+        //
+        // If we have a previous instruction buffered, emit it now
+        // using current PC as pc_wdata (next architectural PC)
+        //
+        if (f_prev_valid) begin
+          rvfi_valid     <= 1'b1;
+          rvfi_order     <= rvfi_order + 64'd1;
+
+          rvfi_insn      <= f_prev_insn;
+          rvfi_pc_rdata  <= f_prev_pc;
+          rvfi_pc_wdata  <= f_commit_pc;
+
+          rvfi_rs1_addr  <= f_prev_rs1_addr;
+          rvfi_rs2_addr  <= f_prev_rs2_addr;
+          rvfi_rd_addr   <= f_prev_rd_addr;
+          rvfi_rs1_rdata <= f_prev_rs1_rdata;
+          rvfi_rs2_rdata <= f_prev_rs2_rdata;
+          rvfi_rd_wdata  <= f_prev_rd_wdata;
+
+          rvfi_trap      <= f_prev_trap;
+          rvfi_halt      <= f_prev_halt;
+          rvfi_intr      <= f_prev_intr;
+
+          rvfi_mem_valid <= f_prev_mem_valid;
+          rvfi_mem_instr <= f_prev_mem_instr;
+          rvfi_mem_addr  <= f_prev_mem_addr;
+          rvfi_mem_rmask <= f_prev_mem_rmask;
+          rvfi_mem_wmask <= f_prev_mem_wmask;
+          rvfi_mem_rdata <= f_prev_mem_rdata;
+          rvfi_mem_wdata <= f_prev_mem_wdata;
+        end
+
+        //
+        // Buffer current retiring instruction as "previous"
+        //
+        f_prev_valid     <= 1'b1;
+        f_prev_insn      <= instr_wb;
+        f_prev_pc        <= f_commit_pc;
+        f_prev_pc_next   <= pc_plus4_wb;
+        f_prev_rs1_addr  <= instr_wb[19:15];  // decode from instruction
+        f_prev_rs2_addr  <= instr_wb[24:20];  // decode from instruction
+        f_prev_rd_addr   <= rd_wb;
+        f_prev_rs1_rdata <= rs1_data_wb;  // forwarded values at WB
+        f_prev_rs2_rdata <= rs2_data_wb;  // forwarded values at WB
+        f_prev_rd_wdata  <= (rd_wb == 5'b0) ? '0 : rd_data_wb;
+        f_prev_trap      <= 1'b0;
+        f_prev_halt      <= ebreak;
+        f_prev_intr      <= 1'b0;
+        f_prev_mem_valid <= f_commit_mem_valid;
+        f_prev_mem_instr <= 1'b0;
+        f_prev_mem_addr  <= alu_result_wb;
+        f_prev_mem_rmask <= f_commit_mem_rmask;
+        f_prev_mem_wmask <= f_commit_mem_wmask;
+        f_prev_mem_rdata <= f_commit_mem_rdata;
+        f_prev_mem_wdata <= f_commit_mem_wdata;
+      end
+    end
+  end
+
+  //
+  // Static mode/XLEN
+  //
+  assign rvfi_mode = 2'b11;  // M-mode
+  assign rvfi_ixl  = 2'b01;  // RV32
+
+`endif
+
 endmodule
 
 `endif
