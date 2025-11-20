@@ -47,7 +47,8 @@ module svc_rv_soc_sram #(
     output logic [31:0] io_wdata,
     output logic [ 3:0] io_wstrb,
 
-    output logic ebreak
+    output logic ebreak,
+    output logic trap
 );
   localparam int IMEM_AW = $clog2(IMEM_DEPTH);
   localparam int DMEM_AW = $clog2(DMEM_DEPTH);
@@ -135,7 +136,8 @@ module svc_rv_soc_sram #(
       .dmem_wdata(dmem_wdata),
       .dmem_wstrb(dmem_wstrb),
 
-      .ebreak(ebreak)
+      .ebreak(ebreak),
+      .trap  (trap)
   );
 
   //

@@ -37,6 +37,7 @@ module svc_rv_stage_wb #(
     input logic [XLEN-1:0] rs1_data_wb,
     input logic [XLEN-1:0] rs2_data_wb,
     input logic [    63:0] product_64_wb,
+    input logic            trap_wb,
 
     //
     // Output to register file in ID stage
@@ -44,9 +45,11 @@ module svc_rv_stage_wb #(
     output logic [XLEN-1:0] rd_data_wb,
 
     //
-    // EBREAK signal
+    // Halt signals
     //
-    output logic ebreak
+    output logic ebreak,
+    output logic trap,
+    output logic retired
 );
 
   `include "svc_rv_defs.svh"
@@ -99,10 +102,9 @@ module svc_rv_stage_wb #(
       .out(rd_data_wb)
   );
 
-  //
-  // EBREAK detection
-  //
-  assign ebreak = (rst_n && instr_wb == I_EBREAK);
+  assign ebreak  = (rst_n && instr_wb == I_EBREAK);
+  assign trap    = (rst_n && trap_wb);
+  assign retired = (instr_wb != 32'h0) && (instr_wb != I_NOP);
 
 endmodule
 

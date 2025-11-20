@@ -65,7 +65,8 @@ module svc_rv_soc_sram_btb_fwd_tb;
       .io_wdata(io_wdata),
       .io_wstrb(io_wstrb),
 
-      .ebreak(ebreak)
+      .ebreak(ebreak),
+      .trap  ()
   );
 
   //
