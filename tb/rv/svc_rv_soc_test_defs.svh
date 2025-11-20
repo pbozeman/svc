@@ -82,9 +82,7 @@ endtask
 //
 // Test: EBREAK instruction
 //
-// Verifies the EBREAK instruction asserts the ebreak signal for one cycle.
-// The processor continues execution after EBREAK (doesn't halt). It should
-// be calling a trap function, but this is not implemented yet.
+// Verifies the EBREAK instruction asserts the ebreak signal and halts.
 //
 task automatic test_ebreak;
   NOP();
@@ -99,7 +97,7 @@ task automatic test_ebreak;
   `CHECK_TRUE(ebreak);
 
   `TICK(clk);
-  `CHECK_FALSE(ebreak);
+  `CHECK_TRUE(ebreak);
 endtask
 
 //

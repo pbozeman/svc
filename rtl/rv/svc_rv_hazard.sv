@@ -83,6 +83,11 @@ module svc_rv_hazard #(
     input logic btb_pred_taken,
     input logic ras_pred_taken,
 
+    //
+    // Halt signal (stops execution)
+    //
+    input logic halt,
+
     // Hazard control outputs
     output logic pc_stall,
     output logic if_id_stall,
@@ -308,11 +313,12 @@ module svc_rv_hazard #(
   assign
       stall_disable = pc_redirect || mispredicted_ex || jalr_mispredicted_mem;
 
-  assign pc_stall = (data_hazard || op_active_ex) && !stall_disable;
-  assign if_id_stall = (data_hazard || op_active_ex) && !stall_disable;
-  assign id_ex_stall = op_active_ex;
-  assign ex_mem_stall = op_active_ex;
-  assign mem_wb_stall = op_active_ex;
+  assign pc_stall = ((data_hazard || op_active_ex) && !stall_disable) || halt;
+  assign
+      if_id_stall = ((data_hazard || op_active_ex) && !stall_disable) || halt;
+  assign id_ex_stall = op_active_ex || halt;
+  assign ex_mem_stall = op_active_ex || halt;
+  assign mem_wb_stall = op_active_ex || halt;
 
   //
   // Flush logic with stall interaction

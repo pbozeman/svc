@@ -341,6 +341,11 @@ module svc_rv #(
   logic            retired;
 
   //
+  // Halt signal (sticky on ebreak or trap)
+  //
+  logic            halt;
+
+  //
   // Hazard Detection Unit
   //
   // Full hazard unit for pipelined mode.
@@ -366,14 +371,14 @@ module svc_rv #(
     // No data hazards exist in single-cycle mode (no pipeline registers),
     // so only PC and IF/ID stalls are needed.
     //
-    assign pc_stall     = op_active_ex;
-    assign if_id_stall  = op_active_ex;
+    assign pc_stall     = op_active_ex || halt;
+    assign if_id_stall  = op_active_ex || halt;
     assign if_id_flush  = 1'b0;
-    assign id_ex_stall  = 1'b0;
+    assign id_ex_stall  = halt;
     assign id_ex_flush  = 1'b0;
-    assign ex_mem_stall = 1'b0;
+    assign ex_mem_stall = halt;
     assign ex_mem_flush = 1'b0;
-    assign mem_wb_stall = 1'b0;
+    assign mem_wb_stall = halt;
 
     // verilog_format: off
     `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_load_ex,
@@ -383,14 +388,14 @@ module svc_rv #(
     //
     // No hazards in single-cycle mode without multi-cycle operations
     //
-    assign pc_stall     = 1'b0;
-    assign if_id_stall  = 1'b0;
+    assign pc_stall     = halt;
+    assign if_id_stall  = halt;
     assign if_id_flush  = 1'b0;
-    assign id_ex_stall  = 1'b0;
+    assign id_ex_stall  = halt;
     assign id_ex_flush  = 1'b0;
-    assign ex_mem_stall = 1'b0;
+    assign ex_mem_stall = halt;
     assign ex_mem_flush = 1'b0;
-    assign mem_wb_stall = 1'b0;
+    assign mem_wb_stall = halt;
 
     // verilog_format: off
     `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_load_ex,
@@ -544,6 +549,11 @@ module svc_rv #(
   // WB Stage: Write Back
   //
   svc_rv_stage_wb #(.XLEN(XLEN)) stage_wb (.*);
+
+  //
+  // Halt logic
+  //
+  assign halt = ebreak || trap;
 
   `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id});
 
@@ -810,7 +820,7 @@ module svc_rv #(
         f_prev_rs1_rdata <= rs1_data_wb;  // forwarded values at WB
         f_prev_rs2_rdata <= rs2_data_wb;  // forwarded values at WB
         f_prev_trap      <= trap;
-        f_prev_halt      <= ebreak || (retired && trap);
+        f_prev_halt      <= ebreak || trap;
         f_prev_intr      <= 1'b0;
         f_prev_mem_valid <= f_commit_mem_valid;
         f_prev_mem_instr <= 1'b0;
