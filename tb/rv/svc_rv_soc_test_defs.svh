@@ -658,6 +658,58 @@ task automatic test_jal_short;
 endtask
 
 //
+// Test: JAL to misaligned address
+//
+// Tests that JAL to a misaligned target address (not on a 2-byte boundary)
+// triggers a trap. This should trap before updating any registers.
+//
+task automatic test_jal_misaligned;
+  JAL(x1, 3);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR(clk, uut.cpu.trap, 128);
+  `CHECK_TRUE(uut.cpu.trap);
+endtask
+
+//
+// Test: JALR to misaligned address
+//
+// Tests that JALR to a misaligned target address triggers a trap.
+// Sets x2 to 2 (misaligned after LSB clear), then attempts JALR using x2 as base.
+// JALR clears LSB: (2 + 0) & ~1 = 2, which has bit[1] set (misaligned).
+//
+task automatic test_jalr_misaligned;
+  ADDI(x2, x0, 2);
+  JALR(x1, x2, 0);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR(clk, uut.cpu.trap, 128);
+  `CHECK_TRUE(uut.cpu.trap);
+endtask
+
+//
+// Test: JAL backward to misaligned address
+//
+// Tests that JAL jumping backward to a misaligned address triggers a trap.
+// Uses a negative offset to jump backward to an odd address.
+//
+task automatic test_jal_misaligned_backward;
+  NOP();
+  NOP();
+  JAL(x1, -2);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR(clk, uut.cpu.trap, 128);
+  `CHECK_TRUE(uut.cpu.trap);
+endtask
+
+//
 // Test: JAL forward jump with multiple skipped instructions
 //
 // Tests pipeline behavior by jumping over several instructions. The ADDIs
@@ -1214,6 +1266,65 @@ task automatic test_branch_loop;
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[1], 32'd5);
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[2], 32'd5);
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'd99);
+endtask
+
+//
+// Test: BEQ to misaligned address
+//
+// Tests that BEQ branch to a misaligned target address triggers a trap.
+// Sets up equal registers so branch is taken to a misaligned target.
+// BEQ at PC=8, offset=6 -> target = 8 + 6 = 14 (bit[1]=1, misaligned).
+//
+task automatic test_beq_misaligned;
+  ADDI(x1, x0, 42);
+  ADDI(x2, x0, 42);
+  BEQ(x1, x2, 6);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR(clk, uut.cpu.trap, 128);
+  `CHECK_TRUE(uut.cpu.trap);
+endtask
+
+//
+// Test: BNE to misaligned address
+//
+// Tests that BNE branch to a misaligned target address triggers a trap.
+// Sets up unequal registers so branch is taken to a misaligned target.
+// BNE at PC=8, offset=6 -> target = 8 + 6 = 14 (bit[1]=1, misaligned).
+//
+task automatic test_bne_misaligned;
+  ADDI(x1, x0, 42);
+  ADDI(x2, x0, 43);
+  BNE(x1, x2, 6);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR(clk, uut.cpu.trap, 128);
+  `CHECK_TRUE(uut.cpu.trap);
+endtask
+
+//
+// Test: BLT backward to misaligned address
+//
+// Tests that BLT branch backward to a misaligned target triggers a trap.
+// Creates a taken backward branch with misaligned target.
+// BLT at PC=16, offset=-6 -> target = 16 - 6 = 10 (bit[1]=1, misaligned).
+//
+task automatic test_blt_misaligned_backward;
+  NOP();
+  NOP();
+  ADDI(x1, x0, 5);
+  ADDI(x2, x0, 10);
+  BLT(x1, x2, -6);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR(clk, uut.cpu.trap, 128);
+  `CHECK_TRUE(uut.cpu.trap);
 endtask
 
 //

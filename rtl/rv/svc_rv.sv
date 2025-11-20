@@ -209,6 +209,7 @@ module svc_rv #(
   logic            is_jalr_mem;
   logic            bpred_taken_mem;
   logic [XLEN-1:0] pred_target_mem;
+  logic            trap_mem;
   logic [XLEN-1:0] csr_rdata_mem;
   logic [XLEN-1:0] m_result_mem;
   logic [XLEN-1:0] mul_ll_mem;

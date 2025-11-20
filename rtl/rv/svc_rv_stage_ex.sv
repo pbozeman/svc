@@ -123,6 +123,7 @@ module svc_rv_stage_ex #(
     output logic            is_jalr_mem,
     output logic            bpred_taken_mem,
     output logic [XLEN-1:0] pred_target_mem,
+    output logic            trap_mem,
 
     //
     // Outputs to hazard unit
@@ -411,6 +412,15 @@ module svc_rv_stage_ex #(
   );
 
   //
+  // Trap detection (EX stage)
+  //
+  logic trap_ex;
+  logic jb_active;
+
+  assign jb_active = (is_branch_ex & branch_taken_ex) | is_jal_ex | is_jalr_ex;
+  assign trap_ex   = jb_active & (|jb_target_ex[1:0]);
+
+  //
   // Branch comparison
   //
   svc_rv_bcmp #(
@@ -543,6 +553,7 @@ module svc_rv_stage_ex #(
         is_jalr_mem     <= 1'b0;
         bpred_taken_mem <= 1'b0;
         pred_target_mem <= '0;
+        trap_mem        <= 1'b0;
       end else if (!ex_mem_stall) begin
         reg_write_mem   <= ex_mem_flush ? 1'b0 : reg_write_ex;
         mem_read_mem    <= ex_mem_flush ? 1'b0 : mem_read_ex;
@@ -566,6 +577,7 @@ module svc_rv_stage_ex #(
         is_jalr_mem     <= is_jalr_ex;
         bpred_taken_mem <= bpred_taken_ex;
         pred_target_mem <= pred_target_ex;
+        trap_mem        <= trap_ex;
       end
     end
 
@@ -592,6 +604,7 @@ module svc_rv_stage_ex #(
     assign is_jalr_mem     = is_jalr_ex;
     assign bpred_taken_mem = bpred_taken_ex;
     assign pred_target_mem = pred_target_ex;
+    assign trap_mem        = trap_ex;
 
     `SVC_UNUSED({ex_mem_stall, ex_mem_flush});
   end
