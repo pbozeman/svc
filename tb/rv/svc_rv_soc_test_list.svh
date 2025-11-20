@@ -38,6 +38,9 @@
 `TEST_CASE(test_jalr_lsb_clear);
 `TEST_CASE(test_jalr_with_base_register);
 `TEST_CASE(test_call_return_pattern);
+`TEST_CASE(test_jal_misaligned);
+`TEST_CASE(test_jalr_misaligned);
+`TEST_CASE(test_jal_misaligned_backward);
 
 // Pipeline stress tests - validate instruction flushing on control flow
 `TEST_CASE(test_jal_forward_pipeline);
@@ -67,6 +70,9 @@
 `TEST_CASE(test_bgeu_not_taken_unsigned);
 `TEST_CASE(test_bgeu_zero);
 `TEST_CASE(test_branch_loop);
+`TEST_CASE(test_beq_misaligned);
+`TEST_CASE(test_bne_misaligned);
+`TEST_CASE(test_blt_misaligned_backward);
 
 // LUI and AUIPC tests
 `TEST_CASE(test_lui_basic);

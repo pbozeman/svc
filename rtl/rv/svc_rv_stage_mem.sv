@@ -61,6 +61,7 @@ module svc_rv_stage_mem #(
     input logic            is_jalr_mem,
     input logic            bpred_taken_mem,
     input logic [XLEN-1:0] pred_target_mem,
+    input logic            trap_mem,
 
     //
     // Data memory interface
@@ -132,28 +133,31 @@ module svc_rv_stage_mem #(
   );
 
   //
-  // Misalignment trap detection
+  // Trap detection (MEM stage)
   //
   logic       misalign_trap;
   logic [1:0] funct3_size;
   logic       halfword_misalign;
   logic       word_misalign;
+  logic       mem_misalign;
 
   assign funct3_size       = funct3_mem[1:0];
   assign halfword_misalign = alu_result_mem[0];
   assign word_misalign     = |alu_result_mem[1:0];
 
   always_comb begin
-    misalign_trap = 1'b0;
+    mem_misalign = 1'b0;
 
     if (mem_read_mem || mem_write_mem) begin
       case (funct3_size)
-        2'b01:   misalign_trap = halfword_misalign;
-        2'b10:   misalign_trap = word_misalign;
-        default: misalign_trap = 1'b0;
+        2'b01:   mem_misalign = halfword_misalign;
+        2'b10:   mem_misalign = word_misalign;
+        default: mem_misalign = 1'b0;
       endcase
     end
   end
+
+  assign misalign_trap = trap_mem | mem_misalign;
 
   //
   // Data memory interface
@@ -163,11 +167,11 @@ module svc_rv_stage_mem #(
   // Memory addresses are word-aligned (bits[1:0] cleared).
   // Byte strobes indicate which bytes within the word are accessed.
   //
-  assign dmem_ren   = mem_read_mem && !misalign_trap;
-  assign dmem_raddr = {alu_result_mem[31:2], 2'b00};
+  assign dmem_ren      = mem_read_mem && !misalign_trap;
+  assign dmem_raddr    = {alu_result_mem[31:2], 2'b00};
 
-  assign dmem_we    = mem_write_mem && !misalign_trap;
-  assign dmem_waddr = {alu_result_mem[31:2], 2'b00};
+  assign dmem_we       = mem_write_mem && !misalign_trap;
+  assign dmem_waddr    = {alu_result_mem[31:2], 2'b00};
 
   //
   // Load data extension
