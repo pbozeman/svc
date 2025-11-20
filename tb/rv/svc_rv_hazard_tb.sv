@@ -25,6 +25,7 @@ module svc_rv_hazard_tb;
   logic [1:0] pc_sel;
   logic       mispredicted_ex;
   logic       jalr_mispredicted_mem;
+  logic       halt;
   logic       pc_stall;
   logic       if_id_stall;
   logic       if_id_flush;
@@ -62,6 +63,7 @@ module svc_rv_hazard_tb;
       .jalr_mispredicted_mem(jalr_mispredicted_mem),
       .btb_pred_taken       (1'b0),
       .ras_pred_taken       (1'b0),
+      .halt                 (halt),
       .pc_stall             (pc_stall),
       .if_id_stall          (if_id_stall),
       .if_id_flush          (if_id_flush),
@@ -91,6 +93,7 @@ module svc_rv_hazard_tb;
     pc_sel                = PC_SEL_SEQUENTIAL;
     mispredicted_ex       = 1'b0;
     jalr_mispredicted_mem = 1'b0;
+    halt                  = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
@@ -116,6 +119,7 @@ module svc_rv_hazard_tb;
     pc_sel                = PC_SEL_SEQUENTIAL;
     mispredicted_ex       = 1'b0;
     jalr_mispredicted_mem = 1'b0;
+    halt                  = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
@@ -142,6 +146,7 @@ module svc_rv_hazard_tb;
     pc_sel                = PC_SEL_SEQUENTIAL;
     mispredicted_ex       = 1'b0;
     jalr_mispredicted_mem = 1'b0;
+    halt                  = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b1);
@@ -168,6 +173,7 @@ module svc_rv_hazard_tb;
     pc_sel                = PC_SEL_SEQUENTIAL;
     mispredicted_ex       = 1'b0;
     jalr_mispredicted_mem = 1'b0;
+    halt                  = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b1);
@@ -193,6 +199,7 @@ module svc_rv_hazard_tb;
     pc_sel                = PC_SEL_SEQUENTIAL;
     mispredicted_ex       = 1'b0;
     jalr_mispredicted_mem = 1'b0;
+    halt                  = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b1);
@@ -218,6 +225,7 @@ module svc_rv_hazard_tb;
     pc_sel                = PC_SEL_SEQUENTIAL;
     mispredicted_ex       = 1'b0;
     jalr_mispredicted_mem = 1'b0;
+    halt                  = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b1);
@@ -242,6 +250,7 @@ module svc_rv_hazard_tb;
     pc_sel                = PC_SEL_SEQUENTIAL;
     mispredicted_ex       = 1'b0;
     jalr_mispredicted_mem = 1'b0;
+    halt                  = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
@@ -267,6 +276,7 @@ module svc_rv_hazard_tb;
     pc_sel                = PC_SEL_SEQUENTIAL;
     mispredicted_ex       = 1'b0;
     jalr_mispredicted_mem = 1'b0;
+    halt                  = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
@@ -322,6 +332,7 @@ module svc_rv_hazard_tb;
     pc_sel                = PC_SEL_SEQUENTIAL;
     mispredicted_ex       = 1'b0;
     jalr_mispredicted_mem = 1'b0;
+    halt                  = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
@@ -348,6 +359,7 @@ module svc_rv_hazard_tb;
     pc_sel                = PC_SEL_SEQUENTIAL;
     mispredicted_ex       = 1'b0;
     jalr_mispredicted_mem = 1'b0;
+    halt                  = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
@@ -373,6 +385,7 @@ module svc_rv_hazard_tb;
     pc_sel                = PC_SEL_SEQUENTIAL;
     mispredicted_ex       = 1'b0;
     jalr_mispredicted_mem = 1'b0;
+    halt                  = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
