@@ -598,6 +598,7 @@ module svc_rv #(
   //
   // RVFI flush tracking signals
   //
+  logic            f_flushed_id;
   logic            f_flushed_ex;
   logic            f_flushed_mem;
   logic            f_flushed_wb;
@@ -605,22 +606,34 @@ module svc_rv #(
   //
   // Track flushed instructions through pipeline
   //
-  // f_flushed_ex: Set when ID/EX flush occurs
+  // f_flushed_id: Set when IF/ID flush occurs
+  // f_flushed_ex: Propagate from ID or set when ID/EX flush occurs
   // f_flushed_mem: Propagate from EX or set when EX/MEM flush occurs
   // f_flushed_wb: Propagate from MEM
+  //
+  // All flush flags are initialized to 1 on reset to mark reset NOPs as
+  // flushed, preventing them from being sent to RVFI.
   //
   if (PIPELINED != 0) begin : g_flush_tracking_piped
     always_ff @(posedge clk) begin
       if (!rst_n) begin
-        f_flushed_ex  <= 1'b0;
-        f_flushed_mem <= 1'b0;
-        f_flushed_wb  <= 1'b0;
+        f_flushed_id  <= 1'b1;
+        f_flushed_ex  <= 1'b1;
+        f_flushed_mem <= 1'b1;
+        f_flushed_wb  <= 1'b1;
       end else begin
         //
-        // Track ID->EX flush
+        // Track IF->ID flush
+        //
+        if (!if_id_stall) begin
+          f_flushed_id <= if_id_flush;
+        end
+
+        //
+        // Propagate ID->EX flush
         //
         if (!id_ex_stall) begin
-          f_flushed_ex <= id_ex_flush;
+          f_flushed_ex <= f_flushed_id || id_ex_flush;
         end
 
         //
@@ -642,6 +655,7 @@ module svc_rv #(
     //
     // No flushes in combinational mode
     //
+    assign f_flushed_id  = 1'b0;
     assign f_flushed_ex  = 1'b0;
     assign f_flushed_mem = 1'b0;
     assign f_flushed_wb  = 1'b0;
@@ -736,11 +750,6 @@ module svc_rv #(
   logic rvfi_retire;
 
   assign rvfi_retire = !f_flushed_wb;
-
-  always_ff @(posedge clk) begin
-    $display("XXX: %d %08x %08x", rvfi_valid, rvfi_insn, rvfi_pc_rdata,
-             rvfi_pc_wdata);
-  end
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
