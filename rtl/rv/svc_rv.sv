@@ -108,7 +108,8 @@ module svc_rv #(
     output logic [31:0] rvfi_mem_wdata,
 `endif
 
-    output logic ebreak
+    output logic ebreak,
+    output logic trap
 );
 
   `include "svc_rv_defs.svh"
@@ -232,7 +233,7 @@ module svc_rv #(
   logic [XLEN-1:0] csr_rdata_wb;
   logic [XLEN-1:0] m_result_wb;
   logic [    63:0] product_64_wb;
-  logic            misalign_trap_wb;
+  logic            trap_wb;
 
   // WB -> ID (register write-back)
   logic [XLEN-1:0] rd_data_wb;
@@ -315,19 +316,6 @@ module svc_rv #(
   logic [XLEN-1:0] ras_target_id;
 
   //
-  // Instruction retirement tracking
-  //
-  // An instruction retires when it reaches WB and is not a bubble.
-  // Bubbles are injected as 0 on reset. Flushed instructions become NOPs
-  // which also should not count as retired.
-  //
-  logic            instr_retired;
-  logic            trap;
-
-  assign instr_retired = (instr_wb != 32'h0) && (instr_wb != I_NOP);
-  assign trap          = misalign_trap_wb;
-
-  //
   // BTB signals
   //
   logic            btb_hit;
@@ -348,6 +336,9 @@ module svc_rv #(
   logic            ras_push_en;
   logic [XLEN-1:0] ras_push_addr;
   logic            ras_pop_en;
+
+  // Retired signal (only counts non-nops, for instr counting)
+  logic            retired;
 
   //
   // Hazard Detection Unit
@@ -554,7 +545,7 @@ module svc_rv #(
   //
   svc_rv_stage_wb #(.XLEN(XLEN)) stage_wb (.*);
 
-  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, trap});
+  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id});
 
   `include "svc_rv_dbg.svh"
 
@@ -819,7 +810,7 @@ module svc_rv #(
         f_prev_rs1_rdata <= rs1_data_wb;  // forwarded values at WB
         f_prev_rs2_rdata <= rs2_data_wb;  // forwarded values at WB
         f_prev_trap      <= trap;
-        f_prev_halt      <= ebreak;
+        f_prev_halt      <= ebreak || (retired && trap);
         f_prev_intr      <= 1'b0;
         f_prev_mem_valid <= f_commit_mem_valid;
         f_prev_mem_instr <= 1'b0;

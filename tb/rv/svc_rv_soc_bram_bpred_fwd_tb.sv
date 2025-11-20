@@ -68,7 +68,8 @@ module svc_rv_soc_bram_bpred_fwd_tb;
       .io_wdata(io_wdata),
       .io_wstrb(io_wstrb),
 
-      .ebreak(ebreak)
+      .ebreak(ebreak),
+      .trap  ()
   );
 
   //

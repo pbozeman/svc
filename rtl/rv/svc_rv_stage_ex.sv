@@ -89,7 +89,7 @@ module svc_rv_stage_ex #(
     //
     // Instruction retirement (for CSR)
     //
-    input logic instr_retired,
+    input logic retired,
 
     //
     // PC control outputs to IF
@@ -522,7 +522,7 @@ module svc_rv_stage_ex #(
       .rst_n      (rst_n),
       .csr_addr   (imm_ex[11:0]),
       .csr_rdata  (csr_rdata_ex),
-      .instret_inc(instr_retired)
+      .instret_inc(retired)
   );
 
   //

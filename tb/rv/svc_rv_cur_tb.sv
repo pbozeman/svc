@@ -42,7 +42,8 @@ module svc_rv_cur_tb;
       .io_wdata(),
       .io_wstrb(),
 
-      .ebreak(ebreak)
+      .ebreak(ebreak),
+      .trap  ()
   );
 
   //
