@@ -65,7 +65,7 @@ module svc_rv_idec #(
   // Extract instruction fields
   //
   assign opcode = instr[6:0];
-  assign rd = instr[11:7];
+  assign rd     = instr[11:7];
   assign funct3 = instr[14:12];
   assign funct7 = instr[31:25];
 
@@ -76,29 +76,14 @@ module svc_rv_idec #(
   // - Forwarding: Harmless to forward to unused registers (value ignored)
   // - Hazards: We check rs1_used/rs2_used to avoid false stalls
   //
-  assign rs1 = instr[19:15];
-  assign rs2 = instr[24:20];
-
-  //
-  // Fast decode of register usage from opcode
-  //
-  // Used by hazard unit to avoid stalling on false dependencies.
-  // Not needed for forwarding since forwarding to unused registers is harmless.
-  //
-  // rs1 NOT used: JAL, AUIPC, LUI, RESET
-  // rs2 NOT used: everything except STORE, RTYPE, BRANCH
-  //
-  assign rs1_used = !(opcode == OP_JAL || opcode == OP_AUIPC ||
-                      opcode == OP_LUI || opcode == OP_RESET);
-
-  assign rs2_used = (opcode == OP_STORE || opcode == OP_RTYPE ||
-                     opcode == OP_BRANCH);
+  assign rs1    = instr[19:15];
+  assign rs2    = instr[24:20];
 
   //
   // Control signal decoder
   //
   always_comb begin
-    logic [19:0] c;
+    logic [21:0] c;
 
     //
     // Short aliases for decode table
@@ -144,25 +129,26 @@ module svc_rv_idec #(
     // Control signal decode
     //
     case (opcode)
-      //              r mr mw   alu  alu  alu  res    imm  b  j    jb  jal jalr csr
+      //              r mr mw   alu  alu  alu  res    imm  b  j    jb  jal jalr csr r1u r2u
       //                          a    b   op
-      OP_LOAD:   c = {y, y, n,  RS1, IMM, ADD, MEM,     I, n, n,    x,   n,   n,  n};
-      OP_STORE:  c = {n, n, y,  RS1, IMM, ADD, xxx,     S, n, n,    x,   n,   n,  n};
-      OP_RTYPE:  c = {y, n, n,  RS1, RS2, FN3, ALU,   xxx, n, n,    x,   n,   n,  n};
-      OP_BRANCH: c = {n, n, n,   xx,   x,  xx, xxx,     B, y, n,   PC,   n,   n,  n};
-      OP_ITYPE:  c = {y, n, n,  RS1, IMM, FN3, ALU,     I, n, n,    x,   n,   n,  n};
-      OP_JAL:    c = {y, n, n,   xx,   x,  xx, PC4,     J, n, y,   PC,   y,   n,  n};
-      OP_AUIPC:  c = {y, n, n,   xx,   x,  xx, TGT,     U, n, n,   PC,   n,   n,  n};
-      OP_LUI:    c = {y, n, n, ZERO, IMM, ADD, ALU,     U, n, n,    x,   n,   n,  n};
-      OP_JALR:   c = {y, n, n,  RS1, IMM, ADD, PC4,     I, n, y, ALUR,   n,   y,  n};
-      OP_SYSTEM: c = {y, n, n,   xx,   x,  xx, CSR,     I, n, n,    x,   n,   n,  y};
-      OP_RESET:  c = {n, n, n,   xx,   x,  xx, xxx,   xxx, n, n,    x,   n,   n,  n};
-      default:   c = {n, n, n,   xx,   x,  xx, xxx,   xxx, n, n,    x,   n,   n,  n};
+      OP_LOAD:   c = {y, y, n,  RS1, IMM, ADD, MEM,     I, n, n,    x,   n,   n,  n,  y,  n};
+      OP_STORE:  c = {n, n, y,  RS1, IMM, ADD, xxx,     S, n, n,    x,   n,   n,  n,  y,  y};
+      OP_RTYPE:  c = {y, n, n,  RS1, RS2, FN3, ALU,   xxx, n, n,    x,   n,   n,  n,  y,  y};
+      OP_BRANCH: c = {n, n, n,   xx,   x,  xx, xxx,     B, y, n,   PC,   n,   n,  n,  y,  y};
+      OP_ITYPE:  c = {y, n, n,  RS1, IMM, FN3, ALU,     I, n, n,    x,   n,   n,  n,  y,  n};
+      OP_JAL:    c = {y, n, n,   xx,   x,  xx, PC4,     J, n, y,   PC,   y,   n,  n,  n,  n};
+      OP_AUIPC:  c = {y, n, n,   xx,   x,  xx, TGT,     U, n, n,   PC,   n,   n,  n,  n,  n};
+      OP_LUI:    c = {y, n, n, ZERO, IMM, ADD, ALU,     U, n, n,    x,   n,   n,  n,  n,  n};
+      OP_JALR:   c = {y, n, n,  RS1, IMM, ADD, PC4,     I, n, y, ALUR,   n,   y,  n,  y,  n};
+      OP_SYSTEM: c = {y, n, n,   xx,   x,  xx, CSR,     I, n, n,    x,   n,   n,  y,  y,  n};
+      OP_RESET:  c = {n, n, n,   xx,   x,  xx, xxx,   xxx, n, n,    x,   n,   n,  n,  n,  n};
+      default:   c = {n, n, n,   xx,   x,  xx, xxx,   xxx, n, n,    x,   n,   n,  n,  n,  n};
     endcase
 
     { reg_write, mem_read, mem_write,
       alu_a_src, alu_b_src, alu_instr, res_src, imm_type,
-      is_branch, is_jump, jb_target_src, is_jal, is_jalr, is_csr } = c;
+      is_branch, is_jump, jb_target_src, is_jal, is_jalr, is_csr,
+      rs1_used, rs2_used } = c;
 
     //
     // Override res_src for M extension instructions
