@@ -595,6 +595,7 @@ module svc_rv #(
   logic [XLEN-1:0] f_dmem_raddr_wb;
   logic [XLEN-1:0] f_dmem_wdata_wb;
   logic [     3:0] f_dmem_wstrb_wb;
+  logic [XLEN-1:0] f_dmem_rdata_wb;
 
   //
   // RVFI flush tracking signals
@@ -689,11 +690,13 @@ module svc_rv #(
         f_dmem_raddr_wb <= '0;
         f_dmem_wdata_wb <= '0;
         f_dmem_wstrb_wb <= '0;
+        f_dmem_rdata_wb <= '0;
       end else begin
         f_dmem_waddr_wb <= dmem_waddr;
         f_dmem_raddr_wb <= dmem_raddr;
         f_dmem_wdata_wb <= dmem_wdata;
         f_dmem_wstrb_wb <= dmem_wstrb;
+        f_dmem_rdata_wb <= dmem_rdata;
       end
     end
   end else begin : g_dmem_signals_wb_comb
@@ -701,6 +704,7 @@ module svc_rv #(
     assign f_dmem_raddr_wb = dmem_raddr;
     assign f_dmem_wdata_wb = dmem_wdata;
     assign f_dmem_wstrb_wb = dmem_wstrb;
+    assign f_dmem_rdata_wb = dmem_rdata;
   end
 
   assign f_commit_pc = pc_plus4_wb - XLEN'(32'd4);
@@ -721,7 +725,7 @@ module svc_rv #(
     // We should be passing on the signals directly.
     if (res_src_wb == RES_MEM) begin
       f_commit_mem_valid = 1'b1;
-      f_commit_mem_rdata = dmem_rdata_ext_wb;
+      f_commit_mem_rdata = f_dmem_rdata_wb;
 
       case (funct3_wb)
         3'b000, 3'b100: f_commit_mem_rmask = 4'b0001 << alu_result_wb[1:0];
