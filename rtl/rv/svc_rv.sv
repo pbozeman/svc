@@ -645,11 +645,18 @@ module svc_rv #(
   //
   logic [     6:0] f_opcode_wb;
   logic [     2:0] f_funct3_wb;
+  logic            f_csr_imm_mode_wb;
+  logic            f_instr_valid_wb;
+  logic            f_instr_reads_rs1_wb;
+  logic            f_instr_reads_rs2_wb;
   logic            f_rs1_used_wb;
   logic            f_rs2_used_wb;
 
-  assign f_opcode_wb = instr_wb[6:0];
-  assign f_funct3_wb = instr_wb[14:12];
+  assign f_opcode_wb       = instr_wb[6:0];
+  assign f_funct3_wb       = instr_wb[14:12];
+  assign f_csr_imm_mode_wb = f_funct3_wb[2];
+
+  assign f_instr_valid_wb  = (trap_code_wb != TRAP_INSTR_INVALID);
 
   //
   // rs1/rs2 usage detection for RVFI
@@ -661,13 +668,19 @@ module svc_rv #(
     //
     // See note above as to why we are doing this decoding here.
     //
-    f_rs1_used_wb = (trap_code_wb != TRAP_INSTR_INVALID) &&
-        !(f_opcode_wb == OP_LUI || f_opcode_wb == OP_AUIPC || f_opcode_wb ==
-          OP_JAL || (f_opcode_wb == OP_SYSTEM && f_funct3_wb[2]));
+    case (f_opcode_wb)
+      OP_LUI, OP_AUIPC, OP_JAL: f_instr_reads_rs1_wb = 1'b0;
+      OP_SYSTEM:                f_instr_reads_rs1_wb = !f_csr_imm_mode_wb;
+      default:                  f_instr_reads_rs1_wb = 1'b1;
+    endcase
 
-    f_rs2_used_wb = (trap_code_wb != TRAP_INSTR_INVALID) &&
-        (f_opcode_wb == OP_RTYPE || f_opcode_wb == OP_BRANCH ||
-         f_opcode_wb == OP_STORE);
+    case (f_opcode_wb)
+      OP_RTYPE, OP_BRANCH, OP_STORE: f_instr_reads_rs2_wb = 1'b1;
+      default:                       f_instr_reads_rs2_wb = 1'b0;
+    endcase
+
+    f_rs1_used_wb = f_instr_valid_wb && f_instr_reads_rs1_wb;
+    f_rs2_used_wb = f_instr_valid_wb && f_instr_reads_rs2_wb;
   end
 
   //
@@ -795,6 +808,12 @@ module svc_rv #(
   //
   // Memory interface decode
   //
+  logic [1:0] f_mem_addr_low_bits_wb;
+  logic       f_mem_addr_bit1_wb;
+
+  assign f_mem_addr_low_bits_wb = alu_result_wb[1:0];
+  assign f_mem_addr_bit1_wb     = alu_result_wb[1];
+
   always_comb begin
     f_commit_mem_valid = 1'b0;
     f_commit_mem_rmask = 4'b0000;
@@ -811,9 +830,9 @@ module svc_rv #(
       f_commit_mem_rdata = f_dmem_rdata_wb;
 
       case (funct3_wb)
-        3'b000, 3'b100: f_commit_mem_rmask = 4'b0001 << alu_result_wb[1:0];
+        3'b000, 3'b100: f_commit_mem_rmask = 4'b0001 << f_mem_addr_low_bits_wb;
         3'b001, 3'b101:
-        f_commit_mem_rmask = alu_result_wb[1] ? 4'b1100 : 4'b0011;
+        f_commit_mem_rmask = f_mem_addr_bit1_wb ? 4'b1100 : 4'b0011;
         3'b010: f_commit_mem_rmask = 4'b1111;
         default: f_commit_mem_rmask = 4'b0000;
       endcase
