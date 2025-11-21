@@ -62,6 +62,7 @@ module svc_rv_stage_mem #(
     input logic            bpred_taken_mem,
     input logic [XLEN-1:0] pred_target_mem,
     input logic            trap_mem,
+    input logic [     1:0] trap_code_mem,
 
     //
     // Data memory interface
@@ -92,6 +93,7 @@ module svc_rv_stage_mem #(
     output logic [XLEN-1:0] m_result_wb,
     output logic [    63:0] product_64_wb,
     output logic            trap_wb,
+    output logic [     1:0] trap_code_wb,
 
     //
     // Outputs for forwarding (MEM stage result)
@@ -323,6 +325,7 @@ module svc_rv_stage_mem #(
         m_result_wb   <= '0;
         product_64_wb <= '0;
         trap_wb       <= 1'b0;
+        trap_code_wb  <= TRAP_NONE;
       end else if (!mem_wb_stall) begin
         reg_write_wb  <= reg_write_mem && !misalign_trap;
         res_src_wb    <= res_src_mem;
@@ -338,6 +341,7 @@ module svc_rv_stage_mem #(
         m_result_wb   <= m_result_mem;
         product_64_wb <= product_64_mem;
         trap_wb       <= misalign_trap;
+        trap_code_wb  <= mem_misalign ? TRAP_LDST_MISALIGN : trap_code_mem;
       end
     end
 
@@ -375,6 +379,7 @@ module svc_rv_stage_mem #(
     assign m_result_wb   = m_result_mem;
     assign product_64_wb = product_64_mem;
     assign trap_wb       = misalign_trap;
+    assign trap_code_wb  = mem_misalign ? TRAP_LDST_MISALIGN : trap_code_mem;
 
     //
     // Pass through SRAM load data

@@ -88,6 +88,7 @@ module svc_rv_stage_id #(
     output logic            is_jal_ex,
     output logic            is_jalr_ex,
     output logic            trap_ex,
+    output logic [     1:0] trap_code_ex,
     output logic [    31:0] instr_ex,
     output logic [     4:0] rd_ex,
     output logic [     4:0] rs1_ex,
@@ -335,6 +336,7 @@ module svc_rv_stage_id #(
         is_jal_ex        <= 1'b0;
         is_jalr_ex       <= 1'b0;
         trap_ex          <= 1'b0;
+        trap_code_ex     <= TRAP_NONE;
         instr_ex         <= I_NOP;
         rd_ex            <= '0;
         rs1_ex           <= '0;
@@ -365,6 +367,7 @@ module svc_rv_stage_id #(
         is_jal_ex        <= 1'b0;
         is_jalr_ex       <= 1'b0;
         trap_ex          <= 1'b0;
+        trap_code_ex     <= TRAP_NONE;
         instr_ex         <= I_NOP;
         rd_ex            <= '0;
         rs1_ex           <= '0;
@@ -400,6 +403,7 @@ module svc_rv_stage_id #(
         is_jal_ex        <= is_jal_id;
         is_jalr_ex       <= is_jalr_id;
         trap_ex          <= instr_invalid_id;
+        trap_code_ex     <= instr_invalid_id ? TRAP_INSTR_INVALID : TRAP_NONE;
         instr_ex         <= instr_id;
         rd_ex            <= rd_id;
         rs1_ex           <= rs1_id;
@@ -433,6 +437,7 @@ module svc_rv_stage_id #(
     assign is_jal_ex        = is_jal_id;
     assign is_jalr_ex       = is_jalr_id;
     assign trap_ex          = instr_invalid_id;
+    assign trap_code_ex     = instr_invalid_id ? TRAP_INSTR_INVALID : TRAP_NONE;
     assign instr_ex         = instr_id;
     assign rd_ex            = rd_id;
     assign rs1_ex           = rs1_id;

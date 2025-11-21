@@ -67,6 +67,7 @@ module svc_rv_stage_ex #(
     input logic            is_m_ex,
     input logic            is_csr_ex,
     input logic            trap_ex,
+    input logic [     1:0] trap_code_ex,
     input logic [    31:0] instr_ex,
     input logic [     4:0] rd_ex,
     input logic [     4:0] rs1_ex,
@@ -125,6 +126,7 @@ module svc_rv_stage_ex #(
     output logic            bpred_taken_mem,
     output logic [XLEN-1:0] pred_target_mem,
     output logic            trap_mem,
+    output logic [     1:0] trap_code_mem,
 
     //
     // Outputs to hazard unit
@@ -558,6 +560,7 @@ module svc_rv_stage_ex #(
         bpred_taken_mem <= 1'b0;
         pred_target_mem <= '0;
         trap_mem        <= 1'b0;
+        trap_code_mem   <= TRAP_NONE;
       end else if (!ex_mem_stall) begin
         reg_write_mem   <= ex_mem_flush ? 1'b0 : reg_write_ex;
         mem_read_mem    <= ex_mem_flush ? 1'b0 : mem_read_ex;
@@ -582,6 +585,7 @@ module svc_rv_stage_ex #(
         bpred_taken_mem <= bpred_taken_ex;
         pred_target_mem <= pred_target_ex;
         trap_mem        <= trap_ex | misalign_trap;
+        trap_code_mem   <= misalign_trap ? TRAP_INSTR_MISALIGN : trap_code_ex;
       end else begin
         //
         // Stall case: flush memory operations, freeze other signals
@@ -615,6 +619,7 @@ module svc_rv_stage_ex #(
     assign bpred_taken_mem = bpred_taken_ex;
     assign pred_target_mem = pred_target_ex;
     assign trap_mem        = trap_ex | misalign_trap;
+    assign trap_code_mem   = misalign_trap ? TRAP_INSTR_MISALIGN : trap_code_ex;
 
     `SVC_UNUSED({ex_mem_stall, ex_mem_flush});
   end
