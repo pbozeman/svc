@@ -122,7 +122,9 @@ module svc_rv_stage_ex #(
     output logic [XLEN-1:0] mul_lh_mem,
     output logic [XLEN-1:0] mul_hl_mem,
     output logic [XLEN-1:0] mul_hh_mem,
+    output logic            is_branch_mem,
     output logic            is_jalr_mem,
+    output logic            branch_taken_mem,
     output logic            bpred_taken_mem,
     output logic [XLEN-1:0] pred_target_mem,
     output logic            trap_mem,
@@ -537,55 +539,59 @@ module svc_rv_stage_ex #(
   if (PIPELINED != 0) begin : g_registered
     always_ff @(posedge clk) begin
       if (!rst_n) begin
-        reg_write_mem   <= 1'b0;
-        mem_read_mem    <= 1'b0;
-        mem_write_mem   <= 1'b0;
-        res_src_mem     <= '0;
-        instr_mem       <= I_NOP;
-        rd_mem          <= '0;
-        rs2_mem         <= '0;
-        funct3_mem      <= '0;
-        alu_result_mem  <= '0;
-        rs1_data_mem    <= '0;
-        rs2_data_mem    <= '0;
-        pc_plus4_mem    <= '0;
-        jb_target_mem   <= '0;
-        csr_rdata_mem   <= '0;
-        m_result_mem    <= '0;
-        mul_ll_mem      <= '0;
-        mul_lh_mem      <= '0;
-        mul_hl_mem      <= '0;
-        mul_hh_mem      <= '0;
-        is_jalr_mem     <= 1'b0;
-        bpred_taken_mem <= 1'b0;
-        pred_target_mem <= '0;
-        trap_mem        <= 1'b0;
-        trap_code_mem   <= TRAP_NONE;
+        reg_write_mem    <= 1'b0;
+        mem_read_mem     <= 1'b0;
+        mem_write_mem    <= 1'b0;
+        res_src_mem      <= '0;
+        instr_mem        <= I_NOP;
+        rd_mem           <= '0;
+        rs2_mem          <= '0;
+        funct3_mem       <= '0;
+        alu_result_mem   <= '0;
+        rs1_data_mem     <= '0;
+        rs2_data_mem     <= '0;
+        pc_plus4_mem     <= '0;
+        jb_target_mem    <= '0;
+        csr_rdata_mem    <= '0;
+        m_result_mem     <= '0;
+        mul_ll_mem       <= '0;
+        mul_lh_mem       <= '0;
+        mul_hl_mem       <= '0;
+        mul_hh_mem       <= '0;
+        is_branch_mem    <= 1'b0;
+        is_jalr_mem      <= 1'b0;
+        branch_taken_mem <= 1'b0;
+        bpred_taken_mem  <= 1'b0;
+        pred_target_mem  <= '0;
+        trap_mem         <= 1'b0;
+        trap_code_mem    <= TRAP_NONE;
       end else if (!ex_mem_stall) begin
-        reg_write_mem   <= ex_mem_flush ? 1'b0 : reg_write_ex;
-        mem_read_mem    <= ex_mem_flush ? 1'b0 : mem_read_ex;
-        mem_write_mem   <= ex_mem_flush ? 1'b0 : mem_write_ex;
-        res_src_mem     <= res_src_ex;
-        instr_mem       <= ex_mem_flush ? I_NOP : instr_ex;
-        rd_mem          <= rd_ex;
-        rs2_mem         <= rs2_ex;
-        funct3_mem      <= funct3_ex;
-        alu_result_mem  <= alu_result_ex;
-        rs1_data_mem    <= fwd_rs1_ex;
-        rs2_data_mem    <= fwd_rs2_ex;
-        pc_plus4_mem    <= pc_plus4_ex;
-        jb_target_mem   <= jb_target_ex;
-        csr_rdata_mem   <= csr_rdata_ex;
-        m_result_mem    <= m_result_ex;
-        mul_ll_mem      <= mul_ll_ex;
-        mul_lh_mem      <= mul_lh_ex;
-        mul_hl_mem      <= mul_hl_ex;
-        mul_hh_mem      <= mul_hh_ex;
-        is_jalr_mem     <= is_jalr_ex;
-        bpred_taken_mem <= bpred_taken_ex;
-        pred_target_mem <= pred_target_ex;
-        trap_mem        <= trap_ex | misalign_trap;
-        trap_code_mem   <= misalign_trap ? TRAP_INSTR_MISALIGN : trap_code_ex;
+        reg_write_mem    <= ex_mem_flush ? 1'b0 : reg_write_ex;
+        mem_read_mem     <= ex_mem_flush ? 1'b0 : mem_read_ex;
+        mem_write_mem    <= ex_mem_flush ? 1'b0 : mem_write_ex;
+        res_src_mem      <= res_src_ex;
+        instr_mem        <= ex_mem_flush ? I_NOP : instr_ex;
+        rd_mem           <= rd_ex;
+        rs2_mem          <= rs2_ex;
+        funct3_mem       <= funct3_ex;
+        alu_result_mem   <= alu_result_ex;
+        rs1_data_mem     <= fwd_rs1_ex;
+        rs2_data_mem     <= fwd_rs2_ex;
+        pc_plus4_mem     <= pc_plus4_ex;
+        jb_target_mem    <= jb_target_ex;
+        csr_rdata_mem    <= csr_rdata_ex;
+        m_result_mem     <= m_result_ex;
+        mul_ll_mem       <= mul_ll_ex;
+        mul_lh_mem       <= mul_lh_ex;
+        mul_hl_mem       <= mul_hl_ex;
+        mul_hh_mem       <= mul_hh_ex;
+        is_branch_mem    <= ex_mem_flush ? 1'b0 : is_branch_ex;
+        is_jalr_mem      <= ex_mem_flush ? 1'b0 : is_jalr_ex;
+        branch_taken_mem <= ex_mem_flush ? 1'b0 : branch_taken_ex;
+        bpred_taken_mem  <= ex_mem_flush ? 1'b0 : bpred_taken_ex;
+        pred_target_mem  <= pred_target_ex;
+        trap_mem         <= ex_mem_flush ? 1'b0 : (trap_ex | misalign_trap);
+        trap_code_mem    <= misalign_trap ? TRAP_INSTR_MISALIGN : trap_code_ex;
       end else begin
         //
         // Stall case: flush memory operations, freeze other signals
@@ -596,30 +602,32 @@ module svc_rv_stage_ex #(
     end
 
   end else begin : g_passthrough
-    assign reg_write_mem   = reg_write_ex;
-    assign mem_read_mem    = mem_read_ex;
-    assign mem_write_mem   = mem_write_ex;
-    assign res_src_mem     = res_src_ex;
-    assign instr_mem       = instr_ex;
-    assign rd_mem          = rd_ex;
-    assign rs2_mem         = rs2_ex;
-    assign funct3_mem      = funct3_ex;
-    assign alu_result_mem  = alu_result_ex;
-    assign rs1_data_mem    = fwd_rs1_ex;
-    assign rs2_data_mem    = fwd_rs2_ex;
-    assign pc_plus4_mem    = pc_plus4_ex;
-    assign jb_target_mem   = jb_target_ex;
-    assign csr_rdata_mem   = csr_rdata_ex;
-    assign m_result_mem    = m_result_ex;
-    assign mul_ll_mem      = mul_ll_ex;
-    assign mul_lh_mem      = mul_lh_ex;
-    assign mul_hl_mem      = mul_hl_ex;
-    assign mul_hh_mem      = mul_hh_ex;
-    assign is_jalr_mem     = is_jalr_ex;
+    assign reg_write_mem = reg_write_ex;
+    assign mem_read_mem = mem_read_ex;
+    assign mem_write_mem = mem_write_ex;
+    assign res_src_mem = res_src_ex;
+    assign instr_mem = instr_ex;
+    assign rd_mem = rd_ex;
+    assign rs2_mem = rs2_ex;
+    assign funct3_mem = funct3_ex;
+    assign alu_result_mem = alu_result_ex;
+    assign rs1_data_mem = fwd_rs1_ex;
+    assign rs2_data_mem = fwd_rs2_ex;
+    assign pc_plus4_mem = pc_plus4_ex;
+    assign jb_target_mem = jb_target_ex;
+    assign csr_rdata_mem = csr_rdata_ex;
+    assign m_result_mem = m_result_ex;
+    assign mul_ll_mem = mul_ll_ex;
+    assign mul_lh_mem = mul_lh_ex;
+    assign mul_hl_mem = mul_hl_ex;
+    assign mul_hh_mem = mul_hh_ex;
+    assign is_branch_mem = is_branch_ex;
+    assign is_jalr_mem = is_jalr_ex;
+    assign branch_taken_mem = branch_taken_ex;
     assign bpred_taken_mem = bpred_taken_ex;
     assign pred_target_mem = pred_target_ex;
-    assign trap_mem        = trap_ex | misalign_trap;
-    assign trap_code_mem   = misalign_trap ? TRAP_INSTR_MISALIGN : trap_code_ex;
+    assign trap_mem = trap_ex | misalign_trap;
+    assign trap_code_mem = misalign_trap ? TRAP_INSTR_MISALIGN : trap_code_ex;
 
     `SVC_UNUSED({ex_mem_stall, ex_mem_flush});
   end

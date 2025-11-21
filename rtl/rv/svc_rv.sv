@@ -209,11 +209,14 @@ module svc_rv #(
   logic [XLEN-1:0] rs2_data_mem;
   logic [XLEN-1:0] pc_plus4_mem;
   logic [XLEN-1:0] jb_target_mem;
+  logic            is_branch_mem;
   logic            is_jalr_mem;
+  logic            branch_taken_mem;
   logic            bpred_taken_mem;
   logic [XLEN-1:0] pred_target_mem;
   logic            trap_mem;
   logic [     1:0] trap_code_mem;
+  logic            mispredicted_mem;
   logic [XLEN-1:0] csr_rdata_mem;
   logic [XLEN-1:0] m_result_mem;
   logic [XLEN-1:0] mul_ll_mem;
@@ -363,6 +366,8 @@ module svc_rv #(
     ) hazard (
         .*
     );
+
+    `SVC_UNUSED(mispredicted_ex);
   end else if (EXT_M == 1) begin : g_minimal_hazard
     //
     // Minimal hazard logic for single-cycle mode with M extension
