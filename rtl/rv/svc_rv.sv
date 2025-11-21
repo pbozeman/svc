@@ -106,20 +106,6 @@ module svc_rv #(
     output logic [ 3:0] rvfi_mem_wmask,
     output logic [31:0] rvfi_mem_rdata,
     output logic [31:0] rvfi_mem_wdata,
-
-`ifdef RISCV_FORMAL_CSR_MCYCLE
-    output logic [63:0] rvfi_csr_mcycle_rmask,
-    output logic [63:0] rvfi_csr_mcycle_wmask,
-    output logic [63:0] rvfi_csr_mcycle_rdata,
-    output logic [63:0] rvfi_csr_mcycle_wdata,
-`endif
-
-`ifdef RISCV_FORMAL_CSR_MINSTRET
-    output logic [63:0] rvfi_csr_minstret_rmask,
-    output logic [63:0] rvfi_csr_minstret_wmask,
-    output logic [63:0] rvfi_csr_minstret_rdata,
-    output logic [63:0] rvfi_csr_minstret_wdata,
-`endif
 `endif
 
     output logic ebreak,
@@ -945,66 +931,6 @@ module svc_rv #(
   //
   assign rvfi_mode = 2'b11;
   assign rvfi_ixl  = 2'b01;
-
-  //
-  // CSR instruction detection
-  //
-  logic        f_is_csr_wb;
-  logic [11:0] f_csr_addr_wb;
-
-  assign f_is_csr_wb   = (f_opcode_wb == OP_SYSTEM);
-  assign f_csr_addr_wb = instr_wb[31:20];
-
-`ifdef RISCV_FORMAL_CSR_MCYCLE
-  //
-  // RVFI CSR mcycle detection and signals
-  //
-
-  //
-  // Reports independent cycle count for formal verification.
-  // Read-only counter, so wmask and wdata are always 0.
-  // rmask is set if instruction reads mcycle/mcycleh CSR.
-  //
-  always_comb begin
-    logic f_is_cycle_wb;
-    logic f_is_cycleh_wb;
-    logic f_is_mcycle_wb;
-
-    f_is_cycle_wb         = (f_csr_addr_wb == CSR_CYCLE);
-    f_is_cycleh_wb        = (f_csr_addr_wb == CSR_CYCLEH);
-    f_is_mcycle_wb        = f_is_csr_wb && (f_is_cycle_wb || f_is_cycleh_wb);
-
-    rvfi_csr_mcycle_rmask = f_is_mcycle_wb ? 64'hFFFFFFFFFFFFFFFF : 64'h0;
-    rvfi_csr_mcycle_wmask = 64'h0;
-    rvfi_csr_mcycle_rdata = f_mcycle;
-    rvfi_csr_mcycle_wdata = 64'h0;
-  end
-`endif
-
-`ifdef RISCV_FORMAL_CSR_MINSTRET
-  //
-  // RVFI CSR minstret detection and signals
-  //
-  //
-  // Reports rvfi_order (retired instruction count) for formal verification.
-  // Read-only counter, so wmask and wdata are always 0.
-  // rmask is set if instruction reads minstret/minstreth CSR.
-  //
-  always_comb begin
-    logic f_is_instret_wb;
-    logic f_is_instreth_wb;
-    logic f_is_minstret_wb;
-
-    f_is_instret_wb = (f_csr_addr_wb == CSR_INSTRET);
-    f_is_instreth_wb = (f_csr_addr_wb == CSR_INSTRETH);
-
-    f_is_minstret_wb = f_is_csr_wb && (f_is_instret_wb || f_is_instreth_wb);
-    rvfi_csr_minstret_rmask = f_is_minstret_wb ? 64'hFFFFFFFFFFFFFFFF : 64'h0;
-    rvfi_csr_minstret_wmask = 64'h0;
-    rvfi_csr_minstret_rdata = rvfi_order;
-    rvfi_csr_minstret_wdata = 64'h0;
-  end
-`endif
 `endif
 
 endmodule
