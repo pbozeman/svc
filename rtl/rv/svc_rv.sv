@@ -174,6 +174,7 @@ module svc_rv #(
   logic            is_jalr_ex;
   logic            is_mc_ex;
   logic            trap_ex;
+  logic [     1:0] trap_code_ex;
   logic [    31:0] instr_ex;
   logic [     4:0] rd_ex;
   logic [     4:0] rs1_ex;
@@ -212,6 +213,7 @@ module svc_rv #(
   logic            bpred_taken_mem;
   logic [XLEN-1:0] pred_target_mem;
   logic            trap_mem;
+  logic [     1:0] trap_code_mem;
   logic [XLEN-1:0] csr_rdata_mem;
   logic [XLEN-1:0] m_result_mem;
   logic [XLEN-1:0] mul_ll_mem;
@@ -235,6 +237,7 @@ module svc_rv #(
   logic [XLEN-1:0] m_result_wb;
   logic [    63:0] product_64_wb;
   logic            trap_wb;
+  logic [     1:0] trap_code_wb;
 
   // WB -> ID (register write-back)
   logic [XLEN-1:0] rd_data_wb;
@@ -556,7 +559,7 @@ module svc_rv #(
   //
   assign halt = ebreak || trap;
 
-  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id});
+  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, trap_code_wb});
 
   `include "svc_rv_dbg.svh"
 

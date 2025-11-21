@@ -146,5 +146,13 @@ localparam logic [31:0] I_NOP    = 32'h00000013;
 localparam logic [31:0] I_ECALL  = 32'h00000073;
 localparam logic [31:0] I_EBREAK = 32'h00100073;
 
+//
+// Trap type codes
+//
+localparam logic [1:0] TRAP_NONE            = 2'b00;
+localparam logic [1:0] TRAP_INSTR_INVALID   = 2'b01;
+localparam logic [1:0] TRAP_INSTR_MISALIGN  = 2'b10;
+localparam logic [1:0] TRAP_LDST_MISALIGN   = 2'b11;
+
 // verilator lint_on UNUSEDPARAM
 // verilog_format: on
