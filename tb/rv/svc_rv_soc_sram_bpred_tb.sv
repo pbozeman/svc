@@ -23,10 +23,10 @@ module svc_rv_soc_sram_bpred_tb;
   localparam real load_use_max_cpi = 2.25;
   localparam real mixed_alu_max_cpi = 2.45;
   localparam real function_calls_max_cpi = 2.55;
-  localparam real fib12_max_cpi = 1.37;
+  localparam real fib12_max_cpi = 1.39;
   localparam real fib100_max_cpi = 1.34;
-  localparam real bubble_max_cpi = 1.94;
-  localparam real forward_taken_loop_max_cpi = 2.7;
+  localparam real bubble_max_cpi = 1.99;
+  localparam real forward_taken_loop_max_cpi = 3.0;
   logic        ebreak;
 
   //

@@ -28,8 +28,8 @@ module svc_rv_soc_bram_bpred_fwd_tb;
   localparam real function_calls_max_cpi = 1.85;
   localparam real fib12_max_cpi = 1.25;
   localparam real fib100_max_cpi = 1.20;
-  localparam real bubble_max_cpi = 1.35;
-  localparam real forward_taken_loop_max_cpi = 2.05;
+  localparam real bubble_max_cpi = 1.40;
+  localparam real forward_taken_loop_max_cpi = 2.35;
   logic        ebreak;
 
   //

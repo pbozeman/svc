@@ -58,7 +58,9 @@ module svc_rv_stage_mem #(
     input logic [XLEN-1:0] mul_lh_mem,
     input logic [XLEN-1:0] mul_hl_mem,
     input logic [XLEN-1:0] mul_hh_mem,
+    input logic            is_branch_mem,
     input logic            is_jalr_mem,
+    input logic            branch_taken_mem,
     input logic            bpred_taken_mem,
     input logic [XLEN-1:0] pred_target_mem,
     input logic            trap_mem,
@@ -109,9 +111,10 @@ module svc_rv_stage_mem #(
     output logic            ras_pop_en,
 
     //
-    // JALR misprediction detection (MEM stage)
+    // Branch/JALR misprediction detection and PC control (MEM stage)
     //
     output logic            jalr_mispredicted_mem,
+    output logic            mispredicted_mem,
     output logic [XLEN-1:0] pc_redirect_target_mem
 );
 
@@ -273,23 +276,53 @@ module svc_rv_stage_mem #(
   // Moved from EX stage to break critical timing path:
   // forwarding → ALU → JALR target → comparison → PC
   //
+  logic branch_mispredicted_mem;
+
   svc_rv_bpred_mem #(
       .XLEN      (XLEN),
       .BPRED     (BPRED),
       .RAS_ENABLE(RAS_ENABLE)
   ) bpred_mem (
-      .is_jalr_mem          (is_jalr_mem),
-      .bpred_taken_mem      (bpred_taken_mem),
-      .jb_target_mem        (jb_target_mem),
-      .pred_target_mem      (pred_target_mem),
-      .jalr_mispredicted_mem(jalr_mispredicted_mem),
-      .pc_sel_jalr_mem      ()
+      .is_branch_mem          (is_branch_mem),
+      .branch_taken_mem       (branch_taken_mem),
+      .is_jalr_mem            (is_jalr_mem),
+      .bpred_taken_mem        (bpred_taken_mem),
+      .jb_target_mem          (jb_target_mem),
+      .pred_target_mem        (pred_target_mem),
+      .branch_mispredicted_mem(branch_mispredicted_mem),
+      .jalr_mispredicted_mem  (jalr_mispredicted_mem),
+      .pc_sel_jalr_mem        ()
   );
 
   //
-  // PC redirect target for JALR misprediction
+  // Combined misprediction signal
   //
-  assign pc_redirect_target_mem = jb_target_mem;
+  assign mispredicted_mem = branch_mispredicted_mem | jalr_mispredicted_mem;
+
+  //
+  // PC redirect target calculation
+  //
+  // On branch misprediction:
+  // - If predicted taken but actually not-taken: redirect to pc + 4
+  // - If predicted not-taken but actually taken: redirect to jb_target
+  //
+  // On JALR misprediction: redirect to jb_target
+  //
+  logic mispred_not_taken;
+
+  assign mispred_not_taken = branch_mispredicted_mem && !branch_taken_mem;
+
+  always_comb begin
+    pc_redirect_target_mem = jb_target_mem;
+    if (mispred_not_taken) begin
+      //
+      // Branch was predicted taken but is actually not-taken
+      // Redirect to sequential PC (already in jb_target for branches)
+      // For safety, use pc_plus4
+      //
+      pc_redirect_target_mem = pc_plus4_mem;
+    end
+  end
 
   //
   // M Extension MEM stage: combine partial products

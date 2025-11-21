@@ -45,19 +45,13 @@ module svc_rv_bpred_ex #(
 );
 
   //
-  // Misprediction detection
+  // Misprediction detection moved to MEM stage
   //
-  if (BPRED != 0) begin : g_bpred
-    //
-    // Branch misprediction: actual outcome vs prediction
-    //
-    always_comb begin
-      mispredicted_ex = is_branch_ex && (bpred_taken_ex != branch_taken_ex);
-    end
-  end else begin : g_no_bpred
-    assign mispredicted_ex = 1'b0;
-    `SVC_UNUSED({is_branch_ex, bpred_taken_ex, branch_taken_ex});
-  end
+  // Branch misprediction detection moved to MEM stage (svc_rv_bpred_mem) to
+  // break critical timing path. EX stage computes branch outcome but doesn't
+  // compare against prediction - that comparison happens one cycle later in MEM.
+  //
+  assign mispredicted_ex = 1'b0;
 
   //
   // JALR misprediction detection moved to MEM stage (svc_rv_bpred_mem)
@@ -65,7 +59,7 @@ module svc_rv_bpred_ex #(
   // This was moved to break the critical timing path from:
   // forwarding → ALU → JALR target → misprediction comparison → PC selection
   //
-  `SVC_UNUSED({is_jalr_ex, pred_target_ex});
+  `SVC_UNUSED({BPRED, bpred_taken_ex, is_jalr_ex, pred_target_ex});
 
   //
   // BTB Update Logic

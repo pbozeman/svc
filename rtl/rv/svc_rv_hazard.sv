@@ -64,11 +64,8 @@ module svc_rv_hazard #(
     // PC selection mode from EX stage
     input logic [1:0] pc_sel,
 
-    // Branch misprediction (EX stage)
-    input logic mispredicted_ex,
-
-    // JALR misprediction (MEM stage)
-    input logic jalr_mispredicted_mem,
+    // Branch/JALR misprediction (MEM stage)
+    input logic mispredicted_mem,
 
     //
     // Prediction indicators (IF stage, synchronous with PC mux)
@@ -310,8 +307,7 @@ module svc_rv_hazard #(
   //
   logic stall_disable;
 
-  assign
-      stall_disable = pc_redirect || mispredicted_ex || jalr_mispredicted_mem;
+  assign stall_disable = pc_redirect || mispredicted_mem;
 
   assign pc_stall = ((data_hazard || op_active_ex) && !stall_disable) || halt;
   assign
@@ -363,11 +359,10 @@ module svc_rv_hazard #(
   assign pred_flush = (pc_predicted && (!btb_pred_taken || ras_pred_taken) &&
                        !data_hazard && !op_active_ex);
 
-  assign if_id_flush = (pc_redirect || mispredicted_ex ||
-                        jalr_mispredicted_mem || pred_flush);
+  assign if_id_flush = (pc_redirect || mispredicted_mem || pred_flush);
   assign id_ex_flush = ((data_hazard && !op_active_ex) || pc_redirect ||
-                        mispredicted_ex || jalr_mispredicted_mem);
-  assign ex_mem_flush = jalr_mispredicted_mem;
+                        mispredicted_mem);
+  assign ex_mem_flush = mispredicted_mem;
 
 endmodule
 
