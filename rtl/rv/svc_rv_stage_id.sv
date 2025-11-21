@@ -87,6 +87,7 @@ module svc_rv_stage_id #(
     output logic            is_csr_ex,
     output logic            is_jal_ex,
     output logic            is_jalr_ex,
+    output logic            trap_ex,
     output logic [    31:0] instr_ex,
     output logic [     4:0] rd_ex,
     output logic [     4:0] rs1_ex,
@@ -218,6 +219,15 @@ module svc_rv_stage_id #(
   assign is_mc_id = (EXT_M != 0) && is_m_id && funct3_id[2];
 
   //
+  // Illegal instruction detection (arguably this should be in idec)
+  //
+  // Trap on compressed instructions (C extension not supported).
+  // Normal RV32I instructions have bits [1:0] == 2'b11.
+  //
+  logic instr_invalid;
+  assign instr_invalid = (instr_id[1:0] != 2'b11);
+
+  //
   // Register File
   //
   svc_rv_regfile #(
@@ -331,6 +341,7 @@ module svc_rv_stage_id #(
         is_csr_ex        <= 1'b0;
         is_jal_ex        <= 1'b0;
         is_jalr_ex       <= 1'b0;
+        trap_ex          <= 1'b0;
         instr_ex         <= I_NOP;
         rd_ex            <= '0;
         rs1_ex           <= '0;
@@ -360,6 +371,7 @@ module svc_rv_stage_id #(
         is_csr_ex        <= 1'b0;
         is_jal_ex        <= 1'b0;
         is_jalr_ex       <= 1'b0;
+        trap_ex          <= 1'b0;
         instr_ex         <= I_NOP;
         rd_ex            <= '0;
         rs1_ex           <= '0;
@@ -394,6 +406,7 @@ module svc_rv_stage_id #(
         is_csr_ex        <= is_csr_id;
         is_jal_ex        <= is_jal_id;
         is_jalr_ex       <= is_jalr_id;
+        trap_ex          <= instr_invalid;
         instr_ex         <= instr_id;
         rd_ex            <= rd_id;
         rs1_ex           <= rs1_id;
@@ -426,6 +439,7 @@ module svc_rv_stage_id #(
     assign is_csr_ex        = is_csr_id;
     assign is_jal_ex        = is_jal_id;
     assign is_jalr_ex       = is_jalr_id;
+    assign trap_ex          = instr_invalid;
     assign instr_ex         = instr_id;
     assign rd_ex            = rd_id;
     assign rs1_ex           = rs1_id;
@@ -441,7 +455,7 @@ module svc_rv_stage_id #(
     assign pred_target_ex   = '0;
 
     // verilog_format: off
-    `SVC_UNUSED({id_ex_stall, id_ex_flush, fwd_rs1_id, fwd_rs2_id, bpred_taken_id,
+    `SVC_UNUSED({instr_invalid, id_ex_stall, id_ex_flush, fwd_rs1_id, fwd_rs2_id, bpred_taken_id,
                  ras_valid_id, ras_target_id});
     // verilog_format: on
   end

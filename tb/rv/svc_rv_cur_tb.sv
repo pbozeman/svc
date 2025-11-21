@@ -49,15 +49,9 @@ module svc_rv_cur_tb;
   //
   // Hack in a failed formal runs here for debugging
   //
-  task test_run();
-    uut.imem.mem[0] = 32'h00000013;  // addi x0,x0,0
-    uut.imem.mem[1] = 32'h00000013;  // addi x0,x0,0
-    uut.imem.mem[2] = 32'h00000013;  // addi x0,x0,0
-    uut.imem.mem[3] = 32'h00000013;  // addi x0,x0,0
-    uut.imem.mem[4] = 32'hb9e06081;  // c.fsd f8,240(x11); c.addi16sp x2,-768
-    uut.imem.mem[5] = 32'h8012810b;  // .insn 4, 0x8012810b
-    uut.imem.mem[6] = 32'hfe231d23;  // sh x2,-6(x6)
-    uut.imem.mem[7] = 32'h00100073;  // ebreak
+  task automatic test_run();
+    // fill in instructions here to debug
+    uut.imem.mem[0] = 32'h00100073;
 
     `CHECK_WAIT_FOR(clk, ebreak, 128);
     `CHECK_TRUE(ebreak);
