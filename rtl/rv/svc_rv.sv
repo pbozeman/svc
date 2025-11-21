@@ -588,7 +588,6 @@ module svc_rv #(
   logic            f_prev_valid;
   logic [    31:0] f_prev_insn;
   logic [XLEN-1:0] f_prev_pc;
-  logic [XLEN-1:0] f_prev_pc_next;
   logic [4:0] f_prev_rs1_addr, f_prev_rs2_addr, f_prev_rd_addr;
   logic [XLEN-1:0] f_prev_rs1_rdata, f_prev_rs2_rdata, f_prev_rd_wdata;
   logic f_prev_trap, f_prev_halt, f_prev_intr;
@@ -630,7 +629,6 @@ module svc_rv #(
   // addr=0 and rdata=0 per the RVFI specification.
   //
   logic [     6:0] f_opcode_wb;
-  logic [     2:0] f_funct3_wb;
   logic            f_csr_imm_mode_wb;
   logic            f_instr_valid_wb;
   logic            f_instr_reads_rs1_wb;
@@ -639,8 +637,7 @@ module svc_rv #(
   logic            f_rs2_used_wb;
 
   assign f_opcode_wb       = instr_wb[6:0];
-  assign f_funct3_wb       = instr_wb[14:12];
-  assign f_csr_imm_mode_wb = f_funct3_wb[2];
+  assign f_csr_imm_mode_wb = instr_wb[14];
 
   assign f_instr_valid_wb  = (trap_code_wb != TRAP_INSTR_INVALID);
 
@@ -891,7 +888,6 @@ module svc_rv #(
         f_prev_valid     <= 1'b1;
         f_prev_insn      <= instr_wb;
         f_prev_pc        <= f_commit_pc;
-        f_prev_pc_next   <= pc_plus4_wb;
 
         //
         // Override rs1/rs2 addr/rdata to 0 when not architecturally read.
