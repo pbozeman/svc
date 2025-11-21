@@ -74,6 +74,7 @@ module svc_rv_asm_tb;
       .funct7       (funct7),
       .rs1_used     (rs1_used),
       .rs2_used     (rs2_used),
+      .instr_invalid(),
       .imm_i        (imm_i),
       .imm_s        (imm_s),
       .imm_b        (imm_b),
