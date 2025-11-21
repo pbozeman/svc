@@ -1,3 +1,5 @@
+`define RISCV_FORMAL 1
+
 `include "svc_unit.sv"
 
 `include "svc_mem_sram.sv"
@@ -6,6 +8,7 @@
 //
 // Quick regression testbench for debugging specific instruction sequences
 //
+// verilator lint_off: UNUSEDSIGNAL
 module svc_rv_cur_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
@@ -24,8 +27,8 @@ module svc_rv_cur_tb;
       .PIPELINED  (1),
       .FWD_REGFILE(1),
       .FWD        (1),
-      .BPRED      (0),
-      .BTB_ENABLE (0),
+      .BPRED      (1),
+      .BTB_ENABLE (1),
       .RAS_ENABLE (0),
       .EXT_ZMMUL  (0),
       .EXT_M      (0)
@@ -51,10 +54,13 @@ module svc_rv_cur_tb;
   //
   task automatic test_run();
     // fill in instructions here to debug
-    uut.imem.mem[0] = 32'h00100073;
+    uut.imem.mem[0] = 32'hffdff36f;
+    uut.imem.mem[1] = 32'h80635213;
+    uut.imem.mem[2] = 32'h01e20413;
+    uut.imem.mem[3] = 32'h00100073;
 
-    `CHECK_WAIT_FOR(clk, ebreak, 128);
-    `CHECK_TRUE(ebreak);
+    // just run a bit, the little sequences being inspected often don't terminate
+    #1000;
   endtask
 
   `TEST_SUITE_BEGIN(svc_rv_cur_tb);
