@@ -559,7 +559,11 @@ module svc_rv #(
   //
   assign halt = ebreak || trap;
 
+`ifndef RISCV_FORMAL
   `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, trap_code_wb});
+`else
+  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id});
+`endif
 
   `include "svc_rv_dbg.svh"
 
@@ -611,10 +615,10 @@ module svc_rv #(
   logic            f_flushed_wb;
 
   //
-  // Decode helpers for RVFI rs1/rs2 usage detection
   //
   // Note: We decode instruction types here rather than using the pipeline's
   // rs1_used/rs2_used signals because those are for hazard detection only.
+  //
   // For performance, we don't mind if CSR or other instructions stall/forward
   // unnecessarily, but RVFI must accurately report which registers are
   // architecturally read. Instructions that don't read a register must report
@@ -628,19 +632,24 @@ module svc_rv #(
   assign f_opcode_wb = instr_wb[6:0];
   assign f_funct3_wb = instr_wb[14:12];
 
+  //
   // rs1/rs2 usage detection for RVFI
   //
-  // rs1 is NOT used by: LUI, AUIPC, JAL, CSR immediate, or trapped instructions
-  //
-  assign f_rs1_used_wb = !trap &&
-      !(f_opcode_wb == OP_LUI || f_opcode_wb == OP_AUIPC ||
-        f_opcode_wb == OP_JAL || (f_opcode_wb == OP_SYSTEM && f_funct3_wb[2]));
+  always_comb begin
+    //
+    // Illegal instructions: registers not used
+    // Valid instructions: rs1 NOT used by LUI, AUIPC, JAL, CSR immediate
+    //
+    // See note above as to why we are doing this decoding here.
+    //
+    f_rs1_used_wb = (trap_code_wb != TRAP_INSTR_INVALID) &&
+        !(f_opcode_wb == OP_LUI || f_opcode_wb == OP_AUIPC || f_opcode_wb ==
+          OP_JAL || (f_opcode_wb == OP_SYSTEM && f_funct3_wb[2]));
 
-  //
-  // rs2 is only used by: R-type, BRANCH, STORE (and instruction must not trap)
-  //
-  assign f_rs2_used_wb = !trap && (f_opcode_wb == OP_RTYPE || f_opcode_wb ==
-                                   OP_BRANCH || f_opcode_wb == OP_STORE);
+    f_rs2_used_wb = (trap_code_wb != TRAP_INSTR_INVALID) &&
+        (f_opcode_wb == OP_RTYPE || f_opcode_wb == OP_BRANCH ||
+         f_opcode_wb == OP_STORE);
+  end
 
   //
   // Track flushed instructions through pipeline
