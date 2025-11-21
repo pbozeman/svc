@@ -774,7 +774,7 @@ module svc_rv #(
     //
     // TODO: get these exposed so we don't have to do this logic here.
     // We should be passing on the signals directly.
-    if (res_src_wb == RES_MEM) begin
+    if (res_src_wb == RES_MEM && !trap_wb) begin
       f_commit_mem_valid = 1'b1;
       f_commit_mem_rdata = f_dmem_rdata_wb;
 
@@ -788,7 +788,7 @@ module svc_rv #(
     end
 
     // Stores (use pipelined memory interface signals)
-    if (f_mem_write_wb) begin
+    if (f_mem_write_wb && !trap_wb) begin
       f_commit_mem_valid = 1'b1;
       f_commit_mem_wmask = f_dmem_wstrb_wb;
       f_commit_mem_wdata = f_dmem_wdata_wb;
