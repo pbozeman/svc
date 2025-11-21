@@ -38,6 +38,7 @@ module svc_rv_idec #(
     output logic       is_jalr,
     output logic       is_m,
     output logic       is_csr,
+    output logic       instr_invalid,
 
     output logic [4:0] rd,
     output logic [4:0] rs1,
@@ -82,8 +83,10 @@ module svc_rv_idec #(
   //
   // Control signal decoder
   //
+  logic valid_opcode;
+
   always_comb begin
-    logic [21:0] c;
+    logic [22:0] c;
 
     //
     // Short aliases for decode table
@@ -129,23 +132,23 @@ module svc_rv_idec #(
     // Control signal decode
     //
     case (opcode)
-      //              r mr mw   alu  alu  alu  res    imm  b  j    jb  jal jalr csr r1u r2u
-      //                          a    b   op
-      OP_LOAD:   c = {y, y, n,  RS1, IMM, ADD, MEM,     I, n, n,    x,   n,   n,  n,  y,  n};
-      OP_STORE:  c = {n, n, y,  RS1, IMM, ADD, xxx,     S, n, n,    x,   n,   n,  n,  y,  y};
-      OP_RTYPE:  c = {y, n, n,  RS1, RS2, FN3, ALU,   xxx, n, n,    x,   n,   n,  n,  y,  y};
-      OP_BRANCH: c = {n, n, n,   xx,   x,  xx, xxx,     B, y, n,   PC,   n,   n,  n,  y,  y};
-      OP_ITYPE:  c = {y, n, n,  RS1, IMM, FN3, ALU,     I, n, n,    x,   n,   n,  n,  y,  n};
-      OP_JAL:    c = {y, n, n,   xx,   x,  xx, PC4,     J, n, y,   PC,   y,   n,  n,  n,  n};
-      OP_AUIPC:  c = {y, n, n,   xx,   x,  xx, TGT,     U, n, n,   PC,   n,   n,  n,  n,  n};
-      OP_LUI:    c = {y, n, n, ZERO, IMM, ADD, ALU,     U, n, n,    x,   n,   n,  n,  n,  n};
-      OP_JALR:   c = {y, n, n,  RS1, IMM, ADD, PC4,     I, n, y, ALUR,   n,   y,  n,  y,  n};
-      OP_SYSTEM: c = {y, n, n,   xx,   x,  xx, CSR,     I, n, n,    x,   n,   n,  y,  y,  n};
-      OP_RESET:  c = {n, n, n,   xx,   x,  xx, xxx,   xxx, n, n,    x,   n,   n,  n,  n,  n};
-      default:   c = {n, n, n,   xx,   x,  xx, xxx,   xxx, n, n,    x,   n,   n,  n,  n,  n};
+      //              v  r mr mw   alu  alu  alu  res    imm  b  j    jb  jal jalr csr r1u r2u
+      //                             a    b   op
+      OP_LOAD:   c = {y, y, y, n,  RS1, IMM, ADD, MEM,     I, n, n,    x,   n,   n,  n,  y,  n};
+      OP_STORE:  c = {y, n, n, y,  RS1, IMM, ADD, xxx,     S, n, n,    x,   n,   n,  n,  y,  y};
+      OP_RTYPE:  c = {y, y, n, n,  RS1, RS2, FN3, ALU,   xxx, n, n,    x,   n,   n,  n,  y,  y};
+      OP_BRANCH: c = {y, n, n, n,   xx,   x,  xx, xxx,     B, y, n,   PC,   n,   n,  n,  y,  y};
+      OP_ITYPE:  c = {y, y, n, n,  RS1, IMM, FN3, ALU,     I, n, n,    x,   n,   n,  n,  y,  n};
+      OP_JAL:    c = {y, y, n, n,   xx,   x,  xx, PC4,     J, n, y,   PC,   y,   n,  n,  n,  n};
+      OP_AUIPC:  c = {y, y, n, n,   xx,   x,  xx, TGT,     U, n, n,   PC,   n,   n,  n,  n,  n};
+      OP_LUI:    c = {y, y, n, n, ZERO, IMM, ADD, ALU,     U, n, n,    x,   n,   n,  n,  n,  n};
+      OP_JALR:   c = {y, y, n, n,  RS1, IMM, ADD, PC4,     I, n, y, ALUR,   n,   y,  n,  y,  n};
+      OP_SYSTEM: c = {y, y, n, n,   xx,   x,  xx, CSR,     I, n, n,    x,   n,   n,  y,  y,  n};
+      OP_RESET:  c = {y, n, n, n,   xx,   x,  xx, xxx,   xxx, n, n,    x,   n,   n,  n,  n,  n};
+      default:   c = {n, n, n, n,   xx,   x,  xx, xxx,   xxx, n, n,    x,   n,   n,  n,  n,  n};
     endcase
 
-    { reg_write, mem_read, mem_write,
+    { valid_opcode, reg_write, mem_read, mem_write,
       alu_a_src, alu_b_src, alu_instr, res_src, imm_type,
       is_branch, is_jump, jb_target_src, is_jal, is_jalr, is_csr,
       rs1_used, rs2_used } = c;
@@ -183,6 +186,42 @@ module svc_rv_idec #(
   end else begin : g_no_m_ext
     assign is_m = 1'b0;
   end
+
+  //
+  // Invalid instruction detection
+  //
+  logic invalid_compressed;
+  logic invalid_opcode;
+  logic invalid_system;
+
+  //
+  // Compressed instructions (C extension not supported)
+  //
+  assign invalid_compressed = (instr[1:0] != 2'b11);
+
+  //
+  // Invalid opcodes: Check valid bit from decode table
+  //
+  // This catches all unsupported opcodes including RV64-only instructions
+  //
+  assign invalid_opcode     = !valid_opcode;
+
+  //
+  // Invalid SYSTEM instructions
+  //
+  // Valid funct3: 000 (ECALL/EBREAK), 001-011 (CSR reg), 101-111 (CSR imm)
+  // For funct3=000, only ECALL and EBREAK are supported
+  //
+  logic invalid_system_funct3;
+  logic invalid_system_priv;
+
+  assign invalid_system_funct3 = (funct3 == 3'b100);
+  assign invalid_system_priv = ((funct3 == 3'b000) && (instr != I_ECALL) &&
+                                (instr != I_EBREAK));
+  assign invalid_system = ((opcode == OP_SYSTEM) &&
+                           (invalid_system_funct3 | invalid_system_priv));
+
+  assign instr_invalid = invalid_compressed | invalid_opcode | invalid_system;
 
 endmodule
 

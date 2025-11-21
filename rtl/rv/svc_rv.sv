@@ -619,29 +619,25 @@ module svc_rv #(
   //
   logic [     6:0] f_opcode_wb;
   logic [     2:0] f_funct3_wb;
-  logic            f_instr_invalid_wb;
   logic            f_rs1_used_wb;
   logic            f_rs2_used_wb;
 
   assign f_opcode_wb = instr_wb[6:0];
   assign f_funct3_wb = instr_wb[14:12];
-  assign f_instr_invalid_wb = (instr_wb[1:0] != 2'b11);
 
+  // rs1/rs2 usage detection for RVFI
   //
-  // Invalid instructions (e.g., compressed) don't have valid rs1/rs2 fields
+  // rs1 is NOT used by: LUI, AUIPC, JAL, CSR immediate, or trapped instructions
   //
-  // rs1 is NOT used by: LUI, AUIPC, JAL, CSR immediate, or invalid instructions
-  //
-  assign f_rs1_used_wb = !f_instr_invalid_wb &&
+  assign f_rs1_used_wb = !trap &&
       !(f_opcode_wb == OP_LUI || f_opcode_wb == OP_AUIPC ||
         f_opcode_wb == OP_JAL || (f_opcode_wb == OP_SYSTEM && f_funct3_wb[2]));
 
   //
-  // rs2 is only used by: R-type, BRANCH, STORE (and instruction must be valid)
+  // rs2 is only used by: R-type, BRANCH, STORE (and instruction must not trap)
   //
-  assign f_rs2_used_wb = !f_instr_invalid_wb &&
-      (f_opcode_wb == OP_RTYPE || f_opcode_wb == OP_BRANCH ||
-       f_opcode_wb == OP_STORE);
+  assign f_rs2_used_wb = !trap && (f_opcode_wb == OP_RTYPE || f_opcode_wb ==
+                                   OP_BRANCH || f_opcode_wb == OP_STORE);
 
   //
   // Track flushed instructions through pipeline
@@ -881,22 +877,6 @@ module svc_rv #(
   //
   assign rvfi_mode = 2'b11;  // M-mode
   assign rvfi_ixl  = 2'b01;  // RV32
-
-  //
-  // Formal assumptions to restrict instruction space
-  //
-  // Only allow CSR instructions for the 4 supported CSRs: cycle, cycleh,
-  // instret, instreth. This prevents formal from generating unsupported CSRs
-  // in the instruction stream. Only applies to CSR instructions (funct3 != 0),
-  // not ECALL/EBREAK which use funct3=0.
-  //
-  always_comb begin
-    if (imem_rdata[6:0] == OP_SYSTEM && imem_rdata[14:12] != 3'b000) begin
-      assume (imem_rdata[31:20] == CSR_CYCLE || imem_rdata[31:20] ==
-              CSR_CYCLEH || imem_rdata[31:20] == CSR_INSTRET ||
-              imem_rdata[31:20] == CSR_INSTRETH);
-    end
-  end
 `endif
 
 endmodule

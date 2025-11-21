@@ -146,6 +146,7 @@ module svc_rv_stage_id #(
   logic            is_csr_id;
   logic            is_jal_id;
   logic            is_mc_id;
+  logic            instr_invalid_id;
   logic [     4:0] rd_id;
   logic [     2:0] funct3_id;
   logic [     6:0] funct7_id;
@@ -182,6 +183,7 @@ module svc_rv_stage_id #(
       .is_csr       (is_csr_id),
       .is_jal       (is_jal_id),
       .is_jalr      (is_jalr_id),
+      .instr_invalid(instr_invalid_id),
       .rd           (rd_id),
       .rs1          (rs1_id),
       .rs2          (rs2_id),
@@ -217,15 +219,6 @@ module svc_rv_stage_id #(
   // M-extension detection: R-type instruction with funct7[0]=1
   //
   assign is_mc_id = (EXT_M != 0) && is_m_id && funct3_id[2];
-
-  //
-  // Illegal instruction detection (arguably this should be in idec)
-  //
-  // Trap on compressed instructions (C extension not supported).
-  // Normal RV32I instructions have bits [1:0] == 2'b11.
-  //
-  logic instr_invalid;
-  assign instr_invalid = (instr_id[1:0] != 2'b11);
 
   //
   // Register File
@@ -406,7 +399,7 @@ module svc_rv_stage_id #(
         is_csr_ex        <= is_csr_id;
         is_jal_ex        <= is_jal_id;
         is_jalr_ex       <= is_jalr_id;
-        trap_ex          <= instr_invalid;
+        trap_ex          <= instr_invalid_id;
         instr_ex         <= instr_id;
         rd_ex            <= rd_id;
         rs1_ex           <= rs1_id;
@@ -439,7 +432,7 @@ module svc_rv_stage_id #(
     assign is_csr_ex        = is_csr_id;
     assign is_jal_ex        = is_jal_id;
     assign is_jalr_ex       = is_jalr_id;
-    assign trap_ex          = instr_invalid;
+    assign trap_ex          = instr_invalid_id;
     assign instr_ex         = instr_id;
     assign rd_ex            = rd_id;
     assign rs1_ex           = rs1_id;
@@ -455,7 +448,7 @@ module svc_rv_stage_id #(
     assign pred_target_ex   = '0;
 
     // verilog_format: off
-    `SVC_UNUSED({instr_invalid, id_ex_stall, id_ex_flush, fwd_rs1_id, fwd_rs2_id, bpred_taken_id,
+    `SVC_UNUSED({id_ex_stall, id_ex_flush, fwd_rs1_id, fwd_rs2_id, bpred_taken_id,
                  ras_valid_id, ras_target_id});
     // verilog_format: on
   end
