@@ -31,6 +31,7 @@ logic dbg_ex;
 logic dbg_mem;
 logic dbg_wb;
 logic dbg_haz;
+logic dbg_rvfi;
 logic dbg_first_line;
 
 initial begin
@@ -40,6 +41,7 @@ initial begin
   integer dbg_mem_level;
   integer dbg_wb_level;
   integer dbg_haz_level;
+  integer dbg_rvfi_level;
   integer dbg_cpu_level;
 
   //
@@ -47,27 +49,30 @@ initial begin
   //
   if ($value$plusargs("SVC_RV_DBG_CPU=%d", dbg_cpu_level)) begin
     if (dbg_cpu_level != 0) begin
-      dbg_if  = 1'b1;
-      dbg_id  = 1'b1;
-      dbg_ex  = 1'b1;
-      dbg_mem = 1'b1;
-      dbg_wb  = 1'b1;
-      dbg_haz = 1'b1;
+      dbg_if   = 1'b1;
+      dbg_id   = 1'b1;
+      dbg_ex   = 1'b1;
+      dbg_mem  = 1'b1;
+      dbg_wb   = 1'b1;
+      dbg_haz  = 1'b1;
+      dbg_rvfi = 1'b1;
     end else begin
-      dbg_if  = 1'b0;
-      dbg_id  = 1'b0;
-      dbg_ex  = 1'b0;
-      dbg_mem = 1'b0;
-      dbg_wb  = 1'b0;
-      dbg_haz = 1'b0;
+      dbg_if   = 1'b0;
+      dbg_id   = 1'b0;
+      dbg_ex   = 1'b0;
+      dbg_mem  = 1'b0;
+      dbg_wb   = 1'b0;
+      dbg_haz  = 1'b0;
+      dbg_rvfi = 1'b0;
     end
   end else begin
-    dbg_if  = 1'b0;
-    dbg_id  = 1'b0;
-    dbg_ex  = 1'b0;
-    dbg_mem = 1'b0;
-    dbg_wb  = 1'b0;
-    dbg_haz = 1'b0;
+    dbg_if   = 1'b0;
+    dbg_id   = 1'b0;
+    dbg_ex   = 1'b0;
+    dbg_mem  = 1'b0;
+    dbg_wb   = 1'b0;
+    dbg_haz  = 1'b0;
+    dbg_rvfi = 1'b0;
   end
 
   //
@@ -97,6 +102,10 @@ initial begin
     dbg_haz = (dbg_haz_level != 0);
   end
 
+  if ($value$plusargs("SVC_RV_DBG_RVFI=%d", dbg_rvfi_level)) begin
+    dbg_rvfi = (dbg_rvfi_level != 0);
+  end
+
 end
 
 //
@@ -105,7 +114,8 @@ end
 always_ff @(posedge clk) begin
   if (!rst_n) begin
     dbg_first_line <= 1'b1;
-  end else if (dbg_if || dbg_id || dbg_ex || dbg_mem || dbg_wb || dbg_haz) begin
+  end else if (dbg_if || dbg_id || dbg_ex || dbg_mem || dbg_wb || dbg_haz ||
+               dbg_rvfi) begin
     dbg_first_line <= 1'b0;
   end
 end
@@ -205,15 +215,129 @@ function automatic string fmt_id_debug();
   );
 endfunction
 
+`ifdef RISCV_FORMAL
+//
+// Helper function to format RVFI IF stage debug output (RF)
+// Shows RD_PC (pc_rdata), WR_PC (pc_wdata), and ordinal
+//
+function automatic string fmt_rvfi_if_debug();
+  return $sformatf("RF    %08x      %08x %0d", rvfi_pc_rdata, rvfi_pc_wdata,
+                   rvfi_order);
+endfunction
+
+//
+// Helper function to format RVFI EX stage debug output (RX)
+//
+function automatic string fmt_rvfi_ex_debug();
+  string result;
+  string reg_str;
+  string mem_str;
+
+  //
+  // Base: next PC and instruction
+  //
+  result  = $sformatf("RX    %08x  %-30s", rvfi_pc_rdata, dasm_inst(rvfi_insn));
+
+  //
+  // Register operations (rs1/rs2 only, rd shown in RB)
+  //
+  reg_str = "";
+  if (rvfi_rs1_addr != 5'b0) begin
+    reg_str = {
+      reg_str, $sformatf(" rs1=x%02d:%08x", rvfi_rs1_addr, rvfi_rs1_rdata)
+    };
+  end
+  if (rvfi_rs2_addr != 5'b0) begin
+    reg_str = {
+      reg_str, $sformatf(" rs2=x%02d:%08x", rvfi_rs2_addr, rvfi_rs2_rdata)
+    };
+  end
+  result = {result, reg_str};
+
+  //
+  // Memory operations
+  //
+  if (rvfi_mem_valid) begin
+    if (rvfi_mem_wmask != 4'b0) begin
+      mem_str = $sformatf(
+          " MEM[%08x]<-%08x (wmask=%04b)",
+          rvfi_mem_addr,
+          rvfi_mem_wdata,
+          rvfi_mem_wmask
+      );
+    end else begin
+      mem_str = $sformatf(
+          " MEM[%08x]->%08x (rmask=%04b)",
+          rvfi_mem_addr,
+          rvfi_mem_rdata,
+          rvfi_mem_rmask
+      );
+    end
+    result = {result, mem_str};
+  end
+
+  return result;
+endfunction
+
+//
+// Helper function to format RVFI WB stage debug output (RB)
+//
+function automatic string fmt_rvfi_wb_debug();
+  string result;
+
+  if (rvfi_rd_addr != 5'b0) begin
+    result = $sformatf("RB %08x %08x -> x%02d", rvfi_pc_rdata, rvfi_rd_wdata, rvfi_rd_addr);
+  end else begin
+    result = $sformatf("RB %08x", rvfi_pc_rdata);
+  end
+
+  return result;
+endfunction
+
+//
+// Helper function to format RVFI HAZ stage debug output (RH)
+//
+function automatic string fmt_rvfi_haz_debug();
+  string result;
+  string flags_str;
+
+  flags_str = "";
+  if (rvfi_trap) begin
+    flags_str = {flags_str, " TRAP"};
+  end
+  if (rvfi_halt) begin
+    flags_str = {flags_str, " HALT"};
+  end
+
+  if (flags_str != "") begin
+    result = $sformatf("RH%s", flags_str);
+  end else begin
+    result = "RH";
+  end
+
+  return result;
+endfunction
+`endif
+
 always @(posedge clk) begin
   string line;
+  string if_str;
+  string id_str;
+  string ex_str;
+  string haz_str;
+  int    if_width;
+  int    id_width;
+  int    ex_width;
+  int    mem_width;
+  int    wb_width;
+  int    haz_width;
 
   //
   // Combined debug output
   // Display any enabled stages in pipeline order: IF | ID | EX | MEM | WB | HAZ
   //
-  if (rst_n &&
-      (dbg_if || dbg_id || dbg_ex || dbg_mem || dbg_wb || dbg_haz)) begin
+  if (rst_n && (dbg_if || dbg_id || dbg_ex || dbg_mem || dbg_wb || dbg_haz ||
+                dbg_rvfi)) begin
     //
     // Print newline before first debug line after reset
     //
@@ -224,13 +348,25 @@ always @(posedge clk) begin
     //
     // Build combined line with all enabled stages
     //
-    line = "";
+    line      = "";
+    if_str    = "";
+    id_str    = "";
+    ex_str    = "";
+    haz_str   = "";
+    if_width  = 0;
+    id_width  = 0;
+    ex_width  = 0;
+    mem_width = 0;
+    wb_width  = 0;
+    haz_width = 0;
 
     //
     // IF stage
     //
     if (dbg_if) begin
-      line = fmt_if_debug();
+      if_str   = fmt_if_debug();
+      line     = if_str;
+      if_width = if_str.len();
     end
 
     //
@@ -238,7 +374,9 @@ always @(posedge clk) begin
     //
     if (dbg_id) begin
       if (line != "") line = {line, " | "};
-      line = {line, fmt_id_debug()};
+      id_str   = fmt_id_debug();
+      line     = {line, id_str};
+      id_width = id_str.len();
     end
 
     //
@@ -251,114 +389,98 @@ always @(posedge clk) begin
         //
         // Branch ops: show comparison operands, prediction, and actual result
         //
-        line = {
-          line,
-          $sformatf(
-              "EX %s  %08x  %-30s   %08x %08x -> %08x %s %s ",
-              ex_mem_stall ? "s" : " ",
-              pc_ex,
-              dasm_inst(
-                instr_ex
-              ),
-              stage_ex.fwd_rs1_ex,
-              stage_ex.fwd_rs2_ex,
-              stage_ex.jb_target_ex,
-              bpred_taken_ex ? "T" : "N",
-              stage_ex.branch_taken_ex ? "T" : "N"
-          )
-        };
+        ex_str = $sformatf(
+            "EX %s  %08x  %-30s   %08x %08x -> %08x %s %s ",
+            ex_mem_stall ? "s" : " ",
+            pc_ex,
+            dasm_inst(
+              instr_ex
+            ),
+            stage_ex.fwd_rs1_ex,
+            stage_ex.fwd_rs2_ex,
+            stage_ex.jb_target_ex,
+            bpred_taken_ex ? "T" : "N",
+            stage_ex.branch_taken_ex ? "T" : "N"
+        );
       end else if (is_jump_ex) begin
         //
         // Jump ops: show base address (for JALR) and target
         //
-        line = {
-          line,
-          $sformatf(
-              "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
-              ex_mem_stall ? "s" : " ",
-              pc_ex,
-              dasm_inst(
-                instr_ex
-              ),
-              jb_target_src_ex ? stage_ex.fwd_rs1_ex : pc_ex,
-              imm_ex,
-              stage_ex.jb_target_ex
-          )
-        };
+        ex_str = $sformatf(
+            "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
+            ex_mem_stall ? "s" : " ",
+            pc_ex,
+            dasm_inst(
+              instr_ex
+            ),
+            jb_target_src_ex ? stage_ex.fwd_rs1_ex : pc_ex,
+            imm_ex,
+            stage_ex.jb_target_ex
+        );
       end else if (res_src_ex == RES_M) begin
         //
         // M extension ops: show operands and result
         // Note: fwd_rs1_ex/fwd_rs2_ex are stable during multi-cycle ops
         //
-        line = {
-          line,
-          $sformatf(
-              "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
-              ex_mem_stall ? "s" : " ",
-              pc_ex,
-              dasm_inst(
-                instr_ex
-              ),
-              stage_ex.fwd_rs1_ex,
-              stage_ex.fwd_rs2_ex,
-              stage_ex.m_result_ex
-          )
-        };
+        ex_str = $sformatf(
+            "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
+            ex_mem_stall ? "s" : " ",
+            pc_ex,
+            dasm_inst(
+              instr_ex
+            ),
+            stage_ex.fwd_rs1_ex,
+            stage_ex.fwd_rs2_ex,
+            stage_ex.m_result_ex
+        );
       end else if (mem_write_ex) begin
         //
         // Store ops: show data to write and target address
         //
-        line = {
-          line,
-          $sformatf(
-              "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
-              ex_mem_stall ? "s" : (ex_mem_flush ? "f" : " "),
-              pc_ex,
-              dasm_inst(
-                instr_ex
-              ),
-              stage_ex.fwd_rs2_ex,
-              stage_ex.alu_a_ex,
-              stage_ex.alu_result_ex
-          )
-        };
+        ex_str = $sformatf(
+            "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
+            ex_mem_stall ? "s" : (ex_mem_flush ? "f" : " "),
+            pc_ex,
+            dasm_inst(
+              instr_ex
+            ),
+            stage_ex.fwd_rs2_ex,
+            stage_ex.alu_a_ex,
+            stage_ex.alu_result_ex
+        );
       end else if (mem_read_ex) begin
         //
         // Load ops: show address calculation
         //
-        line = {
-          line,
-          $sformatf(
-              "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
-              ex_mem_stall ? "s" : (ex_mem_flush ? "f" : " "),
-              pc_ex,
-              dasm_inst(
-                instr_ex
-              ),
-              stage_ex.alu_a_ex,
-              stage_ex.alu_b_ex,
-              stage_ex.alu_result_ex
-          )
-        };
+        ex_str = $sformatf(
+            "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
+            ex_mem_stall ? "s" : (ex_mem_flush ? "f" : " "),
+            pc_ex,
+            dasm_inst(
+              instr_ex
+            ),
+            stage_ex.alu_a_ex,
+            stage_ex.alu_b_ex,
+            stage_ex.alu_result_ex
+        );
       end else begin
         //
         // Other ops: show ALU operation
         //
-        line = {
-          line,
-          $sformatf(
-              "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
-              ex_mem_stall ? "s" : (ex_mem_flush ? "f" : " "),
-              pc_ex,
-              dasm_inst(
-                instr_ex
-              ),
-              stage_ex.alu_a_ex,
-              stage_ex.alu_b_ex,
-              stage_ex.alu_result_ex
-          )
-        };
+        ex_str = $sformatf(
+            "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
+            ex_mem_stall ? "s" : (ex_mem_flush ? "f" : " "),
+            pc_ex,
+            dasm_inst(
+              instr_ex
+            ),
+            stage_ex.alu_a_ex,
+            stage_ex.alu_b_ex,
+            stage_ex.alu_result_ex
+        );
       end
+      line = {line, ex_str};
+      ex_width = ex_str.len();
     end
 
     //
@@ -368,45 +490,44 @@ always @(posedge clk) begin
     //
     if (dbg_mem) begin
       string stall_str;
+      string mem_str;
 
       stall_str = mem_wb_stall ? "s" : " ";
 
       if (line != "") line = {line, " | "};
       if (MEM_TYPE == MEM_TYPE_SRAM) begin
         if (dmem_ren) begin
-          line = {
-            line,
-            $sformatf(
-                "M %s %08x r %08x ", stall_str, pc_plus4_mem - 4, dmem_raddr
-            )
-          };
+          mem_str = $sformatf(
+              "M %s %08x r %08x ", stall_str, pc_plus4_mem - 4, dmem_raddr
+          );
+          line = {line, mem_str};
+          mem_width = mem_str.len();
         end else if (dmem_we) begin
-          line = {
-            line,
-            $sformatf(
-                "M %s %08x w %08x ", stall_str, pc_plus4_mem - 4, dmem_waddr
-            )
-          };
+          mem_str = $sformatf(
+              "M %s %08x w %08x ", stall_str, pc_plus4_mem - 4, dmem_waddr
+          );
+          line = {line, mem_str};
+          mem_width = mem_str.len();
         end else begin
           line = {line, {DBG_MEM_WIDTH{" "}}};
+          mem_width = DBG_MEM_WIDTH;
         end
       end else begin
         if (mem_read_mem) begin
-          line = {
-            line,
-            $sformatf(
-                "M %s %08x r %08x ", stall_str, pc_plus4_mem - 4, dmem_raddr
-            )
-          };
+          mem_str = $sformatf(
+              "M %s %08x r %08x ", stall_str, pc_plus4_mem - 4, dmem_raddr
+          );
+          line = {line, mem_str};
+          mem_width = mem_str.len();
         end else if (mem_write_mem) begin
-          line = {
-            line,
-            $sformatf(
-                "M %s %08x w %08x ", stall_str, pc_plus4_mem - 4, dmem_waddr
-            )
-          };
+          mem_str = $sformatf(
+              "M %s %08x w %08x ", stall_str, pc_plus4_mem - 4, dmem_waddr
+          );
+          line = {line, mem_str};
+          mem_width = mem_str.len();
         end else begin
           line = {line, {DBG_MEM_WIDTH{" "}}};
+          mem_width = DBG_MEM_WIDTH;
         end
       end
     end
@@ -428,6 +549,7 @@ always @(posedge clk) begin
         end
       end
       line = {line, wb_str};
+      wb_width = wb_str.len();
     end
 
 
@@ -483,11 +605,81 @@ always @(posedge clk) begin
           end
         end
 
-        line = {line, $sformatf("H %s %s %s", rs1_str, rs2_str, ctrl_str)};
+        haz_str = $sformatf("H %s %s %s", rs1_str, rs2_str, ctrl_str);
+        line = {line, haz_str};
+        haz_width = haz_str.len();
       end
     end
 
-    $display("[%12t] %s", $time, line);
+    //
+    // Only print main pipeline line if there's content
+    //
+    if (line != "") begin
+      $display("[%12t] %s", $time, line);
+    end
+
+`ifdef RISCV_FORMAL
+    //
+    // RVFI output on second line when enabled and valid
+    // RF under IF, RX under EX, RB under WB, RH under HAZ
+    //
+    if (dbg_rvfi && rvfi_valid) begin
+      string rf_str;
+      string rx_str;
+      string rb_str;
+      string rh_str;
+      string id_spacer;
+      string mem_spacer;
+      int    rf_width;
+      int    rx_width;
+      int    rb_width;
+      int    rh_width;
+      int    i;
+
+      //
+      // Build RF string and pad to match IF column width
+      //
+      rf_str   = fmt_rvfi_if_debug();
+      rf_width = rf_str.len();
+      for (i = rf_width; i < if_width; i = i + 1) rf_str = {rf_str, " "};
+
+      //
+      // Build ID spacer to match ID column width
+      //
+      id_spacer = "";
+      for (i = 0; i < id_width; i = i + 1) id_spacer = {id_spacer, " "};
+
+      //
+      // Build RX string and pad to match EX column width
+      //
+      rx_str   = fmt_rvfi_ex_debug();
+      rx_width = rx_str.len();
+      for (i = rx_width; i < ex_width; i = i + 1) rx_str = {rx_str, " "};
+
+      //
+      // Build MEM spacer to match MEM column width
+      //
+      mem_spacer = "";
+      for (i = 0; i < mem_width; i = i + 1) mem_spacer = {mem_spacer, " "};
+
+      //
+      // Build RB string and pad to match WB column width
+      //
+      rb_str   = fmt_rvfi_wb_debug();
+      rb_width = rb_str.len();
+      for (i = rb_width; i < wb_width; i = i + 1) rb_str = {rb_str, " "};
+
+      //
+      // Build RH string and pad to match HAZ column width
+      //
+      rh_str   = fmt_rvfi_haz_debug();
+      rh_width = rh_str.len();
+      for (i = rh_width; i < haz_width; i = i + 1) rh_str = {rh_str, " "};
+
+      $display("[%12t] %s | %s | %s | %s | %s | %s", $time, rf_str, id_spacer,
+               rx_str, mem_spacer, rb_str, rh_str);
+    end
+`endif
   end
 end
 `endif
