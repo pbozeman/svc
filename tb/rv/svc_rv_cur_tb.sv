@@ -53,14 +53,18 @@ module svc_rv_cur_tb;
   // Hack in a failed formal runs here for debugging
   //
   task automatic test_run();
-    // fill in instructions here to debug
+    int timeout;
+
+    //
+    // Fill in instructions here to debug
+    //
     uut.imem.mem[0] = 32'hffdff36f;
     uut.imem.mem[1] = 32'h80635213;
     uut.imem.mem[2] = 32'h01e20413;
     uut.imem.mem[3] = 32'h00100073;
 
-    // just run a bit, the little sequences being inspected often don't terminate
-    #1000;
+    `CHECK_WAIT_FOR(clk, uut.cpu.rvfi_valid && uut.cpu.rvfi_halt);
+    `TICK(clk);
   endtask
 
   `TEST_SUITE_BEGIN(svc_rv_cur_tb);
