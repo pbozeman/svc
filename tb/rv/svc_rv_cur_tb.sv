@@ -2,8 +2,7 @@
 
 `include "svc_unit.sv"
 
-`include "svc_mem_sram.sv"
-`include "svc_rv_soc_sram.sv"
+`include "svc_rv_soc_bram.sv"
 
 //
 // Quick regression testbench for debugging specific instruction sequences
@@ -21,7 +20,7 @@ module svc_rv_cur_tb;
   //
   // System under test
   //
-  svc_rv_soc_sram #(
+  svc_rv_soc_bram #(
       .IMEM_DEPTH (IMEM_DEPTH),
       .DMEM_DEPTH (DMEM_DEPTH),
       .PIPELINED  (1),
@@ -37,6 +36,7 @@ module svc_rv_cur_tb;
       .clk  (clk),
       .rst_n(rst_n),
 
+      .io_ren  (),
       .io_raddr(),
       .io_rdata(32'h0),
 
@@ -53,15 +53,18 @@ module svc_rv_cur_tb;
   // Hack in a failed formal runs here for debugging
   //
   task automatic test_run();
-    int timeout;
-
     //
     // Fill in instructions here to debug
     //
-    uut.imem.mem[0] = 32'hffdff36f;
-    uut.imem.mem[1] = 32'h80635213;
-    uut.imem.mem[2] = 32'h01e20413;
-    uut.imem.mem[3] = 32'h00100073;
+    // uut.imem.mem[0] = 32'h20005837;
+    // uut.imem.mem[1] = 32'h00000463;
+    // uut.imem.mem[2] = 32'h00100163;
+    // uut.imem.mem[3] = 32'h014401e3;
+    // uut.imem.mem[4] = 32'h20005837;
+    // uut.imem.mem[5] = 32'h014401e3;
+    // uut.imem.mem[6] = 32'h20005837;
+    // uut.imem.mem[7] = 32'h00000000;
+    uut.imem.mem[0] = 32'h00100073;
 
     `CHECK_WAIT_FOR(clk, uut.cpu.rvfi_valid && uut.cpu.rvfi_halt);
     `TICK(clk);
