@@ -18,8 +18,10 @@ TB_DIRS := $(foreach d, $(TOP_DIRS), $(d)/tb)
 FORMAL_DIRS := $(foreach d, $(TOP_DIRS), $(d)/tb/formal)
 
 # Add RTL and TB subdirectories to include path
+# Exclude riscv-formal *_checks directories to avoid argument list too long errors
 RTL_SUBDIRS := $(foreach d, $(RTL_DIRS), $(shell find $(d) -type d 2>/dev/null))
-TB_SUBDIRS := $(foreach d, $(TB_DIRS), $(shell find $(d) -type d 2>/dev/null))
+TB_SUBDIRS := $(foreach d, $(TB_DIRS), $(shell find $(d) -type d \
+    -path '*/riscv-formal/cores/*/*_checks' -prune -o -type d -print 2>/dev/null))
 
 I_RTL := $(foreach d, $(RTL_DIRS) $(RTL_SUBDIRS), -I$(d))
 I_TB := $(foreach d, $(TB_DIRS) $(TB_SUBDIRS), -I$(d))
