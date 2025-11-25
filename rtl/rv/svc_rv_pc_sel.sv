@@ -168,24 +168,19 @@ module svc_rv_pc_sel #(
     // must take priority.
     //
     always_comb begin
-      unique case (1'b1)
-        (pc_sel_id == PC_SEL_PREDICTED): begin
-          pc_sel_ras_btb = pc_sel_id;
-          pred_target    = pred_target_id;
-        end
-        ras_prediction_valid: begin
-          pc_sel_ras_btb = PC_SEL_PREDICTED;
-          pred_target    = ras_target;
-        end
-        btb_prediction_valid: begin
-          pc_sel_ras_btb = PC_SEL_PREDICTED;
-          pred_target    = btb_target;
-        end
-        default: begin
-          pc_sel_ras_btb = pc_sel_id;
-          pred_target    = pred_target_id;
-        end
-      endcase
+      if (pc_sel_id == PC_SEL_PREDICTED) begin
+        pc_sel_ras_btb = pc_sel_id;
+        pred_target    = pred_target_id;
+      end else if (ras_prediction_valid) begin
+        pc_sel_ras_btb = PC_SEL_PREDICTED;
+        pred_target    = ras_target;
+      end else if (btb_prediction_valid) begin
+        pc_sel_ras_btb = PC_SEL_PREDICTED;
+        pred_target    = btb_target;
+      end else begin
+        pc_sel_ras_btb = pc_sel_id;
+        pred_target    = pred_target_id;
+      end
     end
 
     //
