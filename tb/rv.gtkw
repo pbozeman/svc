@@ -1,0 +1,54 @@
+[*]
+[*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
+[*] Tue Nov 25 19:45:31 2025
+[*]
+[dumpfile] ".build/svc_rv_cur_tb.vcd"
+[dumpfile_mtime] "Tue Nov 25 19:31:24 2025"
+[dumpfile_size] 139771
+[savefile] "tb/rv.gtkw"
+[timestart] 30850
+[size] 5120 1345
+[pos] -1 -1
+*-13.000000 105000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] svc_rv_cur_tb.
+[treeopen] svc_rv_cur_tb.uut.
+[sst_width] 418
+[signals_width] 426
+[sst_expanded] 1
+[sst_vpaned_height] 409
+@28
+svc_rv_cur_tb.clk
+svc_rv_cur_tb.rst_n
+@200
+-
+@28
+svc_rv_cur_tb.uut.cpu.imem_ren
+@22
+svc_rv_cur_tb.uut.cpu.imem_raddr[31:0]
+svc_rv_cur_tb.uut.cpu.imem_rdata[31:0]
+@200
+-
+@22
+svc_rv_cur_tb.uut.cpu.instr_id[31:0]
+svc_rv_cur_tb.uut.cpu.instr_ex[31:0]
+svc_rv_cur_tb.uut.cpu.instr_mem[31:0]
+svc_rv_cur_tb.uut.cpu.instr_wb[31:0]
+@200
+-
+@22
+svc_rv_cur_tb.uut.cpu.pc_plus4_id[31:0]
+svc_rv_cur_tb.uut.cpu.pc_plus4_ex[31:0]
+svc_rv_cur_tb.uut.cpu.pc_plus4_mem[31:0]
+svc_rv_cur_tb.uut.cpu.pc_plus4_wb[31:0]
+@200
+-
+@28
+svc_rv_cur_tb.uut.cpu.retired
+svc_rv_cur_tb.uut.cpu.rvfi_valid
+@23
+svc_rv_cur_tb.uut.cpu.f_prev_insn[31:0]
+@22
+svc_rv_cur_tb.uut.cpu.f_prev_pc[31:0]
+svc_rv_cur_tb.uut.cpu.f_commit_pc[31:0]
+[pattern_trace] 1
+[pattern_trace] 0
