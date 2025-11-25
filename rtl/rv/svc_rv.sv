@@ -344,8 +344,19 @@ module svc_rv #(
   logic [XLEN-1:0] ras_push_addr;
   logic            ras_pop_en;
 
-  // Retired signal (only counts non-nops, for instr counting)
+  // Retired signal (for instruction counting)
   logic            retired;
+
+  //
+  // Pipeline validity signals
+  //
+  // Track whether each pipeline slot contains a real, non-flushed instruction.
+  // Used for accurate instruction retirement counting and RVFI.
+  //
+  logic            valid_id;
+  logic            valid_ex;
+  logic            valid_mem;
+  logic            valid_wb;
 
   //
   // Halt signal (sticky on ebreak or trap)
@@ -611,14 +622,6 @@ module svc_rv #(
   logic [XLEN-1:0] f_dmem_rdata_wb;
 
   //
-  // RVFI flush tracking signals
-  //
-  logic            f_flushed_id;
-  logic            f_flushed_ex;
-  logic            f_flushed_mem;
-  logic            f_flushed_wb;
-
-  //
   //
   // Note: We decode instruction types here rather than using the pipeline's
   // rs1_used/rs2_used signals because those are for hazard detection only.
@@ -664,64 +667,6 @@ module svc_rv #(
 
     f_rs1_used_wb = f_instr_valid_wb && f_instr_reads_rs1_wb;
     f_rs2_used_wb = f_instr_valid_wb && f_instr_reads_rs2_wb;
-  end
-
-  //
-  // Track flushed instructions through pipeline
-  //
-  // f_flushed_id: Set when IF/ID flush occurs
-  // f_flushed_ex: Propagate from ID or set when ID/EX flush occurs
-  // f_flushed_mem: Propagate from EX or set when EX/MEM flush occurs
-  // f_flushed_wb: Propagate from MEM
-  //
-  // All flush flags are initialized to 1 on reset to mark reset NOPs as
-  // flushed, preventing them from being sent to RVFI.
-  //
-  if (PIPELINED != 0) begin : g_flush_tracking_piped
-    always_ff @(posedge clk) begin
-      if (!rst_n) begin
-        f_flushed_id  <= 1'b1;
-        f_flushed_ex  <= 1'b1;
-        f_flushed_mem <= 1'b1;
-        f_flushed_wb  <= 1'b1;
-      end else begin
-        //
-        // Track IF->ID flush
-        //
-        if (!if_id_stall) begin
-          f_flushed_id <= if_id_flush;
-        end
-
-        //
-        // Propagate ID->EX flush
-        //
-        if (!id_ex_stall) begin
-          f_flushed_ex <= f_flushed_id || id_ex_flush;
-        end
-
-        //
-        // Propagate EX->MEM flush
-        //
-        if (!ex_mem_stall) begin
-          f_flushed_mem <= f_flushed_ex || ex_mem_flush;
-        end
-
-        //
-        // Propagate MEM->WB flush
-        //
-        if (!mem_wb_stall) begin
-          f_flushed_wb <= f_flushed_mem;
-        end
-      end
-    end
-  end else begin : g_flush_tracking_comb
-    //
-    // No flushes in combinational mode
-    //
-    assign f_flushed_id  = 1'b0;
-    assign f_flushed_ex  = 1'b0;
-    assign f_flushed_mem = 1'b0;
-    assign f_flushed_wb  = 1'b0;
   end
 
   //
@@ -834,12 +779,12 @@ module svc_rv #(
   // ---------------------------------------------------------------------------
 
   //
-  // For RVFI, emit all instructions that weren't flushed
-  // This includes NOPs that actually executed
+  // For RVFI, emit all valid instructions (not reset bubbles or flushed)
+  // This includes real NOPs that actually executed
   //
-  logic rvfi_retire;
+  (* keep *) logic rvfi_retire;
 
-  assign rvfi_retire = !f_flushed_wb;
+  assign rvfi_retire = valid_wb;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
