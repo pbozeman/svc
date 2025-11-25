@@ -40,6 +40,11 @@ module svc_rv_stage_wb #(
     input logic            trap_wb,
 
     //
+    // Instruction validity from MEM stage
+    //
+    input logic valid_wb,
+
+    //
     // Output to register file in ID stage
     //
     output logic [XLEN-1:0] rd_data_wb,
@@ -104,7 +109,18 @@ module svc_rv_stage_wb #(
 
   assign ebreak  = (rst_n && instr_wb == I_EBREAK);
   assign trap    = (rst_n && trap_wb);
-  assign retired = (instr_wb != 32'h0) && (instr_wb != I_NOP);
+
+  //
+  // Instruction retirement
+  //
+  // An instruction is retired if it is valid (not a reset bubble or flushed)
+  // and did not trap. This correctly handles:
+  // - Reset NOPs: NOT retired (valid_wb = 0)
+  // - Flushed instructions: NOT retired (valid_wb = 0)
+  // - Real NOPs that execute: retired (valid_wb = 1)
+  // - Trapping instructions: NOT retired
+  //
+  assign retired = valid_wb && !trap_wb;
 
 endmodule
 

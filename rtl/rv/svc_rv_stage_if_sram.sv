@@ -60,7 +60,12 @@ module svc_rv_stage_if_sram #(
     output logic [XLEN-1:0] btb_target_to_if_id,
     output logic            btb_is_return_to_if_id,
     output logic            ras_valid_to_if_id,
-    output logic [XLEN-1:0] ras_target_to_if_id
+    output logic [XLEN-1:0] ras_target_to_if_id,
+
+    //
+    // Instruction validity
+    //
+    output logic valid_to_if_id
 );
 
   `include "svc_rv_defs.svh"
@@ -86,20 +91,25 @@ module svc_rv_stage_if_sram #(
   //
   if (PIPELINED != 0) begin : g_registered
     logic [31:0] instr_buf;
+    logic        valid_buf;
 
     always_ff @(posedge clk) begin
       if (!rst_n || if_id_flush) begin
         instr_buf <= I_NOP;
+        valid_buf <= 1'b0;
       end else if (!if_id_stall) begin
         instr_buf <= instr;
+        valid_buf <= 1'b1;
       end
     end
 
-    assign instr_id = instr_buf;
+    assign instr_id       = instr_buf;
+    assign valid_to_if_id = valid_buf;
   end else begin : g_passthrough
-    assign instr_id = instr;
+    assign instr_id       = instr;
+    assign valid_to_if_id = rst_n;
 
-    `SVC_UNUSED({clk, rst_n, if_id_stall, if_id_flush})
+    `SVC_UNUSED({clk, if_id_stall, if_id_flush})
   end
 
   //

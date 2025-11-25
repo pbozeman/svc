@@ -54,6 +54,11 @@ module svc_rv_stage_id #(
     input logic [XLEN-1:0] ras_target_id,
 
     //
+    // Instruction validity from IF stage
+    //
+    input logic valid_id,
+
+    //
     // Write-back from WB stage
     //
     input logic        reg_write_wb,
@@ -102,6 +107,11 @@ module svc_rv_stage_id #(
     output logic [XLEN-1:0] pc_plus4_ex,
     output logic            bpred_taken_ex,
     output logic [XLEN-1:0] pred_target_ex,
+
+    //
+    // Instruction validity to EX stage
+    //
+    output logic valid_ex,
 
     //
     // Outputs to hazard unit (combinational from ID stage)
@@ -350,6 +360,7 @@ module svc_rv_stage_id #(
         pc_plus4_ex      <= '0;
         bpred_taken_ex   <= 1'b0;
         pred_target_ex   <= '0;
+        valid_ex         <= 1'b0;
       end else if (id_ex_flush) begin
         reg_write_ex     <= 1'b0;
         mem_read_ex      <= 1'b0;
@@ -386,6 +397,7 @@ module svc_rv_stage_id #(
         //
         bpred_taken_ex   <= bpred_taken_id;
         pred_target_ex   <= final_pred_target_id;
+        valid_ex         <= 1'b0;
       end else if (!id_ex_stall) begin
         reg_write_ex     <= reg_write_id;
         mem_read_ex      <= mem_read_id;
@@ -417,6 +429,7 @@ module svc_rv_stage_id #(
         pc_plus4_ex      <= pc_plus4_id;
         bpred_taken_ex   <= bpred_taken_id;
         pred_target_ex   <= final_pred_target_id;
+        valid_ex         <= valid_id;
       end
     end
 
@@ -451,6 +464,7 @@ module svc_rv_stage_id #(
     assign pc_plus4_ex      = pc_plus4_id;
     assign bpred_taken_ex   = 1'b0;
     assign pred_target_ex   = '0;
+    assign valid_ex         = valid_id;
 
     // verilog_format: off
     `SVC_UNUSED({id_ex_stall, id_ex_flush, fwd_rs1_id, fwd_rs2_id, bpred_taken_id,

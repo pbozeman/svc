@@ -62,7 +62,12 @@ module svc_rv_stage_if_bram #(
     output logic [XLEN-1:0] btb_target_to_if_id,
     output logic            btb_is_return_to_if_id,
     output logic            ras_valid_to_if_id,
-    output logic [XLEN-1:0] ras_target_to_if_id
+    output logic [XLEN-1:0] ras_target_to_if_id,
+
+    //
+    // Instruction validity
+    //
+    output logic valid_to_if_id
 );
 
   `include "svc_rv_defs.svh"
@@ -78,6 +83,7 @@ module svc_rv_stage_if_bram #(
   logic            flush_extend;
   logic [    31:0] instr;
   logic [    31:0] instr_buf;
+  logic            valid_buf;
 
   //
   // Instruction memory interface
@@ -177,6 +183,21 @@ module svc_rv_stage_if_bram #(
   end
 
   //
+  // Instruction validity tracking
+  //
+  // Tracks when pipeline slot contains a real instruction.
+  // Starts at 0 during reset, becomes 1 when first non-flushed instruction
+  // arrives (one cycle after reset due to BRAM latency).
+  //
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      valid_buf <= 1'b0;
+    end else if (!if_id_stall) begin
+      valid_buf <= !if_id_flush && !flush_extend;
+    end
+  end
+
+  //
   // Outputs (buffered to align with BRAM latency)
   //
   assign instr_id                = instr_buf;
@@ -188,6 +209,7 @@ module svc_rv_stage_if_bram #(
   assign btb_is_return_to_if_id  = btb_is_return_buf;
   assign ras_valid_to_if_id      = ras_valid_buf;
   assign ras_target_to_if_id     = ras_target_buf;
+  assign valid_to_if_id          = valid_buf;
 
 endmodule
 

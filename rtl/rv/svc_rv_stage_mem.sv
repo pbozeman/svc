@@ -67,6 +67,11 @@ module svc_rv_stage_mem #(
     input logic [     1:0] trap_code_mem,
 
     //
+    // Instruction validity from EX stage
+    //
+    input logic valid_mem,
+
+    //
     // Data memory interface
     //
     output logic        dmem_ren,
@@ -96,6 +101,11 @@ module svc_rv_stage_mem #(
     output logic [    63:0] product_64_wb,
     output logic            trap_wb,
     output logic [     1:0] trap_code_wb,
+
+    //
+    // Instruction validity to WB stage
+    //
+    output logic valid_wb,
 
     //
     // Outputs for forwarding (MEM stage result)
@@ -359,6 +369,7 @@ module svc_rv_stage_mem #(
         product_64_wb <= '0;
         trap_wb       <= 1'b0;
         trap_code_wb  <= TRAP_NONE;
+        valid_wb      <= 1'b0;
       end else if (!mem_wb_stall) begin
         reg_write_wb  <= reg_write_mem && !misalign_trap;
         res_src_wb    <= res_src_mem;
@@ -375,6 +386,7 @@ module svc_rv_stage_mem #(
         product_64_wb <= product_64_mem;
         trap_wb       <= misalign_trap;
         trap_code_wb  <= mem_misalign ? TRAP_LDST_MISALIGN : trap_code_mem;
+        valid_wb      <= valid_mem;
       end
     end
 
@@ -413,6 +425,7 @@ module svc_rv_stage_mem #(
     assign product_64_wb = product_64_mem;
     assign trap_wb       = misalign_trap;
     assign trap_code_wb  = mem_misalign ? TRAP_LDST_MISALIGN : trap_code_mem;
+    assign valid_wb      = valid_mem;
 
     //
     // Pass through SRAM load data

@@ -78,7 +78,12 @@ module svc_rv_stage_if #(
     output logic [XLEN-1:0] btb_target_id,
     output logic            btb_is_return_id,
     output logic            ras_valid_id,
-    output logic [XLEN-1:0] ras_target_id
+    output logic [XLEN-1:0] ras_target_id,
+
+    //
+    // Instruction validity to ID stage
+    //
+    output logic valid_id
 );
 
   `include "svc_rv_defs.svh"
@@ -92,6 +97,7 @@ module svc_rv_stage_if #(
   logic            btb_is_return_to_if_id;
   logic            ras_valid_to_if_id;
   logic [XLEN-1:0] ras_target_to_if_id;
+  logic            valid_to_if_id;
 
   //
   // PC initialization
@@ -150,8 +156,8 @@ module svc_rv_stage_if #(
   //
   // IF/ID Pipeline Register (PC and BTB only, not instruction)
   //
-  // Instruction is already buffered in the stage-specific modules and
-  // drives instr_id directly to avoid double-buffering.
+  // Instruction and valid are already buffered in the stage-specific modules
+  // and drive outputs directly to avoid double-buffering.
   //
   if (PIPELINED != 0) begin : g_registered
     logic [XLEN-1:0] pc_id_buf;
@@ -166,6 +172,7 @@ module svc_rv_stage_if #(
 
     assign pc_id       = pc_id_buf;
     assign pc_plus4_id = pc_plus4_id_buf;
+    assign valid_id    = valid_to_if_id;
 
     //
     // BTB and RAS signal buffering
@@ -181,6 +188,7 @@ module svc_rv_stage_if #(
   end else begin : g_passthrough
     assign pc_id       = pc_to_if_id;
     assign pc_plus4_id = pc_plus4_to_if_id;
+    assign valid_id    = valid_to_if_id;
 
     //
     // BTB and RAS passthrough for non-pipelined
