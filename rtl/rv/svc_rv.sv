@@ -241,6 +241,15 @@ module svc_rv #(
   logic [    63:0] product_64_wb;
   logic            trap_wb;
   logic [     1:0] trap_code_wb;
+`ifdef RISCV_FORMAL
+  logic            f_mem_write_wb;
+  logic [XLEN-1:0] f_dmem_waddr_wb;
+  logic [XLEN-1:0] f_dmem_raddr_wb;
+  logic [XLEN-1:0] f_dmem_wdata_wb;
+  logic [     3:0] f_dmem_wstrb_wb;
+  logic [XLEN-1:0] f_dmem_rdata_wb;
+  logic [     3:0] f_dmem_rstrb_wb;
+`endif
 
   // WB -> ID (register write-back)
   logic [XLEN-1:0] rd_data_wb;
@@ -625,11 +634,6 @@ module svc_rv #(
   logic [     3:0] f_commit_mem_wmask;
   logic [XLEN-1:0] f_commit_mem_rdata;
   logic [XLEN-1:0] f_commit_mem_wdata;
-  logic [XLEN-1:0] f_dmem_waddr_wb;
-  logic [XLEN-1:0] f_dmem_raddr_wb;
-  logic [XLEN-1:0] f_dmem_wdata_wb;
-  logic [     3:0] f_dmem_wstrb_wb;
-  logic [XLEN-1:0] f_dmem_rdata_wb;
 
   // Note: We decode instruction types here rather than using the pipeline's
   // rs1_used/rs2_used signals because those are for hazard detection only.
@@ -676,74 +680,7 @@ module svc_rv #(
     f_rs2_used_wb = f_instr_valid_wb && f_instr_reads_rs2_wb;
   end
 
-  //
-  // Bring mem_write forward from MEM to WB
-  //
-  logic f_mem_write_wb;
-
-  if (PIPELINED != 0) begin : g_mem_write_wb_piped
-    always_ff @(posedge clk) begin
-      if (!rst_n) begin
-        f_mem_write_wb <= 1'b0;
-      end else begin
-        f_mem_write_wb <= mem_write_mem;
-      end
-    end
-  end else begin : g_mem_write_wb_comb
-    assign f_mem_write_wb = mem_write_mem;
-  end
-
-  //
-  // Pipeline memory signals from MEM to WB for RVFI reporting
-  //
-  if (PIPELINED != 0) begin : g_dmem_signals_wb_piped
-    always_ff @(posedge clk) begin
-      if (!rst_n) begin
-        f_dmem_waddr_wb <= '0;
-        f_dmem_raddr_wb <= '0;
-        f_dmem_wdata_wb <= '0;
-        f_dmem_wstrb_wb <= '0;
-      end else begin
-        f_dmem_waddr_wb <= dmem_waddr;
-        f_dmem_raddr_wb <= dmem_raddr;
-        f_dmem_wdata_wb <= dmem_wdata;
-        f_dmem_wstrb_wb <= dmem_wstrb;
-      end
-    end
-
-    //
-    // BRAM: dmem_rdata is already WB-stage timed (1-cycle latency)
-    // SRAM: dmem_rdata is MEM-stage timed, needs registering
-    //
-    if (MEM_TYPE == MEM_TYPE_BRAM) begin : g_dmem_rdata_bram
-      assign f_dmem_rdata_wb = dmem_rdata;
-    end else begin : g_dmem_rdata_sram
-      always_ff @(posedge clk) begin
-        if (!rst_n) begin
-          f_dmem_rdata_wb <= '0;
-        end else begin
-          f_dmem_rdata_wb <= dmem_rdata;
-        end
-      end
-    end
-  end else begin : g_dmem_signals_wb_comb
-    assign f_dmem_waddr_wb = dmem_waddr;
-    assign f_dmem_raddr_wb = dmem_raddr;
-    assign f_dmem_wdata_wb = dmem_wdata;
-    assign f_dmem_wstrb_wb = dmem_wstrb;
-    assign f_dmem_rdata_wb = dmem_rdata;
-  end
-
   assign f_commit_pc = pc_plus4_wb - XLEN'(32'd4);
-
-  //
-  // Memory interface decode
-  //
-  logic [1:0] f_mem_addr_low_bits_wb;
-  logic       f_mem_addr_bit1_wb;
-
-  assign f_mem_addr_low_bits_wb = alu_result_wb[1:0];
-  assign f_mem_addr_bit1_wb     = alu_result_wb[1];
 
   always_comb begin
     f_commit_mem_valid = 1'b0;
@@ -753,23 +690,13 @@ module svc_rv #(
     f_commit_mem_wdata = 32'h0;
 
     // Loads
-    //
-    // TODO: get these exposed so we don't have to do this logic here.
-    // We should be passing on the signals directly.
     if (res_src_wb == RES_MEM && !trap_wb) begin
       f_commit_mem_valid = 1'b1;
+      f_commit_mem_rmask = f_dmem_rstrb_wb;
       f_commit_mem_rdata = f_dmem_rdata_wb;
-
-      case (funct3_wb)
-        3'b000, 3'b100: f_commit_mem_rmask = 4'b0001 << f_mem_addr_low_bits_wb;
-        3'b001, 3'b101:
-        f_commit_mem_rmask = f_mem_addr_bit1_wb ? 4'b1100 : 4'b0011;
-        3'b010: f_commit_mem_rmask = 4'b1111;
-        default: f_commit_mem_rmask = 4'b0000;
-      endcase
     end
 
-    // Stores (use pipelined memory interface signals)
+    // Stores
     if (f_mem_write_wb && !trap_wb) begin
       f_commit_mem_valid = 1'b1;
       f_commit_mem_wmask = f_dmem_wstrb_wb;

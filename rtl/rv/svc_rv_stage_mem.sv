@@ -103,6 +103,16 @@ module svc_rv_stage_mem #(
     output logic            trap_wb,
     output logic [     1:0] trap_code_wb,
 
+`ifdef RISCV_FORMAL
+    output logic            f_mem_write_wb,
+    output logic [XLEN-1:0] f_dmem_waddr_wb,
+    output logic [XLEN-1:0] f_dmem_raddr_wb,
+    output logic [XLEN-1:0] f_dmem_wdata_wb,
+    output logic [     3:0] f_dmem_wstrb_wb,
+    output logic [XLEN-1:0] f_dmem_rdata_wb,
+    output logic [     3:0] f_dmem_rstrb_wb,
+`endif
+
     //
     // Instruction validity to WB stage
     //
@@ -204,6 +214,10 @@ module svc_rv_stage_mem #(
   logic [     2:0] ld_fmt_funct3;
   logic [XLEN-1:0] ld_fmt_out;
 
+`ifdef RISCV_FORMAL
+  logic [3:0] f_ld_fmt_rstrb;
+`endif
+
   if (MEM_TYPE == MEM_TYPE_SRAM) begin : g_ld_fmt_signals_sram
     assign ld_fmt_addr        = alu_result_mem[1:0];
     assign ld_fmt_funct3      = funct3_mem;
@@ -229,6 +243,9 @@ module svc_rv_stage_mem #(
       .data_in (dmem_rdata),
       .addr    (ld_fmt_addr),
       .funct3  (ld_fmt_funct3),
+`ifdef RISCV_FORMAL
+      .f_rstrb (f_ld_fmt_rstrb),
+`endif
       .data_out(ld_fmt_out)
   );
 
@@ -422,6 +439,41 @@ module svc_rv_stage_mem #(
       assign dmem_rdata_ext_wb = dmem_rdata_ext_wb_piped;
     end
 
+`ifdef RISCV_FORMAL
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        f_mem_write_wb  <= 1'b0;
+        f_dmem_waddr_wb <= '0;
+        f_dmem_raddr_wb <= '0;
+        f_dmem_wdata_wb <= '0;
+        f_dmem_wstrb_wb <= '0;
+      end else if (!mem_wb_stall) begin
+        f_mem_write_wb  <= mem_write_mem;
+        f_dmem_waddr_wb <= dmem_waddr;
+        f_dmem_raddr_wb <= dmem_raddr;
+        f_dmem_wdata_wb <= dmem_wdata;
+        f_dmem_wstrb_wb <= dmem_wstrb;
+      end
+    end
+
+    // BRAM: dmem_rdata is already WB-stage timed (1-cycle latency)
+    // SRAM: dmem_rdata is MEM-stage timed, needs registering
+    if (MEM_TYPE == MEM_TYPE_BRAM) begin : g_f_dmem_rdata_bram
+      assign f_dmem_rdata_wb = dmem_rdata;
+      assign f_dmem_rstrb_wb = f_ld_fmt_rstrb;
+    end else begin : g_f_dmem_rdata_sram
+      always_ff @(posedge clk) begin
+        if (!rst_n) begin
+          f_dmem_rdata_wb <= '0;
+          f_dmem_rstrb_wb <= '0;
+        end else if (!mem_wb_stall) begin
+          f_dmem_rdata_wb <= dmem_rdata;
+          f_dmem_rstrb_wb <= f_ld_fmt_rstrb;
+        end
+      end
+    end
+`endif
+
   end else begin : g_passthrough
     assign reg_write_wb  = reg_write_mem && !misalign_trap;
     assign res_src_wb    = res_src_mem;
@@ -448,6 +500,16 @@ module svc_rv_stage_mem #(
     if (MEM_TYPE == MEM_TYPE_SRAM) begin : g_dmem_rdata_sram
       assign dmem_rdata_ext_wb = dmem_rdata_ext_mem;
     end
+
+`ifdef RISCV_FORMAL
+    assign f_mem_write_wb  = mem_write_mem;
+    assign f_dmem_waddr_wb = dmem_waddr;
+    assign f_dmem_raddr_wb = dmem_raddr;
+    assign f_dmem_wdata_wb = dmem_wdata;
+    assign f_dmem_wstrb_wb = dmem_wstrb;
+    assign f_dmem_rdata_wb = dmem_rdata;
+    assign f_dmem_rstrb_wb = f_ld_fmt_rstrb;
+`endif
 
     `SVC_UNUSED({clk, rst_n, mem_wb_stall, op_active_ex});
   end

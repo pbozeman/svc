@@ -19,10 +19,15 @@ module svc_rv_fmt_ld #(
     input logic [     1:0] addr,
     input logic [     2:0] funct3,
 
+`ifdef RISCV_FORMAL
+    output logic [3:0] f_rstrb,
+`endif
+
     //
     // Load result output
     //
     output logic [XLEN-1:0] data_out
+
 );
   `include "svc_rv_defs.svh"
 
@@ -95,6 +100,24 @@ module svc_rv_fmt_ld #(
       default:    data_out = data_in;
     endcase
   end
+
+`ifdef RISCV_FORMAL
+  logic [3:0] f_byte_mask;
+  logic [3:0] f_half_mask;
+
+  always_comb begin
+    f_byte_mask = {addr == 2'b11, addr == 2'b10, addr == 2'b01, addr == 2'b00};
+    f_half_mask = addr_half ? 4'b1100 : 4'b0011;
+
+    case (funct3)
+      FUNCT3_LB, FUNCT3_LBU: f_rstrb = f_byte_mask;
+      FUNCT3_LH, FUNCT3_LHU: f_rstrb = f_half_mask;
+      FUNCT3_LW:             f_rstrb = 4'b1111;
+      default:               f_rstrb = 4'b0000;
+    endcase
+  end
+
+`endif
 
 endmodule
 
