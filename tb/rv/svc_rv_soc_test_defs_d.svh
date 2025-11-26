@@ -230,3 +230,54 @@ task automatic test_store_div_mmio_bug;
   `CHECK_WAIT_FOR_EBREAK(clk, 256);
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[5], 32'd33);
 endtask
+
+//
+// Branch flush div test: taken branch followed by DIV
+//
+// This test verifies that the mc_state FSM properly resets when a branch
+// mispredicts while a DIV instruction is in the EX stage. Without the fix,
+// mc_state would stay in MC_STATE_EXEC, causing pipeline stalls and
+// incorrect RVFI pc_wdata reporting.
+//
+// Sequence:
+//   1. BEQ x0, x0 (always taken, forward branch)
+//   2. DIV instruction (fetched but should be flushed)
+//   3. Branch target: ADDI to set result register
+//
+task automatic test_branch_flush_div;
+  //
+  // x1 = 100, x2 = 3 (div operands that should never execute)
+  //
+  ADDI(x1, x0, 100);
+  ADDI(x2, x0, 3);
+  //
+  // x3 = 42 (marker value, should not be overwritten by flushed div)
+  //
+  ADDI(x3, x0, 42);
+  //
+  // BEQ x0, x0 always taken, skip the DIV
+  // Branch forward 8 bytes (skip DIV instruction)
+  //
+  BEQ(x0, x0, 8);
+  //
+  // This DIV should be flushed and never execute
+  //
+  DIV(x3, x1, x2);
+  //
+  // Branch target: set x4 = 123 to verify we got here
+  //
+  ADDI(x4, x0, 123);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk, 256);
+  //
+  // x3 should still be 42 (DIV was flushed, not executed)
+  //
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'd42);
+  //
+  // x4 should be 123 (branch target executed)
+  //
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[4], 32'd123);
+endtask
