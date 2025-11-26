@@ -4,8 +4,8 @@
 `include "svc.sv"
 `include "svc_unused.sv"
 
-`include "svc_rv_ld_fmt.sv"
-`include "svc_rv_st_fmt.sv"
+`include "svc_rv_fmt_ld.sv"
+`include "svc_rv_fmt_st.sv"
 `include "svc_rv_ext_mul_mem.sv"
 `include "svc_rv_bpred_mem.sv"
 
@@ -137,7 +137,7 @@ module svc_rv_stage_mem #(
   // Stores use rs2_data_mem, which comes from fwd_rs2_ex in EX stage.
   // This means stores automatically get forwarded values.
   //
-  svc_rv_st_fmt #(
+  svc_rv_fmt_st #(
       .XLEN(XLEN)
   ) st_fmt (
       .data_in  (rs2_data_mem),
@@ -220,7 +220,7 @@ module svc_rv_stage_mem #(
     assign dmem_rdata_ext_wb  = ld_fmt_out;
   end
 
-  svc_rv_ld_fmt #(
+  svc_rv_fmt_ld #(
       .XLEN(XLEN)
   ) ld_fmt (
       .data_in (dmem_rdata),

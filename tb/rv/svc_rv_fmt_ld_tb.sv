@@ -1,7 +1,7 @@
 `include "svc_unit.sv"
-`include "svc_rv_ld_fmt.sv"
+`include "svc_rv_fmt_ld.sv"
 
-module svc_rv_ld_fmt_tb;
+module svc_rv_fmt_ld_tb;
   `include "svc_rv_defs.svh"
 
   localparam int XLEN = 32;
@@ -11,7 +11,7 @@ module svc_rv_ld_fmt_tb;
   logic [     2:0] funct3;
   logic [XLEN-1:0] data_out;
 
-  svc_rv_ld_fmt #(
+  svc_rv_fmt_ld #(
       .XLEN(XLEN)
   ) uut (
       .data_in (data_in),
@@ -149,7 +149,7 @@ module svc_rv_ld_fmt_tb;
     `CHECK_EQ(data_out, 32'h12345678);
   endtask
 
-  `TEST_SUITE_BEGIN(svc_rv_ld_fmt_tb);
+  `TEST_SUITE_BEGIN(svc_rv_fmt_ld_tb);
   `TEST_CASE(test_load_byte_signed);
   `TEST_CASE(test_load_byte_unsigned);
   `TEST_CASE(test_load_halfword_signed);
