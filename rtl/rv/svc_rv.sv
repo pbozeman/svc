@@ -727,24 +727,6 @@ module svc_rv #(
     assign f_dmem_rdata_wb = dmem_rdata;
   end
 
-`ifdef RISCV_FORMAL_CSR_MCYCLE
-  //
-  // Independent cycle counter for RVFI CSR validation
-  //
-  // This is the "golden reference" used by formal verification to check
-  // if the CSR implementation is counting cycles correctly.
-  //
-  logic [63:0] f_mcycle;
-
-  always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      f_mcycle <= 64'h0;
-    end else begin
-      f_mcycle <= f_mcycle + 64'h1;
-    end
-  end
-`endif
-
   assign f_commit_pc = pc_plus4_wb - XLEN'(32'd4);
 
   //
