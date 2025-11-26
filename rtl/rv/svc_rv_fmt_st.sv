@@ -1,5 +1,5 @@
-`ifndef SVC_RV_ST_FMT_SV
-`define SVC_RV_ST_FMT_SV
+`ifndef SVC_RV_FMT_ST_SV
+`define SVC_RV_FMT_ST_SV
 
 `include "svc.sv"
 
@@ -9,7 +9,7 @@
 // Handles data positioning and write strobe generation for store operations.
 // Supports SB (store byte), SH (store halfword), and SW (store word).
 //
-module svc_rv_st_fmt #(
+module svc_rv_fmt_st #(
     parameter int XLEN = 32
 ) (
     //

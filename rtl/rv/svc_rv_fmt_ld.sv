@@ -1,5 +1,5 @@
-`ifndef SVC_RV_LD_FMT_SV
-`define SVC_RV_LD_FMT_SV
+`ifndef SVC_RV_FMT_LD_SV
+`define SVC_RV_FMT_LD_SV
 
 `include "svc.sv"
 
@@ -9,7 +9,7 @@
 // Handles data extraction and sign/zero extension for load operations.
 // Supports LB, LH, LW (signed) and LBU, LHU (unsigned).
 //
-module svc_rv_ld_fmt #(
+module svc_rv_fmt_ld #(
     parameter int XLEN = 32
 ) (
     //

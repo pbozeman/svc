@@ -95,8 +95,8 @@ encapsulate all logic for each pipeline stage:
 
 - **svc_rv_stage_mem.sv** - Memory Access stage
 
-  - Load data formatting (instantiates svc_rv_ld_fmt.sv)
-  - Store data formatting (instantiates svc_rv_st_fmt.sv)
+  - Load data formatting (instantiates svc_rv_fmt_ld.sv)
+  - Store data formatting (instantiates svc_rv_fmt_st.sv)
   - Data memory interface
   - MEM/WB pipeline register
 
@@ -132,9 +132,9 @@ Memory-specific instruction fetch adapters handle timing differences:
 
 ### Data Formatting
 
-- **svc_rv_ld_fmt.sv** - Load data formatter
+- **svc_rv_fmt_ld.sv** - Load data formatter
   - Handles LB, LH, LW, LBU, LHU with proper alignment and sign extension
-- **svc_rv_st_fmt.sv** - Store data formatter
+- **svc_rv_fmt_st.sv** - Store data formatter
   - Generates proper wdata and wstrb for SB, SH, SW
 
 ### Hazard Detection and Forwarding
