@@ -18,7 +18,6 @@ module svc_rv_fmt_st #(
     input logic [XLEN-1:0] data_in,
     input logic [     1:0] addr,
     input logic [     2:0] funct3,
-    input logic            mem_write,
 
     //
     // Memory interface outputs
@@ -51,32 +50,29 @@ module svc_rv_fmt_st #(
   // Generate write strobes based on address and operation size
   //
   always_comb begin
-    if (!mem_write) begin
-      wstrb = 4'b0000;
-    end else begin
-      case (funct3)
-        FUNCT3_SB: begin
-          case (addr)
-            2'b00:   wstrb = 4'b0001;
-            2'b01:   wstrb = 4'b0010;
-            2'b10:   wstrb = 4'b0100;
-            2'b11:   wstrb = 4'b1000;
-            default: wstrb = 4'b0001;
-          endcase
-        end
+    case (funct3)
+      FUNCT3_SB: begin
+        case (addr)
+          2'b00:   wstrb = 4'b0001;
+          2'b01:   wstrb = 4'b0010;
+          2'b10:   wstrb = 4'b0100;
+          2'b11:   wstrb = 4'b1000;
+          default: wstrb = 4'b0001;
+        endcase
+      end
 
-        FUNCT3_SH: begin
-          case (addr_half)
-            1'b0:    wstrb = 4'b0011;
-            1'b1:    wstrb = 4'b1100;
-            default: wstrb = 4'b0011;
-          endcase
-        end
-        default: begin
-          wstrb = 4'b1111;
-        end
-      endcase
-    end
+      FUNCT3_SH: begin
+        case (addr_half)
+          1'b0:    wstrb = 4'b0011;
+          1'b1:    wstrb = 4'b1100;
+          default: wstrb = 4'b0011;
+        endcase
+      end
+
+      default: begin
+        wstrb = 4'b1111;
+      end
+    endcase
   end
 
 endmodule

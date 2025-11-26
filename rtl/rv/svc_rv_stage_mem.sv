@@ -137,16 +137,19 @@ module svc_rv_stage_mem #(
   // Stores use rs2_data_mem, which comes from fwd_rs2_ex in EX stage.
   // This means stores automatically get forwarded values.
   //
+  logic [3:0] st_fmt_wstrb;
+
   svc_rv_fmt_st #(
       .XLEN(XLEN)
   ) st_fmt (
-      .data_in  (rs2_data_mem),
-      .addr     (alu_result_mem[1:0]),
-      .funct3   (funct3_mem),
-      .mem_write(mem_write_mem),
-      .data_out (dmem_wdata),
-      .wstrb    (dmem_wstrb)
+      .data_in (rs2_data_mem),
+      .addr    (alu_result_mem[1:0]),
+      .funct3  (funct3_mem),
+      .data_out(dmem_wdata),
+      .wstrb   (st_fmt_wstrb)
   );
+
+  assign dmem_wstrb = mem_write_mem ? st_fmt_wstrb : 4'b0000;
 
   //
   // Trap detection (MEM stage)
