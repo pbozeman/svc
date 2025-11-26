@@ -281,3 +281,38 @@ task automatic test_branch_flush_div;
   //
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[4], 32'd123);
 endtask
+
+//
+// Test: DIV instruction count verification
+//
+// Verifies that the instruction counter correctly counts 2 instructions
+// (ADDI + DIV) during execution.
+//
+task automatic test_div_instret_count;
+  // Setup: x1 = 2, x2 = 4
+  ADDI(x1, x0, 2);
+  ADDI(x2, x0, 4);
+
+  // Start instruction count
+  RDINSTRET(x10);
+
+  // Execute 2 instructions: ADDI and DIV
+  ADDI(x3, x0, 1);
+  DIV(x4, x2, x1);
+
+  // Stop instruction count
+  RDINSTRET(x11);
+
+  // Calculate instruction count delta
+  SUB(x12, x11, x10);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk, 256);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'd1);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[4], 32'd2);
+
+  // Delta is 3: RDINSTRET x10 + ADDI + DIV
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[12], 32'd3);
+endtask

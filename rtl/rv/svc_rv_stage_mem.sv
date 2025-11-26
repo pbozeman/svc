@@ -36,6 +36,7 @@ module svc_rv_stage_mem #(
     // Hazard control
     //
     input logic mem_wb_stall,
+    input logic op_active_ex,
 
     //
     // From EX stage
@@ -387,6 +388,12 @@ module svc_rv_stage_mem #(
         trap_wb       <= misalign_trap;
         trap_code_wb  <= mem_misalign ? TRAP_LDST_MISALIGN : trap_code_mem;
         valid_wb      <= valid_mem;
+      end else if (op_active_ex) begin
+        //
+        // Multi-cycle op stall: clear valid to prevent repeated retirement
+        // (Don't clear during halt - RVFI needs one more retirement to emit)
+        //
+        valid_wb <= 1'b0;
       end
     end
 
@@ -436,7 +443,7 @@ module svc_rv_stage_mem #(
       assign dmem_rdata_ext_wb = dmem_rdata_ext_mem;
     end
 
-    `SVC_UNUSED({clk, rst_n, mem_wb_stall});
+    `SVC_UNUSED({clk, rst_n, mem_wb_stall, op_active_ex});
   end
 
 endmodule
