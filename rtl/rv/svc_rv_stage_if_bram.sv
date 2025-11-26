@@ -189,11 +189,20 @@ module svc_rv_stage_if_bram #(
   // Starts at 0 during reset, becomes 1 when first non-flushed instruction
   // arrives (one cycle after reset due to BRAM latency).
   //
+  // The started flag ensures we wait one extra cycle after reset before
+  // marking instructions as valid. This accounts for BRAM latency - the
+  // first cycle after reset, valid_buf stays 0 even though the pipeline
+  // is running, because the BRAM hasn't output the first real instruction yet.
+  //
+  logic started;
+
   always_ff @(posedge clk) begin
     if (!rst_n) begin
+      started   <= 1'b0;
       valid_buf <= 1'b0;
     end else if (!if_id_stall) begin
-      valid_buf <= !if_id_flush && !flush_extend;
+      started   <= 1'b1;
+      valid_buf <= started && !if_id_flush && !flush_extend;
     end
   end
 
