@@ -283,6 +283,43 @@ task automatic test_branch_flush_div;
 endtask
 
 //
+// Test: Misaligned load during DIV start
+//
+// This test triggers a bug where trap information is lost when a misaligned
+// load is in MEM stage at the same time a DIV starts in EX stage. Without
+// the fix, trap_wb wouldn't be updated because mem_wb_stall = 1.
+//
+// The test issues a misaligned LW followed immediately by a DIV to create
+// the race condition. The trap signal should fire for the misaligned access.
+//
+task automatic test_misaligned_load_div_trap;
+  //
+  // Setup: x1 = address with offset 1 (misaligned for LW)
+  //
+  LI(x1, 32'h00000100);
+  ADDI(x2, x0, 10);
+  ADDI(x3, x0, 2);
+  NOP();
+  NOP();
+
+  // Misaligned LW (address + 1 = odd address, misaligned for word access)
+  // Followed immediately by DIV to trigger the race condition
+  LW(x4, x1, 1);
+  DIV(x5, x2, x3);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR(clk, uut.trap);
+  `CHECK_FALSE(ebreak);
+  `TICK(clk);
+
+  // we currently just allow traps to pass
+  `CHECK_FALSE(uut.trap);
+  `CHECK_WAIT_FOR_EBREAK(clk, 256);
+endtask
+
+//
 // Test: DIV instruction count verification
 //
 // Verifies that the instruction counter correctly counts 2 instructions
