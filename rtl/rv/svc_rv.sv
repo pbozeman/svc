@@ -696,13 +696,27 @@ module svc_rv #(
         f_dmem_raddr_wb <= '0;
         f_dmem_wdata_wb <= '0;
         f_dmem_wstrb_wb <= '0;
-        f_dmem_rdata_wb <= '0;
       end else begin
         f_dmem_waddr_wb <= dmem_waddr;
         f_dmem_raddr_wb <= dmem_raddr;
         f_dmem_wdata_wb <= dmem_wdata;
         f_dmem_wstrb_wb <= dmem_wstrb;
-        f_dmem_rdata_wb <= dmem_rdata;
+      end
+    end
+
+    //
+    // BRAM: dmem_rdata is already WB-stage timed (1-cycle latency)
+    // SRAM: dmem_rdata is MEM-stage timed, needs registering
+    //
+    if (MEM_TYPE == MEM_TYPE_BRAM) begin : g_dmem_rdata_bram
+      assign f_dmem_rdata_wb = dmem_rdata;
+    end else begin : g_dmem_rdata_sram
+      always_ff @(posedge clk) begin
+        if (!rst_n) begin
+          f_dmem_rdata_wb <= '0;
+        end else begin
+          f_dmem_rdata_wb <= dmem_rdata;
+        end
       end
     end
   end else begin : g_dmem_signals_wb_comb
