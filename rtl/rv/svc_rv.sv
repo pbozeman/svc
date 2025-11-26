@@ -780,7 +780,7 @@ module svc_rv #(
   //
   (* keep *) logic rvfi_retire;
 
-  assign rvfi_retire = valid_wb;
+  assign rvfi_retire = retired;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
