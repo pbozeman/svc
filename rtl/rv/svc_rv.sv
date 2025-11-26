@@ -599,12 +599,22 @@ module svc_rv #(
   logic            f_prev_valid;
   logic [    31:0] f_prev_insn;
   logic [XLEN-1:0] f_prev_pc;
-  logic [4:0] f_prev_rs1_addr, f_prev_rs2_addr, f_prev_rd_addr;
-  logic [XLEN-1:0] f_prev_rs1_rdata, f_prev_rs2_rdata, f_prev_rd_wdata;
-  logic f_prev_trap, f_prev_halt, f_prev_intr;
-  logic f_prev_mem_valid, f_prev_mem_instr;
-  logic [XLEN-1:0] f_prev_mem_addr, f_prev_mem_rdata, f_prev_mem_wdata;
-  logic [3:0] f_prev_mem_rmask, f_prev_mem_wmask;
+  logic [     4:0] f_prev_rs1_addr;
+  logic [     4:0] f_prev_rs2_addr;
+  logic [     4:0] f_prev_rd_addr;
+  logic [XLEN-1:0] f_prev_rs1_rdata;
+  logic [XLEN-1:0] f_prev_rs2_rdata;
+  logic [XLEN-1:0] f_prev_rd_wdata;
+  logic            f_prev_trap;
+  logic            f_prev_halt;
+  logic            f_prev_intr;
+  logic            f_prev_mem_valid;
+  logic            f_prev_mem_instr;
+  logic [XLEN-1:0] f_prev_mem_addr;
+  logic [XLEN-1:0] f_prev_mem_rdata;
+  logic [XLEN-1:0] f_prev_mem_wdata;
+  logic [     3:0] f_prev_mem_rmask;
+  logic [     3:0] f_prev_mem_wmask;
 
   //
   // Current commit signals (WB stage)
@@ -621,8 +631,6 @@ module svc_rv #(
   logic [     3:0] f_dmem_wstrb_wb;
   logic [XLEN-1:0] f_dmem_rdata_wb;
 
-  //
-  //
   // Note: We decode instruction types here rather than using the pipeline's
   // rs1_used/rs2_used signals because those are for hazard detection only.
   //
@@ -630,7 +638,6 @@ module svc_rv #(
   // unnecessarily, but RVFI must accurately report which registers are
   // architecturally read. Instructions that don't read a register must report
   // addr=0 and rdata=0 per the RVFI specification.
-  //
   logic [     6:0] f_opcode_wb;
   logic            f_csr_imm_mode_wb;
   logic            f_instr_valid_wb;
