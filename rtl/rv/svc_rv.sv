@@ -342,7 +342,7 @@ module svc_rv #(
   logic [XLEN-1:0] btb_update_pc;
   logic [XLEN-1:0] btb_update_target;
   logic            btb_update_taken;
-  logic            btb_update_is_return;
+  logic            btb_update_is_ret;
   logic            btb_update_is_jal;
 
   //
@@ -473,7 +473,7 @@ module svc_rv #(
         .update_pc       (btb_update_pc),
         .update_target   (btb_update_target),
         .update_taken    (btb_update_taken),
-        .update_is_return(btb_update_is_return),
+        .update_is_ret   (btb_update_is_ret),
         .update_is_jal   (btb_update_is_jal)
     );
   end else begin : g_no_btb
@@ -485,7 +485,7 @@ module svc_rv #(
     // verilog_format: off
     `SVC_UNUSED({pc, btb_hit, btb_target, btb_taken, btb_is_return,
                  btb_update_en, btb_update_pc, btb_update_target, btb_update_taken,
-                 btb_update_is_return, btb_update_is_jal});
+                 btb_update_is_ret, btb_update_is_jal});
     // verilog_format: on
   end
 
