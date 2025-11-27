@@ -132,6 +132,29 @@ def extract_wb_entries(filename: str) -> List[WbEntry]:
     return entries
 
 
+def collapse_consecutive_wb(entries: List[WbEntry]) -> List[WbEntry]:
+    """Collapse consecutive identical WB entries (stall cycle duplicates)
+
+    During pipeline stalls, the same WB content is logged repeatedly.
+    This collapses those duplicates so we only compare actual committed
+    instructions.
+
+    Note: This is NOT applied to MEM entries because MMIO writes are not
+    idempotent (e.g., each UART write has a side effect).
+    """
+    if not entries:
+        return entries
+
+    result = [entries[0]]
+    for entry in entries[1:]:
+        prev = result[-1]
+        if (entry.pc != prev.pc or
+                entry.data != prev.data or
+                entry.reg != prev.reg):
+            result.append(entry)
+    return result
+
+
 def compare_mem_entries(
     file1_entries: List[MemEntry],
     file2_entries: List[MemEntry],
@@ -203,8 +226,12 @@ def find_divergence(file1: str, file2: str, verbose: bool = False):
 
     file1_mem = extract_mem_entries(file1)
     file2_mem = extract_mem_entries(file2)
-    file1_wb = extract_wb_entries(file1)
-    file2_wb = extract_wb_entries(file2)
+
+    #
+    # Collapse consecutive identical WB entries (stall cycle duplicates)
+    #
+    file1_wb = collapse_consecutive_wb(extract_wb_entries(file1))
+    file2_wb = collapse_consecutive_wb(extract_wb_entries(file2))
 
     mem_div = compare_mem_entries(file1_mem, file2_mem, verbose)
     wb_div = compare_wb_entries(file1_wb, file2_wb, verbose)
