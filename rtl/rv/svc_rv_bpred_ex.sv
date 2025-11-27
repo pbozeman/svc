@@ -41,7 +41,7 @@ module svc_rv_bpred_ex #(
     output logic [XLEN-1:0] btb_update_pc,
     output logic [XLEN-1:0] btb_update_target,
     output logic            btb_update_taken,
-    output logic            btb_update_is_return,
+    output logic            btb_update_is_ret,
     output logic            btb_update_is_jal
 );
 
@@ -101,7 +101,7 @@ module svc_rv_bpred_ex #(
     assign btb_update_en = is_predictable;
     assign btb_update_pc = pc_ex;
     assign btb_update_target = jb_target_ex;
-    assign btb_update_is_return = is_return;
+    assign btb_update_is_ret = is_return;
     assign btb_update_is_jal = is_jal_ex;
 
     //
@@ -111,12 +111,12 @@ module svc_rv_bpred_ex #(
     assign btb_update_taken = (is_jal_ex || is_return) ? 1'b1 : branch_taken_ex;
 
   end else begin : g_no_btb_update
-    assign btb_update_en        = 1'b0;
-    assign btb_update_pc        = '0;
-    assign btb_update_target    = '0;
-    assign btb_update_taken     = 1'b0;
-    assign btb_update_is_return = 1'b0;
-    assign btb_update_is_jal    = 1'b0;
+    assign btb_update_en     = 1'b0;
+    assign btb_update_pc     = '0;
+    assign btb_update_target = '0;
+    assign btb_update_taken  = 1'b0;
+    assign btb_update_is_ret = 1'b0;
+    assign btb_update_is_jal = 1'b0;
 
     // verilog_format: off
     `SVC_UNUSED({is_branch_ex, is_jal_ex, is_jalr_ex, rd_ex, pc_ex, jb_target_ex,

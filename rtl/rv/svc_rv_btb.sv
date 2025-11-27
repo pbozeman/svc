@@ -52,7 +52,7 @@ module svc_rv_btb #(
     input logic [XLEN-1:0] update_pc,
     input logic [XLEN-1:0] update_target,
     input logic            update_taken,
-    input logic            update_is_return,
+    input logic            update_is_ret,
     input logic            update_is_jal
 );
 
@@ -121,7 +121,7 @@ module svc_rv_btb #(
   //
   // JAL and returns are always taken - force counter to strongly taken
   //
-  assign always_taken = update_is_jal || update_is_return;
+  assign always_taken = update_is_jal || update_is_ret;
 
   //
   // 2-bit saturating counter logic
@@ -167,7 +167,7 @@ module svc_rv_btb #(
         tags[update_index]            <= update_tag;
         targets[update_index]         <= update_target;
         counters[update_index]        <= counter_next;
-        is_return_flags[update_index] <= update_is_return;
+        is_return_flags[update_index] <= update_is_ret;
       end
     end
   end
