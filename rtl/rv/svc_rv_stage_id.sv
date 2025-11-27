@@ -229,7 +229,11 @@ module svc_rv_stage_id #(
   //
   // M-extension detection: R-type instruction with funct7[0]=1
   //
-  assign is_mc_id = (EXT_M != 0) && is_m_id && funct3_id[2];
+  if (EXT_M != 0) begin : g_ext_m_mc
+    assign is_mc_id = is_m_id && funct3_id[2];
+  end else begin : g_not_ext_m_mc
+    assign is_mc_id = 1'b0;
+  end
 
   //
   // Register File
