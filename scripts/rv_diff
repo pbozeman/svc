@@ -1,37 +1,27 @@
 #!/usr/bin/env python3
 """
-Find the first divergence in EX stage between two CPU trace files.
+Find the first divergence between two CPU trace files.
 
-Extracts all EX stage executions (excluding NOPs), then compares the two
-lists to find the first difference.
+Compares MEM and WB stage operations (which represent committed instructions)
+to find the first divergence. These stages are used because they represent
+instructions that have actually completed, unlike EX which may contain
+flushed instructions.
 """
 
 import argparse
 import re
-import sys
 from dataclasses import dataclass
 from typing import List, Optional
 
 
 @dataclass
-class ExEntry:
-    """Represents an EX stage execution"""
+class MemEntry:
+    """Represents a memory operation in MEM stage"""
     line_num: int
     time: int
     pc: str
-    instr: str
-    operands: str
-    raw_line: str
-
-
-@dataclass
-class MemEntry:
-    """Represents a memory operation (MR or MW)"""
-    line_num: int
-    time: int
-    op_type: str  # "MR" or "MW"
+    op_type: str  # "r" (read) or "w" (write)
     addr: str
-    data: str
     raw_line: str
 
 
@@ -40,71 +30,17 @@ class WbEntry:
     """Represents a register writeback (WB)"""
     line_num: int
     time: int
+    pc: str
     data: str
     reg: str
     raw_line: str
 
 
-def is_nop(instr: str) -> bool:
-    """Check if instruction is a NOP (addi x0, x0, 0)"""
-    return "addi  x0,  x0, 0" in instr or "addi x0, x0, 0" in instr
-
-
-def extract_ex_entries(filename: str) -> List[ExEntry]:
-    """Extract all EX stage entries (excluding NOPs) from a trace file"""
-    entries = []
-
-    with open(filename, 'r') as f:
-        for line_num, line in enumerate(f, 1):
-            line = line.strip()
-            if not line:
-                continue
-
-            if not (line.startswith("svc_rv") or line.startswith("[")):
-                continue
-
-            time_match = re.search(r'\[\s*(\d+)\]', line)
-            if not time_match:
-                continue
-
-            time = int(time_match.group(1))
-
-            parts = line.split('|')
-            if len(parts) < 3:
-                continue
-
-            ex_part = parts[2]
-
-            ex_match = re.search(r'EX\s+[fs]?\s*([0-9a-fA-Fx]+)\s+(.+?)\s+([0-9a-fA-Fx]+\s+[0-9a-fA-Fx]+\s+->\s+[0-9a-fA-Fx]+)', ex_part)
-            if not ex_match:
-                ex_match = re.search(r'EX\s+[fs]?\s*([0-9a-fA-Fx]+)\s+(.+?)(?:\s*\|)', ex_part)
-                if not ex_match:
-                    continue
-                ex_pc = ex_match.group(1)
-                ex_instr = ex_match.group(2).strip()
-                ex_operands = ""
-            else:
-                ex_pc = ex_match.group(1)
-                ex_instr = ex_match.group(2).strip()
-                ex_operands = ex_match.group(3).strip()
-
-            if is_nop(ex_instr):
-                continue
-
-            entries.append(ExEntry(
-                line_num=line_num,
-                time=time,
-                pc=ex_pc,
-                instr=ex_instr,
-                operands=ex_operands,
-                raw_line=line
-            ))
-
-    return entries
-
-
 def extract_mem_entries(filename: str) -> List[MemEntry]:
-    """Extract all memory operations (MR/MW) from a trace file"""
+    """Extract all memory operations from a trace file
+
+    Format: M   <pc> r/w <addr>
+    """
     entries = []
 
     with open(filename, 'r') as f:
@@ -128,25 +64,20 @@ def extract_mem_entries(filename: str) -> List[MemEntry]:
 
             mem_part = parts[3]
 
-            mr_match = re.search(r'MR\s+([0-9a-fA-Fx]+)\s+->\s+([0-9a-fA-Fx]+)', mem_part)
-            if mr_match:
+            #
+            # Format: M   <pc> r/w <addr>
+            #
+            mem_match = re.search(
+                r'M\s+([0-9a-fA-Fx]+)\s+([rw])\s+([0-9a-fA-Fx]+)',
+                mem_part
+            )
+            if mem_match:
                 entries.append(MemEntry(
                     line_num=line_num,
                     time=time,
-                    op_type="MR",
-                    addr=mr_match.group(1),
-                    data=mr_match.group(2),
-                    raw_line=line
-                ))
-
-            mw_match = re.search(r'MW\s+([0-9a-fA-Fx]+)\s+->\s+([0-9a-fA-Fx]+)', mem_part)
-            if mw_match:
-                entries.append(MemEntry(
-                    line_num=line_num,
-                    time=time,
-                    op_type="MW",
-                    addr=mw_match.group(2),
-                    data=mw_match.group(1),
+                    pc=mem_match.group(1),
+                    op_type=mem_match.group(2),
+                    addr=mem_match.group(3),
                     raw_line=line
                 ))
 
@@ -154,7 +85,10 @@ def extract_mem_entries(filename: str) -> List[MemEntry]:
 
 
 def extract_wb_entries(filename: str) -> List[WbEntry]:
-    """Extract all register writeback operations (WB) from a trace file"""
+    """Extract all register writeback operations (WB) from a trace file
+
+    Format: WB <pc> <data> -> <reg>
+    """
     entries = []
 
     with open(filename, 'r') as f:
@@ -178,11 +112,18 @@ def extract_wb_entries(filename: str) -> List[WbEntry]:
 
             wb_part = parts[4]
 
-            wb_match = re.search(r'WB\s+([0-9a-fA-Fx]+)\s+([0-9a-fA-Fx]+)\s+->\s+(x\d+)', wb_part)
+            #
+            # Format: WB <pc> <data> -> <reg>
+            #
+            wb_match = re.search(
+                r'WB\s+([0-9a-fA-Fx]+)\s+([0-9a-fA-Fx]+)\s+->\s+(x\d+)',
+                wb_part
+            )
             if wb_match:
                 entries.append(WbEntry(
                     line_num=line_num,
                     time=time,
+                    pc=wb_match.group(1),
                     data=wb_match.group(2),
                     reg=wb_match.group(3),
                     raw_line=line
@@ -191,32 +132,12 @@ def extract_wb_entries(filename: str) -> List[WbEntry]:
     return entries
 
 
-def compare_ex_entries(file1_entries: List[ExEntry], file2_entries: List[ExEntry], verbose: bool = False) -> Optional[tuple]:
-    """Compare EX entries and return (index, file1_entry, file2_entry, time) if divergence found"""
-
-    max_entries = max(len(file1_entries), len(file2_entries))
-
-    for i in range(max_entries):
-        if i >= len(file1_entries):
-            return (i, None, file2_entries[i], file2_entries[i].time)
-
-        if i >= len(file2_entries):
-            return (i, file1_entries[i], None, file1_entries[i].time)
-
-        entry1 = file1_entries[i]
-        entry2 = file2_entries[i]
-
-        if verbose:
-            print(f"EX Entry {i}: File1 time={entry1.time}, File2 time={entry2.time}")
-
-        if entry1.instr != entry2.instr or entry1.operands != entry2.operands:
-            return (i, entry1, entry2, min(entry1.time, entry2.time))
-
-    return None
-
-
-def compare_mem_entries(file1_entries: List[MemEntry], file2_entries: List[MemEntry], verbose: bool = False) -> Optional[tuple]:
-    """Compare MEM entries and return (index, file1_entry, file2_entry, time) if divergence found"""
+def compare_mem_entries(
+    file1_entries: List[MemEntry],
+    file2_entries: List[MemEntry],
+    verbose: bool = False
+) -> Optional[tuple]:
+    """Compare MEM entries and return divergence info if found"""
 
     max_entries = max(len(file1_entries), len(file2_entries))
 
@@ -233,14 +154,23 @@ def compare_mem_entries(file1_entries: List[MemEntry], file2_entries: List[MemEn
         if verbose:
             print(f"MEM Entry {i}: File1 time={entry1.time}, File2 time={entry2.time}")
 
-        if entry1.op_type != entry2.op_type or entry1.addr != entry2.addr or entry1.data != entry2.data:
+        #
+        # Compare PC, op_type, and address
+        #
+        if (entry1.pc != entry2.pc or
+                entry1.op_type != entry2.op_type or
+                entry1.addr != entry2.addr):
             return (i, entry1, entry2, min(entry1.time, entry2.time))
 
     return None
 
 
-def compare_wb_entries(file1_entries: List[WbEntry], file2_entries: List[WbEntry], verbose: bool = False) -> Optional[tuple]:
-    """Compare WB entries and return (index, file1_entry, file2_entry, time) if divergence found"""
+def compare_wb_entries(
+    file1_entries: List[WbEntry],
+    file2_entries: List[WbEntry],
+    verbose: bool = False
+) -> Optional[tuple]:
+    """Compare WB entries and return divergence info if found"""
 
     max_entries = max(len(file1_entries), len(file2_entries))
 
@@ -257,7 +187,12 @@ def compare_wb_entries(file1_entries: List[WbEntry], file2_entries: List[WbEntry
         if verbose:
             print(f"WB Entry {i}: File1 time={entry1.time}, File2 time={entry2.time}")
 
-        if entry1.data != entry2.data or entry1.reg != entry2.reg:
+        #
+        # Compare PC, data, and register
+        #
+        if (entry1.pc != entry2.pc or
+                entry1.data != entry2.data or
+                entry1.reg != entry2.reg):
             return (i, entry1, entry2, min(entry1.time, entry2.time))
 
     return None
@@ -266,80 +201,72 @@ def compare_wb_entries(file1_entries: List[WbEntry], file2_entries: List[WbEntry
 def find_divergence(file1: str, file2: str, verbose: bool = False):
     """Find and report the earliest divergence between traces"""
 
-    file1_ex = extract_ex_entries(file1)
-    file2_ex = extract_ex_entries(file2)
     file1_mem = extract_mem_entries(file1)
     file2_mem = extract_mem_entries(file2)
     file1_wb = extract_wb_entries(file1)
     file2_wb = extract_wb_entries(file2)
 
-    ex_div = compare_ex_entries(file1_ex, file2_ex, verbose)
     mem_div = compare_mem_entries(file1_mem, file2_mem, verbose)
     wb_div = compare_wb_entries(file1_wb, file2_wb, verbose)
 
-    if ex_div is None and mem_div is None and wb_div is None:
+    if mem_div is None and wb_div is None:
         print("No divergence found")
         return
 
+    #
     # Find the earliest divergence
+    #
     divergences = []
-    if ex_div:
-        divergences.append(("EX", ex_div))
     if mem_div:
         divergences.append(("MEM", mem_div))
     if wb_div:
         divergences.append(("WB", wb_div))
 
-    divergences.sort(key=lambda x: x[1][3])  # Sort by time
+    divergences.sort(key=lambda x: x[1][3])
     earliest_type, earliest_div = divergences[0]
 
     idx, entry1, entry2, _ = earliest_div
 
+    #
     # Print divergence header
+    #
     time1 = entry1.time if entry1 else "END"
     time2 = entry2.time if entry2 else "END"
     print(f"\n{earliest_type} divergence at time {time1} / {time2}:")
     print()
 
+    #
     # Print stage-specific details
-    if earliest_type == "EX":
+    #
+    if earliest_type == "MEM":
         if entry1:
-            operands_str = f" {entry1.operands}" if entry1.operands else ""
-            print(f"  FILE1: EX {entry1.pc} {entry1.instr}{operands_str}")
+            op_name = "read" if entry1.op_type == "r" else "write"
+            print(f"  FILE1: MEM {entry1.pc} {op_name} {entry1.addr}")
         else:
             print(f"  FILE1: (trace ended)")
 
         if entry2:
-            operands_str = f" {entry2.operands}" if entry2.operands else ""
-            print(f"  FILE2: EX {entry2.pc} {entry2.instr}{operands_str}")
-        else:
-            print(f"  FILE2: (trace ended)")
-
-    elif earliest_type == "MEM":
-        if entry1:
-            print(f"  FILE1: {entry1.op_type} {entry1.addr} -> {entry1.data}")
-        else:
-            print(f"  FILE1: (trace ended)")
-
-        if entry2:
-            print(f"  FILE2: {entry2.op_type} {entry2.addr} -> {entry2.data}")
+            op_name = "read" if entry2.op_type == "r" else "write"
+            print(f"  FILE2: MEM {entry2.pc} {op_name} {entry2.addr}")
         else:
             print(f"  FILE2: (trace ended)")
 
     elif earliest_type == "WB":
         if entry1:
-            print(f"  FILE1: WB {entry1.data} -> {entry1.reg}")
+            print(f"  FILE1: WB {entry1.pc} {entry1.data} -> {entry1.reg}")
         else:
             print(f"  FILE1: (trace ended)")
 
         if entry2:
-            print(f"  FILE2: WB {entry2.data} -> {entry2.reg}")
+            print(f"  FILE2: WB {entry2.pc} {entry2.data} -> {entry2.reg}")
         else:
             print(f"  FILE2: (trace ended)")
 
     print()
 
+    #
     # Print full trace lines for context
+    #
     print("Full trace lines:")
     if entry1:
         print(f"  FILE1: {entry1.raw_line}")
@@ -354,7 +281,7 @@ def find_divergence(file1: str, file2: str, verbose: bool = False):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Find the first divergence between two CPU trace files (EX, MEM, and WB)"
+        description="Find the first divergence between two CPU trace files (MEM and WB)"
     )
     parser.add_argument(
         "file1",
