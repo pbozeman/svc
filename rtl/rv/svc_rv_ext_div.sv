@@ -30,6 +30,7 @@ module svc_rv_ext_div (
     output logic [31:0] result
 );
 
+`ifndef RISCV_FORMAL_ALTOPS
   //
   // Division unit (unsigned restoring division)
   //
@@ -122,6 +123,46 @@ module svc_rv_ext_div (
   assign busy = div_busy;
 
   `SVC_UNUSED({div_valid, div_zero, op[2]});
+
+`else
+  //
+  // RISCV_FORMAL_ALTOPS: Alternative operations for formal verification.
+  //
+  // Division is beyond practical capabilities of hardware model checkers.
+  // riscv-formal defines alternative operations using simple sub + XOR
+  // to verify bypassing and pipeline behavior.
+  //
+  // See: https://yosyshq.readthedocs.io/projects/riscv-formal/en/latest/rvfi.html#alternative-arithmetic-operations
+  //
+  localparam int ALTOPS_CYCLES = 3;
+
+  logic [1:0] f_count;
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      f_count <= '0;
+    end else if (en) begin
+      f_count <= 2'd1;
+    end else if (busy) begin
+      f_count <= f_count + 2'd1;
+    end
+  end
+
+  assign busy = (f_count != '0) && (f_count != 2'(ALTOPS_CYCLES));
+
+  always_comb begin
+    case (op[1:0])
+      2'b00:   result = (rs1 - rs2) ^ 32'h7f8529ec;
+      2'b01:   result = (rs1 - rs2) ^ 32'h10e8fd70;
+      2'b10:   result = (rs1 - rs2) ^ 32'h8da68fa5;
+      2'b11:   result = (rs1 - rs2) ^ 32'h3138d0e1;
+      default: result = '0;
+    endcase
+  end
+
+  `SVC_UNUSED({op[2]});
+
+`endif
 
 endmodule
 
