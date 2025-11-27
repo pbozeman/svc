@@ -52,7 +52,8 @@ module svc_rv_btb #(
     input logic [XLEN-1:0] update_pc,
     input logic [XLEN-1:0] update_target,
     input logic            update_taken,
-    input logic            update_is_return
+    input logic            update_is_return,
+    input logic            update_is_jal
 );
 
   //
@@ -85,14 +86,16 @@ module svc_rv_btb #(
   logic [INDEX_BITS-1:0] update_index;
   logic [  TAG_BITS-1:0] update_tag;
   logic [           1:0] counter_next;
+  logic                  tag_changes;
+  logic                  always_taken;
 
   //
   // Lookup path (combinational)
   //
-  assign lookup_index     = lookup_pc[INDEX_MSB:INDEX_LSB];
-  assign lookup_tag       = lookup_pc[XLEN-1:INDEX_MSB+1];
-  assign tag_match        = (tags[lookup_index] == lookup_tag);
-  assign hit              = valid[lookup_index] && tag_match;
+  assign lookup_index = lookup_pc[INDEX_MSB:INDEX_LSB];
+  assign lookup_tag = lookup_pc[XLEN-1:INDEX_MSB+1];
+  assign tag_match = (tags[lookup_index] == lookup_tag);
+  assign hit = valid[lookup_index] && tag_match;
 
   //
   // Output predicted target, taken signal, and return flag
@@ -100,24 +103,45 @@ module svc_rv_btb #(
   // Only output valid predictions on a hit, otherwise output zeros
   //
   assign predicted_target = hit ? targets[lookup_index] : '0;
-  assign predicted_taken  = hit ? counters[lookup_index][1] : 1'b0;
-  assign is_return        = hit ? is_return_flags[lookup_index] : 1'b0;
+  assign predicted_taken = hit ? counters[lookup_index][1] : 1'b0;
+  assign is_return = hit ? is_return_flags[lookup_index] : 1'b0;
 
   //
   // Update path (combinational next-state logic)
   //
-  assign update_index     = update_pc[INDEX_MSB:INDEX_LSB];
-  assign update_tag       = update_pc[XLEN-1:INDEX_MSB+1];
+  assign update_index = update_pc[INDEX_MSB:INDEX_LSB];
+  assign update_tag = update_pc[XLEN-1:INDEX_MSB+1];
+
+  //
+  // Tag change detection: entry exists but with different tag
+  //
+  assign
+      tag_changes = valid[update_index] && (tags[update_index] != update_tag);
+
+  //
+  // JAL and returns are always taken - force counter to strongly taken
+  //
+  assign always_taken = update_is_jal || update_is_return;
 
   //
   // 2-bit saturating counter logic
   //
   always_comb begin
-    if (!valid[update_index]) begin
+    if (always_taken) begin
+      //
+      // JAL/return: always strongly taken
+      //
+      counter_next = 2'b11;
+    end else if (!valid[update_index] || tag_changes) begin
+      //
+      // New entry or tag change: reset counter
+      //
       counter_next = update_taken ? 2'b10 : 2'b01;
     end else begin
+      //
+      // Branch with same tag: 2-bit saturating counter
+      //
       counter_next = counters[update_index];
-
       if (update_taken) begin
         if (counter_next != 2'b11) begin
           counter_next = counter_next + 2'b01;

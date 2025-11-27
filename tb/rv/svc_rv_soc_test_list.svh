@@ -54,6 +54,9 @@
 `TEST_CASE(test_jalr_forwarding);
 `TEST_CASE(test_jalr_base_forwarding);
 
+// BTB JAL misprediction test
+`TEST_CASE(test_jal_btb_not_taken);
+
 // Branch tests
 `TEST_CASE(test_beq_taken_forward);
 `TEST_CASE(test_beq_not_taken);

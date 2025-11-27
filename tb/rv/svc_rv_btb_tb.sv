@@ -26,6 +26,7 @@ module svc_rv_btb_tb;
   logic [XLEN-1:0] update_target;
   logic            update_taken;
   logic            update_is_return;
+  logic            update_is_jal;
 
   //
   // UUT instantiation
@@ -45,7 +46,8 @@ module svc_rv_btb_tb;
       .update_pc       (update_pc),
       .update_target   (update_target),
       .update_taken    (update_taken),
-      .update_is_return(update_is_return)
+      .update_is_return(update_is_return),
+      .update_is_jal   (update_is_jal)
   );
 
   `SVC_UNUSED({is_return});
@@ -58,6 +60,7 @@ module svc_rv_btb_tb;
       update_target    <= '0;
       update_taken     <= 1'b0;
       update_is_return <= 1'b0;
+      update_is_jal    <= 1'b0;
     end
   end
 
