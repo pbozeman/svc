@@ -448,12 +448,41 @@ module svc_rv_stage_mem #(
         f_dmem_raddr_wb <= '0;
         f_dmem_wdata_wb <= '0;
         f_dmem_wstrb_wb <= '0;
-      end else if (!mem_wb_stall) begin
-        f_mem_write_wb  <= mem_write_mem;
+      end else if (dmem_we) begin
+        //
+        // Capture write on the single pulse.
+        //
+        // dmem_we only pulses high for one cycle per write (for MMIO safety).
+        // During stalls, mem_write_mem gets cleared but we must preserve the
+        // write info for RVFI. Capture here before it's lost.
+        //
+        f_mem_write_wb  <= 1'b1;
         f_dmem_waddr_wb <= dmem_waddr;
         f_dmem_raddr_wb <= dmem_raddr;
         f_dmem_wdata_wb <= dmem_wdata;
         f_dmem_wstrb_wb <= dmem_wstrb;
+      end else begin
+        //
+        // Clear write signals when the store retires (valid_wb && f_mem_write_wb).
+        // This ensures the write info is captured by the lag buffer BEFORE clearing.
+        // Using valid_wb (the retiring instruction) instead of valid_mem (the
+        // advancing instruction) ensures proper timing for both:
+        // - Stores followed by multi-cycle ops (wmask preserved until retirement)
+        // - Non-stores after multi-cycle ops (wmask cleared after store retired)
+        //
+        if (valid_wb && f_mem_write_wb) begin
+          f_mem_write_wb  <= 1'b0;
+          f_dmem_wstrb_wb <= '0;
+        end
+
+        //
+        // Update address/data signals when pipeline advances (for loads).
+        //
+        if (!mem_wb_stall) begin
+          f_dmem_waddr_wb <= dmem_waddr;
+          f_dmem_raddr_wb <= dmem_raddr;
+          f_dmem_wdata_wb <= dmem_wdata;
+        end
       end
     end
 
