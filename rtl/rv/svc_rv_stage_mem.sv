@@ -373,6 +373,26 @@ module svc_rv_stage_mem #(
   // MEM/WB Pipeline Register
   //
   if (PIPELINED != 0) begin : g_registered
+    //
+    // Accumulator for mem_misalign during multicycle stalls.
+    // mem_misalign is transient - only valid when the load/store is in MEM.
+    // During stalls, we need to preserve it until the MEM instruction
+    // finally advances to WB after the stall ends.
+    //
+    logic mem_misalign_stall;
+
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        mem_misalign_stall <= 1'b0;
+      end else if (!mem_wb_stall) begin
+        // Normal advance - clear since MEM instruction is moving
+        mem_misalign_stall <= 1'b0;
+      end else if (op_active_ex) begin
+        // During stall, save mem_misalign for the MEM instruction
+        mem_misalign_stall <= mem_misalign_stall | mem_misalign;
+      end
+    end
+
     always_ff @(posedge clk) begin
       if (!rst_n) begin
         reg_write_wb  <= 1'b0;
@@ -392,32 +412,26 @@ module svc_rv_stage_mem #(
         trap_code_wb  <= TRAP_NONE;
         valid_wb      <= 1'b0;
       end else if (!mem_wb_stall) begin
-        reg_write_wb  <= reg_write_mem && !misalign_trap;
-        res_src_wb    <= res_src_mem;
-        instr_wb      <= instr_mem;
-        rd_wb         <= rd_mem;
-        funct3_wb     <= funct3_mem;
+        reg_write_wb <= reg_write_mem && !misalign_trap;
+        res_src_wb <= res_src_mem;
+        instr_wb <= instr_mem;
+        rd_wb <= rd_mem;
+        funct3_wb <= funct3_mem;
         alu_result_wb <= alu_result_mem;
-        rs1_data_wb   <= rs1_data_mem;
-        rs2_data_wb   <= rs2_data_mem;
-        pc_plus4_wb   <= pc_plus4_mem;
-        jb_target_wb  <= jb_target_mem;
-        csr_rdata_wb  <= csr_rdata_mem;
-        m_result_wb   <= m_result_mem;
+        rs1_data_wb <= rs1_data_mem;
+        rs2_data_wb <= rs2_data_mem;
+        pc_plus4_wb <= pc_plus4_mem;
+        jb_target_wb <= jb_target_mem;
+        csr_rdata_wb <= csr_rdata_mem;
+        m_result_wb <= m_result_mem;
         product_64_wb <= product_64_mem;
-        trap_wb       <= misalign_trap;
-        trap_code_wb  <= mem_misalign ? TRAP_LDST_MISALIGN : trap_code_mem;
-        valid_wb      <= valid_mem;
+        trap_wb <= misalign_trap | mem_misalign_stall;
+        trap_code_wb <= ((mem_misalign | mem_misalign_stall) ?
+                         TRAP_LDST_MISALIGN : trap_code_mem);
+        valid_wb <= valid_mem;
       end else if (op_active_ex) begin
-        //
         // Multi-cycle op stall: clear valid to prevent repeated retirement.
-        // Preserve any trap that was already set (OR with existing value) since
-        // misalign_trap may only be valid for one cycle while the instruction
-        // causing the trap is in MEM.
-        //
-        valid_wb     <= 1'b0;
-        trap_wb      <= trap_wb | misalign_trap;
-        trap_code_wb <= mem_misalign ? TRAP_LDST_MISALIGN : trap_code_mem;
+        valid_wb <= 1'b0;
       end
     end
 
@@ -449,13 +463,9 @@ module svc_rv_stage_mem #(
         f_dmem_wdata_wb <= '0;
         f_dmem_wstrb_wb <= '0;
       end else if (dmem_we) begin
-        //
-        // Capture write on the single pulse.
-        //
         // dmem_we only pulses high for one cycle per write (for MMIO safety).
         // During stalls, mem_write_mem gets cleared but we must preserve the
         // write info for RVFI. Capture here before it's lost.
-        //
         f_mem_write_wb  <= 1'b1;
         f_dmem_waddr_wb <= dmem_waddr;
         f_dmem_raddr_wb <= dmem_raddr;
@@ -463,12 +473,15 @@ module svc_rv_stage_mem #(
         f_dmem_wstrb_wb <= dmem_wstrb;
       end else begin
         //
-        // Clear write signals when the store retires (valid_wb && f_mem_write_wb).
-        // This ensures the write info is captured by the lag buffer BEFORE clearing.
+        // Clear write signals when the store retires. This ensures the write
+        // info is captured by the lag buffer BEFORE clearing.
+        //
         // Using valid_wb (the retiring instruction) instead of valid_mem (the
         // advancing instruction) ensures proper timing for both:
-        // - Stores followed by multi-cycle ops (wmask preserved until retirement)
-        // - Non-stores after multi-cycle ops (wmask cleared after store retired)
+        // - Stores followed by multi-cycle ops (wmask preserved until
+        //   retirement)
+        // - Non-stores after multi-cycle ops (wmask cleared after store
+        //   retired)
         //
         if (valid_wb && f_mem_write_wb) begin
           f_mem_write_wb  <= 1'b0;
