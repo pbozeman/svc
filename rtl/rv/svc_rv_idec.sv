@@ -181,8 +181,11 @@ module svc_rv_idec #(
   //
   // M extension detection
   //
+  // Valid M-extension instructions have funct7 == 7'b0000001 exactly.
+  // Just checking funct7[0] would incorrectly match invalid encodings.
+  //
   if (EXT_M != 0) begin : g_m_ext
-    assign is_m = (opcode == OP_RTYPE) && (funct7[0] == 1'b1);
+    assign is_m = (opcode == OP_RTYPE) && (funct7 == 7'b0000001);
   end else begin : g_no_m_ext
     assign is_m = 1'b0;
   end
@@ -221,7 +224,24 @@ module svc_rv_idec #(
   assign invalid_system = ((opcode == OP_SYSTEM) &&
                            (invalid_system_funct3 | invalid_system_priv));
 
-  assign instr_invalid = invalid_compressed | invalid_opcode | invalid_system;
+  //
+  // Invalid M-extension instructions
+  //
+  // R-type instructions with funct7[0]=1 but not valid M encoding (0000001)
+  // are invalid. When EXT_M=0, any such instruction is invalid. When EXT_M=1,
+  // only those with incorrect funct7 are invalid.
+  //
+  logic invalid_m;
+
+  if (EXT_M != 0) begin : g_invalid_m
+    assign invalid_m = ((opcode == OP_RTYPE) && funct7[0] &&
+                        (funct7 != 7'b0000001));
+  end else begin : g_no_invalid_m
+    assign invalid_m = (opcode == OP_RTYPE) && funct7[0];
+  end
+
+  assign instr_invalid = (invalid_compressed | invalid_opcode | invalid_system |
+                          invalid_m);
 
 endmodule
 
