@@ -47,8 +47,8 @@ module svc_rv_ext_mul_wb (
   assign correction_a = (rs1_signed && rs1_data[31]) ? rs2_data : 32'h0;
   assign correction_b = (rs2_signed && rs2_data[31]) ? rs1_data : 32'h0;
 
-  assign
-      product_upper_corrected = product_64[63:32] - correction_a - correction_b;
+  assign product_upper_corrected = (product_64[63:32] - correction_a -
+                                    correction_b);
 
   //
   // Select result based on operation
@@ -56,10 +56,37 @@ module svc_rv_ext_mul_wb (
   // MUL (op[1:0] == 2'b00): Lower 32 bits
   // MULH* (op[1:0] != 2'b00): Upper 32 bits with sign correction
   //
-  assign
-      result = (op[1:0] == 2'b00) ? product_64[31:0] : product_upper_corrected;
+`ifndef RISCV_FORMAL_ALTOPS
+  assign result = ((op[1:0] == 2'b00) ? product_64[31:0] :
+                   product_upper_corrected);
 
   `SVC_UNUSED({op[2]});
+`else
+  //
+  // RISCV_FORMAL_ALTOPS: Alternative operations for formal verification.
+  //
+  // Multiplication is beyond practical capabilities of hardware model
+  // checkers. riscv-formal defines alternative operations using simple
+  // add/sub + XOR to verify bypassing and pipeline behavior.
+  //
+  // See: https://yosyshq.readthedocs.io/projects/riscv-formal/en/latest/rvfi.html#alternative-arithmetic-operations
+  //
+  logic [31:0] altops_result;
+
+  always_comb begin
+    case (op[1:0])
+      2'b00:   altops_result = (rs1_data + rs2_data) ^ 32'h5876063e;
+      2'b01:   altops_result = (rs1_data + rs2_data) ^ 32'hf6583fb7;
+      2'b10:   altops_result = (rs1_data - rs2_data) ^ 32'hecfbe137;
+      2'b11:   altops_result = (rs1_data + rs2_data) ^ 32'h949ce5e8;
+      default: altops_result = '0;
+    endcase
+  end
+
+  assign result = altops_result;
+
+  `SVC_UNUSED({op[2], product_64, product_upper_corrected});
+`endif
 
 endmodule
 
