@@ -152,7 +152,8 @@ module svc_rv_stage_ex #(
     output logic [XLEN-1:0] btb_update_pc,
     output logic [XLEN-1:0] btb_update_target,
     output logic            btb_update_taken,
-    output logic            btb_update_is_return
+    output logic            btb_update_is_return,
+    output logic            btb_update_is_jal
 );
 
   `include "svc_rv_defs.svh"

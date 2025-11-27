@@ -950,6 +950,83 @@ task automatic test_jal_forwarding;
 endtask
 
 //
+// Test: JAL with BTB counter trained to "not taken"
+//
+// Reproduces bug where BTB predicts "not taken" for JAL (unconditional jump).
+//
+// Key insight: BTB counter update doesn't reset when tag changes. It reads
+// the existing counter and increments/decrements. So:
+// 1. Branch at PC X (index N) trains counter to 00 (strongly not taken)
+// 2. JAL at PC Y (same index N, different tag) executes, counter = 00+1 = 01
+// 3. JAL executes again, BTB hit with counter=01 → predicts NOT TAKEN → BUG!
+//
+// BTB index = PC[5:2]. PC 0x08 and 0x48 both have index 2.
+//
+task automatic test_jal_btb_not_taken;
+  //
+  // Phase 1: Train BTB[index=2] counter to 00
+  // Use a branch that is ALWAYS not taken (compare x0 to non-zero)
+  //
+  ADDI(x10, x0, 3);  // 0x00: x10 = 3 (loop counter)
+  ADDI(x11, x0, 99);  // 0x04: x11 = 99 (never equals x0)
+  // train_loop:
+  BEQ(x0, x11, 48);  // 0x08: if 0==99 goto 0x38 (NEVER taken)
+  ADDI(x10, x10, -1);  // 0x0C: x10--
+  BNE(x10, x0, -8);  // 0x10: if x10!=0 goto 0x08 (loop)
+  // Loop trace (3 iterations):
+  //   iter 1: BEQ NOT TAKEN (counter=01), x10→2, BNE TAKEN
+  //   iter 2: BEQ NOT TAKEN (counter=00), x10→1, BNE TAKEN
+  //   iter 3: BEQ NOT TAKEN (counter=00 saturated), x10→0, BNE NOT TAKEN
+  // Result: BTB[2] counter = 00
+
+  //
+  // Phase 2: Pad to PC=0x48 (same BTB index=2, different tag)
+  //
+  NOP();  // 0x14
+  NOP();  // 0x18
+  NOP();  // 0x1C
+  NOP();  // 0x20
+  NOP();  // 0x24
+  NOP();  // 0x28
+  NOP();  // 0x2C
+  NOP();  // 0x30
+  NOP();  // 0x34
+  NOP();  // 0x38
+  NOP();  // 0x3C
+  NOP();  // 0x40
+  NOP();  // 0x44
+
+  //
+  // Phase 3: JAL at PC=0x48, executed twice to trigger bug
+  //
+  // first_jal:
+  JAL(x1, 24);  // 0x48: JAL to 0x60. 1st exec: counter 00→01
+  ADDI(x13, x0, 99);  // 0x4C: SHOULD BE SKIPPED
+  NOP();  // 0x50
+  NOP();  // 0x54
+  NOP();  // 0x58
+  NOP();  // 0x5C
+  // jal_target:
+  ADDI(x14, x0, 42);  // 0x60: x14 = 42
+  BNE(x20, x0, 12);  // 0x64: if x20!=0 goto done (0x70)
+  ADDI(x20, x0, 1);  // 0x68: x20 = 1 (flag)
+  BEQ(x0, x0, -36);  // 0x6C: goto first_jal (0x48)
+  // 2nd JAL exec: BTB hit, counter=01, predicted NOT TAKEN → BUG!
+  // done:
+  EBREAK();  // 0x70
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk);
+
+  // x13 = 0 (skipped by JAL)
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[13], 32'd0);
+
+  // x14 = 42 (target reached)
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[14], 32'd42);
+endtask
+
+//
 // Test: JALR with immediate forwarding
 //
 // Tests JALR result (PC+4) being forwarded to the next instruction.
