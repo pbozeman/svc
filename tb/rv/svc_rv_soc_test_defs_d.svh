@@ -312,11 +312,7 @@ task automatic test_misaligned_load_div_trap;
 
   `CHECK_WAIT_FOR(clk, uut.trap);
   `CHECK_FALSE(ebreak);
-  `TICK(clk);
-
-  // we currently just allow traps to pass
-  `CHECK_FALSE(uut.trap);
-  `CHECK_WAIT_FOR_EBREAK(clk, 256);
+  `CHECK_TRUE(uut.cpu.halt);
 endtask
 
 //

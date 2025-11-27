@@ -411,11 +411,12 @@ module svc_rv_stage_mem #(
       end else if (op_active_ex) begin
         //
         // Multi-cycle op stall: clear valid to prevent repeated retirement.
-        // Update trap from current MEM stage so when stall ends and instruction
-        // moves to WB, trap_wb has the correct value.
+        // Preserve any trap that was already set (OR with existing value) since
+        // misalign_trap may only be valid for one cycle while the instruction
+        // causing the trap is in MEM.
         //
         valid_wb     <= 1'b0;
-        trap_wb      <= misalign_trap;
+        trap_wb      <= trap_wb | misalign_trap;
         trap_code_wb <= mem_misalign ? TRAP_LDST_MISALIGN : trap_code_mem;
       end
     end
