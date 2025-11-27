@@ -719,44 +719,47 @@ module svc_rv #(
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       f_prev_valid <= 1'b0;
+      f_prev_halt  <= 1'b0;
       rvfi_valid   <= 1'b0;
       rvfi_order   <= 64'd0;
     end else begin
-      rvfi_valid <= 1'b0;  // pulse when emitting
+      rvfi_valid <= 1'b0;
+
+      //
+      // Emit buffered instruction on halt or when retiring.
+      //
+      // If we have a previous instruction buffered, emit it now
+      // using current PC as pc_wdata (next architectural PC)
+      //
+      if (f_prev_halt || (rvfi_retire && f_prev_valid)) begin
+        rvfi_valid     <= 1'b1;
+        rvfi_order     <= rvfi_order + 64'd1;
+
+        rvfi_insn      <= f_prev_insn;
+        rvfi_pc_rdata  <= f_prev_pc;
+        rvfi_pc_wdata  <= f_prev_halt ? f_prev_pc : f_commit_pc;
+
+        rvfi_rs1_addr  <= f_prev_rs1_addr;
+        rvfi_rs2_addr  <= f_prev_rs2_addr;
+        rvfi_rd_addr   <= f_prev_rd_addr;
+        rvfi_rs1_rdata <= f_prev_rs1_rdata;
+        rvfi_rs2_rdata <= f_prev_rs2_rdata;
+        rvfi_rd_wdata  <= f_prev_rd_wdata;
+
+        rvfi_trap      <= f_prev_trap;
+        rvfi_halt      <= f_prev_halt;
+        rvfi_intr      <= f_prev_intr;
+
+        rvfi_mem_valid <= f_prev_mem_valid;
+        rvfi_mem_instr <= f_prev_mem_instr;
+        rvfi_mem_addr  <= f_prev_mem_addr;
+        rvfi_mem_rmask <= f_prev_mem_rmask;
+        rvfi_mem_wmask <= f_prev_mem_wmask;
+        rvfi_mem_rdata <= f_prev_mem_rdata;
+        rvfi_mem_wdata <= f_prev_mem_wdata;
+      end
 
       if (rvfi_retire) begin
-        //
-        // If we have a previous instruction buffered, emit it now
-        // using current PC as pc_wdata (next architectural PC)
-        //
-        if (f_prev_valid) begin
-          rvfi_valid     <= 1'b1;
-          rvfi_order     <= rvfi_order + 64'd1;
-
-          rvfi_insn      <= f_prev_insn;
-          rvfi_pc_rdata  <= f_prev_pc;
-          rvfi_pc_wdata  <= f_commit_pc;
-
-          rvfi_rs1_addr  <= f_prev_rs1_addr;
-          rvfi_rs2_addr  <= f_prev_rs2_addr;
-          rvfi_rd_addr   <= f_prev_rd_addr;
-          rvfi_rs1_rdata <= f_prev_rs1_rdata;
-          rvfi_rs2_rdata <= f_prev_rs2_rdata;
-          rvfi_rd_wdata  <= f_prev_rd_wdata;
-
-          rvfi_trap      <= f_prev_trap;
-          rvfi_halt      <= f_prev_halt;
-          rvfi_intr      <= f_prev_intr;
-
-          rvfi_mem_valid <= f_prev_mem_valid;
-          rvfi_mem_instr <= f_prev_mem_instr;
-          rvfi_mem_addr  <= f_prev_mem_addr;
-          rvfi_mem_rmask <= f_prev_mem_rmask;
-          rvfi_mem_wmask <= f_prev_mem_wmask;
-          rvfi_mem_rdata <= f_prev_mem_rdata;
-          rvfi_mem_wdata <= f_prev_mem_wdata;
-        end
-
         //
         // Buffer current retiring instruction as "previous"
         //

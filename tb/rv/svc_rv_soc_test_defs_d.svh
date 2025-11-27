@@ -310,7 +310,7 @@ task automatic test_misaligned_load_div_trap;
 
   load_program();
 
-  `CHECK_WAIT_FOR(clk, uut.trap);
+  `CHECK_WAIT_FOR(clk, uut.trap, 64);
   `CHECK_FALSE(ebreak);
   `CHECK_TRUE(uut.cpu.halt);
 endtask
