@@ -17,7 +17,7 @@
 // All comparison logic is performed in the EX stage.
 //
 module svc_rv_bcmp #(
-    parameter int XLEN = 32
+    parameter int XLEN
 ) (
     //
     // EX stage inputs

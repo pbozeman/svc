@@ -10,7 +10,7 @@
 // Supports LB, LH, LW (signed) and LBU, LHU (unsigned).
 //
 module svc_rv_fmt_ld #(
-    parameter int XLEN = 32
+    parameter int XLEN
 ) (
     //
     // Load operation inputs

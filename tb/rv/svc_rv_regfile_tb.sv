@@ -21,7 +21,8 @@ module svc_rv_regfile_tb;
   // DUT instantiation
   //
   svc_rv_regfile #(
-      .XLEN(XLEN)
+      .XLEN       (XLEN),
+      .FWD_REGFILE(1)
   ) uut (
       .clk     (clk),
       .rst_n   (rst_n),

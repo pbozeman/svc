@@ -11,8 +11,8 @@
 // in the same cycle the address is presented. No PC or BTB buffering needed.
 //
 module svc_rv_stage_if_sram #(
-    parameter int XLEN      = 32,
-    parameter int PIPELINED = 0
+    parameter int XLEN,
+    parameter int PIPELINED
 ) (
     input logic clk,
     input logic rst_n,

@@ -23,14 +23,15 @@
 // control signals for the execute stage.
 //
 module svc_rv_stage_id #(
-    parameter int XLEN        = 32,
-    parameter int PIPELINED   = 0,
-    parameter int FWD_REGFILE = PIPELINED,
-    parameter int BPRED       = 0,
-    parameter int BTB_ENABLE  = 0,
-    parameter int RAS_ENABLE  = 0,
-    parameter int EXT_ZMMUL   = 0,
-    parameter int EXT_M       = 0
+    parameter int XLEN,
+    parameter int MEM_TYPE,
+    parameter int PIPELINED,
+    parameter int FWD_REGFILE,
+    parameter int BPRED,
+    parameter int BTB_ENABLE,
+    parameter int RAS_ENABLE,
+    parameter int EXT_ZMMUL,
+    parameter int EXT_M
 ) (
     input logic clk,
     input logic rst_n,
@@ -261,7 +262,7 @@ module svc_rv_stage_id #(
 
   svc_rv_fwd_id #(
       .XLEN    (XLEN),
-      .MEM_TYPE(0)
+      .MEM_TYPE(MEM_TYPE)
   ) fwd_id (
       .clk          (clk),
       .rst_n        (rst_n),

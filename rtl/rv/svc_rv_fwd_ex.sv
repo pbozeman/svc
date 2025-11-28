@@ -32,9 +32,9 @@
 // TODO: Consider making WB→EX configurable for timing-relaxed designs.
 //
 module svc_rv_fwd_ex #(
-    parameter int XLEN     = 32,
-    parameter int FWD      = 0,
-    parameter int MEM_TYPE = 0
+    parameter int XLEN,
+    parameter int FWD,
+    parameter int MEM_TYPE
 ) (
     //
     // EX stage inputs (consumers)

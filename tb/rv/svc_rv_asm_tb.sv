@@ -49,7 +49,8 @@ module svc_rv_asm_tb;
   logic [31:0] imm_j;
 
   svc_rv_idec #(
-      .XLEN(XLEN)
+      .XLEN (XLEN),
+      .EXT_M(0)
   ) decoder (
       .instr        (instr),
       .reg_write    (reg_write),

@@ -18,7 +18,7 @@
 // result value to be written back to the register file.
 //
 module svc_rv_stage_wb #(
-    parameter int XLEN = 32
+    parameter int XLEN
 ) (
     input logic rst_n,
 

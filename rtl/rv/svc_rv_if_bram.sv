@@ -19,7 +19,7 @@
 // of PC delay, so this module adds one more cycle of PC buffering.
 //
 module svc_rv_if_bram #(
-    parameter int XLEN = 32
+    parameter int XLEN
 ) (
     input logic clk,
     input logic rst_n,

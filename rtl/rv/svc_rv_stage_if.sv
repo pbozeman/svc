@@ -15,10 +15,10 @@
 // - Instantiation of memory-type-specific fetch logic
 //
 module svc_rv_stage_if #(
-    parameter int XLEN      = 32,
-    parameter int PIPELINED = 0,
-    parameter int MEM_TYPE  = 0,
-    parameter int BPRED     = 0
+    parameter int XLEN,
+    parameter int PIPELINED,
+    parameter int MEM_TYPE,
+    parameter int BPRED
 ) (
     input logic clk,
     input logic rst_n,

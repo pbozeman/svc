@@ -18,8 +18,8 @@
 // pipeline placement for timing closure.
 //
 module svc_rv_idec #(
-    parameter int XLEN  = 32,
-    parameter int EXT_M = 0
+    parameter int XLEN,
+    parameter int EXT_M
 ) (
     input logic [31:0] instr,
 

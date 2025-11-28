@@ -16,9 +16,9 @@
 // 6. Sequential PC (default)
 //
 module svc_rv_pc_sel #(
-    parameter int XLEN       = 32,
-    parameter int RAS_ENABLE = 0,
-    parameter int BTB_ENABLE = 0
+    parameter int XLEN,
+    parameter int RAS_ENABLE,
+    parameter int BTB_ENABLE
 ) (
     //
     // PC selection from MEM stage (branch/JALR mispredictions)

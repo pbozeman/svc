@@ -19,9 +19,9 @@
 // cycle of misprediction penalty, but this allows meeting timing.
 //
 module svc_rv_bpred_mem #(
-    parameter int XLEN       = 32,
-    parameter int BPRED      = 0,
-    parameter int RAS_ENABLE = 0
+    parameter int XLEN,
+    parameter int BPRED,
+    parameter int RAS_ENABLE
 ) (
     //
     // Branch/JALR analysis from MEM stage

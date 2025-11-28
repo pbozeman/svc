@@ -11,8 +11,8 @@
 // to resolve data hazards without stalling.
 //
 module svc_rv_fwd_id #(
-    parameter int XLEN     = 32,
-    parameter int MEM_TYPE = 0
+    parameter int XLEN,
+    parameter int MEM_TYPE
 ) (
     input logic clk,
     input logic rst_n,

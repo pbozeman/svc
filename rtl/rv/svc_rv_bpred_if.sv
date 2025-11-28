@@ -22,9 +22,9 @@
 // - Outputs use `_id` suffix: Final buffered signals going to ID stage.
 //
 module svc_rv_bpred_if #(
-    parameter int XLEN      = 32,
-    parameter int PIPELINED = 0,
-    parameter int MEM_TYPE  = 0
+    parameter int XLEN,
+    parameter int PIPELINED,
+    parameter int MEM_TYPE
 ) (
     input logic clk,
     input logic rst_n,
