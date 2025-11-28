@@ -20,10 +20,10 @@
 // wrong PC (the target instruction, not sequential).
 //
 module svc_rv_bpred_id #(
-    parameter int XLEN       = 32,
-    parameter int BPRED      = 0,
-    parameter int BTB_ENABLE = 0,
-    parameter int RAS_ENABLE = 0
+    parameter int XLEN,
+    parameter int BPRED,
+    parameter int BTB_ENABLE,
+    parameter int RAS_ENABLE
 ) (
     //
     // Instruction analysis from decoder

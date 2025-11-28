@@ -15,8 +15,8 @@
 // - Cycle 0: PC sent to SRAM, instruction available same cycle (combinational)
 //
 module svc_rv_if_sram #(
-    parameter int XLEN      = 32,
-    parameter int PIPELINED = 1
+    parameter int XLEN,
+    parameter int PIPELINED
 ) (
     input logic clk,
     input logic rst_n,

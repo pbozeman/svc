@@ -538,6 +538,7 @@ module svc_rv #(
       .XLEN       (XLEN),
       .PIPELINED  (PIPELINED),
       .FWD_REGFILE(FWD_REGFILE),
+      .MEM_TYPE   (MEM_TYPE),
       .BPRED      (BPRED),
       .BTB_ENABLE (BTB_ENABLE),
       .RAS_ENABLE (RAS_ENABLE),

@@ -12,9 +12,9 @@
 // - BTB update signal generation
 //
 module svc_rv_bpred_ex #(
-    parameter int XLEN       = 32,
-    parameter int BPRED      = 0,
-    parameter int BTB_ENABLE = 0
+    parameter int XLEN,
+    parameter int BPRED,
+    parameter int BTB_ENABLE
 ) (
     //
     // Branch/jump analysis from EX stage

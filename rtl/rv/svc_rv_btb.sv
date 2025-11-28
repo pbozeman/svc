@@ -30,8 +30,8 @@
 //     performance but not correctness
 //
 module svc_rv_btb #(
-    parameter int XLEN     = 32,
-    parameter int NENTRIES = 16
+    parameter int XLEN,
+    parameter int NENTRIES
 ) (
     input logic clk,
     input logic rst_n,

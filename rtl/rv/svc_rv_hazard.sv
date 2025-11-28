@@ -33,9 +33,9 @@
 // - Stall logic based on memory ready signals
 //
 module svc_rv_hazard #(
-    parameter int FWD_REGFILE = 1,
-    parameter int FWD         = 0,
-    parameter int MEM_TYPE    = 0
+    parameter int FWD_REGFILE,
+    parameter int FWD,
+    parameter int MEM_TYPE
 ) (
     // ID stage input registers
     input logic [4:0] rs1_id,

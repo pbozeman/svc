@@ -23,11 +23,11 @@
 // writeback stage.
 //
 module svc_rv_stage_mem #(
-    parameter int XLEN       = 32,
-    parameter int PIPELINED  = 0,
-    parameter int MEM_TYPE   = 0,
-    parameter int BPRED      = 0,
-    parameter int RAS_ENABLE = 0
+    parameter int XLEN,
+    parameter int PIPELINED,
+    parameter int MEM_TYPE,
+    parameter int BPRED,
+    parameter int RAS_ENABLE
 ) (
     input logic clk,
     input logic rst_n,

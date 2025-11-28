@@ -11,8 +11,8 @@
 // buffering to align with the delayed instruction.
 //
 module svc_rv_stage_if_bram #(
-    parameter int XLEN  = 32,
-    parameter int BPRED = 0
+    parameter int XLEN,
+    parameter int BPRED
 ) (
     input logic clk,
     input logic rst_n,

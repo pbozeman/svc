@@ -30,14 +30,14 @@
 // prepares results for the memory stage.
 //
 module svc_rv_stage_ex #(
-    parameter int XLEN       = 32,
-    parameter int PIPELINED  = 0,
-    parameter int FWD        = 0,
-    parameter int MEM_TYPE   = 0,
-    parameter int BPRED      = 0,
-    parameter int BTB_ENABLE = 0,
-    parameter int EXT_ZMMUL  = 0,
-    parameter int EXT_M      = 0
+    parameter int XLEN,
+    parameter int PIPELINED,
+    parameter int FWD,
+    parameter int MEM_TYPE,
+    parameter int BPRED,
+    parameter int BTB_ENABLE,
+    parameter int EXT_ZMMUL,
+    parameter int EXT_M
 ) (
     input logic clk,
     input logic rst_n,

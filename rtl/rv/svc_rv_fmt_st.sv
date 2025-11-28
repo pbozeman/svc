@@ -10,7 +10,7 @@
 // Supports SB (store byte), SH (store halfword), and SW (store word).
 //
 module svc_rv_fmt_st #(
-    parameter int XLEN = 32
+    parameter int XLEN
 ) (
     //
     // Store operation inputs

@@ -27,8 +27,8 @@
 //   - Mispredictions are detected in EX stage like other branches
 //
 module svc_rv_ras #(
-    parameter int XLEN  = 32,
-    parameter int DEPTH = 8
+    parameter int XLEN,
+    parameter int DEPTH
 ) (
     input logic clk,
     input logic rst_n,

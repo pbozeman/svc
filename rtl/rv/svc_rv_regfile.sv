@@ -12,8 +12,8 @@
 // - Optional internal forwarding for pipelined designs
 
 module svc_rv_regfile #(
-    parameter int XLEN        = 32,
-    parameter int FWD_REGFILE = 1
+    parameter int XLEN,
+    parameter int FWD_REGFILE
 ) (
     input logic clk,
     input logic rst_n,

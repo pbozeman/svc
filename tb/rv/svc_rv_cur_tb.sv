@@ -21,6 +21,7 @@ module svc_rv_cur_tb;
   // System under test
   //
   svc_rv_soc_bram #(
+      .XLEN       (32),
       .IMEM_DEPTH (IMEM_DEPTH),
       .DMEM_DEPTH (DMEM_DEPTH),
       .PIPELINED  (1),
@@ -28,6 +29,7 @@ module svc_rv_cur_tb;
       .FWD        (1),
       .BPRED      (1),
       .BTB_ENABLE (1),
+      .BTB_ENTRIES(32),
       .RAS_ENABLE (0),
       .EXT_ZMMUL  (0),
       .EXT_M      (0)

@@ -40,6 +40,7 @@ module svc_rv_idec_tb;
   logic [31:0] imm_j;
 
   svc_rv_idec #(
+      .XLEN (32),
       .EXT_M(1)
   ) uut (
       .instr(instr),
