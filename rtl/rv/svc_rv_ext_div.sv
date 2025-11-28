@@ -43,9 +43,16 @@ module svc_rv_ext_div (
   //
   // Signed division requires special handling
   //
+  // Sign bits and rs1 must be latched when division starts because the
+  // forwarded operand values may change during multi-cycle execution
+  // (MEM/WB stages drain while EX stalls for multi-cycle ops).
+  //
   logic        is_signed_div;
   logic        rs1_neg;
   logic        rs2_neg;
+  logic        rs1_neg_reg;
+  logic        rs2_neg_reg;
+  logic [31:0] rs1_reg;
   logic        negate_result;
 
   logic [31:0] dividend_abs;
@@ -54,8 +61,23 @@ module svc_rv_ext_div (
   logic [31:0] remainder_signed;
 
   assign is_signed_div = !op[0];
-  assign rs1_neg = rs1[31];
-  assign rs2_neg = rs2[31];
+  assign rs1_neg       = rs1[31];
+  assign rs2_neg       = rs2[31];
+
+  //
+  // Latch sign bits and rs1 when division starts
+  //
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      rs1_neg_reg <= 1'b0;
+      rs2_neg_reg <= 1'b0;
+      rs1_reg     <= '0;
+    end else if (en) begin
+      rs1_neg_reg <= rs1_neg;
+      rs2_neg_reg <= rs2_neg;
+      rs1_reg     <= rs1;
+    end
+  end
 
   //
   // For signed operations, compute absolute values
@@ -66,9 +88,12 @@ module svc_rv_ext_div (
   //
   // Negate quotient if signs differ, negate remainder if dividend is negative
   //
-  assign negate_result = is_signed_div && (rs1_neg ^ rs2_neg);
+  // Use registered sign bits to handle forwarding changes during multi-cycle op
+  //
+  assign negate_result = is_signed_div && (rs1_neg_reg ^ rs2_neg_reg);
   assign quotient_signed = negate_result ? -quotient : quotient;
-  assign remainder_signed = (is_signed_div && rs1_neg) ? -remainder : remainder;
+  assign remainder_signed = (is_signed_div && rs1_neg_reg) ? -remainder :
+      remainder;
 
   //
   // Division unit instantiation
@@ -103,8 +128,11 @@ module svc_rv_ext_div (
 
   always_comb begin
     if (div_zero) begin
+      //
+      // Use registered rs1 to handle forwarding changes during multi-cycle op
+      //
       if (div_result_is_rem) begin
-        result = rs1;
+        result = rs1_reg;
       end else begin
         result = 32'hFFFFFFFF;
       end

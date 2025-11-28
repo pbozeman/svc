@@ -293,9 +293,10 @@ module svc_rv_hazard #(
   // Multi-cycle EX operation stall
   //
   // When op_active_ex is asserted, a multi-cycle operation (e.g., division)
-  // is executing in the EX stage. Freeze the entire pipeline:
+  // is executing in the EX stage. Stall the front of the pipeline while
+  // letting the back drain:
   // - Stall PC, IF/ID, ID/EX (prevent new instructions from entering EX)
-  // - Stall EX/MEM, MEM/WB (prevent incomplete result from advancing)
+  // - EX/MEM, MEM/WB continue normally (let completed instructions drain)
   // - When operation completes (op_active_ex drops), all stalls release
   //   and the completed result flows normally through MEM→WB→regfile
   //
@@ -306,15 +307,16 @@ module svc_rv_hazard #(
   // since the hazardous instruction will be flushed anyway.
   //
   logic stall_disable;
+  logic front_stall;
 
   assign stall_disable = pc_redirect || mispredicted_mem;
+  assign front_stall   = data_hazard || op_active_ex;
 
-  assign pc_stall = ((data_hazard || op_active_ex) && !stall_disable) || halt;
-  assign
-      if_id_stall = ((data_hazard || op_active_ex) && !stall_disable) || halt;
-  assign id_ex_stall = op_active_ex || halt;
-  assign ex_mem_stall = op_active_ex || halt;
-  assign mem_wb_stall = op_active_ex || halt;
+  assign pc_stall      = (front_stall && !stall_disable) || halt;
+  assign if_id_stall   = (front_stall && !stall_disable) || halt;
+  assign id_ex_stall   = op_active_ex || halt;
+  assign ex_mem_stall  = halt;
+  assign mem_wb_stall  = halt;
 
   //
   // Flush logic with stall interaction
@@ -362,7 +364,7 @@ module svc_rv_hazard #(
   assign if_id_flush = (pc_redirect || mispredicted_mem || pred_flush);
   assign id_ex_flush = ((data_hazard && !op_active_ex) || pc_redirect ||
                         mispredicted_mem);
-  assign ex_mem_flush = mispredicted_mem;
+  assign ex_mem_flush = mispredicted_mem || op_active_ex;
 
 endmodule
 
