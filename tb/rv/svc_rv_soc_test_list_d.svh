@@ -15,6 +15,8 @@
 `TEST_CASE(test_div_chained_dependencies);
 `TEST_CASE(test_div_mixed_ops);
 `TEST_CASE(test_mul_div_mixed);
-`TEST_CASE(test_store_div_mmio_bug);
+`TEST_CASE(test_store_div_mmio_write);
+`TEST_CASE(test_load_div_mmio_read);
+`TEST_CASE(test_load_div_use);
 `TEST_CASE(test_misaligned_load_div_trap);
 `TEST_CASE(test_div_instret_count);
