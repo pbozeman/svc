@@ -15,10 +15,11 @@
 // - Instantiation of memory-type-specific fetch logic
 //
 module svc_rv_stage_if #(
-    parameter int XLEN,
-    parameter int PIPELINED,
-    parameter int MEM_TYPE,
-    parameter int BPRED
+    parameter int          XLEN,
+    parameter int          PIPELINED,
+    parameter int          MEM_TYPE,
+    parameter int          BPRED,
+    parameter logic [31:0] RESET_PC
 ) (
     input logic clk,
     input logic rst_n,
@@ -102,10 +103,11 @@ module svc_rv_stage_if #(
   //
   // PC initialization
   //
-  // For BRAM with BPRED, PC starts at -4 so that pc_next = 0 on first cycle
+  // For BRAM with BPRED, PC starts at RESET_PC-4 so that pc_next = RESET_PC
+  // on first cycle
   //
-  localparam logic [XLEN-1:0]
-      PC_INIT = (MEM_TYPE == MEM_TYPE_BRAM && BPRED != 0) ? 32'hFFFFFFFC : '0;
+  localparam logic [XLEN-1:0] PC_INIT =
+      (MEM_TYPE == MEM_TYPE_BRAM && BPRED != 0) ? RESET_PC - 4 : RESET_PC;
 
   //
   // PC next calculation with 3-way mux

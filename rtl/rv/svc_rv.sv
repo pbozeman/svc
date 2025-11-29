@@ -42,20 +42,21 @@
 // - Zicntr extension (performance counters)
 //
 module svc_rv #(
-    parameter int XLEN        = 32,
-    parameter int IMEM_AW     = 10,
-    parameter int DMEM_AW     = 10,
-    parameter int PIPELINED   = 0,
-    parameter int FWD_REGFILE = PIPELINED,
-    parameter int FWD         = 0,
-    parameter int MEM_TYPE    = 0,
-    parameter int BPRED       = 0,
-    parameter int BTB_ENABLE  = 0,
-    parameter int BTB_ENTRIES = 16,
-    parameter int RAS_ENABLE  = 0,
-    parameter int RAS_DEPTH   = 8,
-    parameter int EXT_ZMMUL   = 0,
-    parameter int EXT_M       = 0
+    parameter int          XLEN        = 32,
+    parameter int          IMEM_AW     = 10,
+    parameter int          DMEM_AW     = 10,
+    parameter int          PIPELINED   = 0,
+    parameter int          FWD_REGFILE = PIPELINED,
+    parameter int          FWD         = 0,
+    parameter int          MEM_TYPE    = 0,
+    parameter int          BPRED       = 0,
+    parameter int          BTB_ENABLE  = 0,
+    parameter int          BTB_ENTRIES = 16,
+    parameter int          RAS_ENABLE  = 0,
+    parameter int          RAS_DEPTH   = 8,
+    parameter int          EXT_ZMMUL   = 0,
+    parameter int          EXT_M       = 0,
+    parameter logic [31:0] RESET_PC    = 0
 ) (
     input logic clk,
     input logic rst_n,
@@ -526,7 +527,8 @@ module svc_rv #(
       .XLEN     (XLEN),
       .PIPELINED(PIPELINED),
       .MEM_TYPE (MEM_TYPE),
-      .BPRED    (BPRED)
+      .BPRED    (BPRED),
+      .RESET_PC (RESET_PC)
   ) stage_if (
       .*
   );
