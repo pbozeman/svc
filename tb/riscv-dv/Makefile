@@ -66,7 +66,7 @@ run:
 	@echo "=== Generating test: $(TEST) ==="
 	cd $(RISCV_DV_DIR) && $(PYTHON) run.py \
 		--test $(TEST) \
-		--target rv32i \
+		--testlist $(TARGET_DIR)/testlist.yaml \
 		--output $(OUT_DIR)/$(TEST) \
 		--iterations $(ITERATIONS) \
 		--steps gen \
@@ -153,8 +153,8 @@ run_all: build
 	$(MAKE) run TEST=riscv_arithmetic_basic_test
 	$(MAKE) run TEST=riscv_rand_instr_test
 	$(MAKE) run TEST=riscv_jump_stress_test
-	$(MAKE) run TEST=riscv_loop_test
 	$(MAKE) run TEST=riscv_load_store_test
+	$(MAKE) run TEST=riscv_loop_test
 
 #
 # Clean
@@ -185,8 +185,8 @@ help:
 	@echo "  - riscv_arithmetic_basic_test"
 	@echo "  - riscv_rand_instr_test"
 	@echo "  - riscv_jump_stress_test"
-	@echo "  - riscv_loop_test"
 	@echo "  - riscv_load_store_test"
+	@echo "  - riscv_loop_test"
 	@echo ""
 	@echo "Example:"
 	@echo "  make build"
