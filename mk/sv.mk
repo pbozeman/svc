@@ -9,6 +9,7 @@ include mk/formal.mk
 include mk/format.mk
 include mk/iverilog.mk
 include mk/md.mk
+include mk/riscv-dv.mk
 include mk/rtl.mk
 include mk/sim.mk
 include mk/tb.mk

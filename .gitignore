@@ -13,6 +13,9 @@ __pycache__
 # verilog builds
 .build
 
+# riscv-dv
+tb/riscv-dv/out/
+
 # mac
 .DS_Store
 

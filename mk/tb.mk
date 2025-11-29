@@ -8,7 +8,8 @@ include mk/lint.mk
 ICE40_CELLS_SIM := $(shell yosys-config --datdir/ice40/cells_sim.v)
 
 # TB sources and modules
-TB_SV := $(shell find $(PRJ_TB_DIR) -name '*_tb.sv' 2>/dev/null)
+# Exclude riscv-dv testbenches (they require special defines like RISCV_FORMAL)
+TB_SV := $(shell find $(PRJ_TB_DIR) -name '*_tb.sv' ! -path '*/riscv-dv/*' 2>/dev/null)
 TB_MODULES := $(basename $(notdir $(TB_SV)))
 TB_SUBDIRS := $(shell find $(PRJ_TB_DIR) -type d 2>/dev/null)
 
