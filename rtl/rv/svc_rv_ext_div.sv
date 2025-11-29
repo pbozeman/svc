@@ -67,12 +67,10 @@ module svc_rv_ext_div (
   //
   // Latch sign bits and rs1 when division starts
   //
+  // No reset needed: values captured on `en` before they're used
+  //
   always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      rs1_neg_reg <= 1'b0;
-      rs2_neg_reg <= 1'b0;
-      rs1_reg     <= '0;
-    end else if (en) begin
+    if (en) begin
       rs1_neg_reg <= rs1_neg;
       rs2_neg_reg <= rs2_neg;
       rs1_reg     <= rs1;
@@ -166,13 +164,16 @@ module svc_rv_ext_div (
 
   logic [1:0] f_count;
 
+  //
+  // No reset needed: count starts at 0 implicitly, first `en` sets to 1
+  //
   always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      f_count <= '0;
-    end else if (en) begin
+    if (en) begin
       f_count <= 2'd1;
     end else if (busy) begin
       f_count <= f_count + 2'd1;
+    end else begin
+      f_count <= '0;
     end
   end
 
