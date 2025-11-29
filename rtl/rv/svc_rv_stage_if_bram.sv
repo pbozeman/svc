@@ -128,25 +128,31 @@ module svc_rv_stage_if_bram #(
   // are flushed to NOP, PC values must remain correct for pipeline tracking.
   // BTB and RAS predictions must track with PC, so they also continue during flushes.
   //
+  // Control signals: need reset for correct behavior
+  //
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      pc_buf             <= '0;
-      pc_plus4_buf       <= 32'd4;
       btb_hit_buf        <= 1'b0;
       btb_pred_taken_buf <= 1'b0;
-      btb_target_buf     <= '0;
       btb_is_return_buf  <= 1'b0;
       ras_valid_buf      <= 1'b0;
-      ras_target_buf     <= '0;
     end else if (!if_id_stall) begin
-      pc_buf             <= imem_raddr;
-      pc_plus4_buf       <= imem_raddr + 4;
       btb_hit_buf        <= btb_hit_if;
       btb_pred_taken_buf <= btb_pred_taken_if;
-      btb_target_buf     <= btb_target_if;
       btb_is_return_buf  <= btb_is_return_if;
       ras_valid_buf      <= ras_valid_if;
-      ras_target_buf     <= ras_target_if;
+    end
+  end
+
+  //
+  // Datapath registers: no reset needed (don't care until valid_buf becomes 1)
+  //
+  always_ff @(posedge clk) begin
+    if (!if_id_stall) begin
+      pc_buf         <= imem_raddr;
+      pc_plus4_buf   <= imem_raddr + 4;
+      btb_target_buf <= btb_target_if;
+      ras_target_buf <= ras_target_if;
     end
   end
 
