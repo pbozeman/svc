@@ -211,6 +211,7 @@ module svc_rv #(
   logic [XLEN-1:0] jb_target_mem;
   logic            is_branch_mem;
   logic            is_jalr_mem;
+  logic            is_jmp_mem;
   logic            branch_taken_mem;
   logic            bpred_taken_mem;
   logic [XLEN-1:0] pred_target_mem;

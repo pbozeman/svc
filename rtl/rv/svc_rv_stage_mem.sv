@@ -61,6 +61,7 @@ module svc_rv_stage_mem #(
     input logic [XLEN-1:0] mul_hh_mem,
     input logic            is_branch_mem,
     input logic            is_jalr_mem,
+    input logic            is_jmp_mem,
     input logic            branch_taken_mem,
     input logic            bpred_taken_mem,
     input logic [XLEN-1:0] pred_target_mem,
@@ -274,32 +275,25 @@ module svc_rv_stage_mem #(
 
   assign load_data_mem = dmem_rdata_ext_mem;
 
-  //
   // RAS Update Logic
   //
   // Detect JAL/JALR instructions and generate push/pop signals for RAS
   // - Push: JAL or JALR with rd != x0 (call instructions)
   // - Pop: JALR (return instructions)
   // - Push address: PC+4 (return address)
-  //
-  logic [6:0] opcode;
-  logic [4:0] rd;
-  logic       is_jal;
-
-  assign opcode        = instr_mem[6:0];
-  assign rd            = instr_mem[11:7];
-  assign is_jal        = (opcode == OP_JAL);
 
   //
   // Push on call: JAL/JALR with rd != x0
+  // Gate by !mem_wb_stall to ensure single push per instruction
   //
-  assign ras_push_en   = (is_jal || is_jalr_mem) && (rd != 5'b0);
+  assign ras_push_en   = !mem_wb_stall && is_jmp_mem && (rd_mem != 5'b0);
   assign ras_push_addr = pc_plus4_mem;
 
   //
   // Pop on return: any JALR
+  // Gate by !mem_wb_stall to ensure single pop per instruction
   //
-  assign ras_pop_en    = is_jalr_mem;
+  assign ras_pop_en    = !mem_wb_stall && is_jalr_mem;
 
   //
   // JALR misprediction detection (MEM stage)
