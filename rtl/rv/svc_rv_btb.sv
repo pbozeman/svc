@@ -157,18 +157,17 @@ module svc_rv_btb #(
   //
   // Sequential logic: Update BTB on branch resolution
   //
+  // Only `valid` needs reset - other arrays are guarded by valid bits
+  //
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      valid           <= '0;
-      is_return_flags <= '0;
-    end else begin
-      if (update_en) begin
-        valid[update_index]           <= 1'b1;
-        tags[update_index]            <= update_tag;
-        targets[update_index]         <= update_target;
-        counters[update_index]        <= counter_next;
-        is_return_flags[update_index] <= update_is_ret;
-      end
+      valid <= '0;
+    end else if (update_en) begin
+      valid[update_index]           <= 1'b1;
+      tags[update_index]            <= update_tag;
+      targets[update_index]         <= update_target;
+      counters[update_index]        <= counter_next;
+      is_return_flags[update_index] <= update_is_ret;
     end
   end
 
