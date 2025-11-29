@@ -375,9 +375,7 @@ module svc_rv_stage_mem #(
     logic mem_misalign_stall;
 
     always_ff @(posedge clk) begin
-      if (!rst_n) begin
-        mem_misalign_stall <= 1'b0;
-      end else if (!mem_wb_stall) begin
+      if (!mem_wb_stall) begin
         // Normal advance - clear since MEM instruction is moving
         mem_misalign_stall <= 1'b0;
       end else if (op_active_ex) begin
@@ -386,25 +384,25 @@ module svc_rv_stage_mem #(
       end
     end
 
+    //
+    // valid_wb: only control signal that needs reset
+    //
     always_ff @(posedge clk) begin
       if (!rst_n) begin
-        reg_write_wb  <= 1'b0;
-        res_src_wb    <= '0;
-        instr_wb      <= I_NOP;
-        rd_wb         <= '0;
-        funct3_wb     <= '0;
-        alu_result_wb <= '0;
-        rs1_data_wb   <= '0;
-        rs2_data_wb   <= '0;
-        pc_plus4_wb   <= '0;
-        jb_target_wb  <= '0;
-        csr_rdata_wb  <= '0;
-        m_result_wb   <= '0;
-        product_64_wb <= '0;
-        trap_wb       <= 1'b0;
-        trap_code_wb  <= TRAP_NONE;
-        valid_wb      <= 1'b0;
+        valid_wb <= 1'b0;
       end else if (!mem_wb_stall) begin
+        valid_wb <= valid_mem;
+      end else if (op_active_ex) begin
+        // Multi-cycle op stall: clear valid to prevent repeated retirement.
+        valid_wb <= 1'b0;
+      end
+    end
+
+    //
+    // Datapath registers: no reset needed (don't care when valid_wb == 0)
+    //
+    always_ff @(posedge clk) begin
+      if (!mem_wb_stall) begin
         reg_write_wb <= reg_write_mem && !misalign_trap;
         res_src_wb <= res_src_mem;
         instr_wb <= instr_mem;
@@ -421,10 +419,6 @@ module svc_rv_stage_mem #(
         trap_wb <= misalign_trap | mem_misalign_stall;
         trap_code_wb <= ((mem_misalign | mem_misalign_stall) ?
                          TRAP_LDST_MISALIGN : trap_code_mem);
-        valid_wb <= valid_mem;
-      end else if (op_active_ex) begin
-        // Multi-cycle op stall: clear valid to prevent repeated retirement.
-        valid_wb <= 1'b0;
       end
     end
 
@@ -437,9 +431,7 @@ module svc_rv_stage_mem #(
       logic [XLEN-1:0] dmem_rdata_ext_wb_piped;
 
       always_ff @(posedge clk) begin
-        if (!rst_n) begin
-          dmem_rdata_ext_wb_piped <= '0;
-        end else if (!mem_wb_stall) begin
+        if (!mem_wb_stall) begin
           dmem_rdata_ext_wb_piped <= dmem_rdata_ext_mem;
         end
       end
