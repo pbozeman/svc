@@ -30,6 +30,7 @@ module svc_divu #(
     output logic [WIDTH-1:0] remainder
 );
 
+  // Internal state
   logic [        WIDTH-1:0] divisor_reg;
   logic [        WIDTH-1:0] quo;
   logic [        WIDTH-1:0] quo_next;
@@ -56,49 +57,46 @@ module svc_divu #(
   end
 
   //
-  // Control logic
+  // Control logic (no global reset)
   //
   always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      busy        <= 1'b0;
-      valid       <= 1'b0;
-      div_zero    <= 1'b0;
-      quotient    <= '0;
-      remainder   <= '0;
-      count       <= '0;
-      divisor_reg <= '0;
-      quo         <= '0;
-      acc         <= '0;
-    end else begin
-      if (en) begin
-        valid <= 1'b0;
-        count <= '0;
+    if (en) begin
+      // Start a new operation
+      valid <= 1'b0;
+      count <= 0;
 
-        if (divisor == '0) begin
-          busy     <= 1'b0;
-          div_zero <= 1'b1;
-        end else begin
-          busy        <= 1'b1;
-          div_zero    <= 1'b0;
-          divisor_reg <= divisor;
-          {acc, quo}  <= {{WIDTH{1'b0}}, dividend, 1'b0};
-        end
-      end else if (busy) begin
-        if (count == $clog2(WIDTH)'(WIDTH - 1)) begin
-          busy      <= 1'b0;
-          valid     <= 1'b1;
-          quotient  <= quo_next;
-          remainder <= acc_next[WIDTH:1];
-        end else begin
-          count <= count + 1;
-          acc   <= acc_next;
-          quo   <= quo_next;
-        end
+      if (divisor == 0) begin
+        // Divide-by-zero case: flag and stay not-busy
+        // quotient/remainder left unchanged; caller should look at div_zero
+        busy     <= 1'b0;
+        div_zero <= 1'b1;
+      end else begin
+        // Initialize accumulator and quotient
+        busy        <= 1'b1;
+        div_zero    <= 1'b0;
+        divisor_reg <= divisor;
+        {acc, quo}  <= {{WIDTH{1'b0}}, dividend, 1'b0};
       end
+    end else if (busy) begin
+      // Iteration in progress
+      if (count == $clog2(WIDTH)'(WIDTH - 1)) begin
+        // Final iteration
+        busy      <= 1'b0;
+        valid     <= 1'b1;
+        quotient  <= quo_next;
+        remainder <= acc_next[WIDTH:1];
+      end else begin
+        count <= count + 1;
+        acc   <= acc_next;
+        quo   <= quo_next;
+      end
+    end else begin
+      // Idle and no new operation: valid deasserts
+      valid <= 1'b0;
     end
   end
 
-  `SVC_UNUSED(acc_sub[WIDTH]);
+  `SVC_UNUSED({rst_n, acc_sub[WIDTH]});
 
 endmodule
 
