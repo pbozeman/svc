@@ -85,7 +85,7 @@ module svc_rv_stage_id #(
     output logic [     1:0] alu_instr_ex,
     output logic [     2:0] res_src_ex,
     output logic            is_branch_ex,
-    output logic            is_jump_ex,
+    output logic            is_jmp_ex,
     output logic            jb_target_src_ex,
     output logic            is_mc_ex,
     output logic            is_m_ex,
@@ -151,7 +151,7 @@ module svc_rv_stage_id #(
   logic [     2:0] res_src_id;
   logic [     2:0] imm_type;
   logic            is_branch_id;
-  logic            is_jump_id;
+  logic            is_jmp_id;
   logic            jb_target_src_id;
   logic            is_m_id;
   logic            is_csr_id;
@@ -188,7 +188,7 @@ module svc_rv_stage_id #(
       .res_src      (res_src_id),
       .imm_type     (imm_type),
       .is_branch    (is_branch_id),
-      .is_jump      (is_jump_id),
+      .is_jmp       (is_jmp_id),
       .jb_target_src(jb_target_src_id),
       .is_m         (is_m_id),
       .is_csr       (is_csr_id),
@@ -342,7 +342,7 @@ module svc_rv_stage_id #(
         alu_instr_ex     <= '0;
         res_src_ex       <= '0;
         is_branch_ex     <= 1'b0;
-        is_jump_ex       <= 1'b0;
+        is_jmp_ex        <= 1'b0;
         jb_target_src_ex <= 1'b0;
         is_mc_ex         <= 1'b0;
         is_m_ex          <= 1'b0;
@@ -374,7 +374,7 @@ module svc_rv_stage_id #(
         alu_instr_ex     <= '0;
         res_src_ex       <= '0;
         is_branch_ex     <= 1'b0;
-        is_jump_ex       <= 1'b0;
+        is_jmp_ex        <= 1'b0;
         jb_target_src_ex <= 1'b0;
         is_mc_ex         <= 1'b0;
         is_m_ex          <= 1'b0;
@@ -411,7 +411,7 @@ module svc_rv_stage_id #(
         alu_instr_ex     <= alu_instr_id;
         res_src_ex       <= res_src_id;
         is_branch_ex     <= is_branch_id;
-        is_jump_ex       <= is_jump_id;
+        is_jmp_ex        <= is_jmp_id;
         jb_target_src_ex <= jb_target_src_id;
         is_mc_ex         <= is_mc_id;
         is_m_ex          <= is_m_id;
@@ -446,7 +446,7 @@ module svc_rv_stage_id #(
     assign alu_instr_ex     = alu_instr_id;
     assign res_src_ex       = res_src_id;
     assign is_branch_ex     = is_branch_id;
-    assign is_jump_ex       = is_jump_id;
+    assign is_jmp_ex        = is_jmp_id;
     assign jb_target_src_ex = jb_target_src_id;
     assign is_mc_ex         = is_mc_id;
     assign is_m_ex          = is_m_id;

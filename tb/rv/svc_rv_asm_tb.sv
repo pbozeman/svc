@@ -29,7 +29,7 @@ module svc_rv_asm_tb;
   logic [ 2:0] res_src;
   logic [ 2:0] imm_type;
   logic        is_branch;
-  logic        is_jump;
+  logic        is_jmp;
   logic        jb_target_src;
   logic        is_m;
   logic        is_csr;
@@ -61,7 +61,7 @@ module svc_rv_asm_tb;
       .res_src      (res_src),
       .imm_type     (imm_type),
       .is_branch    (is_branch),
-      .is_jump      (is_jump),
+      .is_jmp       (is_jmp),
       .jb_target_src(jb_target_src),
       .is_m         (is_m),
       .is_csr       (is_csr),
@@ -425,7 +425,7 @@ module svc_rv_asm_tb;
     `CHECK_EQ(instr[6:0], OP_JAL);
     `CHECK_EQ(rd, ra);
     `CHECK_EQ(imm_j, 100);
-    `CHECK_TRUE(is_jump);
+    `CHECK_TRUE(is_jmp);
 
     // Verify JALR instruction (encoded as I-type)
     addr  = 1;
@@ -435,7 +435,7 @@ module svc_rv_asm_tb;
     `CHECK_EQ(rs1, 6);
     `CHECK_EQ(funct3, 3'b000);
     `CHECK_EQ(imm_i, 200);
-    `CHECK_TRUE(is_jump);
+    `CHECK_TRUE(is_jmp);
   endtask
 
   // Test pseudo-instructions

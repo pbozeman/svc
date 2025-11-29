@@ -321,8 +321,7 @@ module svc_rv_stage_mem #(
       .jb_target_mem          (jb_target_mem),
       .pred_target_mem        (pred_target_mem),
       .branch_mispredicted_mem(branch_mispredicted_mem),
-      .jalr_mispredicted_mem  (jalr_mispredicted_mem),
-      .pc_sel_jalr_mem        ()
+      .jalr_mispredicted_mem  (jalr_mispredicted_mem)
   );
 
   //
