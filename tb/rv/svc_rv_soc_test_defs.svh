@@ -2058,25 +2058,39 @@ task automatic test_rdcycle;
   NOP();
   NOP();
   RDCYCLE(x1);
+  NOP();
+  NOP();
+  NOP();
+  RDCYCLE(x2);
+  SUB(x3, x2, x1);
   EBREAK();
 
   load_program();
 
   `CHECK_WAIT_FOR_EBREAK(clk);
-  `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[1] > 32'h0);
+  `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[3] > 32'h0);
+  `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[3] < 32'd6);
 endtask
 
 //
 // Test: RDCYCLEH reads cycle counter high word
 //
 task automatic test_rdcycleh;
+  NOP();
+  NOP();
+  NOP();
   RDCYCLEH(x1);
+  NOP();
+  NOP();
+  NOP();
+  RDCYCLEH(x2);
+  SUB(x3, x2, x1);
   EBREAK();
 
   load_program();
 
   `CHECK_WAIT_FOR_EBREAK(clk);
-  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[1], 32'h0);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'h0);
 endtask
 
 //
@@ -2087,25 +2101,38 @@ task automatic test_rdinstret;
   NOP();
   NOP();
   RDINSTRET(x1);
+  NOP();
+  NOP();
+  NOP();
+  RDINSTRET(x2);
+  SUB(x3, x2, x1);
   EBREAK();
 
   load_program();
 
   `CHECK_WAIT_FOR_EBREAK(clk);
-  `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[1] > 32'h0);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'd4);
 endtask
 
 //
 // Test: RDINSTRETH reads instruction counter high word
 //
 task automatic test_rdinstreth;
+  NOP();
+  NOP();
+  NOP();
   RDINSTRETH(x1);
+  NOP();
+  NOP();
+  NOP();
+  RDINSTRETH(x2);
+  SUB(x3, x2, x1);
   EBREAK();
 
   load_program();
 
   `CHECK_WAIT_FOR_EBREAK(clk);
-  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[1], 32'h0);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'h0);
 endtask
 
 //
@@ -2126,10 +2153,8 @@ task automatic test_csr_cycle_increments;
   load_program();
 
   `CHECK_WAIT_FOR_EBREAK(clk);
-  `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[1] > 32'h0);
-  `CHECK_TRUE(
-      uut.cpu.stage_id.regfile.regs[2] > uut.cpu.stage_id.regfile.regs[1]);
   `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[3] > 32'h0);
+  `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[3] < 32'd6);
 endtask
 
 //
@@ -2150,9 +2175,6 @@ task automatic test_csr_instret_increments;
   load_program();
 
   `CHECK_WAIT_FOR_EBREAK(clk);
-  `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[1] > 32'h0);
-  `CHECK_TRUE(
-      uut.cpu.stage_id.regfile.regs[2] > uut.cpu.stage_id.regfile.regs[1]);
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'd4);
 endtask
 
