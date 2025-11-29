@@ -2,6 +2,7 @@
 `define SVC_RV_REGFILE_SV
 
 `include "svc.sv"
+`include "svc_unused.sv"
 
 // RISC-V Register File (x0-x31)
 //
@@ -32,14 +33,9 @@ module svc_rv_regfile #(
     input logic [XLEN-1:0] rd_data
 );
   logic [XLEN-1:0] regs         [32];
-  logic [XLEN-1:0] wdata;
+
   logic [XLEN-1:0] rs1_data_raw;
   logic [XLEN-1:0] rs2_data_raw;
-
-  assign rs1_data_raw = regs[rs1_addr];
-  assign rs2_data_raw = regs[rs2_addr];
-
-  assign wdata        = (rd_addr == 0) ? 0 : rd_data;
 
   //
   // Internal forwarding (only for pipelined designs)
@@ -49,27 +45,30 @@ module svc_rv_regfile #(
   // In single-cycle designs, this creates a combinational loop, so it must
   // be disabled.
   //
+
+  assign rs1_data_raw = (rs1_addr == 5'd0) ? '0 : regs[rs1_addr];
+  assign rs2_data_raw = (rs2_addr == 5'd0) ? '0 : regs[rs2_addr];
+
   if (FWD_REGFILE != 0) begin : g_forward
-    assign rs1_data = ((rd_en && (rd_addr != 0) && (rd_addr == rs1_addr)) ?
-                       wdata : rs1_data_raw);
-    assign rs2_data = ((rd_en && (rd_addr != 0) && (rd_addr == rs2_addr)) ?
-                       wdata : rs2_data_raw);
+    assign rs1_data = ((rd_en && (rd_addr != 5'd0) && (rd_addr == rs1_addr)) ?
+                       rd_data : rs1_data_raw);
+
+    assign rs2_data = ((rd_en && (rd_addr != 5'd0) && (rd_addr == rs2_addr)) ?
+                       rd_data : rs2_data_raw);
   end else begin : g_no_forward
     assign rs1_data = rs1_data_raw;
     assign rs2_data = rs2_data_raw;
   end
 
   always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      for (int i = 0; i < 32; i++) begin
-        regs[i] <= '0;
-      end
-    end else if (rd_en) begin
-      regs[rd_addr] <= wdata;
+    // We don't need the addr 0 check here because we set to 0 on read.
+    if (rd_en) begin
+      regs[rd_addr] <= rd_data;
     end
   end
+
+  `SVC_UNUSED({rst_n});
 
 endmodule
 
 `endif
-

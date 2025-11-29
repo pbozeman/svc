@@ -49,17 +49,6 @@ module svc_rv_regfile_tb;
   end
 
   //
-  // Test: Reset state
-  //
-  task automatic test_reset();
-    for (int i = 0; i < 32; i++) begin
-      rs1_addr = 5'(i);
-      `TICK(clk);
-      `CHECK_EQ(rs1_data, 32'h0);
-    end
-  endtask
-
-  //
   // Test: x0 hardwired to zero
   //
   task automatic test_x0_hardwired();
@@ -237,7 +226,6 @@ module svc_rv_regfile_tb;
   // Test suite execution
   //
   `TEST_SUITE_BEGIN(svc_rv_regfile_tb);
-  `TEST_CASE(test_reset);
   `TEST_CASE(test_x0_hardwired);
   `TEST_CASE(test_write_read);
   `TEST_CASE(test_dual_read);
