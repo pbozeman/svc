@@ -2,6 +2,7 @@
 `define SVC_RV_CSR_SV
 
 `include "svc.sv"
+`include "svc_unused.sv"
 
 //
 // RISC-V CSR (Control and Status Register) module
@@ -78,18 +79,22 @@ module svc_rv_csr (
   // Register counters
   //
   always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      cycle    <= 32'h0;
-      cycleh   <= 32'h0;
-      instret  <= 32'h0;
-      instreth <= 32'h0;
-    end else begin
-      cycle    <= cycle_next;
-      cycleh   <= cycleh_next;
-      instret  <= instret_next;
-      instreth <= instreth_next;
-    end
+    cycle    <= cycle_next;
+    cycleh   <= cycleh_next;
+    instret  <= instret_next;
+    instreth <= instreth_next;
   end
+
+`ifndef SYNTHESIS
+  initial begin
+    cycle    = $urandom;
+    cycleh   = $urandom;
+    instret  = $urandom;
+    instreth = $urandom;
+  end
+`endif
+
+  `SVC_UNUSED(rst_n)
 
 endmodule
 

@@ -20,16 +20,6 @@ module svc_rv_csr_tb;
   );
 
   //
-  // Test: Reset initializes counters to zero
-  //
-  task automatic test_reset;
-    `CHECK_EQ(uut.cycle, 32'h0);
-    `CHECK_EQ(uut.cycleh, 32'h0);
-    `CHECK_EQ(uut.instret, 32'h0);
-    `CHECK_EQ(uut.instreth, 32'h0);
-  endtask
-
-  //
   // Test: CYCLE counter increments every clock cycle
   //
   task automatic test_cycle_increment;
@@ -203,7 +193,6 @@ module svc_rv_csr_tb;
   // Test suite execution
   //
   `TEST_SUITE_BEGIN(svc_rv_csr_tb);
-  `TEST_CASE(test_reset);
   `TEST_CASE(test_cycle_increment);
   `TEST_CASE(test_instret_increment);
   `TEST_CASE(test_cycle_overflow);
