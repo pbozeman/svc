@@ -549,70 +549,64 @@ module svc_rv_stage_ex #(
   // EX/MEM Pipeline Register
   //
   if (PIPELINED != 0) begin : g_registered
+    //
+    // Control signals: need reset for correct behavior
+    //
     always_ff @(posedge clk) begin
       if (!rst_n) begin
         reg_write_mem    <= 1'b0;
         mem_read_mem     <= 1'b0;
         mem_write_mem    <= 1'b0;
-        res_src_mem      <= '0;
-        instr_mem        <= I_NOP;
-        rd_mem           <= '0;
-        rs2_mem          <= '0;
-        funct3_mem       <= '0;
-        alu_result_mem   <= '0;
-        rs1_data_mem     <= '0;
-        rs2_data_mem     <= '0;
-        pc_plus4_mem     <= '0;
-        jb_target_mem    <= '0;
-        csr_rdata_mem    <= '0;
-        m_result_mem     <= '0;
-        mul_ll_mem       <= '0;
-        mul_lh_mem       <= '0;
-        mul_hl_mem       <= '0;
-        mul_hh_mem       <= '0;
+        valid_mem        <= 1'b0;
         is_branch_mem    <= 1'b0;
         is_jalr_mem      <= 1'b0;
+        is_jmp_mem       <= 1'b0;
         branch_taken_mem <= 1'b0;
         bpred_taken_mem  <= 1'b0;
-        pred_target_mem  <= '0;
         trap_mem         <= 1'b0;
-        trap_code_mem    <= TRAP_NONE;
-        valid_mem        <= 1'b0;
       end else if (!ex_mem_stall) begin
         reg_write_mem    <= ex_mem_flush ? 1'b0 : reg_write_ex;
         mem_read_mem     <= ex_mem_flush ? 1'b0 : mem_read_ex;
         mem_write_mem    <= ex_mem_flush ? 1'b0 : mem_write_ex;
-        res_src_mem      <= res_src_ex;
-        instr_mem        <= ex_mem_flush ? I_NOP : instr_ex;
-        rd_mem           <= rd_ex;
-        rs2_mem          <= rs2_ex;
-        funct3_mem       <= funct3_ex;
-        alu_result_mem   <= alu_result_ex;
-        rs1_data_mem     <= fwd_rs1_ex;
-        rs2_data_mem     <= fwd_rs2_ex;
-        pc_plus4_mem     <= pc_plus4_ex;
-        jb_target_mem    <= jb_target_ex;
-        csr_rdata_mem    <= csr_rdata_ex;
-        m_result_mem     <= m_result_ex;
-        mul_ll_mem       <= mul_ll_ex;
-        mul_lh_mem       <= mul_lh_ex;
-        mul_hl_mem       <= mul_hl_ex;
-        mul_hh_mem       <= mul_hh_ex;
+        valid_mem        <= ex_mem_flush ? 1'b0 : valid_ex;
         is_branch_mem    <= ex_mem_flush ? 1'b0 : is_branch_ex;
         is_jalr_mem      <= ex_mem_flush ? 1'b0 : is_jalr_ex;
         is_jmp_mem       <= ex_mem_flush ? 1'b0 : is_jmp_ex;
         branch_taken_mem <= ex_mem_flush ? 1'b0 : branch_taken_ex;
         bpred_taken_mem  <= ex_mem_flush ? 1'b0 : bpred_taken_ex;
-        pred_target_mem  <= pred_target_ex;
         trap_mem         <= ex_mem_flush ? 1'b0 : (trap_ex | misalign_trap);
-        trap_code_mem    <= misalign_trap ? TRAP_INSTR_MISALIGN : trap_code_ex;
-        valid_mem        <= ex_mem_flush ? 1'b0 : valid_ex;
       end else begin
         //
         // Stall case: flush memory operations, freeze other signals
         //
         mem_read_mem  <= 1'b0;
         mem_write_mem <= 1'b0;
+      end
+    end
+
+    //
+    // Datapath registers: no reset needed (don't care when valid_mem == 0)
+    //
+    always_ff @(posedge clk) begin
+      if (!ex_mem_stall) begin
+        instr_mem       <= ex_mem_flush ? I_NOP : instr_ex;
+        res_src_mem     <= res_src_ex;
+        rd_mem          <= rd_ex;
+        rs2_mem         <= rs2_ex;
+        funct3_mem      <= funct3_ex;
+        alu_result_mem  <= alu_result_ex;
+        rs1_data_mem    <= fwd_rs1_ex;
+        rs2_data_mem    <= fwd_rs2_ex;
+        pc_plus4_mem    <= pc_plus4_ex;
+        jb_target_mem   <= jb_target_ex;
+        pred_target_mem <= pred_target_ex;
+        csr_rdata_mem   <= csr_rdata_ex;
+        m_result_mem    <= m_result_ex;
+        mul_ll_mem      <= mul_ll_ex;
+        mul_lh_mem      <= mul_lh_ex;
+        mul_hl_mem      <= mul_hl_ex;
+        mul_hh_mem      <= mul_hh_ex;
+        trap_code_mem   <= misalign_trap ? TRAP_INSTR_MISALIGN : trap_code_ex;
       end
     end
 

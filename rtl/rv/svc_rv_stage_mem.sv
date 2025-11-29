@@ -321,7 +321,11 @@ module svc_rv_stage_mem #(
   //
   // Combined misprediction signal
   //
-  assign mispredicted_mem = branch_mispredicted_mem | jalr_mispredicted_mem;
+  // Gate with valid_mem to prevent spurious redirects when pipeline has
+  // invalid data (e.g., during reset or bubble cycles with garbage values).
+  //
+  assign mispredicted_mem = (valid_mem &&
+                             (branch_mispredicted_mem | jalr_mispredicted_mem));
 
   //
   // PC redirect target calculation
@@ -375,7 +379,9 @@ module svc_rv_stage_mem #(
     logic mem_misalign_stall;
 
     always_ff @(posedge clk) begin
-      if (!mem_wb_stall) begin
+      if (!rst_n) begin
+        mem_misalign_stall <= 1'b0;
+      end else if (!mem_wb_stall) begin
         // Normal advance - clear since MEM instruction is moving
         mem_misalign_stall <= 1'b0;
       end else if (op_active_ex) begin
