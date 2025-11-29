@@ -129,6 +129,7 @@ module svc_rv_stage_ex #(
     output logic [XLEN-1:0] mul_hh_mem,
     output logic            is_branch_mem,
     output logic            is_jalr_mem,
+    output logic            is_jmp_mem,
     output logic            branch_taken_mem,
     output logic            bpred_taken_mem,
     output logic [XLEN-1:0] pred_target_mem,
@@ -599,6 +600,7 @@ module svc_rv_stage_ex #(
         mul_hh_mem       <= mul_hh_ex;
         is_branch_mem    <= ex_mem_flush ? 1'b0 : is_branch_ex;
         is_jalr_mem      <= ex_mem_flush ? 1'b0 : is_jalr_ex;
+        is_jmp_mem       <= ex_mem_flush ? 1'b0 : is_jmp_ex;
         branch_taken_mem <= ex_mem_flush ? 1'b0 : branch_taken_ex;
         bpred_taken_mem  <= ex_mem_flush ? 1'b0 : bpred_taken_ex;
         pred_target_mem  <= pred_target_ex;
@@ -636,6 +638,7 @@ module svc_rv_stage_ex #(
     assign mul_hh_mem = mul_hh_ex;
     assign is_branch_mem = is_branch_ex;
     assign is_jalr_mem = is_jalr_ex;
+    assign is_jmp_mem = is_jmp_ex;
     assign branch_taken_mem = branch_taken_ex;
     assign bpred_taken_mem = bpred_taken_ex;
     assign pred_target_mem = pred_target_ex;
@@ -646,7 +649,7 @@ module svc_rv_stage_ex #(
     `SVC_UNUSED({ex_mem_stall, ex_mem_flush});
   end
 
-  `SVC_UNUSED({funct7_ex[6:5], funct7_ex[4:0], is_jmp_ex, is_m_ex, is_csr_ex});
+  `SVC_UNUSED({funct7_ex[6:5], funct7_ex[4:0], is_m_ex, is_csr_ex});
 
 endmodule
 

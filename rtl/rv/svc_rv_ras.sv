@@ -73,14 +73,19 @@ module svc_rv_ras #(
   // When JAL pushes in MEM stage while JALR looks up in IF stage (same cycle),
   // we need to see the updated count and forward the push_addr being written.
   //
-  // Use count_next only when push is active to see the incremented count.
-  // Otherwise use registered count (already reflects completed push/pop).
+  // CRITICAL: Don't forward push_addr when pop is also happening (JALR call).
+  // Simultaneous push+pop means: use OLD top for return, push NEW for future.
+  // Only forward push_addr for push-only (JAL/JALR call creating new stack entry).
+  //
+  // Use count_next only when push (without pop) is active to see incremented count.
   //
   logic                  lookup_valid;
   logic [      XLEN-1:0] lookup_target;
+  logic                  push_only;
 
-  assign lookup_valid  = push_en ? (count_next > 0) : (count > 0);
-  assign lookup_target = push_en ? push_addr : stack[sp];
+  assign push_only     = push_en && !pop_en;
+  assign lookup_valid  = push_only ? (count_next > 0) : (count > 0);
+  assign lookup_target = push_only ? push_addr : stack[sp];
 
   assign ras_valid     = lookup_valid;
   assign ras_target    = lookup_valid ? lookup_target : '0;

@@ -45,6 +45,8 @@ module svc_rv_pc_sel #(
     input logic            ras_valid,
     input logic [XLEN-1:0] ras_target,
     input logic            is_jalr_id,
+    input logic            ras_valid_id,
+    input logic [XLEN-1:0] ras_target_id,
 
     //
     // BTB prediction (IF stage)
@@ -106,10 +108,15 @@ module svc_rv_pc_sel #(
       // Early prediction: BTB hit with is_return in IF (speculative fetch)
       // Late prediction: JALR in ID that was NOT predicted early
       //
+      // Note: Late prediction uses ras_valid_id (buffered from IF) to match
+      // bpred_taken_id in svc_rv_bpred_id.sv. If we used ras_valid (current),
+      // a RAS pop between IF and ID would cause bpred_taken_id=1 but
+      // ras_prediction_valid=0, leading to undetected mispredictions.
+      //
       assign ras_early_pred_if = btb_hit && btb_is_return;
       assign ras_late_pred_id = is_jalr_id && !(btb_hit_id && btb_is_return_id);
-      assign ras_prediction_valid = ras_valid &&
-          (ras_early_pred_if || ras_late_pred_id);
+      assign ras_prediction_valid = ((ras_early_pred_if && ras_valid) ||
+                                     (ras_late_pred_id && ras_valid_id));
       assign ras_valid_if = ras_valid;
       assign ras_target_if = ras_target;
     end else begin : g_no_ras_pred
@@ -121,7 +128,9 @@ module svc_rv_pc_sel #(
 
       `SVC_UNUSED({
                   ras_valid,
+                  ras_valid_id,
                   ras_target,
+                  ras_target_id,
                   is_jalr_id,
                   btb_is_return,
                   btb_hit_id,
@@ -173,7 +182,20 @@ module svc_rv_pc_sel #(
         pred_target    = pred_target_id;
       end else if (ras_prediction_valid) begin
         pc_sel_ras_btb = PC_SEL_PREDICTED;
-        pred_target    = ras_target;
+        //
+        // Late prediction uses ras_target_id (buffered from IF to ID) to match
+        // the target that bpred_taken_id was based on. This ensures consistency
+        // with misprediction detection in MEM stage.
+        //
+        // Early prediction uses current ras_target (prediction happens in IF).
+        //
+        // Note: Use ras_late_pred_id (not ras_early_pred_if) to select the
+        // target. ras_early_pred_if reflects the current IF state, which may be
+        // for a different instruction. When making a late prediction for the
+        // ID-stage JALR, we must use the buffered target even if IF currently
+        // has an early prediction for a different instruction.
+        //
+        pred_target    = ras_late_pred_id ? ras_target_id : ras_target;
       end else if (btb_prediction_valid) begin
         pc_sel_ras_btb = PC_SEL_PREDICTED;
         pred_target    = btb_target;
@@ -214,8 +236,9 @@ module svc_rv_pc_sel #(
     assign ras_target_if     = '0;
 
     // verilog_format: off
-    `SVC_UNUSED({ras_valid, ras_target, is_jalr_id, btb_hit, btb_taken, btb_target,
-                 btb_is_return, btb_hit_id, btb_is_return_id});
+    `SVC_UNUSED({ras_valid, ras_valid_id, ras_target, ras_target_id, is_jalr_id,
+                 btb_hit, btb_taken, btb_target, btb_is_return, btb_hit_id,
+                 btb_is_return_id});
     // verilog_format: on
   end
 
