@@ -168,7 +168,7 @@ module svc_rv #(
   logic [     1:0] alu_instr_ex;
   logic [     2:0] res_src_ex;
   logic            is_branch_ex;
-  logic            is_jump_ex;
+  logic            is_jmp_ex;
   logic            jb_target_src_ex;
   logic            is_jal_ex;
   logic            is_jalr_ex;

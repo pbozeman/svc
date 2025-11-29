@@ -37,12 +37,7 @@ module svc_rv_bpred_mem #(
     // Misprediction detection outputs
     //
     output logic branch_mispredicted_mem,
-    output logic jalr_mispredicted_mem,
-
-    //
-    // PC control output
-    //
-    output logic pc_sel_jalr_mem
+    output logic jalr_mispredicted_mem
 );
 
   //
@@ -69,17 +64,11 @@ module svc_rv_bpred_mem #(
     assign jalr_mispredicted_mem = is_jalr_mem &&
         (!bpred_taken_mem || (pred_target_mem != jb_target_mem));
 
-    //
-    // Redirect on JALR misprediction
-    //
-    assign pc_sel_jalr_mem = jalr_mispredicted_mem;
-
   end else if (BPRED != 0) begin : g_jalr_no_ras
     //
     // Without RAS, always redirect on JALR (not predicted)
     //
     assign jalr_mispredicted_mem = is_jalr_mem;
-    assign pc_sel_jalr_mem       = is_jalr_mem;
 
     `SVC_UNUSED({bpred_taken_mem, jb_target_mem, pred_target_mem});
 
@@ -88,7 +77,6 @@ module svc_rv_bpred_mem #(
     // Without BPRED, no misprediction detection (handled elsewhere)
     //
     assign jalr_mispredicted_mem = 1'b0;
-    assign pc_sel_jalr_mem       = 1'b0;
 
     // verilog_format: off
     `SVC_UNUSED({is_jalr_mem, bpred_taken_mem, pred_target_mem,

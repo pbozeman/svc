@@ -191,10 +191,10 @@ function automatic string fmt_id_debug();
   flush_str = id_ex_flush ? "f" : " ";
 
   if (BPRED != 0) begin
-    if ((stage_id.is_branch_id || stage_id.is_jump_id) &&
+    if ((stage_id.is_branch_id || stage_id.is_jmp_id) &&
         (pc_sel_id == PC_SEL_PREDICTED)) begin
       pred_str = $sformatf("-> %08x T", pred_target);
-    end else if (stage_id.is_branch_id || stage_id.is_jump_id) begin
+    end else if (stage_id.is_branch_id || stage_id.is_jmp_id) begin
       pred_str = $sformatf("-> %08x N", pc_id + 4);
     end else begin
       pred_str = {DBG_ID_PRED_WIDTH{" "}};
@@ -402,7 +402,7 @@ always @(posedge clk) begin
             bpred_taken_ex ? "T" : "N",
             stage_ex.branch_taken_ex ? "T" : "N"
         );
-      end else if (is_jump_ex) begin
+      end else if (is_jmp_ex) begin
         //
         // Jump ops: show base address (for JALR) and target
         //

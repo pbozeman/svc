@@ -59,7 +59,7 @@ module svc_rv_stage_ex #(
     input logic [     1:0] alu_instr_ex,
     input logic [     2:0] res_src_ex,
     input logic            is_branch_ex,
-    input logic            is_jump_ex,
+    input logic            is_jmp_ex,
     input logic            jb_target_src_ex,
     input logic            is_jal_ex,
     input logic            is_jalr_ex,
@@ -646,7 +646,7 @@ module svc_rv_stage_ex #(
     `SVC_UNUSED({ex_mem_stall, ex_mem_flush});
   end
 
-  `SVC_UNUSED({funct7_ex[6:5], funct7_ex[4:0], is_jump_ex, is_m_ex, is_csr_ex});
+  `SVC_UNUSED({funct7_ex[6:5], funct7_ex[4:0], is_jmp_ex, is_m_ex, is_csr_ex});
 
 endmodule
 
