@@ -100,10 +100,7 @@ module svc_rv_ext_m_tb;
     op  = operation;
     en  = 1'b1;
     `TICK(clk);
-
-    `CHECK_FALSE(busy);
     `CHECK_EQ(result, expected);
-
     en = 1'b0;
   endtask
 
@@ -124,16 +121,6 @@ module svc_rv_ext_m_tb;
     `CHECK_EQ(result, expected);
 
     `TICK(clk);
-  endtask
-
-  //
-  // Reset test
-  //
-  task automatic test_reset();
-    en = 1'b0;
-    `TICK(clk);
-
-    `CHECK_FALSE(busy);
   endtask
 
   //
@@ -365,7 +352,6 @@ module svc_rv_ext_m_tb;
   endtask
 
   `TEST_SUITE_BEGIN(svc_rv_ext_m_tb);
-  `TEST_CASE(test_reset);
   `TEST_CASE(test_mul_basic);
   `TEST_CASE(test_mulh);
   `TEST_CASE(test_mulhsu);

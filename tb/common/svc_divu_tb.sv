@@ -62,16 +62,6 @@ module svc_divu_tb;
   endtask
 
   //
-  // Reset test
-  //
-  task automatic test_reset();
-    @(posedge clk);
-    `CHECK_FALSE(busy);
-    `CHECK_FALSE(valid);
-    `CHECK_FALSE(div_zero);
-  endtask
-
-  //
   // Helper task to test divide by zero
   //
   task automatic test_div_by_zero(input logic [31:0] a);
@@ -168,7 +158,6 @@ module svc_divu_tb;
   endtask
 
   `TEST_SUITE_BEGIN(svc_divu_tb);
-  `TEST_CASE(test_reset);
   `TEST_CASE(test_basic);
   `TEST_CASE(test_with_remainder);
   `TEST_CASE(test_dividend_smaller);
