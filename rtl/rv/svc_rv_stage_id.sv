@@ -333,93 +333,91 @@ module svc_rv_stage_id #(
       assign final_pred_target_id = '0;
     end
 
+    //
+    // Control signals: need reset for correct behavior
+    //
     always_ff @(posedge clk) begin
       if (!rst_n) begin
-        reg_write_ex     <= 1'b0;
-        mem_read_ex      <= 1'b0;
-        mem_write_ex     <= 1'b0;
-        alu_a_src_ex     <= '0;
-        alu_b_src_ex     <= 1'b0;
-        alu_instr_ex     <= '0;
-        res_src_ex       <= '0;
-        is_branch_ex     <= 1'b0;
-        is_jmp_ex        <= 1'b0;
-        jb_target_src_ex <= 1'b0;
-        is_mc_ex         <= 1'b0;
-        is_m_ex          <= 1'b0;
-        is_csr_ex        <= 1'b0;
-        is_jal_ex        <= 1'b0;
-        is_jalr_ex       <= 1'b0;
-        trap_ex          <= 1'b0;
-        trap_code_ex     <= TRAP_NONE;
-        instr_ex         <= I_NOP;
-        rd_ex            <= '0;
-        rs1_ex           <= '0;
-        rs2_ex           <= '0;
-        funct3_ex        <= '0;
-        funct7_ex        <= '0;
-        rs1_data_ex      <= '0;
-        rs2_data_ex      <= '0;
-        imm_ex           <= '0;
-        pc_ex            <= '0;
-        pc_plus4_ex      <= '0;
-        bpred_taken_ex   <= 1'b0;
-        pred_target_ex   <= '0;
-        valid_ex         <= 1'b0;
+        reg_write_ex   <= 1'b0;
+        mem_read_ex    <= 1'b0;
+        mem_write_ex   <= 1'b0;
+        valid_ex       <= 1'b0;
+        is_branch_ex   <= 1'b0;
+        is_jmp_ex      <= 1'b0;
+        is_jal_ex      <= 1'b0;
+        is_jalr_ex     <= 1'b0;
+        trap_ex        <= 1'b0;
+        bpred_taken_ex <= 1'b0;
       end else if (id_ex_flush) begin
-        reg_write_ex     <= 1'b0;
-        mem_read_ex      <= 1'b0;
-        mem_write_ex     <= 1'b0;
-        alu_a_src_ex     <= '0;
-        alu_b_src_ex     <= 1'b0;
-        alu_instr_ex     <= '0;
-        res_src_ex       <= '0;
-        is_branch_ex     <= 1'b0;
-        is_jmp_ex        <= 1'b0;
-        jb_target_src_ex <= 1'b0;
-        is_mc_ex         <= 1'b0;
-        is_m_ex          <= 1'b0;
-        is_csr_ex        <= 1'b0;
-        is_jal_ex        <= 1'b0;
-        is_jalr_ex       <= 1'b0;
-        trap_ex          <= 1'b0;
-        trap_code_ex     <= TRAP_NONE;
-        instr_ex         <= I_NOP;
-        rd_ex            <= '0;
-        rs1_ex           <= '0;
-        rs2_ex           <= '0;
-        funct3_ex        <= '0;
-        funct7_ex        <= '0;
-        rs1_data_ex      <= '0;
-        rs2_data_ex      <= '0;
-        imm_ex           <= '0;
-        pc_ex            <= '0;
-        pc_plus4_ex      <= '0;
+        reg_write_ex   <= 1'b0;
+        mem_read_ex    <= 1'b0;
+        mem_write_ex   <= 1'b0;
+        valid_ex       <= 1'b0;
+        is_branch_ex   <= 1'b0;
+        is_jmp_ex      <= 1'b0;
+        is_jal_ex      <= 1'b0;
+        is_jalr_ex     <= 1'b0;
+        trap_ex        <= 1'b0;
         //
-        // Capture bpred_taken_id and pred_target_ex even during flush
+        // Capture bpred_taken_id even during flush
         // When load-use hazards hold an instruction in ID, we need to latch its
         // prediction before if_id_stall releases and RAS/BTB buffers get overwritten
         //
-        bpred_taken_ex   <= bpred_taken_id;
-        pred_target_ex   <= final_pred_target_id;
-        valid_ex         <= 1'b0;
+        bpred_taken_ex <= bpred_taken_id;
       end else if (!id_ex_stall) begin
-        reg_write_ex     <= reg_write_id;
-        mem_read_ex      <= mem_read_id;
-        mem_write_ex     <= mem_write_id;
+        reg_write_ex   <= reg_write_id;
+        mem_read_ex    <= mem_read_id;
+        mem_write_ex   <= mem_write_id;
+        valid_ex       <= valid_id;
+        is_branch_ex   <= is_branch_id;
+        is_jmp_ex      <= is_jmp_id;
+        is_jal_ex      <= is_jal_id;
+        is_jalr_ex     <= is_jalr_id;
+        trap_ex        <= instr_invalid_id;
+        bpred_taken_ex <= bpred_taken_id;
+      end
+    end
+
+    //
+    // Datapath registers: no reset needed (don't care when valid_ex == 0)
+    //
+    always_ff @(posedge clk) begin
+      if (id_ex_flush) begin
+        alu_a_src_ex     <= '0;
+        alu_b_src_ex     <= 1'b0;
+        alu_instr_ex     <= '0;
+        res_src_ex       <= '0;
+        jb_target_src_ex <= 1'b0;
+        is_mc_ex         <= 1'b0;
+        is_m_ex          <= 1'b0;
+        is_csr_ex        <= 1'b0;
+        trap_code_ex     <= TRAP_NONE;
+        instr_ex         <= I_NOP;
+        rd_ex            <= '0;
+        rs1_ex           <= '0;
+        rs2_ex           <= '0;
+        funct3_ex        <= '0;
+        funct7_ex        <= '0;
+        rs1_data_ex      <= '0;
+        rs2_data_ex      <= '0;
+        imm_ex           <= '0;
+        pc_ex            <= '0;
+        pc_plus4_ex      <= '0;
+        //
+        // Capture pred_target_ex even during flush
+        // When load-use hazards hold an instruction in ID, we need to latch its
+        // prediction before if_id_stall releases and RAS/BTB buffers get overwritten
+        //
+        pred_target_ex   <= final_pred_target_id;
+      end else if (!id_ex_stall) begin
         alu_a_src_ex     <= alu_a_src_id;
         alu_b_src_ex     <= alu_b_src_id;
         alu_instr_ex     <= alu_instr_id;
         res_src_ex       <= res_src_id;
-        is_branch_ex     <= is_branch_id;
-        is_jmp_ex        <= is_jmp_id;
         jb_target_src_ex <= jb_target_src_id;
         is_mc_ex         <= is_mc_id;
         is_m_ex          <= is_m_id;
         is_csr_ex        <= is_csr_id;
-        is_jal_ex        <= is_jal_id;
-        is_jalr_ex       <= is_jalr_id;
-        trap_ex          <= instr_invalid_id;
         trap_code_ex     <= instr_invalid_id ? TRAP_INSTR_INVALID : TRAP_NONE;
         instr_ex         <= instr_id;
         rd_ex            <= rd_id;
@@ -432,9 +430,7 @@ module svc_rv_stage_id #(
         imm_ex           <= imm_id;
         pc_ex            <= pc_id;
         pc_plus4_ex      <= pc_plus4_id;
-        bpred_taken_ex   <= bpred_taken_id;
         pred_target_ex   <= final_pred_target_id;
-        valid_ex         <= valid_id;
       end
     end
 
