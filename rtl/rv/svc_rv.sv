@@ -371,8 +371,12 @@ module svc_rv #(
   logic            valid_wb;
 
   //
-  // Halt signal (sticky on ebreak or trap)
+  // Halt signals
   //
+  // halt_next: combinational, used for immediate WB stall
+  // halt: registered and sticky, used for other pipeline stalls
+  //
+  logic            halt_next;
   logic            halt;
 
   //
@@ -403,14 +407,17 @@ module svc_rv #(
     // No data hazards exist in single-cycle mode (no pipeline registers),
     // so only PC and IF/ID stalls are needed.
     //
-    assign pc_stall     = op_active_ex || halt;
-    assign if_id_stall  = op_active_ex || halt;
+    //
+    // Use halt_next for immediate stall since pipeline is combinational.
+    //
+    assign pc_stall     = op_active_ex || halt_next || halt;
+    assign if_id_stall  = op_active_ex || halt_next || halt;
     assign if_id_flush  = 1'b0;
-    assign id_ex_stall  = halt;
+    assign id_ex_stall  = halt_next || halt;
     assign id_ex_flush  = 1'b0;
-    assign ex_mem_stall = halt;
+    assign ex_mem_stall = halt_next || halt;
     assign ex_mem_flush = 1'b0;
-    assign mem_wb_stall = halt;
+    assign mem_wb_stall = halt_next || halt;
 
     // verilog_format: off
     `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_load_ex,
@@ -420,14 +427,16 @@ module svc_rv #(
     //
     // No hazards in single-cycle mode without multi-cycle operations
     //
-    assign pc_stall     = halt;
-    assign if_id_stall  = halt;
+    // Use halt_next for immediate stall since pipeline is combinational.
+    //
+    assign pc_stall     = halt_next || halt;
+    assign if_id_stall  = halt_next || halt;
     assign if_id_flush  = 1'b0;
-    assign id_ex_stall  = halt;
+    assign id_ex_stall  = halt_next || halt;
     assign id_ex_flush  = 1'b0;
-    assign ex_mem_stall = halt;
+    assign ex_mem_stall = halt_next || halt;
     assign ex_mem_flush = 1'b0;
-    assign mem_wb_stall = halt;
+    assign mem_wb_stall = halt_next || halt;
 
     // verilog_format: off
     `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_load_ex,
@@ -588,7 +597,18 @@ module svc_rv #(
   //
   // Halt logic
   //
-  assign halt = ebreak || trap;
+  // halt_next is combinational for immediate response.
+  // halt is registered to reduce fanout.
+  //
+  assign halt_next = ebreak || trap;
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      halt <= 1'b0;
+    end else begin
+      halt <= halt || halt_next;
+    end
+  end
 
 `ifndef RISCV_FORMAL
   `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, trap_code_wb});

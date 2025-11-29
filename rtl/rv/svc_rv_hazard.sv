@@ -81,8 +81,12 @@ module svc_rv_hazard #(
     input logic ras_pred_taken,
 
     //
-    // Halt signal (stops execution)
+    // Halt signals
     //
+    // halt_next: combinational, for immediate WB stall
+    // halt: registered, for other pipeline stalls (lower fanout)
+    //
+    input logic halt_next,
     input logic halt,
 
     // Hazard control outputs
@@ -316,7 +320,7 @@ module svc_rv_hazard #(
   assign if_id_stall   = (front_stall && !stall_disable) || halt;
   assign id_ex_stall   = op_active_ex || halt;
   assign ex_mem_stall  = halt;
-  assign mem_wb_stall  = halt;
+  assign mem_wb_stall  = halt_next || halt;
 
   //
   // Flush logic with stall interaction

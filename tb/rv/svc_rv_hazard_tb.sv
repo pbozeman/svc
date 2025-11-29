@@ -61,6 +61,7 @@ module svc_rv_hazard_tb;
       .mispredicted_mem(mispredicted_mem),
       .btb_pred_taken  (1'b0),
       .ras_pred_taken  (1'b0),
+      .halt_next       (halt),
       .halt            (halt),
       .pc_stall        (pc_stall),
       .if_id_stall     (if_id_stall),
