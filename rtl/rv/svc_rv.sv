@@ -164,8 +164,12 @@ module svc_rv #(
   logic            reg_write_ex;
   logic            mem_read_ex;
   logic            mem_write_ex;
-  logic [     1:0] alu_a_src_ex;
-  logic            alu_b_src_ex;
+
+  // verilog_format: off
+  (* max_fanout = 32 *)logic [1:0] alu_a_src_ex;
+  (* max_fanout = 32 *)logic       alu_b_src_ex;
+  // verilog_format: on
+
   logic [     1:0] alu_instr_ex;
   logic [     2:0] res_src_ex;
   logic            is_branch_ex;
@@ -261,7 +265,7 @@ module svc_rv #(
   //
 
   // EX -> IF (PC control)
-  logic [     1:0] pc_sel_ex;
+  (* max_fanout = 32 *)logic [     1:0] pc_sel_ex;
   logic [XLEN-1:0] pc_redirect_target_ex;
   logic            mispredicted_ex;
 
@@ -290,14 +294,16 @@ module svc_rv #(
   logic            op_active_ex;
 
   // Hazard control signals
-  logic            pc_stall;
-  logic            if_id_stall;
-  logic            if_id_flush;
-  logic            id_ex_stall;
-  logic            id_ex_flush;
-  logic            ex_mem_stall;
-  logic            ex_mem_flush;
-  logic            mem_wb_stall;
+  // verilog_format: off
+  (* max_fanout = 32 *)logic pc_stall;
+  (* max_fanout = 32 *)logic if_id_stall;
+  (* max_fanout = 32 *)logic if_id_flush;
+  (* max_fanout = 32 *)logic id_ex_stall;
+  (* max_fanout = 32 *)logic id_ex_flush;
+  (* max_fanout = 32 *)logic ex_mem_stall;
+  (* max_fanout = 32 *)logic ex_mem_flush;
+  (* max_fanout = 32 *)logic mem_wb_stall;
+  // verilog_format: on
 
   //
   // BTB prediction signals

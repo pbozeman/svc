@@ -72,8 +72,9 @@ module svc_rv_stage_if_bram #(
 
   `include "svc_rv_defs.svh"
 
-  logic [XLEN-1:0] pc_buf;
-  logic [XLEN-1:0] pc_plus4_buf;
+  (* max_fanout = 32 *)logic [XLEN-1:0] pc_buf;
+  (* max_fanout = 32 *)logic [XLEN-1:0] pc_plus4_buf;
+
   logic            btb_hit_buf;
   logic            btb_pred_taken_buf;
   logic [XLEN-1:0] btb_target_buf;
