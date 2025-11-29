@@ -456,6 +456,11 @@ task automatic test_misaligned_load_div_trap;
 
   `CHECK_WAIT_FOR(clk, uut.trap, 64);
   `CHECK_FALSE(ebreak);
+
+  //
+  // Wait one cycle for registered halt to update
+  //
+  `TICK(clk);
   `CHECK_TRUE(uut.cpu.halt);
 endtask
 
