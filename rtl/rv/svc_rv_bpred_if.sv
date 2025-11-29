@@ -80,21 +80,35 @@ module svc_rv_bpred_if #(
     logic            ras_valid_id_buf;
     logic [XLEN-1:0] ras_target_id_buf;
 
+    //
+    // Control signals: need reset for correct behavior
+    //
     always_ff @(posedge clk) begin
-      if (!rst_n || if_id_flush) begin
+      if (!rst_n) begin
         btb_hit_id_buf        <= 1'b0;
         btb_pred_taken_id_buf <= 1'b0;
-        btb_target_id_buf     <= '0;
         btb_is_return_id_buf  <= 1'b0;
         ras_valid_id_buf      <= 1'b0;
-        ras_target_id_buf     <= '0;
+      end else if (if_id_flush) begin
+        btb_hit_id_buf        <= 1'b0;
+        btb_pred_taken_id_buf <= 1'b0;
+        btb_is_return_id_buf  <= 1'b0;
+        ras_valid_id_buf      <= 1'b0;
       end else if (!if_id_stall) begin
         btb_hit_id_buf        <= btb_hit_to_if_id;
         btb_pred_taken_id_buf <= btb_pred_taken_to_if_id;
-        btb_target_id_buf     <= btb_target_to_if_id;
         btb_is_return_id_buf  <= btb_is_return_to_if_id;
         ras_valid_id_buf      <= ras_valid_to_if_id;
-        ras_target_id_buf     <= ras_target_to_if_id;
+      end
+    end
+
+    //
+    // Datapath registers: no reset needed (don't care when valid flags == 0)
+    //
+    always_ff @(posedge clk) begin
+      if (!if_id_stall) begin
+        btb_target_id_buf <= btb_target_to_if_id;
+        ras_target_id_buf <= ras_target_to_if_id;
       end
     end
 
