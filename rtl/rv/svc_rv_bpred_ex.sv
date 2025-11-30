@@ -88,7 +88,7 @@ module svc_rv_bpred_ex #(
     // RAS will only predict if it has a valid entry, so false positives
     // (non-return JALR x0 instructions) are handled gracefully.
     //
-    assign is_return = is_jalr_ex && (rd_ex == 5'd0);
+    assign is_return      = is_jalr_ex && (rd_ex == 5'd0);
 
     //
     // Predictable: branches, JAL, and returns
@@ -105,7 +105,13 @@ module svc_rv_bpred_ex #(
     // Gate with valid_ex to prevent BTB corruption from garbage datapath
     // values when the instruction is invalid (e.g., after pipeline flush).
     //
-    assign btb_update_en = valid_ex && is_predictable;
+    // Also gate with aligned target check - misaligned targets would cause
+    // traps and should not be stored in BTB (they would corrupt subsequent
+    // predictions).
+    //
+    logic target_aligned;
+    assign target_aligned = !(|jb_target_ex[1:0]);
+    assign btb_update_en = valid_ex && is_predictable && target_aligned;
     assign btb_update_pc = pc_ex;
     assign btb_update_target = jb_target_ex;
     assign btb_update_is_ret = is_return;
