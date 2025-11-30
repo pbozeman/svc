@@ -15,7 +15,6 @@ module svc_rv_fwd_id #(
     parameter int MEM_TYPE
 ) (
     input logic clk,
-    input logic rst_n,
 
     //
     // ID stage register indices and data
@@ -164,7 +163,7 @@ module svc_rv_fwd_id #(
     `SVC_UNUSED({load_data_mem});
   end
 
-  `SVC_UNUSED({clk, rst_n, XLEN});
+  `SVC_UNUSED({clk, XLEN});
 
 endmodule
 
