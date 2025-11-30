@@ -264,7 +264,6 @@ module svc_rv_stage_id #(
       .MEM_TYPE(MEM_TYPE)
   ) fwd_id (
       .clk          (clk),
-      .rst_n        (rst_n),
       .rs1_id       (rs1_id),
       .rs2_id       (rs2_id),
       .rs1_data_id  (rs1_data_id),
@@ -467,8 +466,8 @@ module svc_rv_stage_id #(
     assign valid_ex         = valid_id;
 
     // verilog_format: off
-    `SVC_UNUSED({id_ex_stall, id_ex_flush, fwd_rs1_id, fwd_rs2_id, bpred_taken_id,
-                 ras_valid_id, ras_target_id});
+    `SVC_UNUSED({rst_n, id_ex_stall, id_ex_flush, fwd_rs1_id, fwd_rs2_id,
+                 bpred_taken_id, ras_valid_id, ras_target_id});
     // verilog_format: on
   end
 

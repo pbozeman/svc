@@ -7,7 +7,6 @@
 //
 module svc_rv_fwd_id_tb;
   `TEST_CLK_NS(clk, 10);
-  `TEST_RST_N(clk, rst_n);
 
   localparam int XLEN = 32;
 
@@ -31,7 +30,6 @@ module svc_rv_fwd_id_tb;
       .MEM_TYPE(0)
   ) uut (
       .clk          (clk),
-      .rst_n        (rst_n),
       .rs1_id       (rs1_id),
       .rs2_id       (rs2_id),
       .rs1_data_id  (rs1_data_id),
