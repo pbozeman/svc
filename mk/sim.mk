@@ -292,6 +292,4 @@ list_sim:
 	$(foreach t,$(SIM_MODULES),echo " $t";) \
 	echo
 
-list: list_sim
-
 endif

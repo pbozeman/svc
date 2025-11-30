@@ -63,10 +63,10 @@ tb: tb_clean_logs $(TB_PASS_FILES)
 	@[ ! -s $(TB_BUILD_DIR)/tb_failure.log ] || exit 1;
 
 define tb_quick_report
-	echo "TB suites dirty : $$(wc -l < $(TB_BUILD_DIR)/tb_run.log)"; \
-	echo "TB suites passed: $$(wc -l < $(TB_BUILD_DIR)/tb_success.log)"; \
-	echo "TB suites failed: $$(wc -l < $(TB_BUILD_DIR)/tb_failure.log)"; \
-	sed 's/^/    /' $(TB_BUILD_DIR)/tb_failure.log;
+	echo "TB dirty          : $$(cat $(TB_BUILD_DIR)/tb_run.log 2>/dev/null | wc -l)"; \
+	echo "TB passed         : $$(cat $(TB_BUILD_DIR)/tb_success.log 2>/dev/null | wc -l)"; \
+	echo "TB failed         : $$(cat $(TB_BUILD_DIR)/tb_failure.log 2>/dev/null | wc -l)"; \
+	sed 's/^/    /' $(TB_BUILD_DIR)/tb_failure.log 2>/dev/null || true;
 endef
 
 .PHONY: tb_report
@@ -125,9 +125,9 @@ tb_run: SKIP_SLOW_TESTS := 1
 tb_run: lint_tb tb_clean_logs $(TB_MODULES)
 
 define tb_full_report
-	@echo "TB suites passed: $$(wc -l < $(TB_BUILD_DIR)/tb_success.log)"
-	@echo "TB suites failed: $$(wc -l < $(TB_BUILD_DIR)/tb_failure.log)"
-	@sed 's/^/    /' $(TB_BUILD_DIR)/tb_failure.log
+	@echo "TB passed         : $$(cat $(TB_BUILD_DIR)/tb_success.log 2>/dev/null | wc -l)"
+	@echo "TB failed         : $$(cat $(TB_BUILD_DIR)/tb_failure.log 2>/dev/null | wc -l)"
+	@sed 's/^/    /' $(TB_BUILD_DIR)/tb_failure.log 2>/dev/null || true
 endef
 
 .PHONY: tb_full_report
