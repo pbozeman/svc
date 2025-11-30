@@ -2,7 +2,6 @@
 `define SVC_RV_REGFILE_SV
 
 `include "svc.sv"
-`include "svc_unused.sv"
 
 // RISC-V Register File (x0-x31)
 //
@@ -17,7 +16,6 @@ module svc_rv_regfile #(
     parameter int FWD_REGFILE
 ) (
     input logic clk,
-    input logic rst_n,
 
     // register source 1
     input  logic [     4:0] rs1_addr,
@@ -66,8 +64,6 @@ module svc_rv_regfile #(
       regs[rd_addr] <= rd_data;
     end
   end
-
-  `SVC_UNUSED({rst_n});
 
 endmodule
 

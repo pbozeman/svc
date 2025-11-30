@@ -244,7 +244,6 @@ module svc_rv_stage_id #(
       .FWD_REGFILE(FWD_REGFILE)
   ) regfile (
       .clk     (clk),
-      .rst_n   (rst_n),
       .rs1_addr(rs1_id),
       .rs1_data(rs1_data_id),
       .rs2_addr(rs2_id),

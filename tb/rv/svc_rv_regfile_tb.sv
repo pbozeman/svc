@@ -25,7 +25,6 @@ module svc_rv_regfile_tb;
       .FWD_REGFILE(1)
   ) uut (
       .clk     (clk),
-      .rst_n   (rst_n),
       .rs1_addr(rs1_addr),
       .rs1_data(rs1_data),
       .rs2_addr(rs2_addr),
