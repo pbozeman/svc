@@ -165,10 +165,8 @@ module svc_rv #(
   logic            mem_read_ex;
   logic            mem_write_ex;
 
-  // verilog_format: off
-  (* max_fanout = 32 *)logic [1:0] alu_a_src_ex;
-  (* max_fanout = 32 *)logic       alu_b_src_ex;
-  // verilog_format: on
+  (* max_fanout = 32 *)logic [     1:0] alu_a_src_ex;
+  (* max_fanout = 32 *)logic            alu_b_src_ex;
 
   logic [     1:0] alu_instr_ex;
   logic [     2:0] res_src_ex;
