@@ -35,6 +35,8 @@ report:
 ifneq ($(SVC_SKIP_FORMAL),1)
 	@echo
 	@$(call f_quick_report)
+	@echo
+	@$(call rv_f_quick_report)
 endif
 	@echo "=============================="
 
@@ -84,5 +86,12 @@ clean_logs: $(BUILD_DIR)
 .PHONY: list_tb list_f list_prog list_sim
 
 .PHONY: list
-list: list_tb .WAIT list_sim .WAIT list_f .WAIT list_prog
+list:
+	@echo "Available list commands:"
+	@echo "  list_tb    - testbenches"
+	@echo "  list_sim   - simulations"
+	@echo "  list_f     - formal (svc_f + rv_f)"
+	@echo "  list_svc_f - SVC formal"
+	@echo "  list_rv_f  - RISC-V formal"
+	@echo "  list_prog  - programmers"
 endif

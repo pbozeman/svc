@@ -67,13 +67,13 @@ $(foreach tb, $(F_MODULES), $(eval $(call lint_f_rule,$(tb))))
 
 ##############################################################################
 #
-# Formal Verification
+# SVC Formal Verification (standard _f targets)
 #
 ##############################################################################
 F_RUN_FILES := $(addprefix $(F_BUILD_DIR)/,$(addsuffix _f/ran, $(F_MODULES)))
 
-.PHONY: formal
-formal: f_clean_logs $(F_RUN_FILES)
+.PHONY: svc_f
+svc_f: f_clean_logs $(F_RUN_FILES)
 	@if [ -s $(F_BUILD_DIR)/f_failure.log ] && [ -z "$(F_SILENT)" ]; then \
 	  echo "=============================="; \
 	  $(call f_quick_report)                 \
@@ -81,10 +81,10 @@ formal: f_clean_logs $(F_RUN_FILES)
 	fi
 
 define f_quick_report
-	echo "Formal dirty    : $$(wc -l < $(F_BUILD_DIR)/f_run.log)"; \
-	echo "Formal passed   : $$(wc -l < $(F_BUILD_DIR)/f_success.log)"; \
-	echo "Formal failed   : $$(wc -l < $(F_BUILD_DIR)/f_failure.log)"; \
-	sed 's/^/    /' $(F_BUILD_DIR)/f_failure.log;
+	echo "SVC Formal dirty  : $$(cat $(F_BUILD_DIR)/f_run.log 2>/dev/null | wc -l)"; \
+	echo "SVC Formal passed : $$(cat $(F_BUILD_DIR)/f_success.log 2>/dev/null | wc -l)"; \
+	echo "SVC Formal failed : $$(cat $(F_BUILD_DIR)/f_failure.log 2>/dev/null | wc -l)"; \
+	sed 's/^/    /' $(F_BUILD_DIR)/f_failure.log 2>/dev/null || true;
 endef
 
 .PHONY: f_report
@@ -125,9 +125,9 @@ f_run: SKIP_SLOW_TESTS := 1
 f_run: lint_f f_clean_logs $(F_TARGETS)
 
 define f_full_report
-	@echo "Formal    passed: $$(wc -l < $(F_BUILD_DIR)/f_success.log)"
-	@echo "Formal    failed: $$(wc -l < $(F_BUILD_DIR)/f_failure.log)"
-	@sed 's/^/    /' $(F_BUILD_DIR)/f_failure.log
+	@echo "SVC Formal passed : $$(cat $(F_BUILD_DIR)/f_success.log 2>/dev/null | wc -l)"
+	@echo "SVC Formal failed : $$(cat $(F_BUILD_DIR)/f_failure.log 2>/dev/null | wc -l)"
+	@sed 's/^/    /' $(F_BUILD_DIR)/f_failure.log 2>/dev/null || true
 endef
 
 .PHONY: f_full_report
@@ -139,15 +139,15 @@ f_full_report:
 .PHONY: f_full
 f_full: f_run .WAIT f_report
 
-# aliases
-.PHONY: formal_run
-formal_run: f_run
+# aliases for svc formal
+.PHONY: svc_f_run
+svc_f_run: f_run
 
-.PHONY: formal_full_report
-formal_report: f_full_report
+.PHONY: svc_f_full_report
+svc_f_report: f_full_report
 
-.PHONY: formal_full
-formal_full: f_full
+.PHONY: svc_f_full
+svc_f_full: f_full
 
 ##############################################################################
 #
@@ -177,9 +177,28 @@ f_clean_logs: | $(F_BUILD_DIR)
 # Help
 #
 ##############################################################################
-.PHONY: list_f
-list_f:
-	@echo "Available formal targets:"
-	@$(foreach t,$(F_TARGETS),echo " $t";)
+.PHONY: list_svc_f
+list_svc_f:
+	@echo "Available SVC formal targets:"
+	@$(foreach t,$(F_TARGETS),echo "  $t";)
 	@echo
+
+##############################################################################
+#
+# Include RISC-V Formal
+#
+##############################################################################
+include mk/rv_formal.mk
+
+##############################################################################
+#
+# Combined Formal Target (SVC + RISC-V)
+#
+##############################################################################
+.PHONY: formal
+formal: svc_f rv_f
+
+.PHONY: list_f
+list_f: list_svc_f list_rv_f
+
 endif
