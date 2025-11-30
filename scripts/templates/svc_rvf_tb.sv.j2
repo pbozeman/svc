@@ -84,6 +84,35 @@ module {{ name }};
   //
   // Sparse instruction memory from trace
   //
+{% if mem_type == 1 %}
+  //
+  // BRAM timing: 1-cycle latency (address at edge N, data at edge N+1)
+  //
+  logic [31:0] imem_rdata_any;
+  logic [31:0] imem_rdata_reg;
+
+  always_comb begin
+    case (imem_raddr)
+{% for addr, insn in imem %}
+      32'h{{ '%08x' % addr }}: imem_rdata_any = 32'h{{ '%08x' % insn }};
+{% endfor %}
+      default:      imem_rdata_any = 32'h00000013;
+    endcase
+  end
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      imem_rdata_reg <= 32'h00000013;
+    end else if (imem_ren) begin
+      imem_rdata_reg <= imem_rdata_any;
+    end
+  end
+
+  assign imem_rdata = imem_rdata_reg;
+{% else %}
+  //
+  // SRAM timing: combinational (0-cycle latency)
+  //
   always_comb begin
     case (imem_raddr)
 {% for addr, insn in imem %}
@@ -92,6 +121,7 @@ module {{ name }};
       default:      imem_rdata = 32'h00000013;
     endcase
   end
+{% endif %}
 
   //
   // Data memory - per-cycle values from formal trace
