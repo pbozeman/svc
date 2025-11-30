@@ -34,6 +34,7 @@
         # Python package with required dependencies
         pythonEnv = pkgs.python3.withPackages (
           ps: with ps; [
+            jinja2
             pyserial
             verilog-vcd
           ]
