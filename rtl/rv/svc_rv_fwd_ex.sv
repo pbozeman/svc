@@ -45,6 +45,19 @@ module svc_rv_fwd_ex #(
     input logic [XLEN-1:0] rs2_data_ex,
 
     //
+    // Multi-cycle operation in progress (use captured values)
+    //
+    // When a multi-cycle op (div/rem) is executing past its first cycle, we
+    // must use the captured operand values from the first cycle. The pipeline
+    // drains during multi-cycle ops, so MEM contains unrelated instructions
+    // and we cannot forward from there. On the first cycle (mc_in_progress=0),
+    // MEM→EX forwarding provides the correct values which get captured.
+    //
+    input logic            mc_in_progress_ex,
+    input logic [XLEN-1:0] mc_rs1_captured,
+    input logic [XLEN-1:0] mc_rs2_captured,
+
+    //
     // MEM stage inputs (producer)
     //
     input logic [     4:0] rd_mem,
@@ -88,8 +101,8 @@ module svc_rv_fwd_ex #(
       mem_to_ex_fwd_a = 1'b0;
       mem_to_ex_fwd_b = 1'b0;
 
-      if (reg_write_mem && rd_mem != 5'd0 && !is_load_mem && !is_csr_mem &&
-          !is_m_result_mem) begin
+      if (!mc_in_progress_ex && reg_write_mem && rd_mem != 5'd0 &&
+          !is_load_mem && !is_csr_mem && !is_m_result_mem) begin
         mem_to_ex_fwd_a = (rd_mem == rs1_ex);
         mem_to_ex_fwd_b = (rd_mem == rs2_ex);
       end
@@ -109,17 +122,20 @@ module svc_rv_fwd_ex #(
         mem_to_ex_fwd_load_a = 1'b0;
         mem_to_ex_fwd_load_b = 1'b0;
 
-        if (reg_write_mem && rd_mem != 5'd0 && is_load_mem) begin
+        if (!mc_in_progress_ex && reg_write_mem && rd_mem != 5'd0 &&
+            is_load_mem) begin
           mem_to_ex_fwd_load_a = (rd_mem == rs1_ex);
           mem_to_ex_fwd_load_b = (rd_mem == rs2_ex);
         end
       end
 
       //
-      // Forwarding muxes with priority: MEM load > MEM result > regfile
+      // Forwarding muxes with priority:
+      // mc_in_progress > MEM load > MEM result > regfile
       //
       always_comb begin
         case (1'b1)
+          mc_in_progress_ex:    fwd_rs1_ex = mc_rs1_captured;
           mem_to_ex_fwd_load_a: fwd_rs1_ex = load_data_mem;
           mem_to_ex_fwd_a:      fwd_rs1_ex = result_mem;
           default:              fwd_rs1_ex = rs1_data_ex;
@@ -128,6 +144,7 @@ module svc_rv_fwd_ex #(
 
       always_comb begin
         case (1'b1)
+          mc_in_progress_ex:    fwd_rs2_ex = mc_rs2_captured;
           mem_to_ex_fwd_load_b: fwd_rs2_ex = load_data_mem;
           mem_to_ex_fwd_b:      fwd_rs2_ex = result_mem;
           default:              fwd_rs2_ex = rs2_data_ex;
@@ -138,19 +155,22 @@ module svc_rv_fwd_ex #(
       //
       // BRAM: Load data not ready in MEM stage, cannot forward
       //
-      // Forwarding muxes with priority: MEM result > regfile
+      // Forwarding muxes with priority:
+      // mc_in_progress > MEM result > regfile
       //
       always_comb begin
         case (1'b1)
-          mem_to_ex_fwd_a: fwd_rs1_ex = result_mem;
-          default:         fwd_rs1_ex = rs1_data_ex;
+          mc_in_progress_ex: fwd_rs1_ex = mc_rs1_captured;
+          mem_to_ex_fwd_a:   fwd_rs1_ex = result_mem;
+          default:           fwd_rs1_ex = rs1_data_ex;
         endcase
       end
 
       always_comb begin
         case (1'b1)
-          mem_to_ex_fwd_b: fwd_rs2_ex = result_mem;
-          default:         fwd_rs2_ex = rs2_data_ex;
+          mc_in_progress_ex: fwd_rs2_ex = mc_rs2_captured;
+          mem_to_ex_fwd_b:   fwd_rs2_ex = result_mem;
+          default:           fwd_rs2_ex = rs2_data_ex;
         endcase
       end
 
@@ -159,14 +179,14 @@ module svc_rv_fwd_ex #(
 
   end else begin : g_no_forwarding
     //
-    // No forwarding, just pass through
+    // No forwarding, just pass through (but still use captured for mc ops)
     //
-    assign fwd_rs1_ex = rs1_data_ex;
-    assign fwd_rs2_ex = rs2_data_ex;
+    assign fwd_rs1_ex = mc_in_progress_ex ? mc_rs1_captured : rs1_data_ex;
+    assign fwd_rs2_ex = mc_in_progress_ex ? mc_rs2_captured : rs2_data_ex;
 
     // verilog_format: off
-    `SVC_UNUSED({rs1_ex, rs2_ex, rd_mem, reg_write_mem, res_src_mem,
-                 result_mem, load_data_mem, MEM_TYPE});
+    `SVC_UNUSED({rs1_ex, rs2_ex, rd_mem, reg_write_mem,
+                 res_src_mem, result_mem, load_data_mem, MEM_TYPE});
     // verilog_format: on
   end
 

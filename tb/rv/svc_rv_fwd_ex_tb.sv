@@ -19,6 +19,9 @@ module svc_rv_fwd_ex_tb;
   logic [     4:0] rs2_ex;
   logic [XLEN-1:0] rs1_data_ex;
   logic [XLEN-1:0] rs2_data_ex;
+  logic            mc_in_progress_ex;
+  logic [XLEN-1:0] mc_rs1_captured;
+  logic [XLEN-1:0] mc_rs2_captured;
   logic [     4:0] rd_mem;
   logic            reg_write_mem;
   logic [     2:0] res_src_mem;
@@ -32,29 +35,35 @@ module svc_rv_fwd_ex_tb;
       .FWD     (1),
       .MEM_TYPE(0)
   ) uut (
-      .rs1_ex       (rs1_ex),
-      .rs2_ex       (rs2_ex),
-      .rs1_data_ex  (rs1_data_ex),
-      .rs2_data_ex  (rs2_data_ex),
-      .rd_mem       (rd_mem),
-      .reg_write_mem(reg_write_mem),
-      .res_src_mem  (res_src_mem),
-      .result_mem   (result_mem),
-      .load_data_mem(load_data_mem),
-      .fwd_rs1_ex   (fwd_rs1_ex),
-      .fwd_rs2_ex   (fwd_rs2_ex)
+      .rs1_ex           (rs1_ex),
+      .rs2_ex           (rs2_ex),
+      .rs1_data_ex      (rs1_data_ex),
+      .rs2_data_ex      (rs2_data_ex),
+      .mc_in_progress_ex(mc_in_progress_ex),
+      .mc_rs1_captured  (mc_rs1_captured),
+      .mc_rs2_captured  (mc_rs2_captured),
+      .rd_mem           (rd_mem),
+      .reg_write_mem    (reg_write_mem),
+      .res_src_mem      (res_src_mem),
+      .result_mem       (result_mem),
+      .load_data_mem    (load_data_mem),
+      .fwd_rs1_ex       (fwd_rs1_ex),
+      .fwd_rs2_ex       (fwd_rs2_ex)
   );
 
   task automatic reset_inputs;
-    rs1_ex        = 5'd0;
-    rs2_ex        = 5'd0;
-    rs1_data_ex   = 32'h0;
-    rs2_data_ex   = 32'h0;
-    rd_mem        = 5'd0;
-    reg_write_mem = 1'b0;
-    res_src_mem   = 3'd0;
-    result_mem    = 32'h0;
-    load_data_mem = 32'h0;
+    rs1_ex            = 5'd0;
+    rs2_ex            = 5'd0;
+    rs1_data_ex       = 32'h0;
+    rs2_data_ex       = 32'h0;
+    mc_in_progress_ex = 1'b0;
+    mc_rs1_captured   = 32'h0;
+    mc_rs2_captured   = 32'h0;
+    rd_mem            = 5'd0;
+    reg_write_mem     = 1'b0;
+    res_src_mem       = 3'd0;
+    result_mem        = 32'h0;
+    load_data_mem     = 32'h0;
   endtask
 
   //
@@ -258,6 +267,44 @@ module svc_rv_fwd_ex_tb;
     `CHECK_EQ(fwd_rs2_ex, 32'hBBBBBBBB);
   endtask
 
+  //
+  // Test: Multi-cycle op uses captured values instead of MEM forwarding
+  //
+  // During multi-cycle ops (DIV/REM), the pipeline drains and MEM stage
+  // contains unrelated instructions. The captured values from the first
+  // cycle must be used instead of stale MEM forwarding.
+  //
+  task automatic test_mc_uses_captured;
+    reset_inputs();
+    rs1_ex            = 5'd10;
+    rs2_ex            = 5'd10;
+    rs1_data_ex       = 32'hAAAAAAAA;
+    rs2_data_ex       = 32'hBBBBBBBB;
+
+    //
+    // Multi-cycle op in progress with captured values
+    //
+    mc_in_progress_ex = 1'b1;
+    mc_rs1_captured   = 32'h84080000;
+    mc_rs2_captured   = 32'h84080000;
+
+    //
+    // MEM stage has different instruction that would forward if not mc
+    //
+    rd_mem            = 5'd10;
+    reg_write_mem     = 1'b1;
+    res_src_mem       = 3'd0;
+    result_mem        = 32'hDEADBEEF;
+
+    `TICK(clk);
+
+    //
+    // Should use captured values, not result_mem
+    //
+    `CHECK_EQ(fwd_rs1_ex, 32'h84080000);
+    `CHECK_EQ(fwd_rs2_ex, 32'h84080000);
+  endtask
+
   `TEST_SUITE_BEGIN(svc_rv_fwd_ex_tb);
   `TEST_CASE(test_no_forwarding);
   `TEST_CASE(test_mem_to_ex_fwd_rs1);
@@ -268,6 +315,7 @@ module svc_rv_fwd_ex_tb;
   `TEST_CASE(test_no_fwd_from_csr);
   `TEST_CASE(test_no_fwd_to_x0);
   `TEST_CASE(test_no_fwd_if_not_used);
+  `TEST_CASE(test_mc_uses_captured);
   `TEST_SUITE_END();
 
 endmodule
