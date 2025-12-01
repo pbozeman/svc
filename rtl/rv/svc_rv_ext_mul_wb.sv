@@ -72,9 +72,11 @@ module svc_rv_ext_mul_wb (
   // See: https://yosyshq.readthedocs.io/projects/riscv-formal/en/latest/rvfi.html#alternative-arithmetic-operations
   //
   logic [31:0] altops_result;
+  logic [ 1:0] op_sel;
+  assign op_sel = op[1:0];
 
   always_comb begin
-    case (op[1:0])
+    case (op_sel)
       2'b00:   altops_result = (rs1_data + rs2_data) ^ 32'h5876063e;
       2'b01:   altops_result = (rs1_data + rs2_data) ^ 32'hf6583fb7;
       2'b10:   altops_result = (rs1_data - rs2_data) ^ 32'hecfbe137;
