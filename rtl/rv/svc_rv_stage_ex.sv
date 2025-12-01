@@ -275,6 +275,28 @@ module svc_rv_stage_ex #(
   mc_state_t mc_state_next;
 
   //
+  // Multi-cycle operation in progress (past first cycle)
+  //
+  // Used to select captured operand values during multi-cycle ops. On the
+  // first cycle (IDLE state), forwarding from MEM is active and provides the
+  // correct values. On subsequent cycles (EXEC state), the pipeline has
+  // drained and MEM contains unrelated instructions, so we use the captured
+  // values from the first cycle.
+  //
+  logic      mc_in_progress_ex;
+  assign mc_in_progress_ex = (mc_state == MC_STATE_EXEC);
+
+  //
+  // Captured operand values for multi-cycle operations
+  //
+  // When a multi-cycle op starts, we capture the forwarded operand values.
+  // These captured values are used on subsequent cycles since the pipeline
+  // drains and MEM→EX forwarding would provide stale/wrong values.
+  //
+  logic [XLEN-1:0] mc_rs1_captured;
+  logic [XLEN-1:0] mc_rs2_captured;
+
+  //
   // Next state and output logic
   //
   always_comb begin
@@ -306,13 +328,23 @@ module svc_rv_stage_ex #(
   end
 
   //
-  // State registers
+  // State registers and captured operands
   //
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      mc_state <= MC_STATE_IDLE;
+      mc_state        <= MC_STATE_IDLE;
+      mc_rs1_captured <= '0;
+      mc_rs2_captured <= '0;
     end else begin
       mc_state <= mc_state_next;
+
+      //
+      // Capture forwarded operands on first cycle of multi-cycle op
+      //
+      if (mc_state == MC_STATE_IDLE && is_mc_ex) begin
+        mc_rs1_captured <= fwd_rs1_ex;
+        mc_rs2_captured <= fwd_rs2_ex;
+      end
     end
   end
 
