@@ -21,6 +21,31 @@ F_BUILD_DIR := $(BUILD_DIR)/formal
 
 SBY := sby
 
+#
+# Skip SVC formal if the directory doesn't exist (e.g., in consumer projects)
+#
+ifeq ($(wildcard $(PRJ_FORMAL_DIR)),)
+
+.PHONY: svc_f svc_f_run svc_f_full f_run f_report f_full f_full_report
+.PHONY: f_clean_logs list_svc_f format_f
+.PHONY: lint_f lint_fm lint_fz lint_fzm
+svc_f svc_f_run svc_f_full f_run f_report f_full f_full_report:
+	@true
+f_clean_logs list_svc_f format_f:
+	@true
+lint_f lint_fm lint_fz lint_fzm:
+	@true
+
+define f_quick_report
+	@true
+endef
+
+define f_full_report
+	@true
+endef
+
+else
+
 ##############################################################################
 #
 # Formal Formatting & Linting
@@ -182,6 +207,9 @@ list_svc_f:
 	@echo "Available SVC formal targets:"
 	@$(foreach t,$(F_TARGETS),echo "  $t";)
 	@echo
+
+# endif for ifeq ($(wildcard $(PRJ_FORMAL_DIR)),)
+endif
 
 ##############################################################################
 #

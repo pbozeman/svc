@@ -13,6 +13,21 @@ RV_F_DIR := $(abspath $(PRJ_TB_DIR)/riscv-formal/cores/svc_rv)
 RV_F_CHECKS_DIR := $(abspath $(PRJ_TB_DIR)/riscv-formal/checks)
 RV_F_BUILD_DIR := $(abspath $(BUILD_DIR)/rvformal)
 
+#
+# Skip RISC-V formal if the directory doesn't exist (e.g., in consumer projects)
+#
+ifeq ($(wildcard $(RV_F_DIR)),)
+
+.PHONY: rv_f rv_f_run rv_f_report rv_f_gencheck list_rv_f rv_f_clean
+rv_f rv_f_run rv_f_report rv_f_gencheck list_rv_f rv_f_clean:
+	@true
+
+define rv_f_quick_report
+	@true
+endef
+
+else
+
 # Stamp file for gencheck completion
 RV_F_GENCHECK_STAMP := $(RV_F_BUILD_DIR)/.gencheck_done
 
@@ -237,5 +252,8 @@ list_rv_f: $(RV_F_GENCHECK_STAMP)
 	@echo "Example: make rv_bram__insn_add_ch0_f"
 	@echo
 	@echo "Total checks: $(words $(RV_F_TARGETS))"
+
+# endif for ifeq ($(wildcard $(RV_F_DIR)),)
+endif
 
 endif

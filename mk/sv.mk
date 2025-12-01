@@ -33,10 +33,14 @@ report:
 	@echo "=============================="
 	@$(call tb_quick_report)
 ifneq ($(SVC_SKIP_FORMAL),1)
+ifneq ($(wildcard $(PRJ_FORMAL_DIR)),)
 	@echo
 	@$(call f_quick_report)
+endif
+ifneq ($(wildcard $(PRJ_TB_DIR)/riscv-formal/cores/svc_rv),)
 	@echo
 	@$(call rv_f_quick_report)
+endif
 endif
 	@echo "=============================="
 
