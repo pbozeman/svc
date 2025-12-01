@@ -179,8 +179,11 @@ module svc_rv_ext_div (
 
   assign busy = (f_count != '0) && (f_count != 2'(ALTOPS_CYCLES));
 
+  logic [1:0] op_sel;
+  assign op_sel = op[1:0];
+
   always_comb begin
-    case (op[1:0])
+    case (op_sel)
       2'b00:   result = (rs1 - rs2) ^ 32'h7f8529ec;
       2'b01:   result = (rs1 - rs2) ^ 32'h10e8fd70;
       2'b10:   result = (rs1 - rs2) ^ 32'h8da68fa5;
