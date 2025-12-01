@@ -54,7 +54,7 @@ DEPS := $(shell find $(BUILD_DIR) -name '*.d' 2>/dev/null)
 #
 ##############################################################################
 .PHONY: full_run
-full_run: tb_run .WAIT f_run
+full_run: tb_run .WAIT f_run .WAIT rv_f
 
 .PHONY: full_report
 full_report:
@@ -62,6 +62,8 @@ full_report:
 	$(call tb_full_report)
 	@echo
 	$(call f_full_report)
+	@echo
+	$(call rv_f_full_report)
 	@echo "=============================="
 
 full: SILENT_SUCCESS := 1
