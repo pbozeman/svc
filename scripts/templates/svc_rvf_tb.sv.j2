@@ -39,6 +39,10 @@ module {{ name }};
   logic [31:0] rvfi_pc_wdata;
   logic [ 4:0] rvfi_rd_addr;
   logic [31:0] rvfi_rd_wdata;
+  logic [ 4:0] rvfi_rs1_addr;
+  logic [ 4:0] rvfi_rs2_addr;
+  logic [31:0] rvfi_rs1_rdata;
+  logic [31:0] rvfi_rs2_rdata;
   logic        rvfi_trap;
 
   //
@@ -71,12 +75,16 @@ module {{ name }};
       .dmem_wdata(dmem_wdata),
       .dmem_wstrb(dmem_wstrb),
 
-      .rvfi_valid   (rvfi_valid),
-      .rvfi_order   (rvfi_order),
-      .rvfi_pc_wdata(rvfi_pc_wdata),
-      .rvfi_rd_addr (rvfi_rd_addr),
-      .rvfi_rd_wdata(rvfi_rd_wdata),
-      .rvfi_trap    (rvfi_trap),
+      .rvfi_valid    (rvfi_valid),
+      .rvfi_order    (rvfi_order),
+      .rvfi_pc_wdata (rvfi_pc_wdata),
+      .rvfi_rd_addr  (rvfi_rd_addr),
+      .rvfi_rd_wdata (rvfi_rd_wdata),
+      .rvfi_rs1_addr (rvfi_rs1_addr),
+      .rvfi_rs2_addr (rvfi_rs2_addr),
+      .rvfi_rs1_rdata(rvfi_rs1_rdata),
+      .rvfi_rs2_rdata(rvfi_rs2_rdata),
+      .rvfi_trap     (rvfi_trap),
 
       .ebreak(ebreak),
       .trap  (trap)
@@ -209,14 +217,6 @@ module {{ name }};
   // Test: run trace and check spec assertions
   //
   task automatic test_trace();
-    //
-    // Wait for reset to complete
-    //
-    @(posedge rst_n);
-
-    //
-    // Spec checks - wait for specific instruction ordinals
-    //
 {% for check in spec_checks %}
     `CHECK_WAIT_FOR(clk, rvfi_valid && rvfi_order == {{ check.order }}, {{ max_cycles }});
 {% if check.spec_pc_wdata is defined %}
@@ -230,6 +230,17 @@ module {{ name }};
 {% endif %}
 {% if check.spec_trap is defined %}
     `CHECK_EQ(rvfi_trap, 1'b{{ check.spec_trap }});
+{% endif %}
+{% endfor %}
+{% for check in reg_checks %}
+    `CHECK_WAIT_FOR(clk, rvfi_valid && rvfi_order == {{ check.order }}, {{ max_cycles }});
+{% if check.register_index is defined and check.register_shadow is defined %}
+{% if check.rvfi_rs1_addr is defined and check.rvfi_rs1_addr == check.register_index %}
+    `CHECK_EQ(rvfi_rs1_rdata, 32'h{{ '%08x' % check.register_shadow }});
+{% endif %}
+{% if check.rvfi_rs2_addr is defined and check.rvfi_rs2_addr == check.register_index %}
+    `CHECK_EQ(rvfi_rs2_rdata, 32'h{{ '%08x' % check.register_shadow }});
+{% endif %}
 {% endif %}
 {% endfor %}
   endtask
