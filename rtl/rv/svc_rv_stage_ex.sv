@@ -45,7 +45,6 @@ module svc_rv_stage_ex #(
     //
     // Hazard control
     //
-    input logic ex_mem_stall,
     input logic ex_mem_flush,
 
     //
@@ -140,6 +139,12 @@ module svc_rv_stage_ex #(
     // Instruction validity to MEM stage
     //
     output logic valid_mem,
+
+    //
+    // Ready/valid interface to MEM stage
+    //
+    output logic m_valid,
+    input  logic m_ready,
 
     //
     // Outputs to hazard unit
@@ -596,7 +601,7 @@ module svc_rv_stage_ex #(
         branch_taken_mem <= 1'b0;
         bpred_taken_mem  <= 1'b0;
         trap_mem         <= 1'b0;
-      end else if (!ex_mem_stall) begin
+      end else if (m_ready) begin
         reg_write_mem    <= ex_mem_flush ? 1'b0 : reg_write_ex;
         mem_read_mem     <= ex_mem_flush ? 1'b0 : mem_read_ex;
         mem_write_mem    <= ex_mem_flush ? 1'b0 : mem_write_ex;
@@ -620,7 +625,7 @@ module svc_rv_stage_ex #(
     // Datapath registers: no reset needed (don't care when valid_mem == 0)
     //
     always_ff @(posedge clk) begin
-      if (!ex_mem_stall) begin
+      if (m_ready) begin
         instr_mem       <= ex_mem_flush ? I_NOP : instr_ex;
         res_src_mem     <= res_src_ex;
         rd_mem          <= rd_ex;
@@ -672,8 +677,16 @@ module svc_rv_stage_ex #(
     assign trap_code_mem = misalign_trap ? TRAP_INSTR_MISALIGN : trap_code_ex;
     assign valid_mem = valid_ex;
 
-    `SVC_UNUSED({ex_mem_stall, ex_mem_flush});
+    `SVC_UNUSED({ex_mem_flush, m_ready});
   end
+
+  //
+  // Ready/valid interface
+  //
+  // m_valid exposes valid_mem for downstream consumption.
+  // m_ready controls pipeline register updates.
+  //
+  assign m_valid = valid_mem;
 
   `SVC_UNUSED({funct7_ex[6:5], funct7_ex[4:0], is_m_ex, is_csr_ex});
 
