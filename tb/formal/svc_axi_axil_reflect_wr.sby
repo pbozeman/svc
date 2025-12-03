@@ -27,6 +27,10 @@ read_cmd += "-sv svc_axi_axil_reflect_wr.sv\n"
 for f in f_files:
   read_cmd += f"read_verilog -formal -sv {os.path.basename(f)}\n"
 
+faxil_files = glob.glob("tb/formal/*.v")
+for f in faxil_files:
+  read_cmd += f"read_verilog -formal -sv {os.path.basename(f)}\n"
+
 output(read_cmd)
 --pycode-end--
 
