@@ -86,12 +86,14 @@ module svc_rv_csr (
   end
 
 `ifndef SYNTHESIS
+`ifndef FORMAL
   initial begin
     cycle    = $urandom;
     cycleh   = $urandom;
     instret  = $urandom;
     instreth = $urandom;
   end
+`endif
 `endif
 
   `SVC_UNUSED(rst_n)
