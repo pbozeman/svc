@@ -68,6 +68,12 @@ signals (from hazard unit). Pipeline register updates gate on `m_ready` for flow
 control. Flush signals zero out payload validity bits (like `reg_write`) to
 create bubbles without blocking the handshake.
 
+**Future Optimization**: Instead of transferring flushed instructions as NOPs,
+gate `m_valid` with flush so flushed instructions don't transfer at all. Bubbles
+become "absence of handshake" rather than "instruction that does nothing." This
+reduces unnecessary pipeline activity but requires the basic ready/valid
+conversion to be stable first.
+
 ### Flush/Kill Semantics
 
 With ready/valid, flush becomes "kill" - mark in-flight data as invalid:
@@ -586,6 +592,9 @@ then add skidbufs only where needed for backpressure (cache stalls).
 ---
 
 ## Step 11: Split IF Stage
+
+**Prerequisite**: Complete Steps 1-9 first. The full pipeline must be converted
+to ready/valid before splitting IF. This is a separate optimization phase.
 
 **Goal**: Split IF into IF0→IF1→IF2 for BTB timing.
 
