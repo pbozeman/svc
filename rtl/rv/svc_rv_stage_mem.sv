@@ -23,11 +23,11 @@
 // writeback stage.
 //
 module svc_rv_stage_mem #(
-    parameter int XLEN,
-    parameter int PIPELINED,
-    parameter int MEM_TYPE,
-    parameter int BPRED,
-    parameter int RAS_ENABLE
+    parameter int XLEN       = 32,
+    parameter int PIPELINED  = 1,
+    parameter int MEM_TYPE   = 0,
+    parameter int BPRED      = 0,
+    parameter int RAS_ENABLE = 0
 ) (
     input logic clk,
     input logic rst_n,
@@ -372,7 +372,7 @@ module svc_rv_stage_mem #(
   //
   if (PIPELINED != 0) begin : g_registered
     //
-    // m_valid: only control signal that needs reset
+    // m_valid: only signal that needs reset
     //
     always_ff @(posedge clk) begin
       if (!rst_n) begin
@@ -383,7 +383,7 @@ module svc_rv_stage_mem #(
     end
 
     //
-    // Datapath registers: no reset needed (don't care when m_valid == 0)
+    // payload
     //
     always_ff @(posedge clk) begin
       if (!m_valid || m_ready) begin
@@ -535,6 +535,81 @@ module svc_rv_stage_mem #(
   assign s_ready = m_ready;
 
   `SVC_UNUSED(valid_mem);
+
+  //
+  // Formal verification
+  //
+`ifdef FORMAL
+`ifdef FORMAL_SVC_RV_STAGE_MEM
+  `define FASSERT(label, a) label: assert(a)
+  `define FASSUME(label, a) label: assume(a)
+  `define FCOVER(label, a) label: cover(a)
+`else
+  `define FASSERT(label, a) label: assume(a)
+  `define FASSUME(label, a) label: assert(a)
+  `define FCOVER(label, a)
+`endif
+
+  logic f_past_valid = 1'b0;
+
+  always @(posedge clk) begin
+    f_past_valid <= 1'b1;
+  end
+
+  //
+  // m_valid/m_ready handshake assertions
+  //
+  // Once m_valid goes high, it must stay high until m_ready
+  // All output signals must remain stable while m_valid && !m_ready
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      //
+      // Valid must stay high until ready
+      //
+      if ($past(m_valid && !m_ready)) begin
+        `FASSERT(a_m_valid_stable, m_valid);
+      end
+
+      //
+      // Output signals must be stable while valid && !ready
+      //
+      if ($past(m_valid && !m_ready)) begin
+        `FASSERT(a_reg_write_wb_stable, $stable(reg_write_wb));
+        `FASSERT(a_res_src_wb_stable, $stable(res_src_wb));
+        `FASSERT(a_instr_wb_stable, $stable(instr_wb));
+        `FASSERT(a_rd_wb_stable, $stable(rd_wb));
+        `FASSERT(a_funct3_wb_stable, $stable(funct3_wb));
+        `FASSERT(a_alu_result_wb_stable, $stable(alu_result_wb));
+        `FASSERT(a_pc_plus4_wb_stable, $stable(pc_plus4_wb));
+        `FASSERT(a_jb_target_wb_stable, $stable(jb_target_wb));
+        `FASSERT(a_trap_wb_stable, $stable(trap_wb));
+        `FASSERT(a_trap_code_wb_stable, $stable(trap_code_wb));
+      end
+    end
+  end
+
+  //
+  // Cover properties
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      //
+      // Cover back-to-back valid transfers
+      //
+      `FCOVER(c_back_to_back, $past(m_valid && m_ready) && m_valid);
+
+      //
+      // Cover stalled transfer (valid high, ready low for a cycle)
+      //
+      `FCOVER(c_stalled, $past(m_valid && !m_ready) && m_valid && m_ready);
+    end
+  end
+
+  `undef FASSERT
+  `undef FASSUME
+  `undef FCOVER
+`endif
 
 endmodule
 
