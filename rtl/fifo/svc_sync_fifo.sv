@@ -145,12 +145,14 @@ module svc_sync_fifo #(
   end
 
 `ifndef FORMAL_SVC_SYNC_FIFO
+`ifndef FORMAL_NO_SUBMODULES
   always @(posedge clk) begin
     if (rst_n) begin
       assert (!(w_inc && w_full));
       assert (!(r_inc && r_empty));
     end
   end
+`endif
 `endif
 
   // track how many elements are in the fifo

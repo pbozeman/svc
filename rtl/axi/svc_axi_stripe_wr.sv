@@ -420,6 +420,7 @@ module svc_axi_stripe_wr #(
   `SVC_UNUSED({sb_s_awaddr[S_WIDTH+O_WIDTH-1:O_WIDTH], s_axi_wlast});
 
 `ifdef FORMAL
+`ifndef FORMAL_NO_SUBMODULES
   // Formal testing happens in the combined module, but we do have asserts
   // regarding bad behavior of the callers.
   //
@@ -443,6 +444,7 @@ module svc_axi_stripe_wr #(
       end
     end
   end
+`endif
 `endif
 
 endmodule
