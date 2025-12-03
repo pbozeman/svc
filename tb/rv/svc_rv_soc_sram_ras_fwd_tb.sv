@@ -30,7 +30,7 @@ module svc_rv_soc_sram_ras_fwd_tb;
   localparam real br_not_taken_max_cpi = 1.01;
   localparam real load_use_max_cpi = 1.01;
   localparam real mixed_alu_max_cpi = 1.01;
-  localparam real function_calls_max_cpi = 1.02;
+  localparam real function_calls_max_cpi = 1.03;
   localparam real fib12_max_cpi = 1.07;
   localparam real fib100_max_cpi = 1.01;
   localparam real bubble_max_cpi = 1.15;

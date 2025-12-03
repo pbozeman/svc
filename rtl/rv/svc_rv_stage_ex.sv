@@ -83,9 +83,10 @@ module svc_rv_stage_ex #(
     input logic [XLEN-1:0] pred_target_ex,
 
     //
-    // Instruction validity from ID stage
+    // Ready/valid interface from ID stage
     //
-    input logic valid_ex,
+    input  logic s_valid,
+    output logic s_ready,
 
     //
     // Forwarding from MEM stage
@@ -579,6 +580,26 @@ module svc_rv_stage_ex #(
   );
 
   //
+  // Input validity from ID stage
+  //
+  // s_valid indicates ID has valid data to transfer. For now, we still receive
+  // valid_ex from the ID stage's pipeline register. Eventually, s_valid will
+  // fully replace this.
+  //
+  logic valid_ex;
+  assign valid_ex = s_valid;
+
+  //
+  // s_ready generation
+  //
+  // EX is ready to accept new data when:
+  // - Downstream (MEM) is ready or our output register is empty
+  // - No multi-cycle operation is in progress
+  //
+  // This implements backpressure from MEM and internal stalling for multi-cycle ops.
+  //
+
+  //
   // EX/MEM Pipeline Register
   //
   if (PIPELINED != 0) begin : g_registered
@@ -592,6 +613,7 @@ module svc_rv_stage_ex #(
     logic ex_mem_en;
     assign ex_mem_en = (!valid_reg || m_ready);
     assign m_valid   = valid_reg && !mc_in_progress_ex;
+    assign s_ready   = ex_mem_en && !mc_in_progress_ex;
 
     always_ff @(posedge clk) begin
       if (!rst_n) begin
@@ -671,8 +693,9 @@ module svc_rv_stage_ex #(
     assign trap_mem = trap_ex | misalign_trap;
     assign trap_code_mem = misalign_trap ? TRAP_INSTR_MISALIGN : trap_code_ex;
     assign m_valid = valid_ex && !mc_in_progress_ex;
+    assign s_ready = m_ready && !mc_in_progress_ex;
 
-    `SVC_UNUSED({ex_mem_flush, m_ready});
+    `SVC_UNUSED({ex_mem_flush});
   end
 
   `SVC_UNUSED({funct7_ex[6:5], funct7_ex[4:0], is_m_ex, is_csr_ex});
@@ -695,7 +718,24 @@ module svc_rv_stage_ex #(
   end
 
   //
-  // m_valid/m_ready handshake assertions
+  // s_valid/s_ready handshake assumptions (input interface)
+  //
+  // Once s_valid goes high, it must stay high until s_ready
+  // All input signals must remain stable while s_valid && !s_ready
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      //
+      // s_valid must stay high until s_ready
+      //
+      if ($past(s_valid && !s_ready)) begin
+        `FASSUME(a_s_valid_stable, s_valid);
+      end
+    end
+  end
+
+  //
+  // m_valid/m_ready handshake assertions (output interface)
   //
   // Once m_valid goes high, it must stay high until m_ready
   // All output signals must remain stable while m_valid && !m_ready

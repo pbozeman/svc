@@ -5,6 +5,7 @@
 `include "svc_muxn.sv"
 `include "svc_unused.sv"
 
+`include "svc_rv_bpred_id.sv"
 `include "svc_rv_idec.sv"
 `include "svc_rv_regfile.sv"
 `include "svc_rv_fwd_id.sv"
@@ -23,15 +24,15 @@
 // control signals for the execute stage.
 //
 module svc_rv_stage_id #(
-    parameter int XLEN,
-    parameter int MEM_TYPE,
-    parameter int PIPELINED,
-    parameter int FWD_REGFILE,
-    parameter int BPRED,
-    parameter int BTB_ENABLE,
-    parameter int RAS_ENABLE,
-    parameter int EXT_ZMMUL,
-    parameter int EXT_M
+    parameter int XLEN        = 32,
+    parameter int MEM_TYPE    = 0,
+    parameter int PIPELINED   = 1,
+    parameter int FWD_REGFILE = 1,
+    parameter int BPRED       = 0,
+    parameter int BTB_ENABLE  = 0,
+    parameter int RAS_ENABLE  = 0,
+    parameter int EXT_ZMMUL   = 0,
+    parameter int EXT_M       = 0
 ) (
     input logic clk,
     input logic rst_n,
@@ -110,9 +111,10 @@ module svc_rv_stage_id #(
     output logic [XLEN-1:0] pred_target_ex,
 
     //
-    // Instruction validity to EX stage
+    // Ready/valid interface to EX stage
     //
-    output logic valid_ex,
+    output logic m_valid,
+    input  logic m_ready,
 
     //
     // Outputs to hazard unit (combinational from ID stage)
@@ -332,6 +334,15 @@ module svc_rv_stage_id #(
     end
 
     //
+    // Ready/valid output
+    //
+    // For now, m_valid exposes the existing valid_ex register.
+    // m_ready is unused - stall logic still uses id_ex_stall.
+    //
+    logic valid_ex;
+    assign m_valid = valid_ex;
+
+    //
     // Control signals: need reset for correct behavior
     //
     always_ff @(posedge clk) begin
@@ -432,6 +443,11 @@ module svc_rv_stage_id #(
       end
     end
 
+    //
+    // m_ready unused for now - stall logic still uses id_ex_stall
+    //
+    `SVC_UNUSED(m_ready);
+
   end else begin : g_passthrough
     assign reg_write_ex     = reg_write_id;
     assign mem_read_ex      = mem_read_id;
@@ -463,13 +479,70 @@ module svc_rv_stage_id #(
     assign pc_plus4_ex      = pc_plus4_id;
     assign bpred_taken_ex   = 1'b0;
     assign pred_target_ex   = '0;
-    assign valid_ex         = valid_id;
+    assign m_valid          = valid_id;
 
     // verilog_format: off
     `SVC_UNUSED({rst_n, id_ex_stall, id_ex_flush, fwd_rs1_id, fwd_rs2_id,
-                 bpred_taken_id, ras_valid_id, ras_target_id});
+                 bpred_taken_id, ras_valid_id, ras_target_id, m_ready});
     // verilog_format: on
   end
+
+`ifdef FORMAL
+`ifdef FORMAL_SVC_RV_STAGE_ID
+  `define FASSERT(label, a) label: assert(a)
+  `define FASSUME(label, a) label: assume(a)
+  `define FCOVER(label, a) label: cover(a)
+`else
+  `define FASSERT(label, a) label: assume(a)
+  `define FASSUME(label, a) label: assert(a)
+  `define FCOVER(label, a)
+`endif
+
+  logic f_past_valid = 1'b0;
+
+  always @(posedge clk) begin
+    f_past_valid <= 1'b1;
+  end
+
+  //
+  // m_valid/m_ready handshake assertions (output interface)
+  //
+  // NOTE: The ID stage does not yet implement proper ready/valid buffering.
+  // Currently m_valid follows valid_id directly, which can drop unexpectedly.
+  // The full protocol will be implemented when id_ex_stall is replaced with
+  // proper backpressure via m_ready.
+  //
+  // Unlike strict AXI-style valid/ready, pipeline flush/kill is allowed to
+  // drop m_valid even when m_ready is low. This is intentional - flush is
+  // orthogonal to flow control and gates m_valid to create bubbles.
+  //
+  // TODO: Add assertion once ID stage implements proper ready/valid buffering:
+  // if ($past(m_valid && !m_ready)) begin
+  //   assert(m_valid || id_ex_flush);
+  // end
+  //
+
+  //
+  // Cover properties
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      //
+      // Cover back-to-back valid transfers
+      //
+      `FCOVER(c_back_to_back, $past(m_valid && m_ready) && m_valid);
+
+      //
+      // Cover stalled transfer (valid high, ready low for a cycle)
+      //
+      `FCOVER(c_stalled, $past(m_valid && !m_ready) && m_valid && m_ready);
+    end
+  end
+
+  `undef FASSERT
+  `undef FASSUME
+  `undef FCOVER
+`endif
 
 endmodule
 
