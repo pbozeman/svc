@@ -233,6 +233,12 @@ module {{ name }};
 {% if check.spec_rd_wdata is defined %}
     `CHECK_EQ(rvfi_rd_wdata, 32'h{{ '%08x' % check.spec_rd_wdata }});
 {% endif %}
+{% if check.spec_rs1_addr is defined and check.spec_rs1_addr != 0 %}
+    `CHECK_EQ(rvfi_rs1_addr, 5'd{{ check.spec_rs1_addr }});
+{% endif %}
+{% if check.spec_rs2_addr is defined and check.spec_rs2_addr != 0 %}
+    `CHECK_EQ(rvfi_rs2_addr, 5'd{{ check.spec_rs2_addr }});
+{% endif %}
 {% if check.spec_trap is defined %}
     `CHECK_EQ(rvfi_trap, 1'b{{ check.spec_trap }});
 {% endif %}
