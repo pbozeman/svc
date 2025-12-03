@@ -303,6 +303,7 @@ module svc_axi_stripe_rd #(
   `SVC_UNUSED({s_axi_araddr[S_WIDTH+O_WIDTH-1:O_WIDTH], fifo_r_r_empty});
 
 `ifdef FORMAL
+`ifndef FORMAL_NO_SUBMODULES
   // Formal testing happens in the combined module, but we do have asserts
   // regarding bad behavior of the callers.
   //
@@ -325,6 +326,7 @@ module svc_axi_stripe_rd #(
       end
     end
   end
+`endif
 `endif
 
 endmodule
