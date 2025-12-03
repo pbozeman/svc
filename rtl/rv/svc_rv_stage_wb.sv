@@ -28,7 +28,7 @@ module svc_rv_stage_wb #(
     input logic [     2:0] res_src_wb,
     input logic [    31:0] instr_wb,
     input logic [XLEN-1:0] alu_result_wb,
-    input logic [XLEN-1:0] dmem_rdata_ext_wb,
+    input logic [XLEN-1:0] ld_data_wb,
     input logic [XLEN-1:0] pc_plus4_wb,
     input logic [XLEN-1:0] jb_target_wb,
     input logic [XLEN-1:0] csr_rdata_wb,
@@ -101,7 +101,7 @@ module svc_rv_stage_wb #(
         csr_rdata_wb,
         jb_target_wb,
         pc_plus4_wb,
-        dmem_rdata_ext_wb,
+        ld_data_wb,
         alu_result_wb
       }),
       .out(rd_data_wb)
