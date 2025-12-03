@@ -367,7 +367,8 @@ def extract_from_vcd(vcd_file):
 
 
 def generate_testbench(
-    prog, dmem_per_cycle, spec_checks, reg_checks, init_state, name, max_cycles, params
+    prog, dmem_per_cycle, spec_checks, reg_checks, init_state, name, max_cycles, params,
+    formal_target
 ):
     """Generate SystemVerilog testbench using Jinja2 template."""
     env = Environment(
@@ -409,6 +410,7 @@ def generate_testbench(
         spec_checks=spec_checks,
         reg_checks=reg_checks,
         init_state=state,
+        formal_target=formal_target,
         **params,
     )
 
@@ -495,14 +497,34 @@ def main():
     # Generate testbench name from directory structure
     # e.g., bram_bpred_fwd_checks/insn_sub_ch0 -> bram_bpred_fwd_insn_sub
     #
+    # Also determine the formal target for re-running
+    # Format: rv_<config>__<check>_f
+    #
+    dir_name = check_dir.name
+    if "__" in dir_name:
+        #
+        # Build path: directory name already has config__check format
+        #
+        formal_target = dir_name
+        parts = dir_name.split("__")
+        parent = parts[0]
+        check = parts[1].replace("_ch0", "") if len(parts) > 1 else dir_name
+    else:
+        #
+        # Source path: parent is <config>_checks, dir is <check>
+        #
+        parent = check_dir.parent.name.replace("_checks", "")
+        check = dir_name.replace("_ch0", "")
+        formal_target = f"{parent}__{dir_name}"
+
     if args.name:
         name = args.name
     else:
-        parent = check_dir.parent.name.replace("_checks", "")
-        check = check_dir.name.replace("_ch0", "")
         name = f"svc_rvf_{parent}_{check}_tb"
+
     tb = generate_testbench(
-        prog, dmem_per_cycle, spec_checks, reg_checks, init_state, name, args.cycles, params
+        prog, dmem_per_cycle, spec_checks, reg_checks, init_state, name, args.cycles,
+        params, formal_target
     )
 
     #
@@ -510,7 +532,11 @@ def main():
     #
     output_file = TB_DIR / f"{name}.sv"
     output_file.write_text(tb)
-    print(f"# Written to {output_file}\n", file=sys.stderr)
+    print(f"# Written to {output_file}", file=sys.stderr)
+    print(f"#", file=sys.stderr)
+    print(f"# Re-run formal:", file=sys.stderr)
+    print(f"make rv_{formal_target}_f\n", file=sys.stderr)
+
     print(f"make {name}", file=sys.stderr)
     print(f"make {name} SVC_RV_DBG_CPU=1 | rv_colorize", file=sys.stderr)
 
