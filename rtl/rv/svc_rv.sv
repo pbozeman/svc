@@ -237,7 +237,7 @@ module svc_rv #(
   logic [XLEN-1:0] alu_result_wb;
   logic [XLEN-1:0] rs1_data_wb;
   logic [XLEN-1:0] rs2_data_wb;
-  logic [XLEN-1:0] dmem_rdata_ext_wb;
+  logic [XLEN-1:0] ld_data_wb;
   logic [XLEN-1:0] pc_plus4_wb;
   logic [XLEN-1:0] jb_target_wb;
   logic [XLEN-1:0] csr_rdata_wb;

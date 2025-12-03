@@ -95,7 +95,7 @@ module svc_rv_stage_mem #(
     output logic [XLEN-1:0] alu_result_wb,
     output logic [XLEN-1:0] rs1_data_wb,
     output logic [XLEN-1:0] rs2_data_wb,
-    output logic [XLEN-1:0] dmem_rdata_ext_wb,
+    output logic [XLEN-1:0] ld_data_wb,
     output logic [XLEN-1:0] pc_plus4_wb,
     output logic [XLEN-1:0] jb_target_wb,
     output logic [XLEN-1:0] csr_rdata_wb,
@@ -209,7 +209,7 @@ module svc_rv_stage_mem #(
   // For SRAM: Format in MEM stage (combinational memory)
   // For BRAM: Format in WB stage (registered memory)
   //
-  logic [XLEN-1:0] dmem_rdata_ext_mem;
+  logic [XLEN-1:0] ld_data_mem;
 
   logic [     1:0] ld_fmt_addr;
   logic [     2:0] ld_fmt_funct3;
@@ -220,22 +220,22 @@ module svc_rv_stage_mem #(
 `endif
 
   if (MEM_TYPE == MEM_TYPE_SRAM) begin : g_ld_fmt_signals_sram
-    assign ld_fmt_addr        = alu_result_mem[1:0];
-    assign ld_fmt_funct3      = funct3_mem;
-    assign dmem_rdata_ext_mem = ld_fmt_out;
+    assign ld_fmt_addr   = alu_result_mem[1:0];
+    assign ld_fmt_funct3 = funct3_mem;
+    assign ld_data_mem   = ld_fmt_out;
 
   end else begin : g_ld_fmt_signals_bram
     //
     // Use funct3_wb from pipeline registers for BRAM load formatting
     //
-    assign ld_fmt_addr        = alu_result_wb[1:0];
-    assign ld_fmt_funct3      = funct3_wb;
+    assign ld_fmt_addr   = alu_result_wb[1:0];
+    assign ld_fmt_funct3 = funct3_wb;
 
     //
     // BRAM formatter output is already WB-stage timed
     //
-    assign dmem_rdata_ext_mem = '0;
-    assign dmem_rdata_ext_wb  = ld_fmt_out;
+    assign ld_data_mem   = '0;
+    assign ld_data_wb    = ld_fmt_out;
   end
 
   svc_rv_fmt_ld #(
@@ -273,7 +273,7 @@ module svc_rv_stage_mem #(
     endcase
   end
 
-  assign load_data_mem = dmem_rdata_ext_mem;
+  assign load_data_mem = ld_data_mem;
 
   // RAS Update Logic
   //
@@ -434,15 +434,15 @@ module svc_rv_stage_mem #(
     // BRAM data is already assigned in the formatter section above
     //
     if (MEM_TYPE == MEM_TYPE_SRAM) begin : g_dmem_rdata_sram
-      logic [XLEN-1:0] dmem_rdata_ext_wb_piped;
+      logic [XLEN-1:0] ld_data_wb_piped;
 
       always_ff @(posedge clk) begin
         if (!mem_wb_stall) begin
-          dmem_rdata_ext_wb_piped <= dmem_rdata_ext_mem;
+          ld_data_wb_piped <= ld_data_mem;
         end
       end
 
-      assign dmem_rdata_ext_wb = dmem_rdata_ext_wb_piped;
+      assign ld_data_wb = ld_data_wb_piped;
     end
 
 `ifdef RISCV_FORMAL
@@ -532,7 +532,7 @@ module svc_rv_stage_mem #(
     // BRAM data is already assigned in the formatter section above
     //
     if (MEM_TYPE == MEM_TYPE_SRAM) begin : g_dmem_rdata_sram
-      assign dmem_rdata_ext_wb = dmem_rdata_ext_mem;
+      assign ld_data_wb = ld_data_mem;
     end
 
 `ifdef RISCV_FORMAL
