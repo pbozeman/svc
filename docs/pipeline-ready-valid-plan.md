@@ -725,3 +725,40 @@ When starting a step:
 5. Commit with step marker
 
 No prior conversation context needed.
+
+---
+
+## Future Cleanup Tasks
+
+These are additional cleanup items identified during implementation:
+
+### Remove op_active_ex as EX Output
+
+Once all stages use ready/valid internally, `op_active_ex` no longer needs to be
+an output from EX stage. Currently it's still used for:
+
+- `pc_stall` and `if_id_stall` in svc_rv.sv
+
+The plan is to have IF stalls also driven by ready/valid backpressure. When
+that's complete, `op_active_ex` can become internal to EX stage only.
+
+### Debug Display Stall Indicator
+
+Change the debug display (`svc_rv_dbg.svh`) stall indicator to only show "s"
+when `valid && !ready` (actual backpressure), not just `!ready`. This gives a
+more accurate picture of when instructions are actually stalled vs when the
+stage is simply empty.
+
+Current:
+
+```systemverilog
+stall_str = !stage_id.m_ready ? "s" : " ";
+```
+
+Should be:
+
+```systemverilog
+stall_str = (stage_id.m_valid && !stage_id.m_ready) ? "s" : " ";
+```
+
+Apply similar pattern to all stage debug displays.

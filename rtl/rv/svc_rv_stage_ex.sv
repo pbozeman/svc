@@ -613,7 +613,11 @@ module svc_rv_stage_ex #(
     logic ex_mem_en;
     assign ex_mem_en = (!valid_reg || m_ready);
     assign m_valid   = valid_reg && !mc_in_progress_ex;
-    assign s_ready   = ex_mem_en && !mc_in_progress_ex;
+    //
+    // Block s_ready when multi-cycle op is active (op_active_ex covers both
+    // the starting cycle and execution cycles).
+    //
+    assign s_ready   = ex_mem_en && !op_active_ex;
 
     always_ff @(posedge clk) begin
       if (!rst_n) begin
@@ -693,7 +697,11 @@ module svc_rv_stage_ex #(
     assign trap_mem = trap_ex | misalign_trap;
     assign trap_code_mem = misalign_trap ? TRAP_INSTR_MISALIGN : trap_code_ex;
     assign m_valid = valid_ex && !mc_in_progress_ex;
-    assign s_ready = m_ready && !mc_in_progress_ex;
+    //
+    // Block s_ready when multi-cycle op is active (op_active_ex covers both
+    // the starting cycle and execution cycles).
+    //
+    assign s_ready = m_ready && !op_active_ex;
 
     `SVC_UNUSED({ex_mem_flush});
   end

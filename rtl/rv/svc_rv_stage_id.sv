@@ -40,7 +40,6 @@ module svc_rv_stage_id #(
     //
     // Hazard control
     //
-    input logic id_ex_stall,
     input logic id_ex_flush,
 
     //
@@ -373,7 +372,7 @@ module svc_rv_stage_id #(
         // prediction before if_id_stall releases and RAS/BTB buffers get overwritten
         //
         bpred_taken_ex <= bpred_taken_id;
-      end else if (!id_ex_stall) begin
+      end else if (m_ready) begin
         reg_write_ex   <= reg_write_id;
         mem_read_ex    <= mem_read_id;
         mem_write_ex   <= mem_write_id;
@@ -418,7 +417,7 @@ module svc_rv_stage_id #(
         // prediction before if_id_stall releases and RAS/BTB buffers get overwritten
         //
         pred_target_ex   <= final_pred_target_id;
-      end else if (!id_ex_stall) begin
+      end else if (m_ready) begin
         alu_a_src_ex     <= alu_a_src_id;
         alu_b_src_ex     <= alu_b_src_id;
         alu_instr_ex     <= alu_instr_id;
@@ -443,10 +442,6 @@ module svc_rv_stage_id #(
       end
     end
 
-    //
-    // m_ready unused for now - stall logic still uses id_ex_stall
-    //
-    `SVC_UNUSED(m_ready);
 
   end else begin : g_passthrough
     assign reg_write_ex     = reg_write_id;
@@ -482,7 +477,7 @@ module svc_rv_stage_id #(
     assign m_valid          = valid_id;
 
     // verilog_format: off
-    `SVC_UNUSED({rst_n, id_ex_stall, id_ex_flush, fwd_rs1_id, fwd_rs2_id,
+    `SVC_UNUSED({rst_n, id_ex_flush, fwd_rs1_id, fwd_rs2_id,
                  bpred_taken_id, ras_valid_id, ras_target_id, m_ready});
     // verilog_format: on
   end

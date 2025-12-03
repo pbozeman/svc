@@ -188,7 +188,7 @@ function automatic string fmt_id_debug();
   string flush_str;
   string pred_str;
 
-  stall_str = id_ex_stall ? "s" : " ";
+  stall_str = !stage_id.m_ready ? "s" : " ";
   flush_str = id_ex_flush ? "f" : " ";
 
   if (BPRED != 0) begin

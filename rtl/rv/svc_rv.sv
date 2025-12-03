@@ -330,7 +330,6 @@ module svc_rv #(
   (* max_fanout = 32 *)logic pc_stall;
   (* max_fanout = 32 *)logic if_id_stall;
   (* max_fanout = 32 *)logic if_id_flush;
-  (* max_fanout = 32 *)logic id_ex_stall;
   (* max_fanout = 32 *)logic id_ex_flush;
   (* max_fanout = 32 *)logic ex_mem_flush;
   // verilog_format: on
@@ -442,7 +441,6 @@ module svc_rv #(
     assign pc_stall     = op_active_ex || halt_next || halt;
     assign if_id_stall  = op_active_ex || halt_next || halt;
     assign if_id_flush  = 1'b0;
-    assign id_ex_stall  = halt_next || halt;
     assign id_ex_flush  = 1'b0;
     assign ex_mem_flush = 1'b0;
 
@@ -457,7 +455,6 @@ module svc_rv #(
     assign pc_stall     = halt_next || halt;
     assign if_id_stall  = halt_next || halt;
     assign if_id_flush  = 1'b0;
-    assign id_ex_stall  = halt_next || halt;
     assign id_ex_flush  = 1'b0;
     assign ex_mem_flush = 1'b0;
 
