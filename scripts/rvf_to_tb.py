@@ -302,6 +302,18 @@ def extract_from_vcd(vcd_file):
         "spec_rs1_addr",
         "spec_rs2_addr",
         "spec_trap",
+        "spec_mem_addr",
+        "spec_mem_rmask",
+        "spec_mem_wmask",
+    ]
+
+    #
+    # Also extract the actual RVFI signals to compare against spec
+    #
+    rvfi_names = [
+        "mem_rmask",
+        "mem_wmask",
+        "mem_addr",
     ]
 
     spec_checks = []
@@ -317,6 +329,11 @@ def extract_from_vcd(vcd_file):
                 order = t // 10
             check = {"order": order}
             for name in spec_names:
+                tv = checker_signals.get(name, [])
+                val = get_value_at_time(tv, t)
+                if val and "x" not in val.lower():
+                    check[name] = int(val, 2)
+            for name in rvfi_names:
                 tv = checker_signals.get(name, [])
                 val = get_value_at_time(tv, t)
                 if val and "x" not in val.lower():
