@@ -333,15 +333,6 @@ module svc_rv_stage_id #(
     end
 
     //
-    // Ready/valid output
-    //
-    // For now, m_valid exposes the existing valid_ex register.
-    // m_ready is unused - stall logic still uses id_ex_stall.
-    //
-    logic valid_ex;
-    assign m_valid = valid_ex;
-
-    //
     // Control signals: need reset for correct behavior
     //
     always_ff @(posedge clk) begin
@@ -349,7 +340,7 @@ module svc_rv_stage_id #(
         reg_write_ex   <= 1'b0;
         mem_read_ex    <= 1'b0;
         mem_write_ex   <= 1'b0;
-        valid_ex       <= 1'b0;
+        m_valid        <= 1'b0;
         is_branch_ex   <= 1'b0;
         is_jmp_ex      <= 1'b0;
         is_jal_ex      <= 1'b0;
@@ -360,7 +351,7 @@ module svc_rv_stage_id #(
         reg_write_ex   <= 1'b0;
         mem_read_ex    <= 1'b0;
         mem_write_ex   <= 1'b0;
-        valid_ex       <= 1'b0;
+        m_valid        <= 1'b0;
         is_branch_ex   <= 1'b0;
         is_jmp_ex      <= 1'b0;
         is_jal_ex      <= 1'b0;
@@ -372,11 +363,11 @@ module svc_rv_stage_id #(
         // prediction before if_id_stall releases and RAS/BTB buffers get overwritten
         //
         bpred_taken_ex <= bpred_taken_id;
-      end else if (m_ready) begin
+      end else if (!m_valid || m_ready) begin
+        m_valid        <= valid_id;
         reg_write_ex   <= reg_write_id;
         mem_read_ex    <= mem_read_id;
         mem_write_ex   <= mem_write_id;
-        valid_ex       <= valid_id;
         is_branch_ex   <= is_branch_id;
         is_jmp_ex      <= is_jmp_id;
         is_jal_ex      <= is_jal_id;
@@ -387,7 +378,7 @@ module svc_rv_stage_id #(
     end
 
     //
-    // Datapath registers: no reset needed (don't care when valid_ex == 0)
+    // Datapath registers
     //
     always_ff @(posedge clk) begin
       if (id_ex_flush) begin
@@ -417,7 +408,7 @@ module svc_rv_stage_id #(
         // if_id_stall releases and RAS/BTB buffers get overwritten
         //
         pred_target_ex   <= final_pred_target_id;
-      end else if (m_ready) begin
+      end else if (!m_valid || m_ready) begin
         alu_a_src_ex     <= alu_a_src_id;
         alu_b_src_ex     <= alu_b_src_id;
         alu_instr_ex     <= alu_instr_id;
