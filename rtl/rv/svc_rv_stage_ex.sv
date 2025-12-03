@@ -683,10 +683,14 @@ module svc_rv_stage_ex #(
   //
   // Ready/valid interface
   //
-  // m_valid exposes valid_mem for downstream consumption.
+  // m_valid exposes valid_mem for downstream consumption, gated by mc_in_progress_ex
+  // to prevent valid assertion while multi-cycle operations are in progress.
+  // We use mc_in_progress_ex (mc_state == EXEC) rather than op_active_ex because
+  // op_active_ex goes high on the first cycle of a multi-cycle op, but at that
+  // point valid_mem is still for the PREVIOUS instruction which should pass through.
   // m_ready controls pipeline register updates.
   //
-  assign m_valid = valid_mem;
+  assign m_valid = valid_mem && !mc_in_progress_ex;
 
   `SVC_UNUSED({funct7_ex[6:5], funct7_ex[4:0], is_m_ex, is_csr_ex});
 
