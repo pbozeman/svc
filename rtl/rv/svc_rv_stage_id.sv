@@ -502,20 +502,59 @@ module svc_rv_stage_id #(
   //
   // m_valid/m_ready handshake assertions (output interface)
   //
-  // NOTE: The ID stage does not yet implement proper ready/valid buffering.
-  // Currently m_valid follows valid_id directly, which can drop unexpectedly.
-  // The full protocol will be implemented when id_ex_stall is replaced with
-  // proper backpressure via m_ready.
-  //
   // Unlike strict AXI-style valid/ready, pipeline flush/kill is allowed to
   // drop m_valid even when m_ready is low. This is intentional - flush is
   // orthogonal to flow control and gates m_valid to create bubbles.
   //
-  // TODO: Add assertion once ID stage implements proper ready/valid buffering:
-  // if ($past(m_valid && !m_ready)) begin
-  //   assert(m_valid || id_ex_flush);
-  // end
-  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      if ($past(m_valid && !m_ready && !id_ex_flush)) begin
+        //
+        // Valid must remain asserted until ready (unless flushed)
+        //
+        `FASSERT(a_valid_stable, m_valid || id_ex_flush);
+
+        //
+        // Control signals must remain stable
+        //
+        `FASSERT(a_reg_write_stable, reg_write_ex == $past(reg_write_ex));
+        `FASSERT(a_mem_read_stable, mem_read_ex == $past(mem_read_ex));
+        `FASSERT(a_mem_write_stable, mem_write_ex == $past(mem_write_ex));
+        `FASSERT(a_alu_a_src_stable, alu_a_src_ex == $past(alu_a_src_ex));
+        `FASSERT(a_alu_b_src_stable, alu_b_src_ex == $past(alu_b_src_ex));
+        `FASSERT(a_alu_instr_stable, alu_instr_ex == $past(alu_instr_ex));
+        `FASSERT(a_res_src_stable, res_src_ex == $past(res_src_ex));
+        `FASSERT(a_is_branch_stable, is_branch_ex == $past(is_branch_ex));
+        `FASSERT(a_is_jmp_stable, is_jmp_ex == $past(is_jmp_ex));
+        `FASSERT(a_jb_target_src_stable, jb_target_src_ex == $past(
+                 jb_target_src_ex));
+        `FASSERT(a_is_mc_stable, is_mc_ex == $past(is_mc_ex));
+        `FASSERT(a_is_m_stable, is_m_ex == $past(is_m_ex));
+        `FASSERT(a_is_csr_stable, is_csr_ex == $past(is_csr_ex));
+        `FASSERT(a_is_jal_stable, is_jal_ex == $past(is_jal_ex));
+        `FASSERT(a_is_jalr_stable, is_jalr_ex == $past(is_jalr_ex));
+        `FASSERT(a_trap_stable, trap_ex == $past(trap_ex));
+        `FASSERT(a_trap_code_stable, trap_code_ex == $past(trap_code_ex));
+
+        //
+        // Datapath signals must remain stable
+        //
+        `FASSERT(a_instr_stable, instr_ex == $past(instr_ex));
+        `FASSERT(a_rd_stable, rd_ex == $past(rd_ex));
+        `FASSERT(a_rs1_stable, rs1_ex == $past(rs1_ex));
+        `FASSERT(a_rs2_stable, rs2_ex == $past(rs2_ex));
+        `FASSERT(a_funct3_stable, funct3_ex == $past(funct3_ex));
+        `FASSERT(a_funct7_stable, funct7_ex == $past(funct7_ex));
+        `FASSERT(a_rs1_data_stable, rs1_data_ex == $past(rs1_data_ex));
+        `FASSERT(a_rs2_data_stable, rs2_data_ex == $past(rs2_data_ex));
+        `FASSERT(a_imm_stable, imm_ex == $past(imm_ex));
+        `FASSERT(a_pc_stable, pc_ex == $past(pc_ex));
+        `FASSERT(a_pc_plus4_stable, pc_plus4_ex == $past(pc_plus4_ex));
+        `FASSERT(a_bpred_taken_stable, bpred_taken_ex == $past(bpred_taken_ex));
+        `FASSERT(a_pred_target_stable, pred_target_ex == $past(pred_target_ex));
+      end
+    end
+  end
 
   //
   // Cover properties
