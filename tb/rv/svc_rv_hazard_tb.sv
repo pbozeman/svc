@@ -32,7 +32,6 @@ module svc_rv_hazard_tb;
   logic       id_ex_stall;
   logic       ex_mem_stall;
   logic       ex_mem_flush;
-  logic       mem_wb_stall;
   // verilator lint_on UNUSEDSIGNAL
   logic       id_ex_flush;
 
@@ -61,7 +60,6 @@ module svc_rv_hazard_tb;
       .mispredicted_mem(mispredicted_mem),
       .btb_pred_taken  (1'b0),
       .ras_pred_taken  (1'b0),
-      .halt_next       (halt),
       .halt            (halt),
       .pc_stall        (pc_stall),
       .if_id_stall     (if_id_stall),
@@ -69,8 +67,7 @@ module svc_rv_hazard_tb;
       .id_ex_stall     (id_ex_stall),
       .id_ex_flush     (id_ex_flush),
       .ex_mem_stall    (ex_mem_stall),
-      .ex_mem_flush    (ex_mem_flush),
-      .mem_wb_stall    (mem_wb_stall)
+      .ex_mem_flush    (ex_mem_flush)
   );
 
   task automatic test_reset;
