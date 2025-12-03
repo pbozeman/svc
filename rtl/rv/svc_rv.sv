@@ -198,6 +198,10 @@ module svc_rv #(
   logic            rs1_used_id;
   logic            rs2_used_id;
 
+  // IF -> ID (ready/valid interface)
+  logic            if_m_valid;
+  logic            if_m_ready;
+
   // ID -> EX (ready/valid interface)
   logic            id_m_valid;
   logic            id_m_ready;
@@ -397,14 +401,6 @@ module svc_rv #(
   assign retired = wb_m_valid && wb_m_ready;
 
   //
-  // Pipeline validity signals
-  //
-  // Track whether each pipeline slot contains a real, non-flushed instruction.
-  // Used for accurate instruction retirement counting and RVFI.
-  //
-  logic valid_id;
-
-  //
   // Halt signals
   //
   logic halt;
@@ -559,6 +555,8 @@ module svc_rv #(
       .BPRED    (BPRED),
       .RESET_PC (RESET_PC)
   ) stage_if (
+      .m_valid(if_m_valid),
+      .m_ready(if_m_ready),
       .*
   );
 
@@ -576,6 +574,8 @@ module svc_rv #(
       .EXT_ZMMUL  (EXT_ZMMUL),
       .EXT_M      (EXT_M)
   ) stage_id (
+      .s_valid    (if_m_valid),
+      .s_ready    (if_m_ready),
       .pred_target(pred_target_id),
       .m_valid    (id_m_valid),
       .m_ready    (id_m_ready),

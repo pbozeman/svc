@@ -3,6 +3,7 @@
 
 `include "svc.sv"
 `include "svc_unused.sv"
+`include "svc_rv_bpred_if.sv"
 `include "svc_rv_stage_if_sram.sv"
 `include "svc_rv_stage_if_bram.sv"
 
@@ -15,11 +16,11 @@
 // - Instantiation of memory-type-specific fetch logic
 //
 module svc_rv_stage_if #(
-    parameter int          XLEN,
-    parameter int          PIPELINED,
-    parameter int          MEM_TYPE,
-    parameter int          BPRED,
-    parameter logic [31:0] RESET_PC
+    parameter int          XLEN      = 32,
+    parameter int          PIPELINED = 1,
+    parameter int          MEM_TYPE  = 0,
+    parameter int          BPRED     = 0,
+    parameter logic [31:0] RESET_PC  = 32'h0000_0000
 ) (
     input logic clk,
     input logic rst_n,
@@ -82,9 +83,10 @@ module svc_rv_stage_if #(
     output logic [XLEN-1:0] ras_target_id,
 
     //
-    // Instruction validity to ID stage
+    // Ready/valid interface to ID stage
     //
-    output logic valid_id
+    output logic m_valid,
+    input  logic m_ready
 );
 
   `include "svc_rv_defs.svh"
@@ -174,7 +176,6 @@ module svc_rv_stage_if #(
 
     assign pc_id       = pc_id_buf;
     assign pc_plus4_id = pc_plus4_id_buf;
-    assign valid_id    = valid_to_if_id;
 
     //
     // BTB and RAS signal buffering
@@ -190,7 +191,6 @@ module svc_rv_stage_if #(
   end else begin : g_passthrough
     assign pc_id       = pc_to_if_id;
     assign pc_plus4_id = pc_plus4_to_if_id;
-    assign valid_id    = valid_to_if_id;
 
     //
     // BTB and RAS passthrough for non-pipelined
@@ -203,6 +203,73 @@ module svc_rv_stage_if #(
         .*
     );
   end
+
+  //
+  // Ready/valid output
+  //
+  // m_valid indicates a valid instruction is ready to transfer to ID.
+  // m_ready is unused - stall logic still uses if_id_stall.
+  //
+  assign m_valid = valid_to_if_id;
+
+  `SVC_UNUSED(m_ready);
+
+`ifdef FORMAL
+`ifdef FORMAL_SVC_RV_STAGE_IF
+  `define FASSERT(label, a) label: assert(a)
+  `define FASSUME(label, a) label: assume(a)
+  `define FCOVER(label, a) label: cover(a)
+`else
+  `define FASSERT(label, a) label: assume(a)
+  `define FASSUME(label, a) label: assert(a)
+  `define FCOVER(label, a)
+`endif
+
+  logic f_past_valid = 1'b0;
+
+  always @(posedge clk) begin
+    f_past_valid <= 1'b1;
+  end
+
+  //
+  // m_valid/m_ready handshake assertions (output interface)
+  //
+  // NOTE: The IF stage does not yet implement proper ready/valid buffering.
+  // Currently m_valid can drop unexpectedly due to flush.
+  // The full protocol will be implemented when if_id_stall is replaced with
+  // proper backpressure via m_ready.
+  //
+  // Unlike strict AXI-style valid/ready, pipeline flush/kill is allowed to
+  // drop m_valid even when m_ready is low. This is intentional - flush is
+  // orthogonal to flow control and gates m_valid to create bubbles.
+  //
+  // TODO: Add assertion once IF stage implements proper ready/valid buffering:
+  // if ($past(m_valid && !m_ready)) begin
+  //   assert(m_valid || if_id_flush);
+  // end
+  //
+
+  //
+  // Cover properties
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      //
+      // Cover back-to-back valid transfers
+      //
+      `FCOVER(c_back_to_back, $past(m_valid && m_ready) && m_valid);
+
+      //
+      // Cover stalled transfer (valid high, ready low for a cycle)
+      //
+      `FCOVER(c_stalled, $past(m_valid && !m_ready) && m_valid && m_ready);
+    end
+  end
+
+  `undef FASSERT
+  `undef FASSUME
+  `undef FCOVER
+`endif
 
 endmodule
 

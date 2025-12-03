@@ -2,7 +2,6 @@
 `define SVC_RV_BPRED_IF_SV
 
 `include "svc.sv"
-`include "svc_unused.sv"
 
 //
 // RISC-V Branch Prediction - IF Stage
@@ -131,7 +130,10 @@ module svc_rv_bpred_if #(
     assign ras_valid_id      = ras_valid_to_if_id;
     assign ras_target_id     = ras_target_to_if_id;
 
+    // verilog_format: off
+    `include "svc_unused.sv"
     `SVC_UNUSED({clk, rst_n, if_id_stall, if_id_flush});
+    // verilog_format: on
   end
 
 endmodule
