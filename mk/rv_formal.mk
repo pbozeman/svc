@@ -153,9 +153,14 @@ define rv_f_run_check
 	@touch $(RV_F_BUILD_DIR)/rv_f_run.log $(RV_F_BUILD_DIR)/rv_f_success.log $(RV_F_BUILD_DIR)/rv_f_failure.log
 	@echo "$(RV_F_TGT)" >> $(RV_F_BUILD_DIR)/rv_f_run.log
 	@cd $(RV_F_DIR)/$(RV_F_CFG) && \
-		$(SBY) --prefix $(BUILD_DIR)/rvformal/$(RV_F_TGT) -f $(RV_F_CHK).sby \
+		$(SBY) --prefix $(RV_F_BUILD_DIR)/$(RV_F_TGT) -f $(RV_F_CHK).sby \
 		&& echo "$(RV_F_TGT)" >> $(RV_F_BUILD_DIR)/rv_f_success.log \
 		|| echo "make rv_$(RV_F_TGT)_f" >> $(RV_F_BUILD_DIR)/rv_f_failure.log
+	@if [ -f $(RV_F_BUILD_DIR)/$(RV_F_TGT)/FAIL ]; then \
+		echo ""; \
+		echo "Generate tb:"; \
+		echo "./scripts/rvf_to_tb.py $(BUILD_DIR)/rvformal/$(RV_F_TGT)"; \
+	fi
 	@touch $(RV_F_BUILD_DIR)/$(RV_F_TGT)/ran
 endef
 

@@ -1,4 +1,7 @@
 // vim: filetype=systemverilog
+//
+// Re-run formal: make rv_{{ formal_target }}_f
+//
 `define RISCV_FORMAL 1
 `define RISCV_FORMAL_ALTOPS 1
 
@@ -193,6 +196,8 @@ module {{ name }};
   // This includes register file, pipeline registers, and other state.
   //
   initial begin
+    $display("Re-run formal:");
+    $display("make rv_{{ formal_target }}_f\n");
     rst_n = 1'b0;
 {% for item in init_state %}
 {% if item[3] %}
