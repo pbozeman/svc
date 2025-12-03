@@ -45,6 +45,12 @@ module svc_rv_stage_wb #(
     input logic valid_wb,
 
     //
+    // Ready/valid interface from MEM stage
+    //
+    input  logic s_valid,
+    output logic s_ready,
+
+    //
     // Output to register file in ID stage
     //
     output logic [XLEN-1:0] rd_data_wb,
@@ -107,9 +113,26 @@ module svc_rv_stage_wb #(
       .out(rd_data_wb)
   );
 
+  //
+  // Ready/valid interface
+  //
+  // WB is normally always ready (regfile write is single-cycle).
+  // Use s_valid as the source of truth for retirement.
+  //
+  // However, when ebreak or trap fires, WB deasserts ready to halt the
+  // pipeline. This prevents MEM from advancing and overwriting the halted
+  // instruction.
+  //
+  // Note: ebreak/trap check instr_wb directly (not s_valid) because once
+  // triggered, they must stay asserted even as s_valid goes low during halt.
+  // The instruction register holds EBREAK until reset, which is correct.
+  //
   assign ebreak  = (rst_n && instr_wb == I_EBREAK);
   assign trap    = (rst_n && trap_wb);
-  assign retired = valid_wb;
+  assign s_ready = !(ebreak || trap);
+  assign retired = s_valid;
+
+  `SVC_UNUSED(valid_wb);
 
 endmodule
 

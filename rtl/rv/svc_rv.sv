@@ -229,6 +229,10 @@ module svc_rv #(
   logic [XLEN-1:0] mul_hh_mem;
 
   // MEM -> WB
+  logic            m_valid;
+  logic            m_ready;
+  logic            s_valid;
+  logic            s_ready;
   logic            reg_write_wb;
   logic [     2:0] res_src_wb;
   logic [    31:0] instr_wb;
@@ -300,7 +304,6 @@ module svc_rv #(
   (* max_fanout = 32 *)logic id_ex_flush;
   (* max_fanout = 32 *)logic ex_mem_stall;
   (* max_fanout = 32 *)logic ex_mem_flush;
-  (* max_fanout = 32 *)logic mem_wb_stall;
   // verilog_format: on
 
   //
@@ -421,7 +424,6 @@ module svc_rv #(
     assign id_ex_flush  = 1'b0;
     assign ex_mem_stall = halt_next || halt;
     assign ex_mem_flush = 1'b0;
-    assign mem_wb_stall = halt_next || halt;
 
     // verilog_format: off
     `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_load_ex,
@@ -440,7 +442,6 @@ module svc_rv #(
     assign id_ex_flush  = 1'b0;
     assign ex_mem_stall = halt_next || halt;
     assign ex_mem_flush = 1'b0;
-    assign mem_wb_stall = halt_next || halt;
 
     // verilog_format: off
     `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_load_ex,
@@ -597,6 +598,12 @@ module svc_rv #(
   // WB Stage: Write Back
   //
   svc_rv_stage_wb #(.XLEN(XLEN)) stage_wb (.*);
+
+  //
+  // MEM -> WB ready/valid wiring (direct connection, no skidbuf yet)
+  //
+  assign s_valid   = m_valid;
+  assign m_ready   = s_ready;
 
   //
   // Halt logic

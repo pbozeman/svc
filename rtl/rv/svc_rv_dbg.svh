@@ -492,7 +492,7 @@ always @(posedge clk) begin
       string stall_str;
       string mem_str;
 
-      stall_str = mem_wb_stall ? "s" : " ";
+      stall_str = !m_ready ? "s" : " ";
 
       if (line != "") line = {line, " | "};
       if (MEM_TYPE == MEM_TYPE_SRAM) begin

@@ -35,7 +35,6 @@ module svc_rv_stage_mem #(
     //
     // Hazard control
     //
-    input logic mem_wb_stall,
     input logic op_active_ex,
 
     //
@@ -118,6 +117,12 @@ module svc_rv_stage_mem #(
     // Instruction validity to WB stage
     //
     output logic valid_wb,
+
+    //
+    // Ready/valid interface to WB stage
+    //
+    output logic m_valid,
+    input  logic m_ready,
 
     //
     // Outputs for forwarding (MEM stage result)
@@ -284,16 +289,16 @@ module svc_rv_stage_mem #(
 
   //
   // Push on call: JAL/JALR with rd != x0
-  // Gate by !mem_wb_stall to ensure single push per instruction
+  // Gate by m_ready to ensure single push per instruction
   //
-  assign ras_push_en   = !mem_wb_stall && is_jmp_mem && (rd_mem != 5'b0);
+  assign ras_push_en   = m_ready && is_jmp_mem && (rd_mem != 5'b0);
   assign ras_push_addr = pc_plus4_mem;
 
   //
   // Pop on return: any JALR
-  // Gate by !mem_wb_stall to ensure single pop per instruction
+  // Gate by m_ready to ensure single pop per instruction
   //
-  assign ras_pop_en    = !mem_wb_stall && is_jalr_mem;
+  assign ras_pop_en    = m_ready && is_jalr_mem;
 
   //
   // JALR misprediction detection (MEM stage)
@@ -381,7 +386,7 @@ module svc_rv_stage_mem #(
     always_ff @(posedge clk) begin
       if (!rst_n) begin
         mem_misalign_stall <= 1'b0;
-      end else if (!mem_wb_stall) begin
+      end else if (m_ready) begin
         // Normal advance - clear since MEM instruction is moving
         mem_misalign_stall <= 1'b0;
       end else if (op_active_ex) begin
@@ -396,7 +401,7 @@ module svc_rv_stage_mem #(
     always_ff @(posedge clk) begin
       if (!rst_n) begin
         valid_wb <= 1'b0;
-      end else if (!mem_wb_stall) begin
+      end else if (m_ready) begin
         valid_wb <= valid_mem;
       end else if (op_active_ex) begin
         // Multi-cycle op stall: clear valid to prevent repeated retirement.
@@ -408,7 +413,7 @@ module svc_rv_stage_mem #(
     // Datapath registers: no reset needed (don't care when valid_wb == 0)
     //
     always_ff @(posedge clk) begin
-      if (!mem_wb_stall) begin
+      if (m_ready) begin
         reg_write_wb <= reg_write_mem && !misalign_trap;
         res_src_wb <= res_src_mem;
         instr_wb <= instr_mem;
@@ -437,7 +442,7 @@ module svc_rv_stage_mem #(
       logic [XLEN-1:0] ld_data_wb_piped;
 
       always_ff @(posedge clk) begin
-        if (!mem_wb_stall) begin
+        if (m_ready) begin
           ld_data_wb_piped <= ld_data_mem;
         end
       end
@@ -482,7 +487,7 @@ module svc_rv_stage_mem #(
         //
         // Update address/data signals when pipeline advances (for loads).
         //
-        if (!mem_wb_stall) begin
+        if (m_ready) begin
           f_dmem_waddr_wb <= dmem_waddr;
           f_dmem_raddr_wb <= dmem_raddr;
           f_dmem_wdata_wb <= dmem_wdata;
@@ -500,7 +505,7 @@ module svc_rv_stage_mem #(
         if (!rst_n) begin
           f_dmem_rdata_wb <= '0;
           f_dmem_rstrb_wb <= '0;
-        end else if (!mem_wb_stall) begin
+        end else if (m_ready) begin
           f_dmem_rdata_wb <= dmem_rdata;
           f_dmem_rstrb_wb <= f_ld_fmt_rstrb;
         end
@@ -545,8 +550,17 @@ module svc_rv_stage_mem #(
     assign f_dmem_rstrb_wb = f_ld_fmt_rstrb;
 `endif
 
-    `SVC_UNUSED({clk, rst_n, mem_wb_stall, op_active_ex});
+    `SVC_UNUSED({clk, rst_n, op_active_ex});
   end
+
+  //
+  // Ready/valid interface
+  //
+  // m_valid exposes valid_wb for downstream consumption.
+  // m_ready controls pipeline register updates.
+  //
+  assign m_valid = valid_wb;
+
 
 endmodule
 
