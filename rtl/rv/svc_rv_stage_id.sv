@@ -412,9 +412,9 @@ module svc_rv_stage_id #(
         pc_ex            <= '0;
         pc_plus4_ex      <= '0;
         //
-        // Capture pred_target_ex even during flush
-        // When load-use hazards hold an instruction in ID, we need to latch its
-        // prediction before if_id_stall releases and RAS/BTB buffers get overwritten
+        // Capture pred_target_ex even during flush When load-use hazards hold
+        // an instruction in ID, we need to latch its prediction before
+        // if_id_stall releases and RAS/BTB buffers get overwritten
         //
         pred_target_ex   <= final_pred_target_id;
       end else if (m_ready) begin
