@@ -68,7 +68,7 @@ module svc_rv_stage_wb #(
     input  logic m_ready,
 
     //
-    // Retired instruction outputs (registered)
+    // Retired instruction outputs
     //
     output logic [    31:0] instr_ret,
     output logic [XLEN-1:0] pc_ret,
@@ -78,6 +78,7 @@ module svc_rv_stage_wb #(
     output logic            trap_ret,
     output logic [     1:0] trap_code_ret,
     output logic            reg_write_ret,
+    output logic            ebreak_ret,
 
 `ifdef RISCV_FORMAL
     //
@@ -95,13 +96,7 @@ module svc_rv_stage_wb #(
     //
     // Output to register file in ID stage (combinational, for same-cycle write)
     //
-    output logic [XLEN-1:0] rd_data_wb,
-
-    //
-    // Halt signals
-    //
-    output logic ebreak,
-    output logic trap
+    output logic [XLEN-1:0] rd_data_wb
 );
   //
   // Handshake: instruction accepted into stage
@@ -160,18 +155,9 @@ module svc_rv_stage_wb #(
   );
 
   //
-  // Halt condition detection (combinational)
-  //
-  logic is_ebreak;
-  logic is_trap;
-
-  assign is_ebreak = (instr_wb == I_EBREAK);
-  assign is_trap   = trap_wb;
-
-  //
   // Ready/valid interface
   //
-  assign s_ready   = !m_valid || m_ready;
+  assign s_ready = !m_valid || m_ready;
 
   //
   // Pipeline
@@ -187,8 +173,7 @@ module svc_rv_stage_wb #(
       trap_ret      <= 1'b0;
       trap_code_ret <= '0;
       reg_write_ret <= 1'b0;
-      ebreak        <= 1'b0;
-      trap          <= 1'b0;
+      ebreak_ret    <= 1'b0;
     end else begin
       if (s_accept) begin
         m_valid       <= 1'b1;
@@ -200,8 +185,7 @@ module svc_rv_stage_wb #(
         trap_ret      <= trap_wb;
         trap_code_ret <= trap_code_wb;
         reg_write_ret <= reg_write_wb;
-        ebreak        <= is_ebreak || ebreak;
-        trap          <= is_trap || trap;
+        ebreak_ret    <= (instr_wb == I_EBREAK);
       end else if (m_ready) begin
         m_valid <= 1'b0;
       end
@@ -281,20 +265,6 @@ module svc_rv_stage_wb #(
       end
 
       //
-      // Ebreak is sticky - once set, stays set
-      //
-      if ($past(ebreak)) begin
-        `FASSERT(a_ebreak_sticky, ebreak);
-      end
-
-      //
-      // Trap is sticky - once set, stays set
-      //
-      if ($past(trap)) begin
-        `FASSERT(a_trap_sticky, trap);
-      end
-
-      //
       // All outputs stable while m_valid && !m_ready
       //
       if ($past(m_valid && !m_ready)) begin
@@ -307,8 +277,7 @@ module svc_rv_stage_wb #(
         `FASSERT(a_trap_ret_stable, $stable(trap_ret));
         `FASSERT(a_trap_code_ret_stable, $stable(trap_code_ret));
         `FASSERT(a_reg_write_ret_stable, $stable(reg_write_ret));
-        `FASSERT(a_ebreak_stable, $stable(ebreak));
-        `FASSERT(a_trap_stable, $stable(trap));
+        `FASSERT(a_ebreak_ret_stable, $stable(ebreak_ret));
       end
     end
   end
@@ -324,10 +293,10 @@ module svc_rv_stage_wb #(
       `FCOVER(c_back_to_back, $past(m_valid && m_ready) && m_valid);
 
       //
-      // Cover halt occurring (ebreak or trap)
+      // Cover halt conditions in retiring instruction
       //
-      `FCOVER(c_halt_ebreak, $past(!ebreak) && ebreak);
-      `FCOVER(c_halt_trap, $past(!trap) && trap);
+      `FCOVER(c_ebreak_ret, ebreak_ret);
+      `FCOVER(c_trap_ret, trap_ret);
     end
   end
 

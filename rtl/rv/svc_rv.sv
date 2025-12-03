@@ -278,6 +278,7 @@ module svc_rv #(
   logic            trap_ret;
   logic [     1:0] trap_code_ret;
   logic            reg_write_ret;
+  logic            ebreak_ret;
 `ifdef RISCV_FORMAL
   logic            f_mem_write_ret;
   logic [XLEN-1:0] f_dmem_waddr_ret;
@@ -407,11 +408,8 @@ module svc_rv #(
   //
   // Halt signals
   //
-  // halt_next: combinational, used for immediate WB stall
-  // halt: registered and sticky, used for other pipeline stalls
-  //
-  logic halt_next;
   logic halt;
+  logic halt_next;
 
   //
   // Hazard Detection Unit
@@ -441,9 +439,6 @@ module svc_rv #(
     // No data hazards exist in single-cycle mode (no pipeline registers),
     // so only PC and IF/ID stalls are needed.
     //
-    //
-    // Use halt_next for immediate stall since pipeline is combinational.
-    //
     assign pc_stall     = op_active_ex || halt_next || halt;
     assign if_id_stall  = op_active_ex || halt_next || halt;
     assign if_id_flush  = 1'b0;
@@ -458,8 +453,6 @@ module svc_rv #(
   end else begin : g_no_hazard
     //
     // No hazards in single-cycle mode without multi-cycle operations
-    //
-    // Use halt_next for immediate stall since pipeline is combinational.
     //
     assign pc_stall     = halt_next || halt;
     assign if_id_stall  = halt_next || halt;
@@ -658,18 +651,18 @@ module svc_rv #(
   //
   // Halt logic
   //
-  // halt_next is combinational for immediate response.
-  // halt is registered to reduce fanout.
-  // wb_m_ready flows halt state back to WB stage.
-  //
-  assign halt_next   = ebreak || trap;
+  assign halt_next   = (retired && (ebreak_ret || trap_ret)) || halt;
   assign wb_m_ready  = !halt;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      halt <= 1'b0;
+      halt   <= 1'b0;
+      ebreak <= 1'b0;
+      trap   <= 1'b0;
     end else begin
-      halt <= halt || halt_next;
+      halt   <= halt_next;
+      ebreak <= ebreak_ret || ebreak;
+      trap   <= trap_ret || trap;
     end
   end
 
@@ -885,8 +878,8 @@ module svc_rv #(
 
         f_prev_rs1_rdata <= f_rs1_used_wb ? rs1_data_ret : '0;
         f_prev_rs2_rdata <= f_rs2_used_wb ? rs2_data_ret : '0;
-        f_prev_trap <= trap;
-        f_prev_halt <= ebreak || trap;
+        f_prev_trap <= trap_ret;
+        f_prev_halt <= ebreak_ret || trap_ret;
         f_prev_intr <= 1'b0;
         f_prev_mem_valid <= f_commit_mem_valid;
         f_prev_mem_instr <= 1'b0;
