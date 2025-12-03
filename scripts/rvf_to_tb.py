@@ -299,6 +299,8 @@ def extract_from_vcd(vcd_file):
         "spec_pc_wdata",
         "spec_rd_addr",
         "spec_rd_wdata",
+        "spec_rs1_addr",
+        "spec_rs2_addr",
         "spec_trap",
     ]
 
