@@ -6,8 +6,15 @@ Convert the RISC-V pipeline from centralized stall/flush hazard control to
 distributed ready/valid handshaking. This enables:
 
 - Variable-latency cache at MEM stage
-- IF stage split for BTB timing
+- IF stage split for BTB timing (deferred to Step 10)
 - Cleaner stage isolation and composability
+
+**Phase 1 (Steps 0-8)**: Convert all stage boundaries to ready/valid signaling
+while keeping the existing IF stage structure (single IF1 stage).
+
+**Phase 2 (Step 9)**: Add variable-latency cache integration.
+
+**Phase 3 (Step 10)**: Split IF stage for BTB timing optimization (future work).
 
 ## Conventions
 
@@ -390,79 +397,58 @@ multi-cycle op completes. Hazard unit doesn't need to know.
 
 ---
 
-## Step 6: IF1→ID Boundary
+## Step 6: IF→ID Boundary
 
-**Goal**: Convert IF1→ID to ready/valid.
+**Goal**: Convert IF→ID to ready/valid signaling. Keep IF as a single stage
+(IF1) for now - the IF0→IF1→IF2 split is deferred to Step 11.
 
 **Files to Modify**:
 
 - `rtl/rv/svc_rv_stage_if1.sv` - Add valid/ready output interface
 - `rtl/rv/svc_rv_stage_id.sv` - Add valid/ready input interface
-- `rtl/rv/svc_rv.sv` - Wire signals, remove IF1→ID pipeline regs from top
+- `rtl/rv/svc_rv.sv` - Wire signals
 
 **Implementation Notes**:
 
-1. IF1 outputs instruction and prediction info
+1. IF1 outputs instruction and prediction info with m_valid/m_ready
 2. ID `s_ready`:
 
    - Ready when EX is ready and no internal stall
    - `s_ready = m_ready` (pass through)
 
-3. Flush from EX:
+3. IF1 `m_valid`:
 
-   - Misprediction kills IF1 and ID stage instructions
+   - Valid when instruction fetched and not flushed
+   - Gate with flush from EX (misprediction)
+
+4. Flush from EX:
+
+   - Misprediction kills IF1 stage instruction
    - IF1 gates `m_valid` when killed
 
-4. Move IF1→ID pipeline registers:
-   - Currently in `svc_rv.sv` (the `g_if1_id_regs` generate block)
-   - Keep registers for now (preserve timing)
+5. PC update:
+
+   - IF1 only advances PC when `m_valid && m_ready`
+   - Redirect (misprediction) still overrides PC
+
+6. Pipeline registers:
+   - Keep IF1→ID pipeline registers for now (preserve timing)
    - Skidbufs added later if needed for backpressure
+
+**Note**: The IF stage split (IF0→IF1→IF2 for BTB timing) is deferred to Step 11
+as a separate optimization phase after the full pipeline is converted to
+ready/valid.
 
 **Validation**:
 
 - All tests pass
 - Branch prediction still works
 - Misprediction recovery works
-
----
-
-## Step 7: IF0→IF1 Boundary
-
-**Goal**: Convert IF0→IF1 to ready/valid.
-
-**Files to Modify**:
-
-- `rtl/rv/svc_rv_stage_if0.sv` - Add valid/ready output interface
-- `rtl/rv/svc_rv_stage_if1.sv` - Add valid/ready input interface
-- `rtl/rv/svc_rv.sv` - Wire the new signals
-
-**Implementation Notes**:
-
-1. IF0 outputs PC and BTB lookup results
-2. IF1 `s_ready`:
-
-   - Ready when ID is ready
-   - May deassert if IMEM not ready (for future cache)
-
-3. PC update:
-
-   - IF0 only advances PC when `m_valid && m_ready`
-   - Redirect (misprediction) still overrides PC
-
-4. BTB integration:
-   - BTB lookup address = current PC
-   - BTB results travel with instruction through pipeline
-   - No change to BTB itself
-
-**Validation**:
-
-- All tests pass
 - Instruction fetch works correctly
-- Redirect on misprediction works
 
 ---
 
-## Step 8: Refactor Hazard Unit
+## Step 7: Refactor Hazard Unit
 
 **Goal**: Convert hazard unit from stall/flush generation to kill signal
 generation. Move data hazard stall logic into stages.
@@ -525,7 +511,7 @@ unchanged. It remains combinational and works with the ready/valid flow.
 
 ---
 
-## Step 9: Skidbuf Integration
+## Step 8: Skidbuf Integration
 
 **Goal**: Add skidbufs at stage boundaries for proper backpressure buffering.
 
@@ -552,7 +538,7 @@ then add skidbufs only where needed for backpressure (cache stalls).
 
 ---
 
-## Step 10: Variable-Latency Cache Integration
+## Step 9: Variable-Latency Cache Integration
 
 **Goal**: Add cache at MEM stage that can stall on miss.
 
@@ -591,9 +577,9 @@ then add skidbufs only where needed for backpressure (cache stalls).
 
 ---
 
-## Step 11: Split IF Stage
+## Step 10: Split IF Stage (Future Optimization)
 
-**Prerequisite**: Complete Steps 1-9 first. The full pipeline must be converted
+**Prerequisite**: Complete Steps 1-8 first. The full pipeline must be converted
 to ready/valid before splitting IF. This is a separate optimization phase.
 
 **Goal**: Split IF into IF0→IF1→IF2 for BTB timing.
