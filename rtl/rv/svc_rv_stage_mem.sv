@@ -63,11 +63,6 @@ module svc_rv_stage_mem #(
     input logic [     1:0] trap_code_mem,
 
     //
-    // Instruction validity from EX stage
-    //
-    input logic valid_mem,
-
-    //
     // Ready/valid interface from EX stage
     //
     input  logic s_valid,
@@ -144,6 +139,12 @@ module svc_rv_stage_mem #(
   `include "svc_rv_defs.svh"
 
   //
+  // Handshake: instruction accepted into stage
+  //
+  logic s_accept;
+  assign s_accept = s_valid && s_ready;
+
+  //
   // Store data formatting
   //
   // Stores use rs2_data_mem, which comes from fwd_rs2_ex in EX stage.
@@ -198,10 +199,10 @@ module svc_rv_stage_mem #(
   // Memory addresses are word-aligned (bits[1:0] cleared).
   // Byte strobes indicate which bytes within the word are accessed.
   //
-  assign dmem_ren      = mem_read_mem && !misalign_trap;
+  assign dmem_ren      = s_accept && mem_read_mem && !misalign_trap;
   assign dmem_raddr    = {alu_result_mem[31:2], 2'b00};
 
-  assign dmem_we       = mem_write_mem && !misalign_trap;
+  assign dmem_we       = s_accept && mem_write_mem && !misalign_trap;
   assign dmem_waddr    = {alu_result_mem[31:2], 2'b00};
 
   //
@@ -282,26 +283,14 @@ module svc_rv_stage_mem #(
   // - Push: JAL or JALR with rd != x0 (call instructions)
   // - Pop: JALR (return instructions)
   // - Push address: PC+4 (return address)
-
-  //
-  // Push on call: JAL/JALR with rd != x0
-  // Gate by m_ready to ensure single push per instruction
-  //
-  assign ras_push_en   = m_ready && is_jmp_mem && (rd_mem != 5'b0);
+  assign ras_push_en   = s_accept && is_jmp_mem && (rd_mem != 5'b0);
   assign ras_push_addr = pc_plus4_mem;
+  assign ras_pop_en    = s_accept && is_jalr_mem;
 
-  //
-  // Pop on return: any JALR
-  // Gate by m_ready to ensure single pop per instruction
-  //
-  assign ras_pop_en    = m_ready && is_jalr_mem;
-
-  //
   // JALR misprediction detection (MEM stage)
   //
   // Moved from EX stage to break critical timing path:
   // forwarding → ALU → JALR target → comparison → PC
-  //
   logic branch_mispredicted_mem;
 
   svc_rv_bpred_mem #(
@@ -319,16 +308,10 @@ module svc_rv_stage_mem #(
       .jalr_mispredicted_mem  (jalr_mispredicted_mem)
   );
 
-  //
   // Combined misprediction signal
-  //
-  // Gate with s_valid to prevent spurious redirects when pipeline has
-  // invalid data (e.g., during reset or bubble cycles with garbage values).
-  //
-  assign mispredicted_mem = (s_valid &&
+  assign mispredicted_mem = (s_accept &&
                              (branch_mispredicted_mem | jalr_mispredicted_mem));
 
-  //
   // PC redirect target calculation
   //
   // On branch misprediction:
@@ -338,17 +321,13 @@ module svc_rv_stage_mem #(
   // On JALR misprediction: redirect to jb_target
   //
   logic mispred_not_taken;
-
   assign mispred_not_taken = branch_mispredicted_mem && !branch_taken_mem;
 
   always_comb begin
     pc_redirect_target_mem = jb_target_mem;
     if (mispred_not_taken) begin
-      //
       // Branch was predicted taken but is actually not-taken
       // Redirect to sequential PC (already in jb_target for branches)
-      // For safety, use pc_plus4
-      //
       pc_redirect_target_mem = pc_plus4_mem;
     end
   end
@@ -371,9 +350,6 @@ module svc_rv_stage_mem #(
   // MEM/WB Pipeline Register
   //
   if (PIPELINED != 0) begin : g_registered
-    //
-    // m_valid: only signal that needs reset
-    //
     always_ff @(posedge clk) begin
       if (!rst_n) begin
         m_valid <= 1'b0;
@@ -533,8 +509,6 @@ module svc_rv_stage_mem #(
   // s_valid: Used for misprediction gating and m_valid pipeline register.
   //
   assign s_ready = m_ready;
-
-  `SVC_UNUSED(valid_mem);
 
   //
   // Formal verification
