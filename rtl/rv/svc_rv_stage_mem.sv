@@ -33,11 +33,6 @@ module svc_rv_stage_mem #(
     input logic rst_n,
 
     //
-    // Hazard control
-    //
-    input logic op_active_ex,
-
-    //
     // From EX stage
     //
     input logic            reg_write_mem,
@@ -377,28 +372,6 @@ module svc_rv_stage_mem #(
   //
   if (PIPELINED != 0) begin : g_registered
     //
-    // Accumulator for mem_misalign during multicycle stalls.
-    // mem_misalign is transient - only valid when the load/store is in MEM.
-    // During stalls, we need to preserve it until the MEM instruction
-    // finally advances to WB after the stall ends.
-    //
-    logic mem_misalign_stall;
-
-    always_ff @(posedge clk) begin
-      if (!rst_n) begin
-        mem_misalign_stall <= 1'b0;
-      end else if (!m_valid || m_ready) begin
-        //
-        // Normal advance - clear since MEM instruction is moving
-        //
-        mem_misalign_stall <= 1'b0;
-      end else if (op_active_ex) begin
-        // During stall, save mem_misalign for the MEM instruction
-        mem_misalign_stall <= mem_misalign_stall | mem_misalign;
-      end
-    end
-
-    //
     // m_valid: only control signal that needs reset
     //
     always_ff @(posedge clk) begin
@@ -406,11 +379,6 @@ module svc_rv_stage_mem #(
         m_valid <= 1'b0;
       end else if (!m_valid || m_ready) begin
         m_valid <= s_valid;
-      end else if (op_active_ex) begin
-        //
-        // Multi-cycle op stall: clear valid to prevent repeated retirement.
-        //
-        m_valid <= 1'b0;
       end
     end
 
@@ -419,22 +387,21 @@ module svc_rv_stage_mem #(
     //
     always_ff @(posedge clk) begin
       if (!m_valid || m_ready) begin
-        reg_write_wb <= reg_write_mem && !misalign_trap;
-        res_src_wb <= res_src_mem;
-        instr_wb <= instr_mem;
-        rd_wb <= rd_mem;
-        funct3_wb <= funct3_mem;
+        reg_write_wb  <= reg_write_mem && !misalign_trap;
+        res_src_wb    <= res_src_mem;
+        instr_wb      <= instr_mem;
+        rd_wb         <= rd_mem;
+        funct3_wb     <= funct3_mem;
         alu_result_wb <= alu_result_mem;
-        rs1_data_wb <= rs1_data_mem;
-        rs2_data_wb <= rs2_data_mem;
-        pc_plus4_wb <= pc_plus4_mem;
-        jb_target_wb <= jb_target_mem;
-        csr_rdata_wb <= csr_rdata_mem;
-        m_result_wb <= m_result_mem;
+        rs1_data_wb   <= rs1_data_mem;
+        rs2_data_wb   <= rs2_data_mem;
+        pc_plus4_wb   <= pc_plus4_mem;
+        jb_target_wb  <= jb_target_mem;
+        csr_rdata_wb  <= csr_rdata_mem;
+        m_result_wb   <= m_result_mem;
         product_64_wb <= product_64_mem;
-        trap_wb <= misalign_trap | mem_misalign_stall;
-        trap_code_wb <= ((mem_misalign | mem_misalign_stall) ?
-                         TRAP_LDST_MISALIGN : trap_code_mem);
+        trap_wb       <= misalign_trap;
+        trap_code_wb  <= (mem_misalign ? TRAP_LDST_MISALIGN : trap_code_mem);
       end
     end
 
@@ -555,7 +522,7 @@ module svc_rv_stage_mem #(
     assign f_dmem_rstrb_wb = f_ld_fmt_rstrb;
 `endif
 
-    `SVC_UNUSED({clk, rst_n, op_active_ex});
+    `SVC_UNUSED({clk, rst_n});
   end
 
   //
