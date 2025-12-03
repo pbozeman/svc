@@ -73,6 +73,12 @@ module svc_rv_stage_mem #(
     input logic valid_mem,
 
     //
+    // Ready/valid interface from EX stage
+    //
+    input  logic s_valid,
+    output logic s_ready,
+
+    //
     // Data memory interface
     //
     output logic        dmem_ren,
@@ -326,10 +332,10 @@ module svc_rv_stage_mem #(
   //
   // Combined misprediction signal
   //
-  // Gate with valid_mem to prevent spurious redirects when pipeline has
+  // Gate with s_valid to prevent spurious redirects when pipeline has
   // invalid data (e.g., during reset or bubble cycles with garbage values).
   //
-  assign mispredicted_mem = (valid_mem &&
+  assign mispredicted_mem = (s_valid &&
                              (branch_mispredicted_mem | jalr_mispredicted_mem));
 
   //
@@ -402,7 +408,7 @@ module svc_rv_stage_mem #(
       if (!rst_n) begin
         valid_wb <= 1'b0;
       end else if (m_ready) begin
-        valid_wb <= valid_mem;
+        valid_wb <= s_valid;
       end else if (op_active_ex) begin
         // Multi-cycle op stall: clear valid to prevent repeated retirement.
         valid_wb <= 1'b0;
@@ -529,7 +535,7 @@ module svc_rv_stage_mem #(
     assign product_64_wb = product_64_mem;
     assign trap_wb       = misalign_trap;
     assign trap_code_wb  = mem_misalign ? TRAP_LDST_MISALIGN : trap_code_mem;
-    assign valid_wb      = valid_mem;
+    assign valid_wb      = s_valid;
 
     //
     // Pass through SRAM load data
@@ -554,13 +560,23 @@ module svc_rv_stage_mem #(
   end
 
   //
-  // Ready/valid interface
+  // Ready/valid interface (from EX stage)
+  //
+  // s_ready: For now, pass through from WB (m_ready).
+  //          Later with cache: s_ready = m_ready && !cache_busy
+  // s_valid: Used for misprediction gating and valid_wb pipeline register.
+  //
+  assign s_ready = m_ready;
+
+  //
+  // Ready/valid interface (to WB stage)
   //
   // m_valid exposes valid_wb for downstream consumption.
   // m_ready controls pipeline register updates.
   //
   assign m_valid = valid_wb;
 
+  `SVC_UNUSED(valid_mem);
 
 endmodule
 

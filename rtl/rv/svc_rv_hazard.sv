@@ -91,7 +91,6 @@ module svc_rv_hazard #(
     output logic if_id_flush,
     output logic id_ex_stall,
     output logic id_ex_flush,
-    output logic ex_mem_stall,
     output logic ex_mem_flush
 );
 
@@ -314,7 +313,6 @@ module svc_rv_hazard #(
   assign pc_stall      = (front_stall && !stall_disable) || halt;
   assign if_id_stall   = (front_stall && !stall_disable) || halt;
   assign id_ex_stall   = op_active_ex || halt;
-  assign ex_mem_stall  = halt;
 
   //
   // Flush logic with stall interaction

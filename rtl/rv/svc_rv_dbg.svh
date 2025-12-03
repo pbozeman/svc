@@ -391,7 +391,7 @@ always @(posedge clk) begin
         //
         ex_str = $sformatf(
             "EX %s  %08x  %-30s   %08x %08x -> %08x %s %s ",
-            ex_mem_stall ? "s" : " ",
+            !ex_m_ready ? "s" : " ",
             pc_ex,
             dasm_inst(
               instr_ex
@@ -408,7 +408,7 @@ always @(posedge clk) begin
         //
         ex_str = $sformatf(
             "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
-            ex_mem_stall ? "s" : " ",
+            !ex_m_ready ? "s" : " ",
             pc_ex,
             dasm_inst(
               instr_ex
@@ -424,7 +424,7 @@ always @(posedge clk) begin
         //
         ex_str = $sformatf(
             "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
-            ex_mem_stall ? "s" : " ",
+            !ex_m_ready ? "s" : " ",
             pc_ex,
             dasm_inst(
               instr_ex
@@ -439,7 +439,7 @@ always @(posedge clk) begin
         //
         ex_str = $sformatf(
             "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
-            ex_mem_stall ? "s" : (ex_mem_flush ? "f" : " "),
+            !ex_m_ready ? "s" : (ex_mem_flush ? "f" : " "),
             pc_ex,
             dasm_inst(
               instr_ex
@@ -454,7 +454,7 @@ always @(posedge clk) begin
         //
         ex_str = $sformatf(
             "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
-            ex_mem_stall ? "s" : (ex_mem_flush ? "f" : " "),
+            !ex_m_ready ? "s" : (ex_mem_flush ? "f" : " "),
             pc_ex,
             dasm_inst(
               instr_ex
@@ -469,7 +469,7 @@ always @(posedge clk) begin
         //
         ex_str = $sformatf(
             "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
-            ex_mem_stall ? "s" : (ex_mem_flush ? "f" : " "),
+            !ex_m_ready ? "s" : (ex_mem_flush ? "f" : " "),
             pc_ex,
             dasm_inst(
               instr_ex
@@ -492,7 +492,7 @@ always @(posedge clk) begin
       string stall_str;
       string mem_str;
 
-      stall_str = !m_ready ? "s" : " ";
+      stall_str = !mem_m_ready ? "s" : " ";
 
       if (line != "") line = {line, " | "};
       if (MEM_TYPE == MEM_TYPE_SRAM) begin

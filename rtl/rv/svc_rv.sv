@@ -199,6 +199,8 @@ module svc_rv #(
   logic            rs2_used_id;
 
   // EX -> MEM
+  logic            ex_m_valid;
+  logic            ex_m_ready;
   logic            reg_write_mem;
   logic            mem_read_mem;
   logic            mem_write_mem;
@@ -229,10 +231,10 @@ module svc_rv #(
   logic [XLEN-1:0] mul_hh_mem;
 
   // MEM -> WB
-  logic            m_valid;
-  logic            m_ready;
-  logic            s_valid;
-  logic            s_ready;
+  logic            mem_m_valid;
+  logic            mem_m_ready;
+  logic            wb_s_valid;
+  logic            wb_s_ready;
   logic            reg_write_wb;
   logic [     2:0] res_src_wb;
   logic [    31:0] instr_wb;
@@ -302,7 +304,6 @@ module svc_rv #(
   (* max_fanout = 32 *)logic if_id_flush;
   (* max_fanout = 32 *)logic id_ex_stall;
   (* max_fanout = 32 *)logic id_ex_flush;
-  (* max_fanout = 32 *)logic ex_mem_stall;
   (* max_fanout = 32 *)logic ex_mem_flush;
   // verilog_format: on
 
@@ -422,7 +423,6 @@ module svc_rv #(
     assign if_id_flush  = 1'b0;
     assign id_ex_stall  = halt_next || halt;
     assign id_ex_flush  = 1'b0;
-    assign ex_mem_stall = halt_next || halt;
     assign ex_mem_flush = 1'b0;
 
     // verilog_format: off
@@ -440,7 +440,6 @@ module svc_rv #(
     assign if_id_flush  = 1'b0;
     assign id_ex_stall  = halt_next || halt;
     assign id_ex_flush  = 1'b0;
-    assign ex_mem_stall = halt_next || halt;
     assign ex_mem_flush = 1'b0;
 
     // verilog_format: off
@@ -578,6 +577,8 @@ module svc_rv #(
       .EXT_ZMMUL (EXT_ZMMUL),
       .EXT_M     (EXT_M)
   ) stage_ex (
+      .m_valid(ex_m_valid),
+      .m_ready(ex_m_ready),
       .*
   );
 
@@ -591,19 +592,36 @@ module svc_rv #(
       .BPRED     (BPRED),
       .RAS_ENABLE(RAS_ENABLE)
   ) stage_mem (
+      .s_valid(ex_m_valid),
+      .s_ready(ex_m_ready),
+      .m_valid(mem_m_valid),
+      .m_ready(mem_m_ready),
       .*
   );
 
   //
   // WB Stage: Write Back
   //
-  svc_rv_stage_wb #(.XLEN(XLEN)) stage_wb (.*);
+  svc_rv_stage_wb #(
+      .XLEN(XLEN)
+  ) stage_wb (
+      .s_valid(wb_s_valid),
+      .s_ready(wb_s_ready),
+      .*
+  );
+
+  //
+  // EX -> MEM ready/valid wiring (direct connection, no skidbuf yet)
+  //
+  // EX stage's m_valid drives MEM stage's s_valid
+  // MEM stage's s_ready drives EX stage's m_ready
+  // (Handled by explicit port connections above)
 
   //
   // MEM -> WB ready/valid wiring (direct connection, no skidbuf yet)
   //
-  assign s_valid   = m_valid;
-  assign m_ready   = s_ready;
+  assign wb_s_valid  = mem_m_valid;
+  assign mem_m_ready = wb_s_ready;
 
   //
   // Halt logic
@@ -611,7 +629,7 @@ module svc_rv #(
   // halt_next is combinational for immediate response.
   // halt is registered to reduce fanout.
   //
-  assign halt_next = ebreak || trap;
+  assign halt_next   = ebreak || trap;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
