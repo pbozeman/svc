@@ -55,9 +55,10 @@ module svc_rv_stage_id #(
     input logic [XLEN-1:0] ras_target_id,
 
     //
-    // Instruction validity from IF stage
+    // Ready/valid interface from IF stage
     //
-    input logic valid_id,
+    input  logic s_valid,
+    output logic s_ready,
 
     //
     // Write-back from WB stage
@@ -333,6 +334,11 @@ module svc_rv_stage_id #(
     end
 
     //
+    // Ready/valid interface: s_ready passes through from EX stage
+    //
+    assign s_ready = m_ready;
+
+    //
     // Control signals: need reset for correct behavior
     //
     always_ff @(posedge clk) begin
@@ -364,7 +370,7 @@ module svc_rv_stage_id #(
         //
         bpred_taken_ex <= bpred_taken_id;
       end else if (!m_valid || m_ready) begin
-        m_valid        <= valid_id;
+        m_valid        <= s_valid;
         reg_write_ex   <= reg_write_id;
         mem_read_ex    <= mem_read_id;
         mem_write_ex   <= mem_write_id;
@@ -465,7 +471,8 @@ module svc_rv_stage_id #(
     assign pc_plus4_ex      = pc_plus4_id;
     assign bpred_taken_ex   = 1'b0;
     assign pred_target_ex   = '0;
-    assign m_valid          = valid_id;
+    assign m_valid          = s_valid;
+    assign s_ready          = m_ready;
 
     // verilog_format: off
     `SVC_UNUSED({rst_n, id_ex_flush, fwd_rs1_id, fwd_rs2_id,
