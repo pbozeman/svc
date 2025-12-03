@@ -376,7 +376,6 @@ module svc_rv #(
   logic            valid_id;
   logic            valid_ex;
   logic            valid_mem;
-  logic            valid_wb;
 
   //
   // Halt signals

@@ -120,11 +120,6 @@ module svc_rv_stage_mem #(
 `endif
 
     //
-    // Instruction validity to WB stage
-    //
-    output logic valid_wb,
-
-    //
     // Ready/valid interface to WB stage
     //
     output logic m_valid,
@@ -392,8 +387,10 @@ module svc_rv_stage_mem #(
     always_ff @(posedge clk) begin
       if (!rst_n) begin
         mem_misalign_stall <= 1'b0;
-      end else if (m_ready) begin
+      end else if (!m_valid || m_ready) begin
+        //
         // Normal advance - clear since MEM instruction is moving
+        //
         mem_misalign_stall <= 1'b0;
       end else if (op_active_ex) begin
         // During stall, save mem_misalign for the MEM instruction
@@ -402,24 +399,26 @@ module svc_rv_stage_mem #(
     end
 
     //
-    // valid_wb: only control signal that needs reset
+    // m_valid: only control signal that needs reset
     //
     always_ff @(posedge clk) begin
       if (!rst_n) begin
-        valid_wb <= 1'b0;
-      end else if (m_ready) begin
-        valid_wb <= s_valid;
+        m_valid <= 1'b0;
+      end else if (!m_valid || m_ready) begin
+        m_valid <= s_valid;
       end else if (op_active_ex) begin
+        //
         // Multi-cycle op stall: clear valid to prevent repeated retirement.
-        valid_wb <= 1'b0;
+        //
+        m_valid <= 1'b0;
       end
     end
 
     //
-    // Datapath registers: no reset needed (don't care when valid_wb == 0)
+    // Datapath registers: no reset needed (don't care when m_valid == 0)
     //
     always_ff @(posedge clk) begin
-      if (m_ready) begin
+      if (!m_valid || m_ready) begin
         reg_write_wb <= reg_write_mem && !misalign_trap;
         res_src_wb <= res_src_mem;
         instr_wb <= instr_mem;
@@ -448,7 +447,7 @@ module svc_rv_stage_mem #(
       logic [XLEN-1:0] ld_data_wb_piped;
 
       always_ff @(posedge clk) begin
-        if (m_ready) begin
+        if (!m_valid || m_ready) begin
           ld_data_wb_piped <= ld_data_mem;
         end
       end
@@ -478,14 +477,14 @@ module svc_rv_stage_mem #(
         // Clear write signals when the store retires. This ensures the write
         // info is captured by the lag buffer BEFORE clearing.
         //
-        // Using valid_wb (the retiring instruction) instead of valid_mem (the
+        // Using m_valid (the retiring instruction) instead of valid_mem (the
         // advancing instruction) ensures proper timing for both:
         // - Stores followed by multi-cycle ops (wmask preserved until
         //   retirement)
         // - Non-stores after multi-cycle ops (wmask cleared after store
         //   retired)
         //
-        if (valid_wb && f_mem_write_wb) begin
+        if (m_valid && f_mem_write_wb) begin
           f_mem_write_wb  <= 1'b0;
           f_dmem_wstrb_wb <= '0;
         end
@@ -493,7 +492,7 @@ module svc_rv_stage_mem #(
         //
         // Update address/data signals when pipeline advances (for loads).
         //
-        if (m_ready) begin
+        if (!m_valid || m_ready) begin
           f_dmem_waddr_wb <= dmem_waddr;
           f_dmem_raddr_wb <= dmem_raddr;
           f_dmem_wdata_wb <= dmem_wdata;
@@ -511,7 +510,7 @@ module svc_rv_stage_mem #(
         if (!rst_n) begin
           f_dmem_rdata_wb <= '0;
           f_dmem_rstrb_wb <= '0;
-        end else if (m_ready) begin
+        end else if (!m_valid || m_ready) begin
           f_dmem_rdata_wb <= dmem_rdata;
           f_dmem_rstrb_wb <= f_ld_fmt_rstrb;
         end
@@ -535,7 +534,7 @@ module svc_rv_stage_mem #(
     assign product_64_wb = product_64_mem;
     assign trap_wb       = misalign_trap;
     assign trap_code_wb  = mem_misalign ? TRAP_LDST_MISALIGN : trap_code_mem;
-    assign valid_wb      = s_valid;
+    assign m_valid       = s_valid;
 
     //
     // Pass through SRAM load data
@@ -564,17 +563,9 @@ module svc_rv_stage_mem #(
   //
   // s_ready: For now, pass through from WB (m_ready).
   //          Later with cache: s_ready = m_ready && !cache_busy
-  // s_valid: Used for misprediction gating and valid_wb pipeline register.
+  // s_valid: Used for misprediction gating and m_valid pipeline register.
   //
   assign s_ready = m_ready;
-
-  //
-  // Ready/valid interface (to WB stage)
-  //
-  // m_valid exposes valid_wb for downstream consumption.
-  // m_ready controls pipeline register updates.
-  //
-  assign m_valid = valid_wb;
 
   `SVC_UNUSED(valid_mem);
 
