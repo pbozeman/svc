@@ -20,6 +20,7 @@
 //
 // Debug alignment constants
 //
+localparam int DBG_IF_MIN_WIDTH = 30;
 localparam int DBG_ID_PRED_WIDTH = 13;
 localparam int DBG_EX_FLAGS_WIDTH = 5;
 localparam int DBG_WB_WIDTH = 27;
@@ -365,8 +366,10 @@ always @(posedge clk) begin
     //
     if (dbg_if) begin
       if_str   = fmt_if_debug();
-      line     = if_str;
       if_width = if_str.len();
+      if (if_width < DBG_IF_MIN_WIDTH) if_width = DBG_IF_MIN_WIDTH;
+      while (if_str.len() < if_width) if_str = {if_str, " "};
+      line = if_str;
     end
 
     //
@@ -630,7 +633,6 @@ always @(posedge clk) begin
       string rh_str;
       string id_spacer;
       string mem_spacer;
-      int    rf_width;
       int    rx_width;
       int    rb_width;
       int    rh_width;
@@ -639,9 +641,8 @@ always @(posedge clk) begin
       //
       // Build RF string and pad to match IF column width
       //
-      rf_str   = fmt_rvfi_if_debug();
-      rf_width = rf_str.len();
-      for (i = rf_width; i < if_width; i = i + 1) rf_str = {rf_str, " "};
+      rf_str = fmt_rvfi_if_debug();
+      for (i = rf_str.len(); i < if_width; i = i + 1) rf_str = {rf_str, " "};
 
       //
       // Build ID spacer to match ID column width

@@ -198,6 +198,10 @@ module svc_rv #(
   logic            rs1_used_id;
   logic            rs2_used_id;
 
+  // ID -> EX (ready/valid interface)
+  logic            id_m_valid;
+  logic            id_m_ready;
+
   // EX -> MEM
   logic            ex_m_valid;
   logic            ex_m_ready;
@@ -235,6 +239,10 @@ module svc_rv #(
   logic            mem_m_ready;
   logic            wb_s_valid;
   logic            wb_s_ready;
+
+  // WB -> svc_rv
+  logic            wb_m_valid;
+  logic            wb_m_ready;
   logic            reg_write_wb;
   logic [     2:0] res_src_wb;
   logic [    31:0] instr_wb;
@@ -261,7 +269,26 @@ module svc_rv #(
   logic [     3:0] f_dmem_rstrb_wb;
 `endif
 
-  // WB -> ID (register write-back)
+  // WB retired instruction outputs
+  logic [    31:0] instr_ret;
+  logic [XLEN-1:0] pc_ret;
+  logic [XLEN-1:0] rs1_data_ret;
+  logic [XLEN-1:0] rs2_data_ret;
+  logic [XLEN-1:0] rd_data_ret;
+  logic            trap_ret;
+  logic [     1:0] trap_code_ret;
+  logic            reg_write_ret;
+`ifdef RISCV_FORMAL
+  logic            f_mem_write_ret;
+  logic [XLEN-1:0] f_dmem_waddr_ret;
+  logic [XLEN-1:0] f_dmem_raddr_ret;
+  logic [XLEN-1:0] f_dmem_wdata_ret;
+  logic [     3:0] f_dmem_wstrb_ret;
+  logic [XLEN-1:0] f_dmem_rdata_ret;
+  logic [     3:0] f_dmem_rstrb_ret;
+`endif
+
+  // WB -> ID (register write-back, combinational for same-cycle write)
   logic [XLEN-1:0] rd_data_wb;
 
   //
@@ -365,7 +392,9 @@ module svc_rv #(
   logic            ras_pop_en;
 
   // Retired signal (for instruction counting)
-  logic            retired;
+  // Computed from WB stage output handshake
+  logic retired;
+  assign retired = wb_m_valid && wb_m_ready;
 
   //
   // Pipeline validity signals
@@ -373,8 +402,7 @@ module svc_rv #(
   // Track whether each pipeline slot contains a real, non-flushed instruction.
   // Used for accurate instruction retirement counting and RVFI.
   //
-  logic            valid_id;
-  logic            valid_ex;
+  logic valid_id;
 
   //
   // Halt signals
@@ -382,8 +410,8 @@ module svc_rv #(
   // halt_next: combinational, used for immediate WB stall
   // halt: registered and sticky, used for other pipeline stalls
   //
-  logic            halt_next;
-  logic            halt;
+  logic halt_next;
+  logic halt;
 
   //
   // Hazard Detection Unit
@@ -559,6 +587,8 @@ module svc_rv #(
       .EXT_M      (EXT_M)
   ) stage_id (
       .pred_target(pred_target_id),
+      .m_valid    (id_m_valid),
+      .m_ready    (id_m_ready),
       .*
   );
 
@@ -575,6 +605,8 @@ module svc_rv #(
       .EXT_ZMMUL (EXT_ZMMUL),
       .EXT_M     (EXT_M)
   ) stage_ex (
+      .s_valid(id_m_valid),
+      .s_ready(id_m_ready),
       .m_valid(ex_m_valid),
       .m_ready(ex_m_ready),
       .*
@@ -605,6 +637,8 @@ module svc_rv #(
   ) stage_wb (
       .s_valid(wb_s_valid),
       .s_ready(wb_s_ready),
+      .m_valid(wb_m_valid),
+      .m_ready(wb_m_ready),
       .*
   );
 
@@ -626,8 +660,10 @@ module svc_rv #(
   //
   // halt_next is combinational for immediate response.
   // halt is registered to reduce fanout.
+  // wb_m_ready flows halt state back to WB stage.
   //
   assign halt_next   = ebreak || trap;
+  assign wb_m_ready  = !halt;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
@@ -638,9 +674,13 @@ module svc_rv #(
   end
 
 `ifndef RISCV_FORMAL
-  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, trap_code_wb});
+  // verilog_format: off
+  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, trap_code_wb,
+               wb_m_valid, instr_ret, pc_ret, rs1_data_ret, rs2_data_ret,
+               rd_data_ret, trap_ret, trap_code_ret, reg_write_ret});
+  // verilog_format: on
 `else
-  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id});
+  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, wb_m_valid});
 `endif
 
   `include "svc_rv_dbg.svh"
@@ -703,10 +743,10 @@ module svc_rv #(
   logic            f_rs1_used_wb;
   logic            f_rs2_used_wb;
 
-  assign f_opcode_wb       = instr_wb[6:0];
-  assign f_csr_imm_mode_wb = instr_wb[14];
+  assign f_opcode_wb       = instr_ret[6:0];
+  assign f_csr_imm_mode_wb = instr_ret[14];
 
-  assign f_instr_valid_wb  = (trap_code_wb != TRAP_INSTR_INVALID);
+  assign f_instr_valid_wb  = (trap_code_ret != TRAP_INSTR_INVALID);
 
   //
   // rs1/rs2 usage detection for RVFI
@@ -733,7 +773,7 @@ module svc_rv #(
     f_rs2_used_wb = f_instr_valid_wb && f_instr_reads_rs2_wb;
   end
 
-  assign f_commit_pc = pc_plus4_wb - XLEN'(32'd4);
+  assign f_commit_pc = pc_ret;
 
   always_comb begin
     f_commit_mem_valid = 1'b0;
@@ -742,18 +782,23 @@ module svc_rv #(
     f_commit_mem_rdata = 32'h0;
     f_commit_mem_wdata = 32'h0;
 
-    // Loads
-    if (res_src_wb == RES_MEM && !trap_wb) begin
+    //
+    // Use _ret signals for memory since they're captured on WB entry
+    // and remain stable until retirement
+    //
+
+    // Loads (f_dmem_rstrb_ret is non-zero for loads)
+    if (|f_dmem_rstrb_ret && !trap_ret) begin
       f_commit_mem_valid = 1'b1;
-      f_commit_mem_rmask = f_dmem_rstrb_wb;
-      f_commit_mem_rdata = f_dmem_rdata_wb;
+      f_commit_mem_rmask = f_dmem_rstrb_ret;
+      f_commit_mem_rdata = f_dmem_rdata_ret;
     end
 
     // Stores
-    if (f_mem_write_wb && !trap_wb) begin
+    if (f_mem_write_ret && !trap_ret) begin
       f_commit_mem_valid = 1'b1;
-      f_commit_mem_wmask = f_dmem_wstrb_wb;
-      f_commit_mem_wdata = f_dmem_wdata_wb;
+      f_commit_mem_wmask = f_dmem_wstrb_ret;
+      f_commit_mem_wdata = f_dmem_wdata_ret;
     end
   end
 
@@ -816,35 +861,37 @@ module svc_rv #(
         //
         // Buffer current retiring instruction as "previous"
         //
-        f_prev_valid     <= 1'b1;
-        f_prev_insn      <= instr_wb;
-        f_prev_pc        <= f_commit_pc;
+        f_prev_valid <= 1'b1;
+        f_prev_insn <= instr_ret;
+        f_prev_pc <= f_commit_pc;
 
         //
         // Override rs1/rs2 addr/rdata to 0 when not architecturally read.
         // Per RVFI spec, instructions that don't read a register must report
         // addr=0 and rdata=0 (e.g., LUI, JAL, CSR immediate instructions).
         //
-        f_prev_rs1_addr  <= f_rs1_used_wb ? instr_wb[19:15] : 5'b0;
-        f_prev_rs2_addr  <= f_rs2_used_wb ? instr_wb[24:20] : 5'b0;
+        f_prev_rs1_addr <= f_rs1_used_wb ? instr_ret[19:15] : 5'b0;
+        f_prev_rs2_addr <= f_rs2_used_wb ? instr_ret[24:20] : 5'b0;
 
         //
         // Override rd_addr to 0 when not writing. Normally we won't want to be
         // doing math or overrides in the formal in order not hide a real bug,
-        // but, in this case, we know that reg_write_wb is gating writes to the
+        // but, in this case, we know that reg_write_ret is gating writes to the
         // regfile. If we really care, we could add an assert.
         //
-        f_prev_rd_addr   <= reg_write_wb ? rd_wb : 5'b0;
-        f_prev_rd_wdata  <= (reg_write_wb && rd_wb != 5'b0) ? rd_data_wb : '0;
+        f_prev_rd_addr <= reg_write_ret ? instr_ret[11:7] : 5'b0;
+        f_prev_rd_wdata <= (reg_write_ret && instr_ret[11:7] != 5'b0) ?
+            rd_data_ret : '0;
 
-        f_prev_rs1_rdata <= f_rs1_used_wb ? rs1_data_wb : '0;
-        f_prev_rs2_rdata <= f_rs2_used_wb ? rs2_data_wb : '0;
-        f_prev_trap      <= trap;
-        f_prev_halt      <= ebreak || trap;
-        f_prev_intr      <= 1'b0;
+        f_prev_rs1_rdata <= f_rs1_used_wb ? rs1_data_ret : '0;
+        f_prev_rs2_rdata <= f_rs2_used_wb ? rs2_data_ret : '0;
+        f_prev_trap <= trap;
+        f_prev_halt <= ebreak || trap;
+        f_prev_intr <= 1'b0;
         f_prev_mem_valid <= f_commit_mem_valid;
         f_prev_mem_instr <= 1'b0;
-        f_prev_mem_addr  <= f_mem_write_wb ? f_dmem_waddr_wb : f_dmem_raddr_wb;
+        f_prev_mem_addr <=
+            (f_mem_write_ret ? f_dmem_waddr_ret : f_dmem_raddr_ret);
         f_prev_mem_rmask <= f_commit_mem_rmask;
         f_prev_mem_wmask <= f_commit_mem_wmask;
         f_prev_mem_rdata <= f_commit_mem_rdata;
