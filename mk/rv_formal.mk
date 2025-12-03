@@ -59,7 +59,7 @@ $(RV_F_GENCHECK_STAMP): $(RV_F_GENCONFIG) $(RV_F_GENCHECKS) $(RV_F_WRAPPER) $(RV
 	@cd $(RV_F_DIR) && \
 		for cfg in *_checks.cfg; do \
 			name=$${cfg%.cfg}; \
-			python3 $(RV_F_CHECKS_DIR)/genchecks.py $$name; \
+			python3 $(RV_F_CHECKS_DIR)/genchecks.py $$name > /dev/null; \
 		done
 	@touch $@
 
@@ -112,15 +112,13 @@ rv_f_run: $(RV_F_RUN_FILES)
 define rv_f_quick_report
 	echo "RV Formal dirty   : $$(cat $(RV_F_BUILD_DIR)/rv_f_run.log 2>/dev/null | wc -l)"; \
 	echo "RV Formal passed  : $$(cat $(RV_F_BUILD_DIR)/rv_f_success.log 2>/dev/null | wc -l)"; \
-	fails=$$(find $(RV_F_DIR)/*_checks -name FAIL 2>/dev/null); \
+	fails=$$(find $(RV_F_BUILD_DIR) -maxdepth 2 -name FAIL 2>/dev/null); \
 	cnt=$$(echo "$$fails" | grep -c . || true); \
 	echo "RV Formal failed  : $$cnt"; \
 	if [ -n "$$fails" ]; then \
 		echo "$$fails" | while read f; do \
-			dir=$$(dirname "$$f"); \
-			check=$$(basename "$$dir"); \
-			cfg=$$(basename $$(dirname "$$dir")); \
-			echo "    make rv_$${cfg%_checks}__$${check}_f"; \
+			tgt=$$(basename $$(dirname "$$f")); \
+			echo "    make rv_$${tgt}_f"; \
 		done; \
 	fi; \
 	true
@@ -136,7 +134,7 @@ rv_f_report:
 # Target: .build/rvformal/<config>_<check>/ran
 # Source: tb/riscv-formal/cores/svc_rv/<config>_checks/<check>.sby
 .PRECIOUS: $(RV_F_BUILD_DIR)/%/ran
-$(RV_F_BUILD_DIR)/%/ran: | $(RV_F_GENCHECK_STAMP)
+$(RV_F_BUILD_DIR)/%/ran: $(RV_F_GENCHECK_STAMP)
 	$(call rv_f_run_check,$*)
 
 # Phony targets for manual execution: make rv_bram__insn_add_ch0_f
@@ -155,7 +153,7 @@ define rv_f_run_check
 	@touch $(RV_F_BUILD_DIR)/rv_f_run.log $(RV_F_BUILD_DIR)/rv_f_success.log $(RV_F_BUILD_DIR)/rv_f_failure.log
 	@echo "$(RV_F_TGT)" >> $(RV_F_BUILD_DIR)/rv_f_run.log
 	@cd $(RV_F_DIR)/$(RV_F_CFG) && \
-		$(SBY) -f $(RV_F_CHK).sby \
+		$(SBY) --prefix $(RV_F_BUILD_DIR)/$(RV_F_TGT) -f $(RV_F_CHK).sby \
 		&& echo "$(RV_F_TGT)" >> $(RV_F_BUILD_DIR)/rv_f_success.log \
 		|| echo "make rv_$(RV_F_TGT)_f" >> $(RV_F_BUILD_DIR)/rv_f_failure.log
 	@touch $(RV_F_BUILD_DIR)/$(RV_F_TGT)/ran
@@ -163,15 +161,13 @@ endef
 
 define rv_f_full_report
 	@echo "RV Formal passed  : $$(cat $(RV_F_BUILD_DIR)/rv_f_success.log 2>/dev/null | wc -l)"
-	@fails=$$(find $(RV_F_DIR)/*_checks -name FAIL 2>/dev/null); \
+	@fails=$$(find $(RV_F_BUILD_DIR) -maxdepth 2 -name FAIL 2>/dev/null); \
 	cnt=$$(echo "$$fails" | grep -c . || true); \
 	echo "RV Formal failed  : $$cnt"; \
 	if [ -n "$$fails" ]; then \
 		echo "$$fails" | while read f; do \
-			dir=$$(dirname "$$f"); \
-			check=$$(basename "$$dir"); \
-			cfg=$$(basename $$(dirname "$$dir")); \
-			echo "    make rv_$${cfg%_checks}__$${check}_f"; \
+			tgt=$$(basename $$(dirname "$$f")); \
+			echo "    make rv_$${tgt}_f"; \
 		done; \
 	fi; \
 	true
