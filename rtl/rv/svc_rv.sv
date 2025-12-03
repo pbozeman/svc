@@ -375,7 +375,6 @@ module svc_rv #(
   //
   logic            valid_id;
   logic            valid_ex;
-  logic            valid_mem;
 
   //
   // Halt signals
@@ -639,10 +638,9 @@ module svc_rv #(
   end
 
 `ifndef RISCV_FORMAL
-  `SVC_UNUSED(
-      {IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, trap_code_wb, valid_mem});
+  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, trap_code_wb});
 `else
-  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, valid_mem});
+  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id});
 `endif
 
   `include "svc_rv_dbg.svh"

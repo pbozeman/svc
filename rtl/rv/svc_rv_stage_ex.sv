@@ -137,11 +137,6 @@ module svc_rv_stage_ex #(
     output logic [     1:0] trap_code_mem,
 
     //
-    // Instruction validity to MEM stage
-    //
-    output logic valid_mem,
-
-    //
     // Ready/valid interface to MEM stage
     //
     output logic m_valid,
@@ -588,57 +583,62 @@ module svc_rv_stage_ex #(
   //
   if (PIPELINED != 0) begin : g_registered
     //
-    // Control signals: need reset for correct behavior
+    // Pipeline register enable
     //
+    // Use standard skid buffer enable for all registered signals.
+    // m_valid is then combinationally gated by mc_in_progress_ex.
+    //
+    logic valid_reg;
+    logic ex_mem_en;
+    assign ex_mem_en = (!valid_reg || m_ready);
+    assign m_valid   = valid_reg && !mc_in_progress_ex;
+
     always_ff @(posedge clk) begin
       if (!rst_n) begin
-        reg_write_mem    <= 1'b0;
-        mem_read_mem     <= 1'b0;
-        mem_write_mem    <= 1'b0;
-        valid_mem        <= 1'b0;
-        is_branch_mem    <= 1'b0;
-        is_jalr_mem      <= 1'b0;
-        is_jmp_mem       <= 1'b0;
-        branch_taken_mem <= 1'b0;
-        bpred_taken_mem  <= 1'b0;
-        trap_mem         <= 1'b0;
-      end else if (m_ready) begin
-        reg_write_mem    <= ex_mem_flush ? 1'b0 : reg_write_ex;
-        mem_read_mem     <= ex_mem_flush ? 1'b0 : mem_read_ex;
-        mem_write_mem    <= ex_mem_flush ? 1'b0 : mem_write_ex;
-        valid_mem        <= ex_mem_flush ? 1'b0 : valid_ex;
-        is_branch_mem    <= ex_mem_flush ? 1'b0 : is_branch_ex;
-        is_jalr_mem      <= ex_mem_flush ? 1'b0 : is_jalr_ex;
-        is_jmp_mem       <= ex_mem_flush ? 1'b0 : is_jmp_ex;
-        branch_taken_mem <= ex_mem_flush ? 1'b0 : branch_taken_ex;
-        bpred_taken_mem  <= ex_mem_flush ? 1'b0 : bpred_taken_ex;
-        trap_mem         <= ex_mem_flush ? 1'b0 : (trap_ex | misalign_trap);
+        valid_reg     <= 1'b0;
+        reg_write_mem <= 1'b0;
+        mem_read_mem  <= 1'b0;
+        mem_write_mem <= 1'b0;
+        trap_mem      <= 1'b0;
+      end else if (ex_mem_en) begin
+        // Signals used by forwarding/hazard logic must be explicitly
+        // cleared on flush since that logic doesn't check m_valid.
+        valid_reg     <= ex_mem_flush ? 1'b0 : valid_ex;
+        reg_write_mem <= ex_mem_flush ? 1'b0 : reg_write_ex;
+        mem_read_mem  <= ex_mem_flush ? 1'b0 : mem_read_ex;
+        mem_write_mem <= ex_mem_flush ? 1'b0 : mem_write_ex;
+        trap_mem      <= ex_mem_flush ? 1'b0 : (trap_ex | misalign_trap);
       end
     end
 
     //
-    // Datapath registers: no reset needed (don't care when valid_mem == 0)
+    // payload
     //
     always_ff @(posedge clk) begin
-      if (m_ready) begin
-        instr_mem       <= ex_mem_flush ? I_NOP : instr_ex;
-        res_src_mem     <= res_src_ex;
-        rd_mem          <= rd_ex;
-        rs2_mem         <= rs2_ex;
-        funct3_mem      <= funct3_ex;
-        alu_result_mem  <= alu_result_ex;
-        rs1_data_mem    <= fwd_rs1_ex;
-        rs2_data_mem    <= fwd_rs2_ex;
-        pc_plus4_mem    <= pc_plus4_ex;
-        jb_target_mem   <= jb_target_ex;
-        pred_target_mem <= pred_target_ex;
-        csr_rdata_mem   <= csr_rdata_ex;
-        m_result_mem    <= m_result_ex;
-        mul_ll_mem      <= mul_ll_ex;
-        mul_lh_mem      <= mul_lh_ex;
-        mul_hl_mem      <= mul_hl_ex;
-        mul_hh_mem      <= mul_hh_ex;
-        trap_code_mem   <= misalign_trap ? TRAP_INSTR_MISALIGN : trap_code_ex;
+      if (ex_mem_en) begin
+        is_branch_mem    <= is_branch_ex;
+        is_jalr_mem      <= is_jalr_ex;
+        is_jmp_mem       <= is_jmp_ex;
+        branch_taken_mem <= branch_taken_ex;
+        bpred_taken_mem  <= bpred_taken_ex;
+        instr_mem        <= instr_ex;
+        res_src_mem      <= res_src_ex;
+        rd_mem           <= rd_ex;
+        rs2_mem          <= rs2_ex;
+        funct3_mem       <= funct3_ex;
+        alu_result_mem   <= alu_result_ex;
+        rs1_data_mem     <= fwd_rs1_ex;
+        rs2_data_mem     <= fwd_rs2_ex;
+        pc_plus4_mem     <= pc_plus4_ex;
+        jb_target_mem    <= jb_target_ex;
+        pred_target_mem  <= pred_target_ex;
+        csr_rdata_mem    <= csr_rdata_ex;
+        m_result_mem     <= m_result_ex;
+        mul_ll_mem       <= mul_ll_ex;
+        mul_lh_mem       <= mul_lh_ex;
+        mul_hl_mem       <= mul_hl_ex;
+        mul_hh_mem       <= mul_hh_ex;
+        trap_code_mem    <= misalign_trap ? TRAP_INSTR_MISALIGN : trap_code_ex;
       end
     end
 
@@ -670,22 +670,10 @@ module svc_rv_stage_ex #(
     assign pred_target_mem = pred_target_ex;
     assign trap_mem = trap_ex | misalign_trap;
     assign trap_code_mem = misalign_trap ? TRAP_INSTR_MISALIGN : trap_code_ex;
-    assign valid_mem = valid_ex;
+    assign m_valid = valid_ex && !mc_in_progress_ex;
 
     `SVC_UNUSED({ex_mem_flush, m_ready});
   end
-
-  //
-  // Ready/valid interface
-  //
-  // m_valid exposes valid_mem for downstream consumption, gated by mc_in_progress_ex
-  // to prevent valid assertion while multi-cycle operations are in progress.
-  // We use mc_in_progress_ex (mc_state == EXEC) rather than op_active_ex because
-  // op_active_ex goes high on the first cycle of a multi-cycle op, but at that
-  // point valid_mem is still for the PREVIOUS instruction which should pass through.
-  // m_ready controls pipeline register updates.
-  //
-  assign m_valid = valid_mem && !mc_in_progress_ex;
 
   `SVC_UNUSED({funct7_ex[6:5], funct7_ex[4:0], is_m_ex, is_csr_ex});
 
@@ -751,7 +739,6 @@ module svc_rv_stage_ex #(
         `FASSERT(a_pred_target_mem_stable, $stable(pred_target_mem));
         `FASSERT(a_trap_mem_stable, $stable(trap_mem));
         `FASSERT(a_trap_code_mem_stable, $stable(trap_code_mem));
-        `FASSERT(a_valid_mem_stable, $stable(valid_mem));
       end
     end
   end
