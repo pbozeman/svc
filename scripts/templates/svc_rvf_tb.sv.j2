@@ -47,6 +47,9 @@ module {{ name }};
   logic [31:0] rvfi_rs1_rdata;
   logic [31:0] rvfi_rs2_rdata;
   logic        rvfi_trap;
+  logic [31:0] rvfi_mem_addr;
+  logic [ 3:0] rvfi_mem_rmask;
+  logic [ 3:0] rvfi_mem_wmask;
 
   //
   // CPU under test
@@ -88,6 +91,9 @@ module {{ name }};
       .rvfi_rs1_rdata(rvfi_rs1_rdata),
       .rvfi_rs2_rdata(rvfi_rs2_rdata),
       .rvfi_trap     (rvfi_trap),
+      .rvfi_mem_addr (rvfi_mem_addr),
+      .rvfi_mem_rmask(rvfi_mem_rmask),
+      .rvfi_mem_wmask(rvfi_mem_wmask),
 
       .ebreak(ebreak),
       .trap  (trap)
@@ -241,6 +247,15 @@ module {{ name }};
 {% endif %}
 {% if check.spec_trap is defined %}
     `CHECK_EQ(rvfi_trap, 1'b{{ check.spec_trap }});
+{% endif %}
+{% if check.spec_mem_rmask is defined %}
+    `CHECK_EQ(rvfi_mem_rmask, 4'h{{ '%x' % check.spec_mem_rmask }});
+{% endif %}
+{% if check.spec_mem_wmask is defined %}
+    `CHECK_EQ(rvfi_mem_wmask, 4'h{{ '%x' % check.spec_mem_wmask }});
+{% endif %}
+{% if check.spec_mem_addr is defined and (check.spec_mem_rmask is defined and check.spec_mem_rmask != 0) or (check.spec_mem_wmask is defined and check.spec_mem_wmask != 0) %}
+    `CHECK_EQ(rvfi_mem_addr, 32'h{{ '%08x' % check.spec_mem_addr }});
 {% endif %}
 {% endfor %}
 {% for check in reg_checks %}
