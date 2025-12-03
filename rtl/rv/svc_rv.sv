@@ -639,9 +639,10 @@ module svc_rv #(
   end
 
 `ifndef RISCV_FORMAL
-  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, trap_code_wb});
+  `SVC_UNUSED(
+      {IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, trap_code_wb, valid_mem});
 `else
-  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id});
+  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, valid_mem});
 `endif
 
   `include "svc_rv_dbg.svh"
