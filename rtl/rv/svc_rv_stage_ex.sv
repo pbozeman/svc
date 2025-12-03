@@ -8,6 +8,7 @@
 `include "svc_rv_alu.sv"
 `include "svc_rv_alu_dec.sv"
 `include "svc_rv_bcmp.sv"
+`include "svc_rv_bpred_ex.sv"
 `include "svc_rv_csr.sv"
 `include "svc_rv_ext_mul_ex.sv"
 `include "svc_rv_ext_div.sv"
@@ -30,14 +31,14 @@
 // prepares results for the memory stage.
 //
 module svc_rv_stage_ex #(
-    parameter int XLEN,
-    parameter int PIPELINED,
-    parameter int FWD,
-    parameter int MEM_TYPE,
-    parameter int BPRED,
-    parameter int BTB_ENABLE,
-    parameter int EXT_ZMMUL,
-    parameter int EXT_M
+    parameter int XLEN       = 32,
+    parameter int PIPELINED  = 1,
+    parameter int FWD        = 1,
+    parameter int MEM_TYPE   = 0,
+    parameter int BPRED      = 0,
+    parameter int BTB_ENABLE = 0,
+    parameter int EXT_ZMMUL  = 0,
+    parameter int EXT_M      = 0
 ) (
     input logic clk,
     input logic rst_n,
@@ -340,7 +341,7 @@ module svc_rv_stage_ex #(
       mc_state        <= MC_STATE_IDLE;
       mc_rs1_captured <= '0;
       mc_rs2_captured <= '0;
-    end else begin
+    end else if (!m_valid || m_ready) begin
       mc_state <= mc_state_next;
 
       //
@@ -612,12 +613,6 @@ module svc_rv_stage_ex #(
         branch_taken_mem <= ex_mem_flush ? 1'b0 : branch_taken_ex;
         bpred_taken_mem  <= ex_mem_flush ? 1'b0 : bpred_taken_ex;
         trap_mem         <= ex_mem_flush ? 1'b0 : (trap_ex | misalign_trap);
-      end else begin
-        //
-        // Stall case: flush memory operations, freeze other signals
-        //
-        mem_read_mem  <= 1'b0;
-        mem_write_mem <= 1'b0;
       end
     end
 
@@ -693,6 +688,95 @@ module svc_rv_stage_ex #(
   assign m_valid = valid_mem && !mc_in_progress_ex;
 
   `SVC_UNUSED({funct7_ex[6:5], funct7_ex[4:0], is_m_ex, is_csr_ex});
+
+`ifdef FORMAL
+`ifdef FORMAL_SVC_RV_STAGE_EX
+  `define FASSERT(label, a) label: assert(a)
+  `define FASSUME(label, a) label: assume(a)
+  `define FCOVER(label, a) label: cover(a)
+`else
+  `define FASSERT(label, a) label: assume(a)
+  `define FASSUME(label, a) label: assert(a)
+  `define FCOVER(label, a)
+`endif
+
+  logic f_past_valid = 1'b0;
+
+  always @(posedge clk) begin
+    f_past_valid <= 1'b1;
+  end
+
+  //
+  // m_valid/m_ready handshake assertions
+  //
+  // Once m_valid goes high, it must stay high until m_ready
+  // All output signals must remain stable while m_valid && !m_ready
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      //
+      // Valid must stay high until ready
+      //
+      if ($past(m_valid && !m_ready)) begin
+        `FASSERT(a_m_valid_stable, m_valid);
+      end
+
+      //
+      // Output signals must be stable while valid && !ready
+      //
+      if ($past(m_valid && !m_ready)) begin
+        `FASSERT(a_reg_write_mem_stable, $stable(reg_write_mem));
+        `FASSERT(a_mem_read_mem_stable, $stable(mem_read_mem));
+        `FASSERT(a_mem_write_mem_stable, $stable(mem_write_mem));
+        `FASSERT(a_res_src_mem_stable, $stable(res_src_mem));
+        `FASSERT(a_instr_mem_stable, $stable(instr_mem));
+        `FASSERT(a_rd_mem_stable, $stable(rd_mem));
+        `FASSERT(a_funct3_mem_stable, $stable(funct3_mem));
+        `FASSERT(a_alu_result_mem_stable, $stable(alu_result_mem));
+        `FASSERT(a_rs1_data_mem_stable, $stable(rs1_data_mem));
+        `FASSERT(a_rs2_data_mem_stable, $stable(rs2_data_mem));
+        `FASSERT(a_pc_plus4_mem_stable, $stable(pc_plus4_mem));
+        `FASSERT(a_jb_target_mem_stable, $stable(jb_target_mem));
+        `FASSERT(a_csr_rdata_mem_stable, $stable(csr_rdata_mem));
+        `FASSERT(a_m_result_mem_stable, $stable(m_result_mem));
+        `FASSERT(a_mul_ll_mem_stable, $stable(mul_ll_mem));
+        `FASSERT(a_mul_lh_mem_stable, $stable(mul_lh_mem));
+        `FASSERT(a_mul_hl_mem_stable, $stable(mul_hl_mem));
+        `FASSERT(a_mul_hh_mem_stable, $stable(mul_hh_mem));
+        `FASSERT(a_is_branch_mem_stable, $stable(is_branch_mem));
+        `FASSERT(a_is_jalr_mem_stable, $stable(is_jalr_mem));
+        `FASSERT(a_is_jmp_mem_stable, $stable(is_jmp_mem));
+        `FASSERT(a_branch_taken_mem_stable, $stable(branch_taken_mem));
+        `FASSERT(a_bpred_taken_mem_stable, $stable(bpred_taken_mem));
+        `FASSERT(a_pred_target_mem_stable, $stable(pred_target_mem));
+        `FASSERT(a_trap_mem_stable, $stable(trap_mem));
+        `FASSERT(a_trap_code_mem_stable, $stable(trap_code_mem));
+        `FASSERT(a_valid_mem_stable, $stable(valid_mem));
+      end
+    end
+  end
+
+  //
+  // Cover properties
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      //
+      // Cover back-to-back valid transfers
+      //
+      `FCOVER(c_back_to_back, $past(m_valid && m_ready) && m_valid);
+
+      //
+      // Cover stalled transfer (valid high, ready low for a cycle)
+      //
+      `FCOVER(c_stalled, $past(m_valid && !m_ready) && m_valid && m_ready);
+    end
+  end
+
+  `undef FASSERT
+  `undef FASSUME
+  `undef FCOVER
+`endif
 
 endmodule
 
