@@ -20,6 +20,7 @@
 module svc_rv_stage_wb #(
     parameter int XLEN
 ) (
+    input logic clk,
     input logic rst_n,
 
     //
@@ -40,11 +41,6 @@ module svc_rv_stage_wb #(
     input logic            trap_wb,
 
     //
-    // Instruction validity from MEM stage
-    //
-    input logic valid_wb,
-
-    //
     // Ready/valid interface from MEM stage
     //
     input  logic s_valid,
@@ -62,6 +58,9 @@ module svc_rv_stage_wb #(
     output logic trap,
     output logic retired
 );
+  logic halted;
+  logic halted_ebreak;
+  logic halted_trap;
 
   `include "svc_rv_defs.svh"
 
@@ -114,25 +113,44 @@ module svc_rv_stage_wb #(
   );
 
   //
+  // Retire on handshake
+  //
+  assign retired = s_valid && s_ready;
+
+  //
+  // Halt condition detection
+  //
+  logic is_ebreak;
+  logic is_trap;
+
+  assign is_ebreak = (instr_wb == I_EBREAK);
+  assign is_trap   = trap_wb;
+
+  //
   // Ready/valid interface
   //
-  // WB is normally always ready (regfile write is single-cycle).
-  // Use s_valid as the source of truth for retirement.
+  // s_ready is high until we enter halted state. This allows the ebreak/trap
+  // instruction to complete its handshake before stopping the pipeline.
   //
-  // However, when ebreak or trap fires, WB deasserts ready to halt the
-  // pipeline. This prevents MEM from advancing and overwriting the halted
-  // instruction.
-  //
-  // Note: ebreak/trap check instr_wb directly (not s_valid) because once
-  // triggered, they must stay asserted even as s_valid goes low during halt.
-  // The instruction register holds EBREAK until reset, which is correct.
-  //
-  assign ebreak  = (rst_n && instr_wb == I_EBREAK);
-  assign trap    = (rst_n && trap_wb);
-  assign s_ready = !(ebreak || trap);
-  assign retired = s_valid;
+  assign s_ready   = !halted;
 
-  `SVC_UNUSED(valid_wb);
+  //
+  // Halted state
+  //
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      halted        <= 1'b0;
+      halted_ebreak <= 1'b0;
+      halted_trap   <= 1'b0;
+    end else if (retired && (is_ebreak || is_trap)) begin
+      halted        <= 1'b1;
+      halted_ebreak <= is_ebreak;
+      halted_trap   <= is_trap;
+    end
+  end
+
+  assign ebreak = (retired && is_ebreak) || halted_ebreak;
+  assign trap   = (retired && trap_wb) || halted_trap;
 
 endmodule
 
