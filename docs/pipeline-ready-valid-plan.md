@@ -605,59 +605,91 @@ can be done separately.
 
 ---
 
-## Step 7: Refactor Hazard Unit
+## Step 7: Remove id_stall from Hazard Unit
 
-**Goal**: Convert hazard unit from stall/flush generation to kill signal
-generation. Move data hazard stall logic into stages.
+**Goal**: Remove `id_stall` from hazard unit. Stall behavior flows through
+ready/valid backpressure instead of centralized stall signals.
 
-**Current Responsibilities**:
+**Current State** (after Step 6):
 
-1. Data hazard detection (RAW dependencies) → generates stalls
-2. Control hazard detection (branches/jumps) → generates flushes
-3. Load-use hazard detection → generates stalls
-4. Multi-cycle op coordination → generates stalls
+- `pc_stall` removed (Step 6d) - stage_pc uses `m_ready` backpressure
+- `id_stall` still exists - goes to stage_id for data hazards, load-use,
+  multi-cycle ops
+- Flush signals work correctly - no changes needed
 
-**New Responsibilities**:
+**What id_stall Currently Does**:
 
-1. Control hazard detection → generates kill signals
-2. Misprediction detection → generates kill signals
+1. Data hazards (RAW dependencies) - stall ID while EX/MEM/WB have pending
+   writes
+2. Load-use hazards - stall ID when load result not yet available
+3. Multi-cycle ops (`op_active_ex`) - stall ID while divider runs
+4. Halt - stall everything
 
-**Moved to Stages**:
+**Why NOT to Put Hazard in EX's s_ready**:
 
-1. Data hazard stalls → EX manages via load data path handshake (see Future
-   Cleanup: Load Data Path Valid/Ready)
-2. Multi-cycle op stalls → EX deasserts `s_ready` during operation (already
-   done)
+Putting `!data_hazard` in EX's s_ready causes **deadlock**:
+
+1. Writer instruction (e.g., `addi x6, x0, 10`) is in the **ID/EX register**
+2. Dependent instruction (e.g., `addi x7, x6, 5`) is in **ID stage**, blocked
+3. `data_hazard = 1` → `s_ready = 0`
+4. Capture to EX/MEM uses `s_accepted = s_valid && s_ready = 0`
+5. Writer never advances from ID/EX to EX/MEM → **deadlock**
+
+The problem: s_ready=0 is meant to block the dependent instruction (in ID) from
+advancing to ID/EX. But it also blocks the writer instruction (already in ID/EX)
+from being captured to EX/MEM, because EX's capture logic is gated by s_ready.
+
+**Correct Approach: Hazard Handling in ID Stage**:
+
+The hazard should be handled in ID stage, not EX stage:
+
+1. **ID stage** receives `data_hazard` signal from hazard unit
+2. **ID keeps m_valid low** when `data_hazard` is true
+   - Doesn't present the dependent instruction to EX
+3. **ID lowers s_ready** to backpressure IF
+   - `s_ready = downstream_ready && !data_hazard`
+4. **EX's s_ready is pure flow control** (no hazard term)
+   - `s_ready = ex_mem_en && !op_active_ex`
+5. Writer instruction in ID/EX advances normally to EX/MEM
+
+This works because:
+- The hazard blocks the **right thing**: the dependent instruction in ID
+- The writer instruction (already in ID/EX) is **not blocked** - it advances
+- Once writer reaches WB, hazard clears, dependent instruction can proceed
+
+**Multi-cycle ops**: EX stage still gates s_ready with `!op_active_ex` for
+multi-cycle operations (divider). This is flow control, not hazard handling.
+
+**Halt**: Moves to stage_pc or top-level (stage_pc ignores m_ready when halted).
 
 **Files to Modify**:
 
-- `rtl/rv/svc_rv_hazard.sv` - Replace stall/flush with kill signals
-- `rtl/rv/svc_rv_stage_ex.sv` - Add load-use hazard detection for `s_ready`
-- `rtl/rv/svc_rv.sv` - Update signal wiring
+- `rtl/rv/svc_rv_hazard.sv` - Remove `id_stall` output, keep `data_hazard` output
+- `rtl/rv/svc_rv_stage_id.sv` - Gate m_valid and s_ready with data_hazard
+- `rtl/rv/svc_rv_stage_ex.sv` - s_ready is pure flow control (no hazard term)
+- `rtl/rv/svc_rv.sv` - Wire data_hazard to ID stage
 
-**Implementation Notes**:
+**Implementation Details**:
 
-1. Hazard unit becomes "kill controller":
+ID stage changes:
+```systemverilog
+// m_valid: Don't present dependent instruction during hazard
+assign m_valid = has_valid_instruction && !data_hazard;
 
-   - Detects misprediction, trap, ebreak
-   - Outputs `kill_if0`, `kill_if1`, `kill_id`, `kill_ex` signals
-   - Stages use kill to gate their `m_valid`
+// s_ready: Backpressure IF during hazard
+assign s_ready = downstream_ready && !data_hazard;
+```
 
-2. EX stage handles its own stalls:
+EX stage s_ready (pure flow control):
+```systemverilog
+assign s_ready = ex_mem_en && !op_active_ex;
+```
 
-   - Detects load-use hazard (needs rd_mem, reg_write_mem, etc.)
-   - Deasserts `s_ready` when hazard detected or op_active
-   - This is local backpressure, not centralized control
+**Flush signals unchanged**:
 
-3. Remove ALL stall signals from hazard unit:
-
-   - `pc_stall`, `id_stall` removed (id_stall was formerly if_id_stall)
-   - Backpressure flows entirely through ready/valid chain
-   - Stages determine their own readiness, no central stall coordination
-
-4. Remove flush signals from hazard unit:
-   - `if_id_flush`, `id_ex_flush`, `ex_mem_flush` removed
-   - Kill signals replace them
+- `if_id_flush`, `id_ex_flush`, `ex_mem_flush` remain in hazard unit
+- They handle control hazards (misprediction, traps)
+- Orthogonal to flow control (ready/valid)
 
 **Note**: Forwarding logic (`svc_rv_fwd_ex.sv`, `svc_rv_fwd_id.sv`) is
 unchanged. It remains combinational and works with the ready/valid flow.
@@ -668,6 +700,7 @@ unchanged. It remains combinational and works with the ready/valid flow.
 - Forwarding still works (FWD=1 configurations)
 - Load-use stalls still work
 - Multi-cycle ops still work
+- No deadlock on data hazards
 
 ---
 
