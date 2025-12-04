@@ -343,6 +343,38 @@ module svc_rv_stage_if #(
   // drop m_valid even when m_ready is low. This is intentional - flush is
   // orthogonal to flow control and gates m_valid to create bubbles.
   //
+  //
+  // flush_extend is an internal signal that clears the pipeline in
+  // non-BPRED pipelined mode. Include it in the flush condition.
+  //
+  logic f_flush;
+  assign f_flush = if_id_flush || flush_extend;
+
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      if ($past(m_valid && !m_ready && !f_flush)) begin
+        //
+        // Valid must remain asserted until ready (unless flushed)
+        //
+        `FASSERT(a_valid_stable, m_valid || f_flush);
+
+        //
+        // Payload signals must remain stable
+        //
+        `FASSERT(a_instr_stable, instr_id == $past(instr_id));
+        `FASSERT(a_pc_stable, pc_id == $past(pc_id));
+        `FASSERT(a_pc_plus4_stable, pc_plus4_id == $past(pc_plus4_id));
+        `FASSERT(a_btb_hit_stable, btb_hit_id == $past(btb_hit_id));
+        `FASSERT(a_btb_pred_taken_stable, btb_pred_taken_id == $past(
+                 btb_pred_taken_id));
+        `FASSERT(a_btb_target_stable, btb_target_id == $past(btb_target_id));
+        `FASSERT(a_btb_is_return_stable, btb_is_return_id == $past(
+                 btb_is_return_id));
+        `FASSERT(a_ras_valid_stable, ras_valid_id == $past(ras_valid_id));
+        `FASSERT(a_ras_target_stable, ras_target_id == $past(ras_target_id));
+      end
+    end
+  end
 
   //
   // Cover properties
