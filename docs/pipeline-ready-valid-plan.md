@@ -403,47 +403,152 @@ multi-cycle op completes. Hazard unit doesn't need to know.
 
 ---
 
-## Step 6: IF→ID Boundary
+## Step 6: IF Stage Split (stage_pc + stage_if)
 
-**Goal**: Convert IF→ID to ready/valid signaling. Keep IF as a single stage
-(IF1) for now - the IF0→IF1→IF2 split is deferred to Step 11.
+**Goal**: Split IF into `stage_pc` and `stage_if` with ready/valid interfaces.
+This makes the implicit IF0 (PC register) explicit and unifies BRAM/SRAM
+handling.
 
-**Files to Modify**:
+**Background**
 
-- `rtl/rv/svc_rv_stage_if1.sv` - Add valid/ready output interface
-- `rtl/rv/svc_rv_stage_id.sv` - Add valid/ready input interface
-- `rtl/rv/svc_rv.sv` - Wire signals
+The current IF stage has an implicit IF0 (PC register controlled by `pc_stall`)
+embedded within `svc_rv_stage_if.sv`. The BRAM/SRAM differences are handled via
+conditional instantiation of `svc_rv_stage_if_bram.sv` or
+`svc_rv_stage_if_sram.sv`.
 
-**Implementation Notes**:
+Analysis revealed:
 
-1. IF1 outputs instruction and prediction info with m_valid/m_ready
-2. ID `s_ready`:
+- `pc_stall` is really IF0's backpressure signal
+- BRAM's 1-cycle latency provides natural registration (like I-cache hit)
+- SRAM's 0-cycle latency is combinational, needs explicit registration for
+  timing
+- I-cache hit ≈ BRAM latency, so BRAM path is the "real" design for cache
 
-   - Ready when EX is ready and no internal stall
-   - `s_ready = m_ready` (pass through)
+**Proposed Structure**
 
-3. IF1 `m_valid`:
+```
+stage_pc           stage_if            stage_id
+────────           ────────            ────────
+PC register        IMEM interface      Decode
+Next PC mux        BTB lookup
+                   Output buffering
+```
 
-   - Valid when instruction fetched and not flushed
-   - Gate with flush from EX (misprediction)
+**Stage Responsibilities**
 
-4. Flush from EX:
+`svc_rv_stage_pc`:
 
-   - Misprediction kills IF1 stage instruction
-   - IF1 gates `m_valid` when killed
+- Owns PC register
+- Next PC mux: sequential (+4), predicted, redirect
+- Issues address to IMEM and BTB
+- `m_valid`: always valid after reset (always has a PC)
+- `m_ready`: from stage_if, backpressure when stage_if can't accept
 
-5. PC update:
+`svc_rv_stage_if`:
 
-   - IF1 only advances PC when `m_valid && m_ready`
-   - Redirect (misprediction) still overrides PC
+- Receives PC from stage_pc
+- IMEM interface (address out, data in)
+- BTB lookup (address out, result in)
+- Output buffering (unified for BRAM/SRAM)
+- `s_valid`/`s_ready`: from stage_pc
+- `m_valid`/`m_ready`: to stage_id
 
-6. Pipeline registers:
-   - Keep IF1→ID pipeline registers for now (preserve timing)
-   - Skidbufs added later if needed for backpressure
+**Memory-Type Handling in stage_if**
 
-**Note**: The IF stage split (IF0→IF1→IF2 for BTB timing) is deferred to Step 11
-as a separate optimization phase after the full pipeline is converted to
-ready/valid.
+The key insight: I-cache hit ≈ BRAM ≈ 1-cycle latency. Design for this as
+primary.
+
+| Memory | IMEM Latency | BTB Latency | stage_if Output Buffer             |
+| ------ | ------------ | ----------- | ---------------------------------- |
+| SRAM   | 0-cycle      | 0-cycle     | Register (add 1 cycle for timing)  |
+| BRAM   | 1-cycle      | 0-cycle\*   | Align BTB with BRAM (register BTB) |
+| Cache  | 1-cycle hit  | 0-cycle\*   | Same as BRAM                       |
+
+\*BTB assumed SRAM-based for fast lookup. If BTB is BRAM, it naturally aligns.
+
+**SRAM Mode**
+
+For simplicity, use unified structure where SRAM uses same pipeline as BRAM:
+
+- SRAM "wastes" a cycle (adds registration it doesn't strictly need)
+- Simpler code, same structure for all memory types
+- Can optimize later with skidbuf passthrough if SRAM timing matters
+
+**BTB Timing**
+
+With stage_pc/stage_if split:
+
+```
+Cycle N:   stage_pc issues PC to BTB
+Cycle N:   BTB lookup (combinational, SRAM-based BTB)
+Cycle N+1: stage_if output registered
+           BTB result now registered, clean timing for prediction
+```
+
+The BTB result gets registered as part of stage_if's output buffering, not as a
+separate stage. This avoids the "extra step vs Rocket" problem.
+
+**Ready/Valid Flow**
+
+```
+stage_pc               stage_if               stage_id
+────────               ────────               ────────
+      m_valid ────────► s_valid
+      m_ready ◄──────── s_ready
+                              m_valid ────────► s_valid
+                              m_ready ◄──────── s_ready
+```
+
+stage_pc `m_ready` low when:
+
+- stage_if can't accept (stage_if's `s_ready` low)
+- stage_if stalled waiting for stage_id
+
+stage_if `s_ready` low when:
+
+- Output buffer full and stage_id not accepting
+- Cache miss (future)
+
+**Migration Path**
+
+1. Create `svc_rv_stage_pc` from current `stage_if`
+
+   - Move PC register and next PC mux
+   - Add m_valid/m_ready interface
+   - `pc_stall` becomes `!m_ready`
+
+2. Refactor `svc_rv_stage_if`
+
+   - Remove PC logic (now in stage_pc)
+   - Unify BRAM/SRAM into single module with unified buffering
+   - Add s_valid/s_ready from stage_pc
+   - Add m_valid/m_ready to stage_id
+
+3. Update top-level wiring
+
+   - Wire stage_pc → stage_if → stage_id
+   - Remove `pc_stall`, use ready/valid chain
+
+4. Cache integration (later)
+   - Replace IMEM interface with cache interface
+   - Cache miss: stage_if deasserts `s_ready` until hit
+   - Same pipeline structure, just different IMEM backend
+
+**Files**
+
+New:
+
+- `rtl/rv/svc_rv_stage_pc.sv`
+
+Modified:
+
+- `rtl/rv/svc_rv_stage_if.sv` (simplified, unified BRAM/SRAM)
+- `rtl/rv/svc_rv.sv` (wiring)
+
+Removed/merged:
+
+- `rtl/rv/svc_rv_stage_if_bram.sv` (merged into stage_if)
+- `rtl/rv/svc_rv_stage_if_sram.sv` (merged into stage_if)
 
 **Validation**:
 
@@ -475,7 +580,8 @@ generation. Move data hazard stall logic into stages.
 
 1. Data hazard stalls → EX manages via load data path handshake (see Future
    Cleanup: Load Data Path Valid/Ready)
-2. Multi-cycle op stalls → EX deasserts `s_ready` during operation (already done)
+2. Multi-cycle op stalls → EX deasserts `s_ready` during operation (already
+   done)
 
 **Files to Modify**:
 
@@ -768,8 +874,8 @@ MEM to EX. When EX has an instruction that needs load data:
 4. EX naturally stalls waiting for the handshake, lowering its `s_ready`
 
 This eliminates `id_stall` for load-use hazards entirely - EX manages its own
-backpressure based on whether the data it needs is available. The hazard unit
-no longer needs to detect load-use hazards; EX simply waits for the data path
+backpressure based on whether the data it needs is available. The hazard unit no
+longer needs to detect load-use hazards; EX simply waits for the data path
 handshake to complete.
 
 Current: Hazard unit detects load-use → `id_stall` → ID lowers `s_ready` → IF
