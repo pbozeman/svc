@@ -64,8 +64,8 @@ module svc_rv #(
     //
     // Instruction memory interface (read-only)
     //
-    output logic        imem_ren,
-    output logic [31:0] imem_raddr,
+    output logic        imem_arvalid,
+    output logic [31:0] imem_araddr,
     input  logic [31:0] imem_rdata,
 
     //

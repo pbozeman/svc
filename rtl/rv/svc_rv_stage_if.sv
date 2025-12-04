@@ -59,8 +59,8 @@ module svc_rv_stage_if #(
     //
     // Instruction memory interface
     //
-    output logic        imem_ren,
-    output logic [31:0] imem_raddr,
+    output logic        imem_arvalid,
+    output logic [31:0] imem_araddr,
     input  logic [31:0] imem_rdata,
 
     //
