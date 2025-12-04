@@ -50,8 +50,8 @@ module svc_rv_stage_pc #(
   // For pipelined mode with BPRED, PC starts at RESET_PC-4 so that
   // pc_next = RESET_PC on first cycle (early speculative fetch uses pc_next)
   //
-  localparam logic [XLEN-1:0] PC_INIT =
-      ((PIPELINED != 0 && BPRED != 0) ? RESET_PC - 4 : RESET_PC);
+  localparam logic [XLEN-1:0]
+      PC_INIT = ((PIPELINED != 0 && BPRED != 0) ? RESET_PC - 4 : RESET_PC);
 
   //
   // PC next calculation with 3-way mux
