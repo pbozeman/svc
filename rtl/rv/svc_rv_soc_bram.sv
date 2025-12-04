@@ -90,9 +90,9 @@ module svc_rv_soc_bram #(
   //
   // Memory interface signals
   //
-  logic [31:0] imem_addr;
-  logic [31:0] imem_data;
-  logic        imem_en;
+  logic [31:0] imem_araddr;
+  logic [31:0] imem_rdata;
+  logic        imem_arvalid;
 
   logic        dmem_ren;
   logic [31:0] dmem_raddr;
@@ -176,9 +176,9 @@ module svc_rv_soc_bram #(
       .clk  (clk),
       .rst_n(rst_n),
 
-      .imem_ren  (imem_en),
-      .imem_raddr(imem_addr),
-      .imem_rdata(imem_data),
+      .imem_arvalid(imem_arvalid),
+      .imem_araddr (imem_araddr),
+      .imem_rdata  (imem_rdata),
 
       .dmem_ren  (dmem_ren),
       .dmem_raddr(dmem_raddr),
@@ -230,9 +230,9 @@ module svc_rv_soc_bram #(
   ) imem (
       .clk    (clk),
       .rst_n  (rst_n),
-      .rd_en  (imem_en),
-      .rd_addr(imem_addr),
-      .rd_data(imem_data),
+      .rd_en  (imem_arvalid),
+      .rd_addr(imem_araddr),
+      .rd_data(imem_rdata),
       .wr_addr(32'h0),
       .wr_data(32'h0),
       .wr_strb(4'h0),

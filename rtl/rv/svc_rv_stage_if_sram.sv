@@ -49,8 +49,8 @@ module svc_rv_stage_if_sram #(
     //
     // Instruction memory interface
     //
-    output logic        imem_ren,
-    output logic [31:0] imem_raddr,
+    output logic        imem_arvalid,
+    output logic [31:0] imem_araddr,
     input  logic [31:0] imem_rdata,
 
     //
@@ -77,16 +77,16 @@ module svc_rv_stage_if_sram #(
   logic [XLEN-1:0] pc_plus4;
   logic [    31:0] instr;
 
-  assign pc_plus4   = pc + 4;
+  assign pc_plus4     = pc + 4;
 
   //
   // Instruction memory interface
   //
   // SRAM: Always enabled
   //
-  assign imem_raddr = pc;
-  assign instr      = imem_rdata;
-  assign imem_ren   = 1'b1;
+  assign imem_araddr  = pc;
+  assign instr        = imem_rdata;
+  assign imem_arvalid = 1'b1;
 
   //
   // Instruction path
