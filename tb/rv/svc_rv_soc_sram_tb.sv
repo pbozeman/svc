@@ -12,22 +12,22 @@ module svc_rv_soc_sram_tb;
   localparam int IO_AW = 10;
 
   //
-  // CPI expectations without regfile internal forwarding
+  // CPI expectations with SRAM memories (unified 1-cycle latency interface)
   //
-  // No regfile forwarding for better fmax on ice40 and similar FPGAs.
-  // WB hazards require stalling, increasing CPI.
+  // With FWD_REGFILE=1 and unified interface matching BRAM behavior,
+  // CPI expectations are similar to BRAM configurations.
   //
-  localparam real alu_indep_max_cpi = 1.35;
-  localparam real alu_chain_max_cpi = 3.5;
+  localparam real alu_indep_max_cpi = 1.5;
+  localparam real alu_chain_max_cpi = 2.9;
   localparam real br_taken_max_cpi = 3.5;
-  localparam real br_not_taken_max_cpi = 3.0;
-  localparam real load_use_max_cpi = 3.0;
-  localparam real mixed_alu_max_cpi = 3.3;
-  localparam real function_calls_max_cpi = 3.0;
+  localparam real br_not_taken_max_cpi = 2.8;
+  localparam real load_use_max_cpi = 2.8;
+  localparam real mixed_alu_max_cpi = 2.7;
+  localparam real function_calls_max_cpi = 3.15;
   localparam real fib12_max_cpi = 1.7;
   localparam real fib100_max_cpi = 1.7;
-  localparam real bubble_max_cpi = 2.5;
-  localparam real forward_taken_loop_max_cpi = 3.35;
+  localparam real bubble_max_cpi = 2.2;
+  localparam real forward_taken_loop_max_cpi = 3.7;
   logic        ebreak;
 
   //
@@ -47,7 +47,7 @@ module svc_rv_soc_sram_tb;
       .IMEM_DEPTH (IMEM_DEPTH),
       .DMEM_DEPTH (DMEM_DEPTH),
       .PIPELINED  (1),
-      .FWD_REGFILE(0)
+      .FWD_REGFILE(1)
   ) uut (
       .clk  (clk),
       .rst_n(rst_n),

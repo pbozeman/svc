@@ -19,6 +19,7 @@ module {{ name }};
   logic        imem_arvalid;
   logic [31:0] imem_araddr;
   logic [31:0] imem_rdata;
+  logic        imem_rvalid;
 
   //
   // Data memory signals
@@ -71,6 +72,7 @@ module {{ name }};
       .imem_arvalid(imem_arvalid),
       .imem_araddr (imem_araddr),
       .imem_rdata  (imem_rdata),
+      .imem_rvalid (imem_rvalid),
 
       .dmem_ren  (dmem_ren),
       .dmem_raddr(dmem_raddr),
@@ -102,12 +104,13 @@ module {{ name }};
   //
   // Sparse instruction memory from trace
   //
-{% if mem_type == 1 %}
+{% if pipelined == 1 %}
   //
-  // BRAM timing: 1-cycle latency (address at edge N, data at edge N+1)
+  // Pipelined timing: 1-cycle latency (address at edge N, data at edge N+1)
   //
   logic [31:0] imem_rdata_any;
   logic [31:0] imem_rdata_reg;
+  logic        imem_rvalid_reg;
 
   always_comb begin
     case (imem_araddr)
@@ -120,16 +123,21 @@ module {{ name }};
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      imem_rdata_reg <= 32'h00000013;
-    end else if (imem_arvalid) begin
-      imem_rdata_reg <= imem_rdata_any;
+      imem_rdata_reg  <= 32'h00000013;
+      imem_rvalid_reg <= 1'b0;
+    end else begin
+      imem_rvalid_reg <= imem_arvalid;
+      if (imem_arvalid) begin
+        imem_rdata_reg <= imem_rdata_any;
+      end
     end
   end
 
-  assign imem_rdata = imem_rdata_reg;
+  assign imem_rdata  = imem_rdata_reg;
+  assign imem_rvalid = imem_rvalid_reg;
 {% else %}
   //
-  // SRAM timing: combinational (0-cycle latency)
+  // Single-cycle timing: combinational (0-cycle latency)
   //
   always_comb begin
     case (imem_araddr)
@@ -139,6 +147,8 @@ module {{ name }};
       default:      imem_rdata = 32'h00000013;
     endcase
   end
+
+  assign imem_rvalid = imem_arvalid;
 {% endif %}
 
   //

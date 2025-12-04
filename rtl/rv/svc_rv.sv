@@ -6,13 +6,10 @@
 
 `include "svc_rv_btb.sv"
 `include "svc_rv_ras.sv"
-`include "svc_rv_bpred_if.sv"
 `include "svc_rv_bpred_id.sv"
 `include "svc_rv_bpred_ex.sv"
 `include "svc_rv_pc_sel.sv"
 `include "svc_rv_hazard.sv"
-`include "svc_rv_stage_if_sram.sv"
-`include "svc_rv_stage_if_bram.sv"
 `include "svc_rv_stage_if.sv"
 `include "svc_rv_stage_id.sv"
 `include "svc_rv_stage_ex.sv"
@@ -67,6 +64,7 @@ module svc_rv #(
     output logic        imem_arvalid,
     output logic [31:0] imem_araddr,
     input  logic [31:0] imem_rdata,
+    input  logic        imem_rvalid,
 
     //
     // Data memory read interface
@@ -435,7 +433,7 @@ module svc_rv #(
     // so only PC and IF/ID stalls are needed.
     //
     assign pc_stall     = op_active_ex || halt_next || halt;
-    assign id_stall     = op_active_ex || halt_next || halt;
+    assign id_stall     = pc_stall;
     assign if_id_flush  = 1'b0;
     assign id_ex_flush  = 1'b0;
     assign ex_mem_flush = 1'b0;
@@ -449,7 +447,7 @@ module svc_rv #(
     // No hazards in single-cycle mode without multi-cycle operations
     //
     assign pc_stall     = halt_next || halt;
-    assign id_stall     = halt_next || halt;
+    assign id_stall     = pc_stall;
     assign if_id_flush  = 1'b0;
     assign id_ex_flush  = 1'b0;
     assign ex_mem_flush = 1'b0;
@@ -547,11 +545,9 @@ module svc_rv #(
 
   //
   // IF Stage: Instruction Fetch
-  //
   svc_rv_stage_if #(
       .XLEN     (XLEN),
       .PIPELINED(PIPELINED),
-      .MEM_TYPE (MEM_TYPE),
       .BPRED    (BPRED),
       .RESET_PC (RESET_PC)
   ) stage_if (

@@ -307,7 +307,7 @@ module svc_rv_hazard #(
   assign front_stall   = data_hazard || op_active_ex;
 
   assign pc_stall      = (front_stall && !stall_disable) || halt;
-  assign id_stall      = (front_stall && !stall_disable) || halt;
+  assign id_stall      = pc_stall;
 
   //
   // Flush logic with stall interaction

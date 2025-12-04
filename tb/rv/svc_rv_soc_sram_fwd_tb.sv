@@ -14,6 +14,9 @@ module svc_rv_soc_sram_fwd_tb;
   //
   // CPI expectations with SRAM, pipelined mode, and forwarding
   //
+  // With unified 1-cycle latency interface (matching BRAM behavior),
+  // CPI expectations are similar to BRAM configurations.
+  //
   // With MEM->EX ALU and load data forwarding, hazards are handled without
   // stalling. Major improvements in ALU chains, mixed ALU, and load-use
   // workloads.
@@ -22,17 +25,17 @@ module svc_rv_soc_sram_fwd_tb;
   // without branch prediction, so workloads with many branches will still
   // show elevated CPI even with perfect data forwarding.
   //
-  localparam real alu_indep_max_cpi = 1.34;
-  localparam real alu_chain_max_cpi = 1.26;
-  localparam real br_taken_max_cpi = 2.05;
-  localparam real br_not_taken_max_cpi = 1.55;
-  localparam real load_use_max_cpi = 1.55;
-  localparam real mixed_alu_max_cpi = 1.25;
-  localparam real function_calls_max_cpi = 2.0;
-  localparam real fib12_max_cpi = 1.35;
-  localparam real fib100_max_cpi = 1.34;
-  localparam real bubble_max_cpi = 1.30;
-  localparam real forward_taken_loop_max_cpi = 2.35;
+  localparam real alu_indep_max_cpi = 1.50;
+  localparam real alu_chain_max_cpi = 1.40;
+  localparam real br_taken_max_cpi = 2.55;
+  localparam real br_not_taken_max_cpi = 1.80;
+  localparam real load_use_max_cpi = 2.30;
+  localparam real mixed_alu_max_cpi = 1.35;
+  localparam real function_calls_max_cpi = 2.5;
+  localparam real fib12_max_cpi = 1.52;
+  localparam real fib100_max_cpi = 1.52;
+  localparam real bubble_max_cpi = 1.58;
+  localparam real forward_taken_loop_max_cpi = 3.0;
   logic        ebreak;
 
   //
