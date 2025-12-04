@@ -25,10 +25,14 @@ module svc_rv_if_bram #(
     input logic rst_n,
 
     //
-    // Stall and flush controls
+    // Flush control
     //
-    input logic if_id_stall,
     input logic if_id_flush,
+
+    //
+    // Ready/valid interface
+    //
+    input logic m_ready,
 
     //
     // PC inputs from fetch stage
@@ -69,7 +73,7 @@ module svc_rv_if_bram #(
     if (!rst_n) begin
       pc_buf       <= '0;
       pc_plus4_buf <= '0;
-    end else if (!if_id_stall) begin
+    end else if (m_ready) begin
       pc_buf       <= pc;
       pc_plus4_buf <= pc_plus4;
     end
@@ -102,7 +106,7 @@ module svc_rv_if_bram #(
   always_ff @(posedge clk) begin
     if (!rst_n || if_id_flush || flush_extend) begin
       instr_id <= I_NOP;
-    end else if (!if_id_stall) begin
+    end else if (m_ready) begin
       instr_id <= instr_bram;
     end
   end

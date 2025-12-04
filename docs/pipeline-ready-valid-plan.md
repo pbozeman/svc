@@ -9,6 +9,12 @@ distributed ready/valid handshaking. This enables:
 - IF stage split for BTB timing (deferred to Step 10)
 - Cleaner stage isolation and composability
 
+**Key Goal**: Remove ALL stall signals from the hazard unit. The hazard unit
+should only generate flush/kill signals for control hazards (misprediction,
+traps). All backpressure/stall behavior flows through the ready/valid chain -
+each stage manages its own readiness based on downstream availability and
+internal state.
+
 **Phase 1 (Steps 0-8)**: Convert all stage boundaries to ready/valid signaling
 while keeping the existing IF stage structure (single IF1 stage).
 
@@ -467,8 +473,9 @@ generation. Move data hazard stall logic into stages.
 
 **Moved to Stages**:
 
-1. Data hazard stalls → EX deasserts `s_ready` on load-use hazard
-2. Multi-cycle op stalls → EX deasserts `s_ready` during operation
+1. Data hazard stalls → EX manages via load data path handshake (see Future
+   Cleanup: Load Data Path Valid/Ready)
+2. Multi-cycle op stalls → EX deasserts `s_ready` during operation (already done)
 
 **Files to Modify**:
 
@@ -490,10 +497,11 @@ generation. Move data hazard stall logic into stages.
    - Deasserts `s_ready` when hazard detected or op_active
    - This is local backpressure, not centralized control
 
-3. Remove stall signals from hazard unit:
+3. Remove ALL stall signals from hazard unit:
 
-   - `pc_stall`, `if_id_stall`, `id_ex_stall`, `ex_mem_stall` removed
-   - Backpressure flows through ready/valid chain
+   - `pc_stall`, `id_stall` removed (id_stall was formerly if_id_stall)
+   - Backpressure flows entirely through ready/valid chain
+   - Stages determine their own readiness, no central stall coordination
 
 4. Remove flush signals from hazard unit:
    - `if_id_flush`, `id_ex_flush`, `ex_mem_flush` removed
@@ -748,3 +756,24 @@ stall_str = (stage_id.m_valid && !stage_id.m_ready) ? "s" : " ";
 ```
 
 Apply similar pattern to all stage debug displays.
+
+### Load Data Path Valid/Ready
+
+Consider adding a valid/ready handshake on the load data forwarding path from
+MEM to EX. When EX has an instruction that needs load data:
+
+1. EX asserts request for forwarded load data (valid)
+2. MEM responds with data when available (ready + data)
+3. If MEM doesn't have the data yet (cache miss), handshake doesn't complete
+4. EX naturally stalls waiting for the handshake, lowering its `s_ready`
+
+This eliminates `id_stall` for load-use hazards entirely - EX manages its own
+backpressure based on whether the data it needs is available. The hazard unit
+no longer needs to detect load-use hazards; EX simply waits for the data path
+handshake to complete.
+
+Current: Hazard unit detects load-use → `id_stall` → ID lowers `s_ready` → IF
+stalls.
+
+Future: EX needs load data → requests via handshake → MEM not ready → EX lowers
+`s_ready` → backpressure propagates naturally.

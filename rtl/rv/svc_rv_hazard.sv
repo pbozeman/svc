@@ -87,7 +87,7 @@ module svc_rv_hazard #(
 
     // Hazard control outputs
     output logic pc_stall,
-    output logic if_id_stall,
+    output logic id_stall,
     output logic if_id_flush,
     output logic id_ex_flush,
     output logic ex_mem_flush
@@ -307,7 +307,7 @@ module svc_rv_hazard #(
   assign front_stall   = data_hazard || op_active_ex;
 
   assign pc_stall      = (front_stall && !stall_disable) || halt;
-  assign if_id_stall   = (front_stall && !stall_disable) || halt;
+  assign id_stall      = (front_stall && !stall_disable) || halt;
 
   //
   // Flush logic with stall interaction

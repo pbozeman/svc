@@ -8,7 +8,7 @@ module svc_rv_if_sram_tb;
 
   localparam int XLEN = 32;
 
-  logic            if_id_stall;
+  logic            m_ready;
   logic            if_id_flush;
   logic [XLEN-1:0] pc;
   logic [XLEN-1:0] pc_plus4;
@@ -25,7 +25,7 @@ svc_rv_if_sram #(
   ) uut (
       .clk              (clk),
       .rst_n            (rst_n),
-      .if_id_stall      (if_id_stall),
+      .m_ready          (m_ready),
       .if_id_flush      (if_id_flush),
       .pc               (pc),
       .pc_plus4         (pc_plus4),
@@ -36,7 +36,7 @@ svc_rv_if_sram #(
   );
 
   task automatic test_reset;
-    if_id_stall = 1'b0;
+    m_ready     = 1'b1;
     if_id_flush = 1'b0;
     pc          = 32'h0;
     pc_plus4    = 32'h4;
@@ -50,7 +50,7 @@ svc_rv_if_sram #(
   endtask
 
   task automatic test_normal_flow;
-    if_id_stall = 1'b0;
+    m_ready     = 1'b1;
     if_id_flush = 1'b0;
     pc          = 32'h1000;
     pc_plus4    = 32'h1004;
@@ -74,7 +74,7 @@ svc_rv_if_sram #(
   endtask
 
   task automatic test_stall;
-    if_id_stall = 1'b0;
+    m_ready     = 1'b1;
     if_id_flush = 1'b0;
     pc          = 32'h1000;
     pc_plus4    = 32'h1004;
@@ -84,10 +84,10 @@ svc_rv_if_sram #(
 
     `CHECK_EQ(instr_id, 32'h12345678);
 
-    if_id_stall = 1'b1;
-    pc          = 32'h1004;
-    pc_plus4    = 32'h1008;
-    instr_sram  = 32'h9abcdef0;
+    m_ready    = 1'b0;
+    pc         = 32'h1004;
+    pc_plus4   = 32'h1008;
+    instr_sram = 32'h9abcdef0;
 
     `TICK(clk);
 
@@ -96,7 +96,7 @@ svc_rv_if_sram #(
   endtask
 
   task automatic test_flush;
-    if_id_stall = 1'b0;
+    m_ready     = 1'b1;
     if_id_flush = 1'b0;
     pc          = 32'h1000;
     pc_plus4    = 32'h1004;
@@ -127,7 +127,7 @@ svc_rv_if_sram #(
   endtask
 
   task automatic test_pc_passthrough;
-    if_id_stall = 1'b0;
+    m_ready     = 1'b1;
     if_id_flush = 1'b0;
     pc          = 32'h1234;
     pc_plus4    = 32'h1238;

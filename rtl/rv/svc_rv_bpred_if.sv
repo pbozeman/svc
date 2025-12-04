@@ -31,8 +31,12 @@ module svc_rv_bpred_if #(
     //
     // Hazard control
     //
-    input logic if_id_stall,
     input logic if_id_flush,
+
+    //
+    // Ready/valid interface
+    //
+    input logic m_ready,
 
     //
     // BTB prediction from IF stage memory modules
@@ -93,7 +97,7 @@ module svc_rv_bpred_if #(
         btb_pred_taken_id_buf <= 1'b0;
         btb_is_return_id_buf  <= 1'b0;
         ras_valid_id_buf      <= 1'b0;
-      end else if (!if_id_stall) begin
+      end else if (m_ready) begin
         btb_hit_id_buf        <= btb_hit_to_if_id;
         btb_pred_taken_id_buf <= btb_pred_taken_to_if_id;
         btb_is_return_id_buf  <= btb_is_return_to_if_id;
@@ -105,7 +109,7 @@ module svc_rv_bpred_if #(
     // Datapath registers: no reset needed (don't care when valid flags == 0)
     //
     always_ff @(posedge clk) begin
-      if (!if_id_stall) begin
+      if (m_ready) begin
         btb_target_id_buf <= btb_target_to_if_id;
         ras_target_id_buf <= ras_target_to_if_id;
       end
@@ -132,7 +136,7 @@ module svc_rv_bpred_if #(
 
     // verilog_format: off
     `include "svc_unused.sv"
-    `SVC_UNUSED({clk, rst_n, if_id_stall, if_id_flush});
+    `SVC_UNUSED({clk, rst_n, if_id_flush, m_ready});
     // verilog_format: on
   end
 

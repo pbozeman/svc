@@ -25,8 +25,12 @@ module svc_rv_stage_if_sram #(
     //
     // Hazard control
     //
-    input logic if_id_stall,
     input logic if_id_flush,
+
+    //
+    // Ready/valid interface
+    //
+    input logic m_ready,
 
     //
     // BTB prediction signals
@@ -97,7 +101,7 @@ module svc_rv_stage_if_sram #(
       if (!rst_n || if_id_flush) begin
         instr_buf <= I_NOP;
         valid_buf <= 1'b0;
-      end else if (!if_id_stall) begin
+      end else if (m_ready) begin
         instr_buf <= instr;
         valid_buf <= 1'b1;
       end
@@ -109,7 +113,7 @@ module svc_rv_stage_if_sram #(
     assign instr_id       = instr;
     assign valid_to_if_id = rst_n;
 
-    `SVC_UNUSED({clk, if_id_stall, if_id_flush})
+    `SVC_UNUSED({clk, if_id_flush, m_ready})
   end
 
   //
