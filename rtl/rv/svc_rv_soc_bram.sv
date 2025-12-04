@@ -93,6 +93,7 @@ module svc_rv_soc_bram #(
   logic [31:0] imem_araddr;
   logic [31:0] imem_rdata;
   logic        imem_arvalid;
+  logic        imem_rvalid;
 
   logic        dmem_ren;
   logic [31:0] dmem_raddr;
@@ -133,6 +134,22 @@ module svc_rv_soc_bram #(
       io_sel_rd_p1 <= 1'b0;
     end else if (dmem_ren) begin
       io_sel_rd_p1 <= io_sel_rd;
+    end
+  end
+
+  //
+  // Instruction memory response valid
+  //
+  // Registered: indicates data is valid on imem_rdata. For BRAM with 1-cycle
+  // read latency, rvalid follows arvalid by 1 cycle.
+  //
+  // For future icache: this would be delayed further on cache miss.
+  //
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      imem_rvalid <= 1'b0;
+    end else begin
+      imem_rvalid <= imem_arvalid;
     end
   end
 
@@ -179,6 +196,7 @@ module svc_rv_soc_bram #(
       .imem_arvalid(imem_arvalid),
       .imem_araddr (imem_araddr),
       .imem_rdata  (imem_rdata),
+      .imem_rvalid (imem_rvalid),
 
       .dmem_ren  (dmem_ren),
       .dmem_raddr(dmem_raddr),

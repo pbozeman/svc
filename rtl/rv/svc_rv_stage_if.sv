@@ -3,22 +3,19 @@
 
 `include "svc.sv"
 `include "svc_unused.sv"
-`include "svc_rv_bpred_if.sv"
-`include "svc_rv_stage_if_sram.sv"
-`include "svc_rv_stage_if_bram.sv"
 
 //
 // RISC-V Instruction Fetch (IF) Stage
 //
-// Thin wrapper that handles shared logic:
-// - PC next calculation and PC register
-// - IF/ID pipeline registers
-// - Instantiation of memory-type-specific fetch logic
+// Supports two modes:
+// - PIPELINED=1: Buffers PC and metadata, expects synchronous memory interface
+// - PIPELINED=0: Passthrough for single-cycle execution
+//
+// Uses imem_rvalid from memory subsystem to determine when instruction is valid.
 //
 module svc_rv_stage_if #(
     parameter int          XLEN      = 32,
     parameter int          PIPELINED = 1,
-    parameter int          MEM_TYPE  = 0,
     parameter int          BPRED     = 0,
     parameter logic [31:0] RESET_PC  = 32'h0000_0000
 ) (
@@ -62,6 +59,7 @@ module svc_rv_stage_if #(
     output logic        imem_arvalid,
     output logic [31:0] imem_araddr,
     input  logic [31:0] imem_rdata,
+    input  logic        imem_rvalid,
 
     //
     // PC for BTB lookup
@@ -91,6 +89,12 @@ module svc_rv_stage_if #(
   `include "svc_rv_defs.svh"
 
   logic [XLEN-1:0] pc_next;
+  logic [    31:0] instr;
+  logic            flush_extend;
+
+  //
+  // Intermediate signals for pipeline register inputs
+  //
   logic [XLEN-1:0] pc_to_if_id;
   logic [XLEN-1:0] pc_plus4_to_if_id;
   logic            btb_hit_to_if_id;
@@ -99,16 +103,15 @@ module svc_rv_stage_if #(
   logic            btb_is_return_to_if_id;
   logic            ras_valid_to_if_id;
   logic [XLEN-1:0] ras_target_to_if_id;
-  logic            valid_to_if_id;
 
   //
   // PC initialization
   //
-  // For BRAM with BPRED, PC starts at RESET_PC-4 so that pc_next = RESET_PC
-  // on first cycle
+  // For pipelined mode with BPRED, PC starts at RESET_PC-4 so that
+  // pc_next = RESET_PC on first cycle
   //
-  localparam logic [XLEN-1:0] PC_INIT =
-      (MEM_TYPE == MEM_TYPE_BRAM && BPRED != 0) ? RESET_PC - 4 : RESET_PC;
+  localparam logic [XLEN-1:0]
+      PC_INIT = ((PIPELINED != 0 && BPRED != 0) ? RESET_PC - 4 : RESET_PC);
 
   //
   // PC next calculation with 3-way mux
@@ -137,32 +140,162 @@ module svc_rv_stage_if #(
     end
   end
 
+  // =========================================================================
+  // Instruction memory interface
+  // =========================================================================
   //
-  // Memory-type specific fetch logic
+  // Pipelined with BPRED: Use pc_next for early speculative fetch
+  // Pipelined without BPRED: Use pc for normal fetch
+  // Single-cycle: Use pc, always enabled
   //
-  if (MEM_TYPE == MEM_TYPE_BRAM) begin : g_bram
-    svc_rv_stage_if_bram #(
-        .XLEN (XLEN),
-        .BPRED(BPRED)
-    ) stage (
-        .*
-    );
-  end else begin : g_sram
-    svc_rv_stage_if_sram #(
-        .XLEN     (XLEN),
-        .PIPELINED(PIPELINED)
-    ) stage (
-        .*
-    );
+  assign instr = imem_rdata;
+
+  if (PIPELINED != 0 && BPRED != 0) begin : g_pipelined_bpred_imem
+    assign imem_araddr  = pc_next;
+    assign imem_arvalid = !rst_n || !pc_stall;
+
+    `SVC_UNUSED({pc})
+  end else if (PIPELINED != 0) begin : g_pipelined_imem
+    assign imem_araddr  = pc;
+    assign imem_arvalid = !pc_stall;
+
+    `SVC_UNUSED({pc_next})
+  end else begin : g_single_cycle_imem
+    assign imem_araddr  = pc;
+    assign imem_arvalid = 1'b1;
+
+    `SVC_UNUSED({pc_next})
   end
 
+  // =========================================================================
+  // Extended flush for pipelined mode without BPRED
+  // =========================================================================
   //
-  // IF/ID Pipeline Register (PC and BTB only, not instruction)
+  // Without BPRED: Sequential instruction is already fetched before redirect
+  // is detected, so we need flush_extend to clear the stale instruction.
   //
-  // Instruction and valid are already buffered in the stage-specific modules
-  // and drive outputs directly to avoid double-buffering.
+  // With BPRED: Target is fetched immediately when prediction happens,
+  // so flush_extend would incorrectly flush the CORRECT target instruction.
   //
-  if (PIPELINED != 0) begin : g_registered
+  if (PIPELINED != 0 && BPRED == 0) begin : g_flush_extend
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        flush_extend <= 1'b0;
+      end else begin
+        flush_extend <= if_id_flush;
+      end
+    end
+  end else begin : g_no_flush_extend
+    assign flush_extend = 1'b0;
+  end
+
+  // =========================================================================
+  // PC and metadata handling
+  // =========================================================================
+  //
+  // Pipelined: Buffer by one cycle to align with instruction
+  // Single-cycle: Passthrough (instruction available same cycle)
+  //
+  if (PIPELINED != 0) begin : g_pipelined_metadata
+    (* max_fanout = 32 *)logic [XLEN-1:0] pc_buf;
+    (* max_fanout = 32 *)logic [XLEN-1:0] pc_plus4_buf;
+    logic            btb_hit_buf;
+    logic            btb_pred_taken_buf;
+    logic [XLEN-1:0] btb_target_buf;
+    logic            btb_is_return_buf;
+    logic            ras_valid_buf;
+    logic [XLEN-1:0] ras_target_buf;
+
+    //
+    // Control signals: need reset for correct behavior
+    //
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        btb_hit_buf        <= 1'b0;
+        btb_pred_taken_buf <= 1'b0;
+        btb_is_return_buf  <= 1'b0;
+        ras_valid_buf      <= 1'b0;
+      end else if (m_ready) begin
+        btb_hit_buf        <= btb_hit_if;
+        btb_pred_taken_buf <= btb_pred_taken_if;
+        btb_is_return_buf  <= btb_is_return_if;
+        ras_valid_buf      <= ras_valid_if;
+      end
+    end
+
+    //
+    // Datapath registers: no reset needed (don't care until valid)
+    //
+    always_ff @(posedge clk) begin
+      if (m_ready) begin
+        pc_buf         <= imem_araddr;
+        pc_plus4_buf   <= imem_araddr + 4;
+        btb_target_buf <= btb_target_if;
+        ras_target_buf <= ras_target_if;
+      end
+    end
+
+    assign pc_to_if_id             = pc_buf;
+    assign pc_plus4_to_if_id       = pc_plus4_buf;
+    assign btb_hit_to_if_id        = btb_hit_buf;
+    assign btb_pred_taken_to_if_id = btb_pred_taken_buf;
+    assign btb_target_to_if_id     = btb_target_buf;
+    assign btb_is_return_to_if_id  = btb_is_return_buf;
+    assign ras_valid_to_if_id      = ras_valid_buf;
+    assign ras_target_to_if_id     = ras_target_buf;
+
+  end else begin : g_single_cycle_metadata
+    //
+    // Single-cycle: Passthrough (instruction available same cycle)
+    //
+    assign pc_to_if_id             = pc;
+    assign pc_plus4_to_if_id       = pc + 4;
+    assign btb_hit_to_if_id        = btb_hit_if;
+    assign btb_pred_taken_to_if_id = btb_pred_taken_if;
+    assign btb_target_to_if_id     = btb_target_if;
+    assign btb_is_return_to_if_id  = btb_is_return_if;
+    assign ras_valid_to_if_id      = ras_valid_if;
+    assign ras_target_to_if_id     = ras_target_if;
+  end
+
+  // =========================================================================
+  // Instruction buffering and validity
+  // =========================================================================
+  if (PIPELINED != 0) begin : g_pipelined
+    logic [31:0] instr_buf;
+    logic        valid_buf;
+
+    //
+    // Instruction buffering with stall support and extended flush
+    //
+    always_ff @(posedge clk) begin
+      if (!rst_n || if_id_flush || flush_extend) begin
+        instr_buf <= I_NOP;
+      end else if (m_ready) begin
+        instr_buf <= instr;
+      end
+    end
+
+    //
+    // Validity tracking using imem_rvalid
+    //
+    // imem_rvalid arrives after the synchronous memory responds.
+    // We set valid_buf to 1 when rvalid arrives, preserving it during stalls.
+    //
+    always_ff @(posedge clk) begin
+      if (!rst_n || if_id_flush || flush_extend) begin
+        valid_buf <= 1'b0;
+      end else if (m_ready && imem_rvalid) begin
+        valid_buf <= 1'b1;
+      end
+    end
+
+    assign instr_id = instr_buf;
+    assign m_valid  = valid_buf;
+
+    // =====================================================================
+    // IF/ID Pipeline Registers
+    // =====================================================================
     logic [XLEN-1:0] pc_id_buf;
     logic [XLEN-1:0] pc_plus4_id_buf;
 
@@ -173,40 +306,38 @@ module svc_rv_stage_if #(
       end
     end
 
-    assign pc_id       = pc_id_buf;
-    assign pc_plus4_id = pc_plus4_id_buf;
+    assign pc_id             = pc_id_buf;
+    assign pc_plus4_id       = pc_plus4_id_buf;
 
     //
-    // BTB and RAS signal buffering
+    // BTB and RAS signals to IF/ID pipeline register
     //
-    svc_rv_bpred_if #(
-        .XLEN     (XLEN),
-        .PIPELINED(PIPELINED),
-        .MEM_TYPE (MEM_TYPE)
-    ) bpred (
-        .*
-    );
+    // Metadata is already buffered by g_pipelined_metadata, passthrough here.
+    //
+    assign btb_hit_id        = btb_hit_to_if_id;
+    assign btb_pred_taken_id = btb_pred_taken_to_if_id;
+    assign btb_target_id     = btb_target_to_if_id;
+    assign btb_is_return_id  = btb_is_return_to_if_id;
+    assign ras_valid_id      = ras_valid_to_if_id;
+    assign ras_target_id     = ras_target_to_if_id;
 
-  end else begin : g_passthrough
-    assign pc_id       = pc_to_if_id;
-    assign pc_plus4_id = pc_plus4_to_if_id;
+  end else begin : g_non_pipelined
+    //
+    // Non-pipelined: Passthrough everything
+    //
+    assign instr_id          = instr;
+    assign m_valid           = imem_rvalid;
+    assign pc_id             = pc_to_if_id;
+    assign pc_plus4_id       = pc_plus4_to_if_id;
+    assign btb_hit_id        = btb_hit_to_if_id;
+    assign btb_pred_taken_id = btb_pred_taken_to_if_id;
+    assign btb_target_id     = btb_target_to_if_id;
+    assign btb_is_return_id  = btb_is_return_to_if_id;
+    assign ras_valid_id      = ras_valid_to_if_id;
+    assign ras_target_id     = ras_target_to_if_id;
 
-    //
-    // BTB and RAS passthrough for non-pipelined
-    //
-    svc_rv_bpred_if #(
-        .XLEN     (XLEN),
-        .PIPELINED(PIPELINED),
-        .MEM_TYPE (MEM_TYPE)
-    ) bpred (
-        .*
-    );
+    `SVC_UNUSED({if_id_flush, m_ready, flush_extend, instr})
   end
-
-  //
-  // Ready/valid output
-  //
-  assign m_valid = valid_to_if_id;
 
 `ifdef FORMAL
 `ifdef FORMAL_SVC_RV_STAGE_IF

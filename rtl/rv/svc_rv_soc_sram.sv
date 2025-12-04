@@ -9,8 +9,11 @@
 //
 // RISC-V SoC with SRAM memories
 //
-// Single-cycle RISC-V core with separate instruction and data SRAMs.
-// Both memories have 0-cycle read latency (combinational reads).
+// RISC-V core with separate instruction and data SRAMs.
+//
+// For single-cycle (PIPELINED=0): Combinational reads, 0-cycle latency.
+// For pipelined (PIPELINED=1): Instruction data is held in a register to
+// present a 1-cycle latency interface matching BRAM behavior.
 //
 module svc_rv_soc_sram #(
     parameter int XLEN        = 32,
@@ -58,6 +61,8 @@ module svc_rv_soc_sram #(
   //
   logic [31:0] imem_araddr;
   logic [31:0] imem_rdata;
+  logic        imem_arvalid;
+  logic        imem_rvalid;
 
   logic [31:0] dmem_raddr;
   logic [31:0] dmem_rdata;
@@ -70,6 +75,7 @@ module svc_rv_soc_sram #(
   //
   // SRAM interface signals
   //
+  logic [31:0] imem_rdata_sram;
   logic [31:0] sram_rdata;
   logic        sram_wen;
 
@@ -103,6 +109,43 @@ module svc_rv_soc_sram #(
   assign io_wstrb   = dmem_wstrb;
 
   //
+  // Instruction memory interface
+  //
+  // For pipelined mode: Hold instruction data and register rvalid to present
+  // a 1-cycle latency interface matching BRAM behavior.
+  //
+  // For single-cycle mode: Combinational passthrough.
+  //
+  if (PIPELINED != 0) begin : g_pipelined_imem
+    //
+    // Hold instruction data for 1-cycle latency
+    //
+    logic [31:0] imem_rdata_hold;
+
+    always_ff @(posedge clk) begin
+      if (imem_arvalid) begin
+        imem_rdata_hold <= imem_rdata_sram;
+      end
+    end
+
+    assign imem_rdata = imem_rdata_hold;
+
+    //
+    // Register rvalid to match data timing
+    //
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        imem_rvalid <= 1'b0;
+      end else begin
+        imem_rvalid <= imem_arvalid;
+      end
+    end
+  end else begin : g_single_cycle_imem
+    assign imem_rdata  = imem_rdata_sram;
+    assign imem_rvalid = imem_arvalid;
+  end
+
+  //
   // RISC-V core
   //
   svc_rv #(
@@ -123,9 +166,10 @@ module svc_rv_soc_sram #(
       .clk  (clk),
       .rst_n(rst_n),
 
-      .imem_arvalid(),
+      .imem_arvalid(imem_arvalid),
       .imem_araddr (imem_araddr),
       .imem_rdata  (imem_rdata),
+      .imem_rvalid (imem_rvalid),
 
       .dmem_ren  (),
       .dmem_raddr(dmem_raddr),
@@ -178,7 +222,7 @@ module svc_rv_soc_sram #(
       .rst_n(rst_n),
 
       .rd_addr(imem_araddr),
-      .rd_data(imem_rdata),
+      .rd_data(imem_rdata_sram),
 
       .wr_en  (1'b0),
       .wr_addr(32'h0),

@@ -119,13 +119,13 @@ def extract_init_from_trace_tb(trace_tb_file):
     return init_state
 
 
-def extract_imem_from_vcd(vcd_file, mem_type=0):
+def extract_imem_from_vcd(vcd_file, pipelined=1):
     """Extract instruction memory from VCD file.
 
     Sample imem_araddr and imem_rdata at each timestep when imem_arvalid=1.
     This gives us the actual {addr -> data} mapping used in the formal trace.
 
-    For BRAM (mem_type=1), account for 1-cycle latency:
+    For pipelined mode (pipelined=1), account for 1-cycle latency:
     imem_rdata at time T contains data from imem_araddr at time T-10.
     """
     vcd = parse_vcd(str(vcd_file))
@@ -160,11 +160,11 @@ def extract_imem_from_vcd(vcd_file, mem_type=0):
     #
     # Sample at each 10ns timestep (clock period)
     #
-    # For BRAM timing: imem_rdata[T] is data from imem_araddr[T-10]
+    # For pipelined timing: imem_rdata[T] is data from imem_araddr[T-10]
     # So we pair addr at T with data at T+10
     #
     imem = {}
-    addr_offset = 10 if mem_type == 1 else 0
+    addr_offset = 10 if pipelined == 1 else 0
 
     for t in range(0, max_time + 10, 10):
         arvalid = get_val_at_time(imem_arvalid, t)
@@ -481,7 +481,7 @@ def main():
     #
     # Extract instruction memory from VCD (shows actual fetched values)
     #
-    prog = extract_imem_from_vcd(vcd_file, params["mem_type"])
+    prog = extract_imem_from_vcd(vcd_file, params["pipelined"])
     if not prog:
         print("Error: No instruction memory found in VCD", file=sys.stderr)
         sys.exit(1)
