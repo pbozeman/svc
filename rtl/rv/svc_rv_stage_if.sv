@@ -25,7 +25,6 @@ module svc_rv_stage_if #(
     //
     // Hazard control
     //
-    input logic pc_stall,
     input logic if_id_flush,
 
     //
@@ -90,10 +89,11 @@ module svc_rv_stage_if #(
   //
   // Ready signal to PC stage
   //
-  // For now, maps pc_stall to ready. Step 6.3 will convert this to
-  // true backpressure based on IF stage's ability to accept.
+  // Backpressure from downstream: accept new PC when ID stage can accept.
+  // Stall conditions (data hazards, multi-cycle ops) flow through ID's
+  // s_ready via id_stall, so we don't need pc_stall here.
   //
-  assign s_ready = !pc_stall;
+  assign s_ready = m_ready;
 
   //
   // Intermediate signals for pipeline register inputs
@@ -118,8 +118,12 @@ module svc_rv_stage_if #(
   assign instr = imem_rdata;
 
   if (PIPELINED != 0 && BPRED != 0) begin : g_pipelined_bpred_imem
+    //
+    // BPRED mode: !rst_n ensures first-cycle fetch when PC starts at
+    // RESET_PC-4 and pc_next = RESET_PC
+    //
     assign imem_araddr  = pc_next;
-    assign imem_arvalid = !rst_n || !pc_stall;
+    assign imem_arvalid = !rst_n || m_ready;
 
     //
     // In BPRED mode, pc goes to BTB from stage_pc, not used here
@@ -127,7 +131,7 @@ module svc_rv_stage_if #(
     `SVC_UNUSED({pc})
   end else if (PIPELINED != 0) begin : g_pipelined_imem
     assign imem_araddr  = pc;
-    assign imem_arvalid = !pc_stall;
+    assign imem_arvalid = m_ready;
 
     `SVC_UNUSED({pc_next})
   end else begin : g_single_cycle_imem
