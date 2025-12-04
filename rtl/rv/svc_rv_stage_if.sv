@@ -14,10 +14,9 @@
 // Uses imem_rvalid from memory subsystem to determine when instruction is valid.
 //
 module svc_rv_stage_if #(
-    parameter int          XLEN      = 32,
-    parameter int          PIPELINED = 1,
-    parameter int          BPRED     = 0,
-    parameter logic [31:0] RESET_PC  = 32'h0000_0000
+    parameter int XLEN      = 32,
+    parameter int PIPELINED = 1,
+    parameter int BPRED     = 0
 ) (
     input logic clk,
     input logic rst_n,
@@ -316,7 +315,7 @@ module svc_rv_stage_if #(
     assign ras_valid_id      = ras_valid_to_if_id;
     assign ras_target_id     = ras_target_to_if_id;
 
-    `SVC_UNUSED({if_id_flush, m_ready, flush_extend, instr})
+    `SVC_UNUSED({clk, rst_n, if_id_flush, m_ready, flush_extend, instr})
   end
 
 `ifdef FORMAL

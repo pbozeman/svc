@@ -335,7 +335,6 @@ module svc_rv #(
 
   // Hazard control signals
   // verilog_format: off
-  (* max_fanout = 32 *)logic pc_stall;
   (* max_fanout = 32 *)logic id_stall;
   (* max_fanout = 32 *)logic if_id_flush;
   (* max_fanout = 32 *)logic id_ex_flush;
@@ -430,16 +429,12 @@ module svc_rv #(
     //
     // Minimal hazard logic for single-cycle mode with M extension
     //
-    // Multi-cycle division operations (32 cycles) require stalling the PC
-    // to keep the instruction visible in the combinational pipeline while
-    // the divider runs. The multi-cycle state machine in EX stage handles
+    // Multi-cycle division operations (32 cycles) require stalling via
+    // id_stall, which causes backpressure through the ready/valid chain
+    // to stage_pc. The multi-cycle state machine in EX stage handles
     // op_active_ex generation.
     //
-    // No data hazards exist in single-cycle mode (no pipeline registers),
-    // so only PC and IF/ID stalls are needed.
-    //
-    assign pc_stall     = op_active_ex || halt_next || halt;
-    assign id_stall     = pc_stall;
+    assign id_stall     = op_active_ex || halt_next || halt;
     assign if_id_flush  = 1'b0;
     assign id_ex_flush  = 1'b0;
     assign ex_mem_flush = 1'b0;
@@ -452,8 +447,7 @@ module svc_rv #(
     //
     // No hazards in single-cycle mode without multi-cycle operations
     //
-    assign pc_stall     = halt_next || halt;
-    assign id_stall     = pc_stall;
+    assign id_stall     = halt_next || halt;
     assign if_id_flush  = 1'b0;
     assign id_ex_flush  = 1'b0;
     assign ex_mem_flush = 1'b0;
@@ -575,8 +569,7 @@ module svc_rv #(
   svc_rv_stage_if #(
       .XLEN     (XLEN),
       .PIPELINED(PIPELINED),
-      .BPRED    (BPRED),
-      .RESET_PC (RESET_PC)
+      .BPRED    (BPRED)
   ) stage_if (
       .s_valid(pc_m_valid),
       .s_ready(pc_m_ready),
