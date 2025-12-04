@@ -10,6 +10,7 @@
 `include "svc_rv_bpred_ex.sv"
 `include "svc_rv_pc_sel.sv"
 `include "svc_rv_hazard.sv"
+`include "svc_rv_stage_pc.sv"
 `include "svc_rv_stage_if.sv"
 `include "svc_rv_stage_id.sv"
 `include "svc_rv_stage_ex.sv"
@@ -155,8 +156,13 @@ module svc_rv #(
   logic [XLEN-1:0] pc_id;
   logic [XLEN-1:0] pc_plus4_id;
 
-  // IF -> BTB
+  // PC stage outputs
   logic [XLEN-1:0] pc;
+  logic [XLEN-1:0] pc_next;
+
+  // PC -> IF ready/valid interface
+  logic            pc_m_valid;
+  logic            pc_m_ready;
 
   // ID -> EX
   logic            reg_write_ex;
@@ -508,7 +514,7 @@ module svc_rv #(
     assign btb_is_return = 1'b0;
 
     // verilog_format: off
-    `SVC_UNUSED({pc, btb_hit, btb_target, btb_taken, btb_is_return,
+    `SVC_UNUSED({btb_hit, btb_target, btb_taken, btb_is_return,
                  btb_update_en, btb_update_pc, btb_update_target, btb_update_taken,
                  btb_update_is_ret, btb_update_is_jal});
     // verilog_format: on
@@ -544,13 +550,38 @@ module svc_rv #(
   //----------------------------------------------------------------------------
 
   //
+  // PC Stage: Program Counter
+  //
+  svc_rv_stage_pc #(
+      .XLEN     (XLEN),
+      .PIPELINED(PIPELINED),
+      .BPRED    (BPRED),
+      .RESET_PC (RESET_PC)
+  ) stage_pc (
+      .clk               (clk),
+      .rst_n             (rst_n),
+      .pc_sel            (pc_sel),
+      .pc_redirect_target(pc_redirect_target),
+      .pred_target       (pred_target),
+      .m_valid           (pc_m_valid),
+      .m_ready           (pc_m_ready),
+      .pc                (pc),
+      .pc_next           (pc_next)
+  );
+
+  //
   // IF Stage: Instruction Fetch
+  //
   svc_rv_stage_if #(
       .XLEN     (XLEN),
       .PIPELINED(PIPELINED),
       .BPRED    (BPRED),
       .RESET_PC (RESET_PC)
   ) stage_if (
+      .s_valid(pc_m_valid),
+      .s_ready(pc_m_ready),
+      .pc     (pc),
+      .pc_next(pc_next),
       .m_valid(if_m_valid),
       .m_ready(if_m_ready),
       .*

@@ -29,15 +29,16 @@ module svc_rv_stage_if #(
     input logic if_id_flush,
 
     //
-    // Final PC selection and redirect target
+    // Ready/valid interface from PC stage
     //
-    input logic [     1:0] pc_sel,
-    input logic [XLEN-1:0] pc_redirect_target,
+    input  logic s_valid,
+    output logic s_ready,
 
     //
-    // Branch prediction from ID stage
+    // PC inputs from stage_pc
     //
-    input logic [XLEN-1:0] pred_target,
+    input logic [XLEN-1:0] pc,
+    input logic [XLEN-1:0] pc_next,
 
     //
     // BTB prediction signals
@@ -62,11 +63,6 @@ module svc_rv_stage_if #(
     input  logic        imem_rvalid,
 
     //
-    // PC for BTB lookup
-    //
-    output logic [XLEN-1:0] pc,
-
-    //
     // Outputs to ID stage
     //
     output logic [    31:0] instr_id,
@@ -88,9 +84,16 @@ module svc_rv_stage_if #(
 
   `include "svc_rv_defs.svh"
 
-  logic [XLEN-1:0] pc_next;
-  logic [    31:0] instr;
-  logic            flush_extend;
+  logic [31:0] instr;
+  logic        flush_extend;
+
+  //
+  // Ready signal to PC stage
+  //
+  // For now, maps pc_stall to ready. Step 6.3 will convert this to
+  // true backpressure based on IF stage's ability to accept.
+  //
+  assign s_ready = !pc_stall;
 
   //
   // Intermediate signals for pipeline register inputs
@@ -103,42 +106,6 @@ module svc_rv_stage_if #(
   logic            btb_is_return_to_if_id;
   logic            ras_valid_to_if_id;
   logic [XLEN-1:0] ras_target_to_if_id;
-
-  //
-  // PC initialization
-  //
-  // For pipelined mode with BPRED, PC starts at RESET_PC-4 so that
-  // pc_next = RESET_PC on first cycle
-  //
-  localparam logic [XLEN-1:0]
-      PC_INIT = ((PIPELINED != 0 && BPRED != 0) ? RESET_PC - 4 : RESET_PC);
-
-  //
-  // PC next calculation with 3-way mux
-  //
-  // - PC_SEL_REDIRECT: Actual branch/jump or misprediction
-  // - PC_SEL_PREDICTED: Predicted branch taken (speculative fetch)
-  // - PC_SEL_SEQUENTIAL: Normal sequential execution (pc + 4)
-  //
-  always_comb begin
-    case (pc_sel)
-      PC_SEL_REDIRECT:   pc_next = pc_redirect_target;
-      PC_SEL_PREDICTED:  pc_next = pred_target;
-      PC_SEL_SEQUENTIAL: pc_next = pc + 4;
-      default:           pc_next = pc + 4;
-    endcase
-  end
-
-  //
-  // PC register
-  //
-  always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      pc <= PC_INIT;
-    end else if (!pc_stall) begin
-      pc <= pc_next;
-    end
-  end
 
   // =========================================================================
   // Instruction memory interface
@@ -154,6 +121,9 @@ module svc_rv_stage_if #(
     assign imem_araddr  = pc_next;
     assign imem_arvalid = !rst_n || !pc_stall;
 
+    //
+    // In BPRED mode, pc goes to BTB from stage_pc, not used here
+    //
     `SVC_UNUSED({pc})
   end else if (PIPELINED != 0) begin : g_pipelined_imem
     assign imem_araddr  = pc;
@@ -166,6 +136,12 @@ module svc_rv_stage_if #(
 
     `SVC_UNUSED({pc_next})
   end
+
+  //
+  // s_valid from stage_pc is unused for now - stage_pc.m_valid is always 1
+  // This will be used in step 6.3 when we add proper flow control
+  //
+  `SVC_UNUSED({s_valid})
 
   // =========================================================================
   // Extended flush for pipelined mode without BPRED
