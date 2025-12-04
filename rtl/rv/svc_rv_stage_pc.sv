@@ -87,6 +87,80 @@ module svc_rv_stage_pc #(
   //
   assign m_valid = 1'b1;
 
+`ifdef FORMAL
+`ifdef FORMAL_SVC_RV_STAGE_PC
+  `define FASSERT(label, a) label: assert(a)
+  `define FASSUME(label, a) label: assume(a)
+  `define FCOVER(label, a) label: cover(a)
+`else
+  `define FASSERT(label, a) label: assume(a)
+  `define FASSUME(label, a) label: assert(a)
+  `define FCOVER(label, a)
+`endif
+
+  logic f_past_valid = 1'b0;
+
+  always @(posedge clk) begin
+    f_past_valid <= 1'b1;
+  end
+
+  //
+  // m_valid/m_ready handshake assertions (output interface)
+  //
+  // PC stage has no flush - it always has a valid PC to issue.
+  // m_valid is constant 1, so stability is trivially satisfied.
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      if ($past(m_valid && !m_ready)) begin
+        //
+        // Valid must remain asserted until ready
+        //
+        `FASSERT(a_valid_stable, m_valid);
+
+        //
+        // Payload signals must remain stable when stalled
+        //
+        `FASSERT(a_pc_stable, pc == $past(pc));
+
+        //
+        // Assume inputs are stable when stalled (upstream contract)
+        //
+        `FASSUME(a_pc_sel_stable, pc_sel == $past(pc_sel));
+        `FASSUME(a_redirect_target_stable, pc_redirect_target == $past(
+                 pc_redirect_target));
+        `FASSUME(a_pred_target_stable, pred_target == $past(pred_target));
+
+        //
+        // Assert combinational output is stable (follows from above)
+        //
+        `FASSERT(a_pc_next_stable, pc_next == $past(pc_next));
+      end
+    end
+  end
+
+  //
+  // Cover properties
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      //
+      // Cover back-to-back valid transfers
+      //
+      `FCOVER(c_back_to_back, $past(m_valid && m_ready) && m_valid);
+
+      //
+      // Cover stalled transfer (valid high, ready low for a cycle)
+      //
+      `FCOVER(c_stalled, $past(m_valid && !m_ready) && m_valid && m_ready);
+    end
+  end
+
+  `undef FASSERT
+  `undef FASSUME
+  `undef FCOVER
+`endif
+
 endmodule
 
 `endif
