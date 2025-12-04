@@ -16,6 +16,8 @@ module svc_rv_bpred_ex #(
     parameter int BPRED,
     parameter int BTB_ENABLE
 ) (
+    input logic en,
+
     //
     // Branch/jump analysis from EX stage
     //
@@ -28,11 +30,6 @@ module svc_rv_bpred_ex #(
     input logic [XLEN-1:0] pc_ex,
     input logic [XLEN-1:0] jb_target_ex,
     input logic [XLEN-1:0] pred_target_ex,
-
-    //
-    // Instruction validity
-    //
-    input logic valid_ex,
 
     //
     // Misprediction detection output
@@ -102,7 +99,7 @@ module svc_rv_bpred_ex #(
     // Update BTB for all predictable instructions
     //
     // This allows 2-bit counter to train on both taken and not-taken outcomes.
-    // Gate with valid_ex to prevent BTB corruption from garbage datapath
+    // Gate with en to prevent BTB corruption from garbage datapath
     // values when the instruction is invalid (e.g., after pipeline flush).
     //
     // Also gate with aligned target check - misaligned targets would cause
@@ -111,7 +108,7 @@ module svc_rv_bpred_ex #(
     //
     logic target_aligned;
     assign target_aligned = !(|jb_target_ex[1:0]);
-    assign btb_update_en = valid_ex && is_predictable && target_aligned;
+    assign btb_update_en = en && is_predictable && target_aligned;
     assign btb_update_pc = pc_ex;
     assign btb_update_target = jb_target_ex;
     assign btb_update_is_ret = is_return;
@@ -132,7 +129,7 @@ module svc_rv_bpred_ex #(
     assign btb_update_is_jal = 1'b0;
 
     // verilog_format: off
-    `SVC_UNUSED({valid_ex, is_branch_ex, is_jal_ex, is_jalr_ex, rd_ex, pc_ex,
+    `SVC_UNUSED({en, is_branch_ex, is_jal_ex, is_jalr_ex, rd_ex, pc_ex,
                  jb_target_ex, branch_taken_ex});
     // verilog_format: on
   end
