@@ -509,46 +509,92 @@ stage_if `s_ready` low when:
 - Output buffer full and stage_id not accepting
 - Cache miss (future)
 
-**Migration Path**
+**Migration Path (Incremental Sub-steps)**
 
-1. Create `svc_rv_stage_pc` from current `stage_if`
+Each sub-step is independently testable. Run `make tb` and `make formal` after
+each.
 
-   - Move PC register and next PC mux
-   - Add m_valid/m_ready interface
-   - `pc_stall` becomes `!m_ready`
+### Step 6a: Create stage_pc as pure extraction (internal to stage_if)
 
-2. Refactor `svc_rv_stage_if`
+Create `svc_rv_stage_pc.sv` by extracting PC logic from `svc_rv_stage_if.sv`:
 
-   - Remove PC logic (now in stage_pc)
-   - Unify BRAM/SRAM into single module with unified buffering
-   - Add s_valid/s_ready from stage_pc
-   - Add m_valid/m_ready to stage_id
+- PC register (lines ~132-138)
+- Next PC mux (lines ~120-127)
+- PC_INIT calculation (lines ~110-111)
 
-3. Update top-level wiring
+stage_if instantiates stage_pc internally - no top-level changes yet. This
+validates the extraction is correct before changing any wiring.
 
-   - Wire stage_pc → stage_if → stage_id
-   - Remove `pc_stall`, use ready/valid chain
+**Files**:
 
-4. Cache integration (later)
-   - Replace IMEM interface with cache interface
-   - Cache miss: stage_if deasserts `s_ready` until hit
-   - Same pipeline structure, just different IMEM backend
+- New: `rtl/rv/svc_rv_stage_pc.sv`
+- Modified: `rtl/rv/svc_rv_stage_if.sv` (instantiates stage_pc internally)
 
-**Files**
+**Validation**: All tests pass (behavior identical)
 
-New:
+### Step 6b: Move stage_pc to top level
 
-- `rtl/rv/svc_rv_stage_pc.sv`
+Move stage_pc instantiation from stage_if to svc_rv.sv:
 
-Modified:
+- Remove stage_pc instantiation from stage_if
+- Add PC-related ports to stage_if (`pc` input, `pc_next` output)
+- Instantiate stage_pc in svc_rv.sv
+- Wire stage_pc ↔ stage_if
 
-- `rtl/rv/svc_rv_stage_if.sv` (simplified, unified BRAM/SRAM)
-- `rtl/rv/svc_rv.sv` (wiring)
+**Files**:
 
-Removed/merged:
+- Modified: `rtl/rv/svc_rv_stage_if.sv` (PC now comes from ports)
+- Modified: `rtl/rv/svc_rv.sv` (instantiates stage_pc, wires to stage_if)
 
-- `rtl/rv/svc_rv_stage_if_bram.sv` (merged into stage_if)
-- `rtl/rv/svc_rv_stage_if_sram.sv` (merged into stage_if)
+**Validation**: All tests pass (behavior identical)
+
+### Step 6c: Add ready/valid interface between stage_pc and stage_if
+
+Add handshake signals between the two stages:
+
+- Add `m_valid`/`m_ready` ports to stage_pc
+- Add `s_valid`/`s_ready` ports to stage_if (subordinate interface from PC)
+- Initial implementation:
+  - `m_valid` = 1 after reset (always has a PC to issue)
+  - `s_ready` = `!pc_stall` (maps existing stall to ready)
+- Wire in svc_rv.sv
+
+**Files**:
+
+- Modified: `rtl/rv/svc_rv_stage_pc.sv` (add m_valid/m_ready)
+- Modified: `rtl/rv/svc_rv_stage_if.sv` (add s_valid/s_ready)
+- Modified: `rtl/rv/svc_rv.sv` (wire handshake)
+
+**Validation**: All tests pass (behavior identical, just new interface)
+
+### Step 6d: Convert pc_stall to ready/valid (optional, can defer)
+
+Replace pc_stall with ready/valid backpressure:
+
+- stage_pc uses `m_ready` instead of `pc_stall` for PC register enable
+- stage_if generates `s_ready` based on its ability to accept
+- Remove `pc_stall` from hazard unit for IF stage
+
+**Files**:
+
+- Modified: `rtl/rv/svc_rv_stage_pc.sv` (use m_ready)
+- Modified: `rtl/rv/svc_rv_stage_if.sv` (generate s_ready)
+- Modified: `rtl/rv/svc_rv_hazard.sv` (remove pc_stall generation)
+- Modified: `rtl/rv/svc_rv.sv` (remove pc_stall wiring)
+
+**Validation**: All tests pass (backpressure via ready/valid)
+
+### Future: Unify BRAM/SRAM (can be separate step)
+
+Merge `svc_rv_stage_if_bram.sv` and `svc_rv_stage_if_sram.sv` into unified
+stage_if with consistent buffering. This is orthogonal to the stage_pc split and
+can be done separately.
+
+**Files**:
+
+- Modified: `rtl/rv/svc_rv_stage_if.sv` (unified implementation)
+- Removed: `rtl/rv/svc_rv_stage_if_bram.sv`
+- Removed: `rtl/rv/svc_rv_stage_if_sram.sv`
 
 **Validation**:
 
@@ -883,3 +929,114 @@ stalls.
 
 Future: EX needs load data → requests via handshake → MEM not ready → EX lowers
 `s_ready` → backpressure propagates naturally.
+
+---
+
+## Lessons Learned from Step 6 WIP Implementation
+
+These insights emerged from the initial implementation attempt and should guide
+future work.
+
+### 1. Separate PC Selection Module (`svc_rv_pc_sel.sv`)
+
+The original plan had the "Next PC mux" inside stage_pc. In practice, it's much
+cleaner to extract all PC source arbitration into a standalone combinational
+module:
+
+- Priority: MEM misprediction > EX redirect > RAS > BTB > ID static > sequential
+- ~270 lines of complex RAS/BTB/static prediction arbitration
+- Keeps `svc_rv_stage_pc.sv` dead simple (~90 lines)
+
+**Recommendation**: Create `svc_rv_pc_sel.sv` as a separate module that handles
+all PC source arbitration. stage_pc just owns the PC register and applies the
+selected next PC.
+
+### 2. stage_pc is Simpler Than Expected
+
+The final stage_pc only needs:
+
+- PC register with reset to PC_INIT
+- pc_next 3-way mux (redirect, predicted, sequential)
+- `m_valid = 1'b1` always (always have a PC to issue)
+- PC update gated by `m_ready`
+
+All the PC source selection complexity lives in pc_sel, not stage_pc.
+
+### 3. PC_INIT Depends on BPRED+MEM_TYPE
+
+```systemverilog
+//
+// For BRAM with BPRED, PC starts at RESET_PC-4 so pc_next = RESET_PC
+// on first cycle (early speculative fetch uses pc_next as address)
+//
+localparam logic [XLEN-1:0] PC_INIT =
+    (MEM_TYPE == MEM_TYPE_BRAM && BPRED != 0) ? RESET_PC - 4 : RESET_PC;
+```
+
+This is a subtle but critical detail for correct first-instruction fetch with
+BRAM + branch prediction.
+
+### 4. BRAM Timing Subtleties
+
+Several timing patterns emerged for BRAM handling:
+
+**flush_extend**: Without BPRED, BRAM needs extended flush (one extra cycle)
+because the sequential instruction is already in the pipeline when a redirect is
+detected.
+
+```systemverilog
+//
+// With BPRED: Target fetched immediately, no flush_extend needed
+// Without BPRED: Sequential instruction in flight, need extra flush cycle
+//
+assign flush_extend = (BPRED != 0) ? 1'b0 : registered_if_id_flush;
+```
+
+**started flag**: Wait one cycle after reset before valid_buf goes high. This
+accounts for BRAM latency on the first instruction.
+
+```systemverilog
+logic started;
+
+always_ff @(posedge clk) begin
+  if (!rst_n) begin
+    started   <= 1'b0;
+    valid_buf <= 1'b0;
+  end else if (m_ready) begin
+    started   <= 1'b1;
+    valid_buf <= started && !if_id_flush && !flush_extend;
+  end
+end
+```
+
+**Buffer imem_raddr not pc**: For BRAM PC tracking, buffer the actual fetch
+address (`imem_raddr`), not `pc`. With BPRED early fetch,
+`imem_raddr = pc_next`, and this ensures the buffered PC matches the instruction
+even during stalls.
+
+### 5. pc_stall Eliminated
+
+The `pc_stall` signal was removed from the hazard unit. PC update is now purely
+gated by `m_ready` from stage_if, making it part of the ready/valid flow. This
+is the correct pattern - backpressure should flow through ready/valid, not
+through separate stall signals.
+
+### 6. Signal Naming Conventions
+
+Consistent naming emerged for different signal categories:
+
+- `*_to_if_id`: Intermediate signals going to IF/ID pipeline register
+- `*_buf`: Buffered versions of signals (one cycle delayed)
+- `*_if`: IF-stage prediction signals from pc_sel (combinational)
+- `*_id`: ID-stage versions of signals (registered)
+
+### 7. Unified Memory Interface Simplification
+
+With unified BRAM/SRAM interface (on svc-mem branch), many of these
+BRAM-specific patterns can be simplified. The unified interface abstracts memory
+latency differences, so stage_if doesn't need separate BRAM/SRAM
+implementations.
+
+**Note**: When redoing Step 6 on the unified memory branch, the flush_extend and
+started patterns may need adjustment based on how the unified interface handles
+latency.
