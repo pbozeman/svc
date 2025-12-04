@@ -130,7 +130,7 @@ function automatic string fmt_if_debug();
   string flush_str;
   string btb_str;
 
-  case (stage_if.pc_sel)
+  case (pc_sel)
     PC_SEL_SEQUENTIAL: pc_sel_str = " seq";
     PC_SEL_PREDICTED:  pc_sel_str = "pred";
     PC_SEL_REDIRECT:   pc_sel_str = "rdir";
