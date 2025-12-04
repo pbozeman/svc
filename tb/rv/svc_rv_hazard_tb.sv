@@ -26,7 +26,7 @@ module svc_rv_hazard_tb;
   logic       mispredicted_mem;
   logic       halt;
   logic       pc_stall;
-  logic       if_id_stall;
+  logic       id_stall;
   logic       if_id_flush;
   // verilator lint_off UNUSEDSIGNAL
   logic       ex_mem_flush;
@@ -60,7 +60,7 @@ module svc_rv_hazard_tb;
       .ras_pred_taken  (1'b0),
       .halt            (halt),
       .pc_stall        (pc_stall),
-      .if_id_stall     (if_id_stall),
+      .id_stall        (id_stall),
       .if_id_flush     (if_id_flush),
       .id_ex_flush     (id_ex_flush),
       .ex_mem_flush    (ex_mem_flush)
@@ -88,7 +88,7 @@ module svc_rv_hazard_tb;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
-    `CHECK_EQ(if_id_stall, 1'b0);
+    `CHECK_EQ(id_stall, 1'b0);
     `CHECK_EQ(if_id_flush, 1'b0);
     `CHECK_EQ(id_ex_flush, 1'b0);
   endtask
@@ -113,7 +113,7 @@ module svc_rv_hazard_tb;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
-    `CHECK_EQ(if_id_stall, 1'b0);
+    `CHECK_EQ(id_stall, 1'b0);
     `CHECK_EQ(if_id_flush, 1'b0);
     `CHECK_EQ(id_ex_flush, 1'b0);
   endtask
@@ -139,7 +139,7 @@ module svc_rv_hazard_tb;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b1);
-    `CHECK_EQ(if_id_stall, 1'b1);
+    `CHECK_EQ(id_stall, 1'b1);
     `CHECK_EQ(if_id_flush, 1'b0);
     `CHECK_EQ(id_ex_flush, 1'b1);
   endtask
@@ -165,7 +165,7 @@ module svc_rv_hazard_tb;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b1);
-    `CHECK_EQ(if_id_stall, 1'b1);
+    `CHECK_EQ(id_stall, 1'b1);
     `CHECK_EQ(if_id_flush, 1'b0);
     `CHECK_EQ(id_ex_flush, 1'b1);
   endtask
@@ -190,7 +190,7 @@ module svc_rv_hazard_tb;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b1);
-    `CHECK_EQ(if_id_stall, 1'b1);
+    `CHECK_EQ(id_stall, 1'b1);
     `CHECK_EQ(if_id_flush, 1'b0);
     `CHECK_EQ(id_ex_flush, 1'b1);
   endtask
@@ -215,7 +215,7 @@ module svc_rv_hazard_tb;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b1);
-    `CHECK_EQ(if_id_stall, 1'b1);
+    `CHECK_EQ(id_stall, 1'b1);
     `CHECK_EQ(if_id_flush, 1'b0);
     `CHECK_EQ(id_ex_flush, 1'b1);
   endtask
@@ -239,7 +239,7 @@ module svc_rv_hazard_tb;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
-    `CHECK_EQ(if_id_stall, 1'b0);
+    `CHECK_EQ(id_stall, 1'b0);
     `CHECK_EQ(if_id_flush, 1'b0);
     `CHECK_EQ(id_ex_flush, 1'b0);
   endtask
@@ -264,7 +264,7 @@ module svc_rv_hazard_tb;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
-    `CHECK_EQ(if_id_stall, 1'b0);
+    `CHECK_EQ(id_stall, 1'b0);
     `CHECK_EQ(if_id_flush, 1'b0);
     `CHECK_EQ(id_ex_flush, 1'b0);
   endtask
@@ -290,7 +290,7 @@ module svc_rv_hazard_tb;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
-    `CHECK_EQ(if_id_stall, 1'b0);
+    `CHECK_EQ(id_stall, 1'b0);
     `CHECK_EQ(if_id_flush, 1'b1);
     `CHECK_EQ(id_ex_flush, 1'b1);
   endtask
@@ -319,7 +319,7 @@ module svc_rv_hazard_tb;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
-    `CHECK_EQ(if_id_stall, 1'b0);
+    `CHECK_EQ(id_stall, 1'b0);
     `CHECK_EQ(if_id_flush, 1'b0);
     `CHECK_EQ(id_ex_flush, 1'b0);
   endtask
@@ -345,7 +345,7 @@ module svc_rv_hazard_tb;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
-    `CHECK_EQ(if_id_stall, 1'b0);
+    `CHECK_EQ(id_stall, 1'b0);
     `CHECK_EQ(if_id_flush, 1'b0);
     `CHECK_EQ(id_ex_flush, 1'b0);
   endtask
@@ -370,7 +370,7 @@ module svc_rv_hazard_tb;
 
     `TICK(clk);
     `CHECK_EQ(pc_stall, 1'b0);
-    `CHECK_EQ(if_id_stall, 1'b0);
+    `CHECK_EQ(id_stall, 1'b0);
     `CHECK_EQ(if_id_flush, 1'b0);
     `CHECK_EQ(id_ex_flush, 1'b0);
   endtask

@@ -332,7 +332,7 @@ module svc_rv #(
   // Hazard control signals
   // verilog_format: off
   (* max_fanout = 32 *)logic pc_stall;
-  (* max_fanout = 32 *)logic if_id_stall;
+  (* max_fanout = 32 *)logic id_stall;
   (* max_fanout = 32 *)logic if_id_flush;
   (* max_fanout = 32 *)logic id_ex_flush;
   (* max_fanout = 32 *)logic ex_mem_flush;
@@ -435,7 +435,7 @@ module svc_rv #(
     // so only PC and IF/ID stalls are needed.
     //
     assign pc_stall     = op_active_ex || halt_next || halt;
-    assign if_id_stall  = op_active_ex || halt_next || halt;
+    assign id_stall     = op_active_ex || halt_next || halt;
     assign if_id_flush  = 1'b0;
     assign id_ex_flush  = 1'b0;
     assign ex_mem_flush = 1'b0;
@@ -449,7 +449,7 @@ module svc_rv #(
     // No hazards in single-cycle mode without multi-cycle operations
     //
     assign pc_stall     = halt_next || halt;
-    assign if_id_stall  = halt_next || halt;
+    assign id_stall     = halt_next || halt;
     assign if_id_flush  = 1'b0;
     assign id_ex_flush  = 1'b0;
     assign ex_mem_flush = 1'b0;

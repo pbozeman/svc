@@ -22,10 +22,14 @@ module svc_rv_if_sram #(
     input logic rst_n,
 
     //
-    // Stall and flush controls
+    // Flush control
     //
-    input logic if_id_stall,
     input logic if_id_flush,
+
+    //
+    // Ready/valid interface
+    //
+    input logic m_ready,
 
     //
     // PC inputs from fetch stage (pass through to IF/ID register)
@@ -61,14 +65,14 @@ module svc_rv_if_sram #(
     always_ff @(posedge clk) begin
       if (!rst_n || if_id_flush) begin
         instr_id <= I_NOP;
-      end else if (!if_id_stall) begin
+      end else if (m_ready) begin
         instr_id <= instr_sram;
       end
     end
   end else begin : g_passthrough
     assign instr_id = instr_sram;
 
-    `SVC_UNUSED({clk, rst_n, if_id_stall, if_id_flush});
+    `SVC_UNUSED({clk, rst_n, if_id_flush, m_ready});
   end
 
 endmodule

@@ -29,7 +29,6 @@ module svc_rv_stage_if #(
     // Hazard control
     //
     input logic pc_stall,
-    input logic if_id_stall,
     input logic if_id_flush,
 
     //
@@ -168,7 +167,7 @@ module svc_rv_stage_if #(
     logic [XLEN-1:0] pc_plus4_id_buf;
 
     always_ff @(posedge clk) begin
-      if (!if_id_stall) begin
+      if (m_ready) begin
         pc_id_buf       <= pc_to_if_id;
         pc_plus4_id_buf <= pc_plus4_to_if_id;
       end
@@ -207,12 +206,7 @@ module svc_rv_stage_if #(
   //
   // Ready/valid output
   //
-  // m_valid indicates a valid instruction is ready to transfer to ID.
-  // m_ready is unused - stall logic still uses if_id_stall.
-  //
   assign m_valid = valid_to_if_id;
-
-  `SVC_UNUSED(m_ready);
 
 `ifdef FORMAL
 `ifdef FORMAL_SVC_RV_STAGE_IF
@@ -234,19 +228,9 @@ module svc_rv_stage_if #(
   //
   // m_valid/m_ready handshake assertions (output interface)
   //
-  // NOTE: The IF stage does not yet implement proper ready/valid buffering.
-  // Currently m_valid can drop unexpectedly due to flush.
-  // The full protocol will be implemented when if_id_stall is replaced with
-  // proper backpressure via m_ready.
-  //
   // Unlike strict AXI-style valid/ready, pipeline flush/kill is allowed to
   // drop m_valid even when m_ready is low. This is intentional - flush is
   // orthogonal to flow control and gates m_valid to create bubbles.
-  //
-  // TODO: Add assertion once IF stage implements proper ready/valid buffering:
-  // if ($past(m_valid && !m_ready)) begin
-  //   assert(m_valid || if_id_flush);
-  // end
   //
 
   //

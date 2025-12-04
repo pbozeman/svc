@@ -137,7 +137,7 @@ function automatic string fmt_if_debug();
     default:           pc_sel_str = "????";
   endcase
 
-  stall_str = if_id_stall ? "s" : " ";
+  stall_str = id_stall ? "s" : " ";
   flush_str = if_id_flush ? "f" : " ";
 
   if (BTB_ENABLE != 0) begin

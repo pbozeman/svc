@@ -27,8 +27,12 @@ module svc_rv_stage_if_bram #(
     // Hazard control
     //
     input logic pc_stall,
-    input logic if_id_stall,
     input logic if_id_flush,
+
+    //
+    // Ready/valid interface
+    //
+    input logic m_ready,
 
     //
     // BTB prediction signals
@@ -137,7 +141,7 @@ module svc_rv_stage_if_bram #(
       btb_pred_taken_buf <= 1'b0;
       btb_is_return_buf  <= 1'b0;
       ras_valid_buf      <= 1'b0;
-    end else if (!if_id_stall) begin
+    end else if (m_ready) begin
       btb_hit_buf        <= btb_hit_if;
       btb_pred_taken_buf <= btb_pred_taken_if;
       btb_is_return_buf  <= btb_is_return_if;
@@ -149,7 +153,7 @@ module svc_rv_stage_if_bram #(
   // Datapath registers: no reset needed (don't care until valid_buf becomes 1)
   //
   always_ff @(posedge clk) begin
-    if (!if_id_stall) begin
+    if (m_ready) begin
       pc_buf         <= imem_raddr;
       pc_plus4_buf   <= imem_raddr + 4;
       btb_target_buf <= btb_target_if;
@@ -184,7 +188,7 @@ module svc_rv_stage_if_bram #(
   always_ff @(posedge clk) begin
     if (!rst_n || if_id_flush || flush_extend) begin
       instr_buf <= I_NOP;
-    end else if (!if_id_stall) begin
+    end else if (m_ready) begin
       instr_buf <= instr;
     end
   end
@@ -207,7 +211,7 @@ module svc_rv_stage_if_bram #(
     if (!rst_n) begin
       started   <= 1'b0;
       valid_buf <= 1'b0;
-    end else if (!if_id_stall) begin
+    end else if (m_ready) begin
       started   <= 1'b1;
       valid_buf <= started && !if_id_flush && !flush_extend;
     end

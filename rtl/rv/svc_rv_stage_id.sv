@@ -40,6 +40,7 @@ module svc_rv_stage_id #(
     //
     // Hazard control
     //
+    input logic id_stall,
     input logic id_ex_flush,
 
     //
@@ -334,9 +335,9 @@ module svc_rv_stage_id #(
     end
 
     //
-    // Ready/valid interface: s_ready passes through from EX stage
+    // Ready/valid interface: s_ready gates on stall conditions
     //
-    assign s_ready = m_ready;
+    assign s_ready = m_ready && !id_stall;
 
     //
     // Control signals: need reset for correct behavior
@@ -366,7 +367,7 @@ module svc_rv_stage_id #(
         //
         // Capture bpred_taken_id even during flush
         // When load-use hazards hold an instruction in ID, we need to latch its
-        // prediction before if_id_stall releases and RAS/BTB buffers get overwritten
+        // prediction before id_stall releases and RAS/BTB buffers get overwritten
         //
         bpred_taken_ex <= bpred_taken_id;
       end else if (!m_valid || m_ready) begin
@@ -411,7 +412,7 @@ module svc_rv_stage_id #(
         //
         // Capture pred_target_ex even during flush When load-use hazards hold
         // an instruction in ID, we need to latch its prediction before
-        // if_id_stall releases and RAS/BTB buffers get overwritten
+        // id_stall releases and RAS/BTB buffers get overwritten
         //
         pred_target_ex   <= final_pred_target_id;
       end else if (!m_valid || m_ready) begin
@@ -472,11 +473,11 @@ module svc_rv_stage_id #(
     assign bpred_taken_ex   = 1'b0;
     assign pred_target_ex   = '0;
     assign m_valid          = s_valid;
-    assign s_ready          = m_ready;
+    assign s_ready          = m_ready && !id_stall;
 
     // verilog_format: off
     `SVC_UNUSED({rst_n, id_ex_flush, fwd_rs1_id, fwd_rs2_id,
-                 bpred_taken_id, ras_valid_id, ras_target_id, m_ready});
+                 bpred_taken_id, ras_valid_id, ras_target_id});
     // verilog_format: on
   end
 
