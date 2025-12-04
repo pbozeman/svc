@@ -494,6 +494,7 @@ module svc_rv_stage_ex #(
       .BPRED     (BPRED),
       .BTB_ENABLE(BTB_ENABLE)
   ) bpred (
+      .en(s_valid && s_ready),
       .*
   );
 
@@ -580,16 +581,6 @@ module svc_rv_stage_ex #(
   );
 
   //
-  // Input validity from ID stage
-  //
-  // s_valid indicates ID has valid data to transfer. For now, we still receive
-  // valid_ex from the ID stage's pipeline register. Eventually, s_valid will
-  // fully replace this.
-  //
-  logic valid_ex;
-  assign valid_ex = s_valid;
-
-  //
   // s_ready generation
   //
   // EX is ready to accept new data when:
@@ -629,7 +620,7 @@ module svc_rv_stage_ex #(
       end else if (ex_mem_en) begin
         // Signals used by forwarding/hazard logic must be explicitly
         // cleared on flush since that logic doesn't check m_valid.
-        valid_reg     <= ex_mem_flush ? 1'b0 : valid_ex;
+        valid_reg     <= ex_mem_flush ? 1'b0 : s_valid;
         reg_write_mem <= ex_mem_flush ? 1'b0 : reg_write_ex;
         mem_read_mem  <= ex_mem_flush ? 1'b0 : mem_read_ex;
         mem_write_mem <= ex_mem_flush ? 1'b0 : mem_write_ex;
@@ -696,7 +687,7 @@ module svc_rv_stage_ex #(
     assign pred_target_mem = pred_target_ex;
     assign trap_mem = trap_ex | misalign_trap;
     assign trap_code_mem = misalign_trap ? TRAP_INSTR_MISALIGN : trap_code_ex;
-    assign m_valid = valid_ex && !mc_in_progress_ex;
+    assign m_valid = s_valid && !mc_in_progress_ex;
     //
     // Block s_ready when multi-cycle op is active (op_active_ex covers both
     // the starting cycle and execution cycles).
