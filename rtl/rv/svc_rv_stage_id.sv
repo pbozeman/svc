@@ -40,7 +40,7 @@ module svc_rv_stage_id #(
     //
     // Hazard control
     //
-    input logic id_stall,
+    input logic data_hazard_id,
     input logic id_ex_flush,
 
     //
@@ -335,12 +335,27 @@ module svc_rv_stage_id #(
     end
 
     //
-    // Ready/valid interface: s_ready gates on stall conditions
+    // Ready/valid interface
     //
-    assign s_ready = m_ready && !id_stall;
+    // s_ready gates on data_hazard_id to backpressure IF when the instruction
+    // being decoded has a RAW dependency that cannot be forwarded yet.
+    //
+    assign s_ready = m_ready && !data_hazard_id;
 
     //
     // Control signals: need reset for correct behavior
+    //
+    // Capture logic:
+    // - Reset: initialize all signals
+    // - Flush (id_ex_flush): zero control signals on redirect/misprediction
+    // - Pipeline advance (!m_valid || m_ready): update when transfer occurs
+    //   - If data_hazard_id: insert bubble (m_valid=0), don't capture dependent
+    //   - If no hazard: normal capture
+    //
+    // When data_hazard_id is true, the instruction being decoded cannot advance
+    // because it depends on a value not yet available. The writer instruction
+    // in the output register advances to EX normally, then we insert a bubble.
+    // s_ready = 0 backpressures IF to hold the dependent instruction.
     //
     always_ff @(posedge clk) begin
       if (!rst_n) begin
@@ -355,6 +370,9 @@ module svc_rv_stage_id #(
         trap_ex        <= 1'b0;
         bpred_taken_ex <= 1'b0;
       end else if (id_ex_flush) begin
+        //
+        // Flush on control flow changes (redirect, misprediction)
+        //
         reg_write_ex   <= 1'b0;
         mem_read_ex    <= 1'b0;
         mem_write_ex   <= 1'b0;
@@ -366,21 +384,43 @@ module svc_rv_stage_id #(
         trap_ex        <= 1'b0;
         //
         // Capture bpred_taken_id even during flush
-        // When load-use hazards hold an instruction in ID, we need to latch its
-        // prediction before id_stall releases and RAS/BTB buffers get overwritten
+        // When hazards hold an instruction in ID, we need to latch its
+        // prediction before RAS/BTB buffers get overwritten
         //
         bpred_taken_ex <= bpred_taken_id;
       end else if (!m_valid || m_ready) begin
-        m_valid        <= s_valid;
-        reg_write_ex   <= reg_write_id;
-        mem_read_ex    <= mem_read_id;
-        mem_write_ex   <= mem_write_id;
-        is_branch_ex   <= is_branch_id;
-        is_jmp_ex      <= is_jmp_id;
-        is_jal_ex      <= is_jal_id;
-        is_jalr_ex     <= is_jalr_id;
-        trap_ex        <= instr_invalid_id;
-        bpred_taken_ex <= bpred_taken_id;
+        //
+        // Pipeline advance: transfer occurred or register empty
+        //
+        if (data_hazard_id) begin
+          //
+          // Data hazard: insert bubble, don't capture dependent instruction
+          //
+          m_valid        <= 1'b0;
+          reg_write_ex   <= 1'b0;
+          mem_read_ex    <= 1'b0;
+          mem_write_ex   <= 1'b0;
+          is_branch_ex   <= 1'b0;
+          is_jmp_ex      <= 1'b0;
+          is_jal_ex      <= 1'b0;
+          is_jalr_ex     <= 1'b0;
+          trap_ex        <= 1'b0;
+          bpred_taken_ex <= bpred_taken_id;
+        end else begin
+          //
+          // Normal capture: advance decoded instruction
+          //
+          m_valid        <= s_valid;
+          reg_write_ex   <= reg_write_id;
+          mem_read_ex    <= mem_read_id;
+          mem_write_ex   <= mem_write_id;
+          is_branch_ex   <= is_branch_id;
+          is_jmp_ex      <= is_jmp_id;
+          is_jal_ex      <= is_jal_id;
+          is_jalr_ex     <= is_jalr_id;
+          trap_ex        <= instr_invalid_id;
+          bpred_taken_ex <= bpred_taken_id;
+        end
       end
     end
 
@@ -389,6 +429,9 @@ module svc_rv_stage_id #(
     //
     always_ff @(posedge clk) begin
       if (id_ex_flush) begin
+        //
+        // Flush on control flow changes (redirect, misprediction)
+        //
         alu_a_src_ex     <= '0;
         alu_b_src_ex     <= 1'b0;
         alu_instr_ex     <= '0;
@@ -410,12 +453,15 @@ module svc_rv_stage_id #(
         pc_ex            <= '0;
         pc_plus4_ex      <= '0;
         //
-        // Capture pred_target_ex even during flush When load-use hazards hold
-        // an instruction in ID, we need to latch its prediction before
-        // id_stall releases and RAS/BTB buffers get overwritten
+        // Capture pred_target_ex even during flush
+        // When hazards hold an instruction in ID, we need to latch its
+        // prediction before RAS/BTB buffers get overwritten
         //
         pred_target_ex   <= final_pred_target_id;
-      end else if (!m_valid || m_ready) begin
+      end else if ((!m_valid || m_ready) && !data_hazard_id) begin
+        //
+        // Normal pipeline advance: capture decoded instruction
+        //
         alu_a_src_ex     <= alu_a_src_id;
         alu_b_src_ex     <= alu_b_src_id;
         alu_instr_ex     <= alu_instr_id;
@@ -473,7 +519,7 @@ module svc_rv_stage_id #(
     assign bpred_taken_ex   = 1'b0;
     assign pred_target_ex   = '0;
     assign m_valid          = s_valid;
-    assign s_ready          = m_ready && !id_stall;
+    assign s_ready          = m_ready && !data_hazard_id;
 
     // verilog_format: off
     `SVC_UNUSED({rst_n, id_ex_flush, fwd_rs1_id, fwd_rs2_id,

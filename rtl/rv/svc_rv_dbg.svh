@@ -137,7 +137,7 @@ function automatic string fmt_if_debug();
     default:           pc_sel_str = "????";
   endcase
 
-  stall_str = id_stall ? "s" : " ";
+  stall_str = data_hazard_id ? "s" : " ";
   flush_str = if_id_flush ? "f" : " ";
 
   if (BTB_ENABLE != 0) begin
@@ -601,7 +601,7 @@ always @(posedge clk) begin
           end else if (pc_sel == PC_SEL_REDIRECT) begin
             ctrl_str = "BR";
           end else if ((pc_sel == PC_SEL_PREDICTED) && !btb_pred_taken &&
-                       !g_hazard.hazard.data_hazard && !op_active_ex) begin
+                       !g_hazard.hazard.data_hazard_id && !op_active_ex) begin
             ctrl_str = "PR";
           end else begin
             ctrl_str = "  ";

@@ -24,8 +24,7 @@ module svc_rv_hazard_tb;
   logic       reg_write_wb;
   logic [1:0] pc_sel;
   logic       mispredicted_mem;
-  logic       halt;
-  logic       id_stall;
+  logic       data_hazard_id;
   logic       if_id_flush;
   // verilator lint_off UNUSEDSIGNAL
   logic       ex_mem_flush;
@@ -57,8 +56,7 @@ module svc_rv_hazard_tb;
       .mispredicted_mem(mispredicted_mem),
       .btb_pred_taken  (1'b0),
       .ras_pred_taken  (1'b0),
-      .halt            (halt),
-      .id_stall        (id_stall),
+      .data_hazard_id  (data_hazard_id),
       .if_id_flush     (if_id_flush),
       .id_ex_flush     (id_ex_flush),
       .ex_mem_flush    (ex_mem_flush)
@@ -82,10 +80,9 @@ module svc_rv_hazard_tb;
     reg_write_wb     = 1'b0;
     pc_sel           = PC_SEL_SEQUENTIAL;
     mispredicted_mem = 1'b0;
-    halt             = 1'b0;
 
     `TICK(clk);
-    `CHECK_EQ(id_stall, 1'b0);
+    `CHECK_EQ(data_hazard_id, 1'b0);
     `CHECK_EQ(if_id_flush, 1'b0);
     `CHECK_EQ(id_ex_flush, 1'b0);
   endtask
@@ -106,14 +103,20 @@ module svc_rv_hazard_tb;
     reg_write_wb     = 1'b1;
     pc_sel           = PC_SEL_SEQUENTIAL;
     mispredicted_mem = 1'b0;
-    halt             = 1'b0;
 
     `TICK(clk);
-    `CHECK_EQ(id_stall, 1'b0);
+    `CHECK_EQ(data_hazard_id, 1'b0);
     `CHECK_EQ(if_id_flush, 1'b0);
     `CHECK_EQ(id_ex_flush, 1'b0);
   endtask
 
+  //
+  // Data hazard tests
+  //
+  // With the new design, data hazards set data_hazard_id=1 but do NOT set
+  // id_ex_flush=1. The ID stage uses data_hazard_id to gate m_valid and s_ready
+  // instead of using flush to insert bubbles.
+  //
   task automatic test_ex_hazard_rs1;
     rs1_id           = 5'd10;
     rs2_id           = 5'd2;
@@ -131,12 +134,11 @@ module svc_rv_hazard_tb;
     reg_write_wb     = 1'b0;
     pc_sel           = PC_SEL_SEQUENTIAL;
     mispredicted_mem = 1'b0;
-    halt             = 1'b0;
 
     `TICK(clk);
-    `CHECK_EQ(id_stall, 1'b1);
+    `CHECK_EQ(data_hazard_id, 1'b1);
     `CHECK_EQ(if_id_flush, 1'b0);
-    `CHECK_EQ(id_ex_flush, 1'b1);
+    `CHECK_EQ(id_ex_flush, 1'b0);
   endtask
 
   task automatic test_ex_hazard_rs2;
@@ -156,12 +158,11 @@ module svc_rv_hazard_tb;
     reg_write_wb     = 1'b0;
     pc_sel           = PC_SEL_SEQUENTIAL;
     mispredicted_mem = 1'b0;
-    halt             = 1'b0;
 
     `TICK(clk);
-    `CHECK_EQ(id_stall, 1'b1);
+    `CHECK_EQ(data_hazard_id, 1'b1);
     `CHECK_EQ(if_id_flush, 1'b0);
-    `CHECK_EQ(id_ex_flush, 1'b1);
+    `CHECK_EQ(id_ex_flush, 1'b0);
   endtask
 
   task automatic test_mem_hazard_rs1;
@@ -180,12 +181,11 @@ module svc_rv_hazard_tb;
     reg_write_wb     = 1'b0;
     pc_sel           = PC_SEL_SEQUENTIAL;
     mispredicted_mem = 1'b0;
-    halt             = 1'b0;
 
     `TICK(clk);
-    `CHECK_EQ(id_stall, 1'b1);
+    `CHECK_EQ(data_hazard_id, 1'b1);
     `CHECK_EQ(if_id_flush, 1'b0);
-    `CHECK_EQ(id_ex_flush, 1'b1);
+    `CHECK_EQ(id_ex_flush, 1'b0);
   endtask
 
   task automatic test_mem_hazard_rs2;
@@ -204,12 +204,11 @@ module svc_rv_hazard_tb;
     reg_write_wb     = 1'b0;
     pc_sel           = PC_SEL_SEQUENTIAL;
     mispredicted_mem = 1'b0;
-    halt             = 1'b0;
 
     `TICK(clk);
-    `CHECK_EQ(id_stall, 1'b1);
+    `CHECK_EQ(data_hazard_id, 1'b1);
     `CHECK_EQ(if_id_flush, 1'b0);
-    `CHECK_EQ(id_ex_flush, 1'b1);
+    `CHECK_EQ(id_ex_flush, 1'b0);
   endtask
 
   task automatic test_x0_no_hazard;
@@ -227,10 +226,9 @@ module svc_rv_hazard_tb;
     reg_write_wb     = 1'b1;
     pc_sel           = PC_SEL_SEQUENTIAL;
     mispredicted_mem = 1'b0;
-    halt             = 1'b0;
 
     `TICK(clk);
-    `CHECK_EQ(id_stall, 1'b0);
+    `CHECK_EQ(data_hazard_id, 1'b0);
     `CHECK_EQ(if_id_flush, 1'b0);
     `CHECK_EQ(id_ex_flush, 1'b0);
   endtask
@@ -251,14 +249,18 @@ module svc_rv_hazard_tb;
     reg_write_wb     = 1'b0;
     pc_sel           = PC_SEL_SEQUENTIAL;
     mispredicted_mem = 1'b0;
-    halt             = 1'b0;
 
     `TICK(clk);
-    `CHECK_EQ(id_stall, 1'b0);
+    `CHECK_EQ(data_hazard_id, 1'b0);
     `CHECK_EQ(if_id_flush, 1'b0);
     `CHECK_EQ(id_ex_flush, 1'b0);
   endtask
 
+  //
+  // Control hazard test
+  //
+  // Control hazards (redirects, mispredictions) still cause flush.
+  //
   task automatic test_control_hazard;
     rs1_id           = 5'd1;
     rs2_id           = 5'd2;
@@ -279,7 +281,7 @@ module svc_rv_hazard_tb;
     mispredicted_mem = 1'b0;
 
     `TICK(clk);
-    `CHECK_EQ(id_stall, 1'b0);
+    `CHECK_EQ(data_hazard_id, 1'b0);
     `CHECK_EQ(if_id_flush, 1'b1);
     `CHECK_EQ(id_ex_flush, 1'b1);
   endtask
@@ -304,10 +306,9 @@ module svc_rv_hazard_tb;
     reg_write_wb     = 1'b0;
     pc_sel           = PC_SEL_SEQUENTIAL;
     mispredicted_mem = 1'b0;
-    halt             = 1'b0;
 
     `TICK(clk);
-    `CHECK_EQ(id_stall, 1'b0);
+    `CHECK_EQ(data_hazard_id, 1'b0);
     `CHECK_EQ(if_id_flush, 1'b0);
     `CHECK_EQ(id_ex_flush, 1'b0);
   endtask
@@ -329,10 +330,9 @@ module svc_rv_hazard_tb;
     reg_write_wb     = 1'b0;
     pc_sel           = PC_SEL_SEQUENTIAL;
     mispredicted_mem = 1'b0;
-    halt             = 1'b0;
 
     `TICK(clk);
-    `CHECK_EQ(id_stall, 1'b0);
+    `CHECK_EQ(data_hazard_id, 1'b0);
     `CHECK_EQ(if_id_flush, 1'b0);
     `CHECK_EQ(id_ex_flush, 1'b0);
   endtask
@@ -353,10 +353,9 @@ module svc_rv_hazard_tb;
     reg_write_wb     = 1'b0;
     pc_sel           = PC_SEL_SEQUENTIAL;
     mispredicted_mem = 1'b0;
-    halt             = 1'b0;
 
     `TICK(clk);
-    `CHECK_EQ(id_stall, 1'b0);
+    `CHECK_EQ(data_hazard_id, 1'b0);
     `CHECK_EQ(if_id_flush, 1'b0);
     `CHECK_EQ(id_ex_flush, 1'b0);
   endtask

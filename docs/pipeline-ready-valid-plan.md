@@ -653,6 +653,7 @@ The hazard should be handled in ID stage, not EX stage:
 5. Writer instruction in ID/EX advances normally to EX/MEM
 
 This works because:
+
 - The hazard blocks the **right thing**: the dependent instruction in ID
 - The writer instruction (already in ID/EX) is **not blocked** - it advances
 - Once writer reaches WB, hazard clears, dependent instruction can proceed
@@ -664,7 +665,8 @@ multi-cycle operations (divider). This is flow control, not hazard handling.
 
 **Files to Modify**:
 
-- `rtl/rv/svc_rv_hazard.sv` - Remove `id_stall` output, keep `data_hazard` output
+- `rtl/rv/svc_rv_hazard.sv` - Remove `id_stall` output, keep `data_hazard`
+  output
 - `rtl/rv/svc_rv_stage_id.sv` - Gate m_valid and s_ready with data_hazard
 - `rtl/rv/svc_rv_stage_ex.sv` - s_ready is pure flow control (no hazard term)
 - `rtl/rv/svc_rv.sv` - Wire data_hazard to ID stage
@@ -672,6 +674,7 @@ multi-cycle operations (divider). This is flow control, not hazard handling.
 **Implementation Details**:
 
 ID stage changes:
+
 ```systemverilog
 // m_valid: Don't present dependent instruction during hazard
 assign m_valid = has_valid_instruction && !data_hazard;
@@ -681,6 +684,7 @@ assign s_ready = downstream_ready && !data_hazard;
 ```
 
 EX stage s_ready (pure flow control):
+
 ```systemverilog
 assign s_ready = ex_mem_en && !op_active_ex;
 ```

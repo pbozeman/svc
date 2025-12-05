@@ -335,7 +335,7 @@ module svc_rv #(
 
   // Hazard control signals
   // verilog_format: off
-  (* max_fanout = 32 *)logic id_stall;
+  (* max_fanout = 32 *)logic data_hazard_id;
   (* max_fanout = 32 *)logic if_id_flush;
   (* max_fanout = 32 *)logic id_ex_flush;
   (* max_fanout = 32 *)logic ex_mem_flush;
@@ -429,28 +429,30 @@ module svc_rv #(
     //
     // Minimal hazard logic for single-cycle mode with M extension
     //
-    // Multi-cycle division operations (32 cycles) require stalling via
-    // id_stall, which causes backpressure through the ready/valid chain
-    // to stage_pc. The multi-cycle state machine in EX stage handles
-    // op_active_ex generation.
+    // No data hazards in single-cycle mode. Multi-cycle ops (division)
+    // are handled by EX stage's s_ready (gated by op_active_ex).
+    // Halt is handled by wb_m_ready = !halt.
     //
-    assign id_stall     = op_active_ex || halt_next || halt;
-    assign if_id_flush  = 1'b0;
-    assign id_ex_flush  = 1'b0;
-    assign ex_mem_flush = 1'b0;
+    assign data_hazard_id = 1'b0;
+    assign if_id_flush    = 1'b0;
+    assign id_ex_flush    = 1'b0;
+    assign ex_mem_flush   = 1'b0;
 
     // verilog_format: off
     `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_load_ex,
-                mispredicted_ex, is_csr_ex, is_m_ex, btb_pred_taken, ras_pred_taken});
+                mispredicted_ex, is_csr_ex, is_m_ex, btb_pred_taken, ras_pred_taken,
+                op_active_ex});
     // verilog_format: on
   end else begin : g_no_hazard
     //
     // No hazards in single-cycle mode without multi-cycle operations
     //
-    assign id_stall     = halt_next || halt;
-    assign if_id_flush  = 1'b0;
-    assign id_ex_flush  = 1'b0;
-    assign ex_mem_flush = 1'b0;
+    // Halt is handled by wb_m_ready = !halt.
+    //
+    assign data_hazard_id = 1'b0;
+    assign if_id_flush    = 1'b0;
+    assign id_ex_flush    = 1'b0;
+    assign ex_mem_flush   = 1'b0;
 
     // verilog_format: off
     `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_load_ex,
