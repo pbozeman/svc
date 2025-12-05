@@ -229,7 +229,6 @@ module svc_rv_stage_if #(
     // Single-cycle: Passthrough (instruction available same cycle)
     //
     assign pc_to_if_id             = pc_if;
-    assign pc_plus4_to_if_id       = pc_if + 4;
     assign btb_hit_to_if_id        = btb_hit_if;
     assign btb_pred_taken_to_if_id = btb_pred_taken_if;
     assign btb_target_to_if_id     = btb_target_if;
