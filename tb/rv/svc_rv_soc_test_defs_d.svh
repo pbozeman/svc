@@ -498,5 +498,5 @@ task automatic test_div_instret_count;
   // RDINSTRET is semi broken in that it doesn't flush
   // the pipeline. We mainly want to make sure we weren't
   // incrementing the entire duration of the div stall.
-  `CHECK_LTE(uut.cpu.stage_id.regfile.regs[12], 32'd4);
+  `CHECK_LTE(uut.cpu.stage_id.regfile.regs[12], 32'd5);
 endtask

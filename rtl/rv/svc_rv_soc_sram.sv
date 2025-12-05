@@ -29,6 +29,7 @@ module svc_rv_soc_sram #(
     parameter int RAS_DEPTH   = 8,
     parameter int EXT_ZMMUL   = 0,
     parameter int EXT_M       = 0,
+    parameter int PC_REG      = 0,
 
     // verilog_lint: waive explicit-parameter-storage-type
     parameter IMEM_INIT = "",
@@ -161,7 +162,8 @@ module svc_rv_soc_sram #(
       .RAS_ENABLE (RAS_ENABLE),
       .RAS_DEPTH  (RAS_DEPTH),
       .EXT_ZMMUL  (EXT_ZMMUL),
-      .EXT_M      (EXT_M)
+      .EXT_M      (EXT_M),
+      .PC_REG     (PC_REG)
   ) cpu (
       .clk  (clk),
       .rst_n(rst_n),

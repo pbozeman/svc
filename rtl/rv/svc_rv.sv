@@ -54,6 +54,7 @@ module svc_rv #(
     parameter int          RAS_DEPTH   = 8,
     parameter int          EXT_ZMMUL   = 0,
     parameter int          EXT_M       = 0,
+    parameter int          PC_REG      = 0,
     parameter logic [31:0] RESET_PC    = 0
 ) (
     input logic clk,
@@ -145,6 +146,9 @@ module svc_rv #(
     if ((EXT_M == 1) && (PIPELINED == 0) && (MEM_TYPE == MEM_TYPE_BRAM)) begin
       $fatal(1, "EXT_M with PIPELINED=0 requires MEM_TYPE=SRAM");
     end
+    if ((PC_REG == 1) && (PIPELINED == 0)) begin
+      $fatal(1, "PC_REG=1 requires PIPELINED=1");
+    end
   end
 
   //
@@ -158,7 +162,8 @@ module svc_rv #(
 
   // PC stage outputs
   logic [XLEN-1:0] pc;
-  logic [XLEN-1:0] pc_next;
+  logic [XLEN-1:0] pc_if;
+  logic [XLEN-1:0] pc_next_if;
 
   // PC -> IF ready/valid interface
   logic            pc_m_valid;
@@ -324,6 +329,9 @@ module svc_rv #(
   logic [XLEN-1:0] pc_redirect_target;
   logic [XLEN-1:0] pred_target;
 
+  // Registered redirect pending signal (from stage_pc)
+  logic redirect_pending_if;
+
   // MEM -> EX (forwarding)
   logic [XLEN-1:0] result_mem;
   logic [XLEN-1:0] load_data_mem;
@@ -344,18 +352,17 @@ module svc_rv #(
   //
   // BTB prediction signals
   //
-  // btb_hit_if: BTB hit input to IF stage (from BTB lookup)
-  // btb_pred_taken_if: BTB prediction input to IF stage (from BTB lookup)
-  // btb_target_if: BTB target input to IF stage (from BTB lookup)
-  // btb_is_return_if: BTB is_return input to IF stage (from BTB lookup)
-  // btb_hit_id: BTB hit output from IF/ID register
-  // btb_pred_taken_id: BTB prediction output from IF/ID register
-  // btb_target_id: BTB target output from IF/ID register
-  // btb_is_return_id: BTB is_return output from IF/ID register
+  // *_pc: From pc_sel arbiter, input to stage_pc
+  // *_if: From stage_pc (optionally registered), input to stage_if
+  // *_id: From stage_if, output to ID stage
   // btb_pred_taken: IF-stage synchronous signal to hazard unit indicating
   //                 "this PC_SEL_PREDICTED came from BTB in this cycle"
   //                 (NOT ID-aligned - must be synchronous with PC mux)
   //
+  logic            btb_hit_pc;
+  logic            btb_pred_taken_pc;
+  logic [XLEN-1:0] btb_target_pc;
+  logic            btb_is_return_pc;
   logic            btb_hit_if;
   logic            btb_pred_taken_if;
   logic [XLEN-1:0] btb_target_if;
@@ -370,6 +377,8 @@ module svc_rv #(
   //
   // RAS prediction signals
   //
+  logic            ras_valid_pc;
+  logic [XLEN-1:0] ras_target_pc;
   logic            ras_valid_if;
   logic [XLEN-1:0] ras_target_if;
   logic            ras_valid_id;
@@ -419,7 +428,8 @@ module svc_rv #(
     svc_rv_hazard #(
         .FWD_REGFILE(FWD_REGFILE),
         .FWD        (FWD),
-        .MEM_TYPE   (MEM_TYPE)
+        .MEM_TYPE   (MEM_TYPE),
+        .PC_REG     (PC_REG)
     ) hazard (
         .*
     );
@@ -441,7 +451,7 @@ module svc_rv #(
     // verilog_format: off
     `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_load_ex,
                 mispredicted_ex, is_csr_ex, is_m_ex, btb_pred_taken, ras_pred_taken,
-                op_active_ex});
+                op_active_ex, redirect_pending_if});
     // verilog_format: on
   end else begin : g_no_hazard
     //
@@ -457,7 +467,7 @@ module svc_rv #(
     // verilog_format: off
     `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_load_ex,
                 mispredicted_ex, is_csr_ex, is_m_ex, op_active_ex, btb_pred_taken,
-                ras_pred_taken});
+                redirect_pending_if, ras_pred_taken});
     // verilog_format: on
   end
 
@@ -510,7 +520,7 @@ module svc_rv #(
     assign btb_is_return = 1'b0;
 
     // verilog_format: off
-    `SVC_UNUSED({btb_hit, btb_target, btb_taken, btb_is_return,
+    `SVC_UNUSED({pc, btb_hit, btb_target, btb_taken, btb_is_return,
                  btb_update_en, btb_update_pc, btb_update_target, btb_update_taken,
                  btb_update_is_ret, btb_update_is_jal});
     // verilog_format: on
@@ -552,17 +562,33 @@ module svc_rv #(
       .XLEN     (XLEN),
       .PIPELINED(PIPELINED),
       .BPRED    (BPRED),
+      .PC_REG   (PC_REG),
       .RESET_PC (RESET_PC)
   ) stage_pc (
-      .clk               (clk),
-      .rst_n             (rst_n),
-      .pc_sel            (pc_sel),
-      .pc_redirect_target(pc_redirect_target),
-      .pred_target       (pred_target),
-      .m_valid           (pc_m_valid),
-      .m_ready           (pc_m_ready),
-      .pc                (pc),
-      .pc_next           (pc_next)
+      .clk                (clk),
+      .rst_n              (rst_n),
+      .pc_sel             (pc_sel),
+      .pc_redirect_target (pc_redirect_target),
+      .pred_target        (pred_target),
+      .btb_pred_taken     (btb_pred_taken),
+      .btb_hit_pc         (btb_hit_pc),
+      .btb_pred_taken_pc  (btb_pred_taken_pc),
+      .btb_target_pc      (btb_target_pc),
+      .btb_is_return_pc   (btb_is_return_pc),
+      .ras_valid_pc       (ras_valid_pc),
+      .ras_target_pc      (ras_target_pc),
+      .m_valid            (pc_m_valid),
+      .m_ready            (pc_m_ready),
+      .pc                 (pc),
+      .pc_if              (pc_if),
+      .pc_next_if         (pc_next_if),
+      .btb_hit_if         (btb_hit_if),
+      .btb_pred_taken_if  (btb_pred_taken_if),
+      .btb_target_if      (btb_target_if),
+      .btb_is_return_if   (btb_is_return_if),
+      .ras_valid_if       (ras_valid_if),
+      .ras_target_if      (ras_target_if),
+      .redirect_pending_if(redirect_pending_if)
   );
 
   //
@@ -573,12 +599,12 @@ module svc_rv #(
       .PIPELINED(PIPELINED),
       .BPRED    (BPRED)
   ) stage_if (
-      .s_valid(pc_m_valid),
-      .s_ready(pc_m_ready),
-      .pc     (pc),
-      .pc_next(pc_next),
-      .m_valid(if_m_valid),
-      .m_ready(if_m_ready),
+      .s_valid   (pc_m_valid),
+      .s_ready   (pc_m_ready),
+      .pc_if     (pc_if),
+      .pc_next_if(pc_next_if),
+      .m_valid   (if_m_valid),
+      .m_ready   (if_m_ready),
       .*
   );
 

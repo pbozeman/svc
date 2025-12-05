@@ -35,8 +35,8 @@ module svc_rv_stage_if #(
     //
     // PC inputs from stage_pc
     //
-    input logic [XLEN-1:0] pc,
-    input logic [XLEN-1:0] pc_next,
+    input logic [XLEN-1:0] pc_if,
+    input logic [XLEN-1:0] pc_next_if,
 
     //
     // BTB prediction signals
@@ -118,25 +118,25 @@ module svc_rv_stage_if #(
   if (PIPELINED != 0 && BPRED != 0) begin : g_pipelined_bpred_imem
     //
     // BPRED mode: !rst_n ensures first-cycle fetch when PC starts at
-    // RESET_PC-4 and pc_next = RESET_PC
+    // RESET_PC-4 and pc_next_if = RESET_PC
     //
-    assign imem_araddr  = pc_next;
+    assign imem_araddr  = pc_next_if;
     assign imem_arvalid = !rst_n || m_ready;
 
     //
     // In BPRED mode, pc goes to BTB from stage_pc, not used here
     //
-    `SVC_UNUSED({pc})
+    `SVC_UNUSED({pc_if})
   end else if (PIPELINED != 0) begin : g_pipelined_imem
-    assign imem_araddr  = pc;
+    assign imem_araddr  = pc_if;
     assign imem_arvalid = m_ready;
 
-    `SVC_UNUSED({pc_next})
+    `SVC_UNUSED({pc_next_if})
   end else begin : g_single_cycle_imem
-    assign imem_araddr  = pc;
+    assign imem_araddr  = pc_if;
     assign imem_arvalid = 1'b1;
 
-    `SVC_UNUSED({pc_next})
+    `SVC_UNUSED({pc_next_if})
   end
 
   //
@@ -203,6 +203,11 @@ module svc_rv_stage_if #(
     //
     // Datapath registers: no reset needed (don't care until valid)
     //
+    // Note: We capture imem_araddr (the NEXT fetch address) rather than pc_if
+    // because pc_id_buf adds another cycle of delay. This creates the correct
+    // alignment: when instruction X arrives, we capture X+4; when X+4 arrives,
+    // pc_id = X+4 (from previous cycle's pc_buf). See timing diagram in docs.
+    //
     always_ff @(posedge clk) begin
       if (m_ready) begin
         pc_buf         <= imem_araddr;
@@ -223,7 +228,8 @@ module svc_rv_stage_if #(
     //
     // Single-cycle: Passthrough (instruction available same cycle)
     //
-    assign pc_to_if_id             = pc;
+    assign pc_to_if_id             = pc_if;
+    assign pc_plus4_to_if_id       = pc_if + 4;
     assign btb_hit_to_if_id        = btb_hit_if;
     assign btb_pred_taken_to_if_id = btb_pred_taken_if;
     assign btb_target_to_if_id     = btb_target_if;
