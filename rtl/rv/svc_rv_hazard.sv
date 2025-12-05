@@ -37,7 +37,8 @@
 module svc_rv_hazard #(
     parameter int FWD_REGFILE,
     parameter int FWD,
-    parameter int MEM_TYPE
+    parameter int MEM_TYPE,
+    parameter int PC_REG      = 0
 ) (
     // ID stage input registers
     input logic [4:0] rs1_id,
@@ -81,6 +82,11 @@ module svc_rv_hazard #(
     //
     input logic btb_pred_taken,
     input logic ras_pred_taken,
+
+    //
+    // Registered redirect pending (from stage_pc)
+    //
+    input logic redirect_pending_if,
 
     // Hazard control outputs
     output logic data_hazard_id,
@@ -338,8 +344,27 @@ module svc_rv_hazard #(
   assign pred_flush = (pc_predicted && (!btb_pred_taken || ras_pred_taken) &&
                        !data_hazard_id && !op_active_ex);
 
-  assign if_id_flush = control_flush || pred_flush;
-  assign id_ex_flush = control_flush;
+  if (PC_REG != 0) begin : g_registered_flush
+    //
+    // Extended flush for registered redirect
+    //
+    // When PC_REG=1, the redirect takes effect one cycle late.
+    // The instruction fetched during the redirect cycle (wrong path) must
+    // be flushed when redirect_pending_if is asserted.
+    //
+    assign if_id_flush = control_flush || pred_flush || redirect_pending_if;
+    assign id_ex_flush = control_flush || redirect_pending_if;
+
+  end else begin : g_immediate_flush
+    //
+    // Current logic unchanged
+    //
+    assign if_id_flush = control_flush || pred_flush;
+    assign id_ex_flush = control_flush;
+
+    `SVC_UNUSED(redirect_pending_if);
+  end
+
   assign ex_mem_flush = mispredicted_mem || op_active_ex;
 
 endmodule

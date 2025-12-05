@@ -173,9 +173,9 @@ function automatic string fmt_if_debug();
       "IF %s%s %08x %s %08x%s",
       stall_str,
       flush_str,
-      stage_if.pc,
+      stage_if.pc_if,
       pc_sel_str,
-      stage_if.pc_next,
+      stage_if.pc_next_if,
       btb_str
   );
 endfunction

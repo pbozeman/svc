@@ -72,14 +72,14 @@ module svc_rv_pc_sel #(
     output logic            ras_pred_taken,
 
     //
-    // Prediction signals to IF stage
+    // Prediction signals to PC stage (for optional registration)
     //
-    output logic            ras_valid_if,
-    output logic [XLEN-1:0] ras_target_if,
-    output logic            btb_hit_if,
-    output logic            btb_pred_taken_if,
-    output logic [XLEN-1:0] btb_target_if,
-    output logic            btb_is_return_if
+    output logic            ras_valid_pc,
+    output logic [XLEN-1:0] ras_target_pc,
+    output logic            btb_hit_pc,
+    output logic            btb_pred_taken_pc,
+    output logic [XLEN-1:0] btb_target_pc,
+    output logic            btb_is_return_pc
 );
 
   `include "svc_rv_defs.svh"
@@ -117,14 +117,14 @@ module svc_rv_pc_sel #(
       assign ras_late_pred_id = is_jalr_id && !(btb_hit_id && btb_is_return_id);
       assign ras_prediction_valid = ((ras_early_pred_if && ras_valid) ||
                                      (ras_late_pred_id && ras_valid_id));
-      assign ras_valid_if = ras_valid;
-      assign ras_target_if = ras_target;
+      assign ras_valid_pc = ras_valid;
+      assign ras_target_pc = ras_target;
     end else begin : g_no_ras_pred
       assign ras_prediction_valid = 1'b0;
       assign ras_early_pred_if    = 1'b0;
       assign ras_late_pred_id     = 1'b0;
-      assign ras_valid_if         = 1'b0;
-      assign ras_target_if        = '0;
+      assign ras_valid_pc         = 1'b0;
+      assign ras_target_pc        = '0;
 
       `SVC_UNUSED({
                   ras_valid,
@@ -147,16 +147,16 @@ module svc_rv_pc_sel #(
     //
     if (BTB_ENABLE != 0) begin : g_btb_pred
       assign btb_prediction_valid = btb_hit && btb_taken;
-      assign btb_hit_if           = btb_hit;
-      assign btb_pred_taken_if    = btb_prediction_valid;
-      assign btb_target_if        = btb_target;
-      assign btb_is_return_if     = btb_is_return;
+      assign btb_hit_pc           = btb_hit;
+      assign btb_pred_taken_pc    = btb_prediction_valid;
+      assign btb_target_pc        = btb_target;
+      assign btb_is_return_pc     = btb_is_return;
     end else begin : g_no_btb_pred
       assign btb_prediction_valid = 1'b0;
-      assign btb_hit_if           = 1'b0;
-      assign btb_pred_taken_if    = 1'b0;
-      assign btb_target_if        = '0;
-      assign btb_is_return_if     = 1'b0;
+      assign btb_hit_pc           = 1'b0;
+      assign btb_pred_taken_pc    = 1'b0;
+      assign btb_target_pc        = '0;
+      assign btb_is_return_pc     = 1'b0;
 
       `SVC_UNUSED({btb_hit, btb_taken, btb_target});
     end
@@ -228,12 +228,12 @@ module svc_rv_pc_sel #(
     assign pred_target       = pred_target_id;
     assign btb_pred_taken    = 1'b0;
     assign ras_pred_taken    = 1'b0;
-    assign btb_hit_if        = 1'b0;
-    assign btb_pred_taken_if = 1'b0;
-    assign btb_target_if     = '0;
-    assign btb_is_return_if  = 1'b0;
-    assign ras_valid_if      = 1'b0;
-    assign ras_target_if     = '0;
+    assign btb_hit_pc        = 1'b0;
+    assign btb_pred_taken_pc = 1'b0;
+    assign btb_target_pc     = '0;
+    assign btb_is_return_pc  = 1'b0;
+    assign ras_valid_pc      = 1'b0;
+    assign ras_target_pc     = '0;
 
     // verilog_format: off
     `SVC_UNUSED({ras_valid, ras_valid_id, ras_target, ras_target_id, is_jalr_id,
@@ -262,6 +262,7 @@ module svc_rv_pc_sel #(
       pc_redirect_target = '0;
     end
   end
+
 
   `SVC_UNUSED(jalr_mispredicted_mem);
 

@@ -2288,7 +2288,7 @@ task automatic test_cpi_branch_taken;
 
   load_program();
 
-  `CHECK_WAIT_FOR(clk, ebreak, 8192);
+  `CHECK_WAIT_FOR(clk, ebreak, 16384);
   cycles = uut.cpu.stage_id.regfile.regs[24];
   instrs = uut.cpu.stage_id.regfile.regs[25];
   `CHECK_CPI("cpi_br_taken", br_taken_max_cpi, cycles, instrs);

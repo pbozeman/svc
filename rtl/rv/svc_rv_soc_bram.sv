@@ -31,6 +31,7 @@ module svc_rv_soc_bram #(
     parameter int RAS_DEPTH   = 8,
     parameter int EXT_ZMMUL   = 0,
     parameter int EXT_M       = 0,
+    parameter int PC_REG      = 0,
 
     parameter logic [31:0] RESET_PC = 0,
 
@@ -188,6 +189,7 @@ module svc_rv_soc_bram #(
       .RAS_DEPTH  (RAS_DEPTH),
       .EXT_ZMMUL  (EXT_ZMMUL),
       .EXT_M      (EXT_M),
+      .PC_REG     (PC_REG),
       .RESET_PC   (RESET_PC)
   ) cpu (
       .clk  (clk),
