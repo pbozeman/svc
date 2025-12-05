@@ -9,9 +9,11 @@
 // Detects data and control hazards and sets control flags for resolution.
 //
 // Control hazards are resolved by flushing the pipeline. For data hazards
-// (RAW dependencies), this unit detects hazards and generates stall signals.
-// Actual data forwarding, when enabled, is handled by a separate forwarding
-// unit in the EX stage.
+// (RAW dependencies), this unit outputs the data_hazard_id signal which the ID
+// stage uses to gate m_valid and s_ready. This implements backpressure-based
+// stalling through the ready/valid interface rather than centralized stall
+// signals. Actual data forwarding, when enabled, is handled by a separate
+// forwarding unit in the EX stage.
 //
 // FWD parameter controls hazard detection behavior:
 // - FWD=0: Stall on all RAW hazards (EX, MEM, WB stages)
@@ -80,13 +82,8 @@ module svc_rv_hazard #(
     input logic btb_pred_taken,
     input logic ras_pred_taken,
 
-    //
-    // Halt signal (registered, for pipeline stalls)
-    //
-    input logic halt,
-
     // Hazard control outputs
-    output logic id_stall,
+    output logic data_hazard_id,
     output logic if_id_flush,
     output logic id_ex_flush,
     output logic ex_mem_flush
@@ -161,18 +158,20 @@ module svc_rv_hazard #(
   end
 
   //
-  // Generate stall and flush signals
+  // Data hazard output and flush signal generation
   //
-  // Data hazards: Stall behavior depends on FWD parameter:
-  // - FWD=0: Stall on all RAW hazards (EX, MEM, WB stages)
-  // - FWD=1: Only stall on unavoidable hazards (load-use, CSR-use, and WB if
+  // Data hazards: Detection depends on FWD parameter:
+  // - FWD=0: Detect all RAW hazards (EX, MEM, WB stages)
+  // - FWD=1: Only detect unavoidable hazards (load-use, CSR-use, and WB if
   //          regfile lacks internal forwarding)
   //
-  // When a data hazard is detected:
-  // - Stall PC to prevent fetching new instructions
-  // - Stall IF/ID to hold current instruction in decode
-  // - Flush ID/EX to insert a bubble (NOP) in execute stage
-  //   (unless multi-cycle operation is active, then ID/EX is stalled instead)
+  // The data_hazard_id signal is output to the ID stage, which uses it to:
+  // - Gate m_valid low (don't present dependent instruction to EX)
+  // - Gate s_ready low (backpressure IF to prevent new fetches)
+  //
+  // On control flow changes (redirect, misprediction), data_hazard_id is cleared
+  // because the instruction causing the hazard is being flushed. This allows
+  // the pipeline to take the redirect without being blocked by stall.
   //
   // Control hazards: When a branch/jump is taken (pc_sel asserted in EX stage),
   // we need to flush the instructions already in the pipeline:
@@ -181,7 +180,14 @@ module svc_rv_hazard #(
   //
   `include "svc_rv_defs.svh"
 
-  logic data_hazard;
+  //
+  // Control flow change detection (defined early for use in data_hazard_id gating)
+  //
+  logic pc_redirect;
+  logic control_flush;
+
+  assign pc_redirect   = (pc_sel == PC_SEL_REDIRECT);
+  assign control_flush = pc_redirect || mispredicted_mem;
 
   if (FWD != 0) begin : g_external_forwarding
     //
@@ -274,41 +280,25 @@ module svc_rv_hazard #(
     // Regular EX and MEM stage RAW hazards are assumed to be resolved by the
     // external forwarding unit (in the EX stage), so they don't cause stalls.
     //
-    assign data_hazard = load_use_hazard || wb_hazard;
+    // On control_flush, clear data_hazard_id so redirect can proceed.
+    //
+    assign data_hazard_id = (load_use_hazard || wb_hazard) && !control_flush;
 
     `SVC_UNUSED({ex_hazard, mem_hazard});
   end else begin : g_no_forwarding
     //
     // Non-forwarding: stall on all hazards
     //
-    assign data_hazard = ex_hazard || mem_hazard || wb_hazard;
+    // On control_flush, clear data_hazard_id so redirect can proceed.
+    //
+    assign data_hazard_id = (ex_hazard || mem_hazard || wb_hazard) &&
+        !control_flush;
     `SVC_UNUSED({is_load_ex, is_csr_ex, is_m_ex, mem_read_mem, res_src_mem});
   end
 
-  //
-  // Multi-cycle EX operation stall
-  //
-  // When op_active_ex is asserted, a multi-cycle operation (e.g., division)
-  // is executing in the EX stage. Stall the front of the pipeline while
-  // letting the back drain:
-  // - Stall PC, IF/ID, ID/EX (prevent new instructions from entering EX)
-  // - EX/MEM, MEM/WB continue normally (let completed instructions drain)
-  // - When operation completes (op_active_ex drops), all stalls release
-  //   and the completed result flows normally through MEM→WB→regfile
-  //
-  // Don't stall on data hazards when redirecting (pc_redirect or misprediction),
-  // since the hazardous instruction will be flushed anyway.
-  //
-  logic stall_disable;
-  logic front_stall;
-
-  assign stall_disable = pc_redirect || mispredicted_mem;
-  assign front_stall   = data_hazard || op_active_ex;
-
-  assign id_stall      = (front_stall && !stall_disable) || halt;
 
   //
-  // Flush logic with stall interaction
+  // Flush logic
   //
   // if_id_flush: Flush when PC redirection occurs (branches/jumps or prediction)
   //
@@ -318,13 +308,12 @@ module svc_rv_hazard #(
   // For static predictions (ID stage): DO flush - the sequential instruction
   // after the branch was already fetched and is incorrect.
   //
-  // Suppress prediction flush when stalling, since the predicted instruction
-  // in ID hasn't advanced yet.
+  // Suppress prediction flush when stalling (data_hazard_id or op_active_ex),
+  // since the predicted instruction in ID hasn't advanced yet.
   //
-  // id_ex_flush: For data hazards, use flush (insert bubble) unless a
-  // multi-cycle operation is active (then use stall to preserve EX state).
+  // id_ex_flush: Flush on control flow changes (redirects, mispredictions).
+  // Data hazards no longer cause flush - ID stage gates m_valid instead.
   //
-  logic pc_redirect;
   logic pc_predicted;
 
   //
@@ -341,18 +330,16 @@ module svc_rv_hazard #(
   // been fetched yet. But RAS predictions happen when JALR is in ID, after
   // the sequential instruction is already in the pipeline.
   //
-  // Only flush if pipeline is advancing (!data_hazard && !op_active_ex).
+  // Only flush if pipeline is advancing (!data_hazard_id && !op_active_ex).
   //
   logic pred_flush;
 
-  assign pc_redirect = (pc_sel == PC_SEL_REDIRECT);
   assign pc_predicted = (pc_sel == PC_SEL_PREDICTED);
   assign pred_flush = (pc_predicted && (!btb_pred_taken || ras_pred_taken) &&
-                       !data_hazard && !op_active_ex);
+                       !data_hazard_id && !op_active_ex);
 
-  assign if_id_flush = (pc_redirect || mispredicted_mem || pred_flush);
-  assign id_ex_flush = ((data_hazard && !op_active_ex) || pc_redirect ||
-                        mispredicted_mem);
+  assign if_id_flush = control_flush || pred_flush;
+  assign id_ex_flush = control_flush;
   assign ex_mem_flush = mispredicted_mem || op_active_ex;
 
 endmodule
