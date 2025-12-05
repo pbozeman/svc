@@ -98,7 +98,6 @@ module svc_rv_stage_if #(
   // Intermediate signals for pipeline register inputs
   //
   logic [XLEN-1:0] pc_to_if_id;
-  logic [XLEN-1:0] pc_plus4_to_if_id;
   logic            btb_hit_to_if_id;
   logic            btb_pred_taken_to_if_id;
   logic [XLEN-1:0] btb_target_to_if_id;
@@ -177,7 +176,6 @@ module svc_rv_stage_if #(
   //
   if (PIPELINED != 0) begin : g_pipelined_metadata
     (* max_fanout = 32 *)logic [XLEN-1:0] pc_buf;
-    (* max_fanout = 32 *)logic [XLEN-1:0] pc_plus4_buf;
     logic            btb_hit_buf;
     logic            btb_pred_taken_buf;
     logic [XLEN-1:0] btb_target_buf;
@@ -208,14 +206,12 @@ module svc_rv_stage_if #(
     always_ff @(posedge clk) begin
       if (m_ready) begin
         pc_buf         <= imem_araddr;
-        pc_plus4_buf   <= imem_araddr + 4;
         btb_target_buf <= btb_target_if;
         ras_target_buf <= ras_target_if;
       end
     end
 
     assign pc_to_if_id             = pc_buf;
-    assign pc_plus4_to_if_id       = pc_plus4_buf;
     assign btb_hit_to_if_id        = btb_hit_buf;
     assign btb_pred_taken_to_if_id = btb_pred_taken_buf;
     assign btb_target_to_if_id     = btb_target_buf;
@@ -228,7 +224,6 @@ module svc_rv_stage_if #(
     // Single-cycle: Passthrough (instruction available same cycle)
     //
     assign pc_to_if_id             = pc;
-    assign pc_plus4_to_if_id       = pc + 4;
     assign btb_hit_to_if_id        = btb_hit_if;
     assign btb_pred_taken_to_if_id = btb_pred_taken_if;
     assign btb_target_to_if_id     = btb_target_if;
@@ -281,7 +276,12 @@ module svc_rv_stage_if #(
     always_ff @(posedge clk) begin
       if (m_ready) begin
         pc_id_buf       <= pc_to_if_id;
-        pc_plus4_id_buf <= pc_plus4_to_if_id;
+        //
+        // pc_plus4 computed from registered PC to break timing path:
+        // Before: pc_reg → pc_next → imem_araddr → (+4) → pc_plus4_buf
+        // After:  pc_buf → pc_to_if_id → (+4) → pc_plus4_id_buf
+        //
+        pc_plus4_id_buf <= pc_to_if_id + 4;
       end
     end
 
@@ -307,7 +307,7 @@ module svc_rv_stage_if #(
     assign instr_id          = instr;
     assign m_valid           = imem_rvalid;
     assign pc_id             = pc_to_if_id;
-    assign pc_plus4_id       = pc_plus4_to_if_id;
+    assign pc_plus4_id       = pc_to_if_id + 4;
     assign btb_hit_id        = btb_hit_to_if_id;
     assign btb_pred_taken_id = btb_pred_taken_to_if_id;
     assign btb_target_id     = btb_target_to_if_id;
