@@ -308,7 +308,7 @@ module svc_rv_stage_ex #(
 
     case (mc_state)
       MC_STATE_IDLE: begin
-        if (is_mc_ex) begin
+        if (is_mc_ex && s_valid) begin
           op_en_ex      = 1'b1;
           op_active_ex  = 1'b1;
           mc_state_next = MC_STATE_EXEC;
@@ -343,7 +343,7 @@ module svc_rv_stage_ex #(
       //
       // Capture forwarded operands on first cycle of multi-cycle op
       //
-      if (mc_state == MC_STATE_IDLE && is_mc_ex) begin
+      if (mc_state == MC_STATE_IDLE && is_mc_ex && s_valid) begin
         mc_rs1_captured <= fwd_rs1_ex;
         mc_rs2_captured <= fwd_rs2_ex;
       end
@@ -610,6 +610,51 @@ module svc_rv_stage_ex #(
     //
     assign s_ready   = ex_mem_en && !op_active_ex;
 
+    //
+    // Multi-cycle operation tracking for valid_reg preservation
+    //
+    // mc_in_progress_reg: Tracks when we're PAST the first cycle of a
+    // multi-cycle op. On the first cycle, we capture valid_reg from s_valid.
+    // On subsequent cycles, we preserve valid_reg (don't update from s_valid
+    // which may be 0 during multi-cycle execution).
+    //
+    // This is set when transitioning from IDLE to EXEC (first cycle), and
+    // cleared when m_valid && m_ready (result consumed).
+    //
+    logic mc_in_progress_reg;
+
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        mc_in_progress_reg <= 1'b0;
+      end else if (mc_state == MC_STATE_IDLE && is_mc_ex && s_valid &&
+                   ex_mem_en) begin
+        //
+        // First cycle of multi-cycle op - we're about to capture
+        //
+        mc_in_progress_reg <= 1'b1;
+      end else if (m_valid && m_ready) begin
+        //
+        // Result consumed
+        //
+        mc_in_progress_reg <= 1'b0;
+      end
+    end
+
+    //
+    // Effective flush for valid_reg: Don't clear during multi-cycle ops
+    //
+    // The hazard unit sets ex_mem_flush when op_active_ex is high. However,
+    // we must preserve valid_reg so that m_valid asserts when the multi-cycle
+    // operation completes.
+    //
+    // mc_in_progress_reg tracks multi-cycle ops AFTER the first cycle.
+    // op_active_ex includes the first cycle when we're capturing.
+    //
+    logic mc_active;
+    logic effective_flush;
+    assign mc_active       = op_active_ex || mc_in_progress_reg;
+    assign effective_flush = ex_mem_flush && !mc_active;
+
     always_ff @(posedge clk) begin
       if (!rst_n) begin
         valid_reg     <= 1'b0;
@@ -618,9 +663,26 @@ module svc_rv_stage_ex #(
         mem_write_mem <= 1'b0;
         trap_mem      <= 1'b0;
       end else if (ex_mem_en) begin
+        //
         // Signals used by forwarding/hazard logic must be explicitly
         // cleared on flush since that logic doesn't check m_valid.
-        valid_reg     <= ex_mem_flush ? 1'b0 : s_valid;
+        //
+        // For valid_reg:
+        // - Clear on effective_flush (not during multi-cycle ops)
+        // - Update from s_valid when not in multi-cycle execution OR when
+        //   multi-cycle result is consumed (m_valid && m_ready clears
+        //   mc_in_progress_reg, but we need to accept new instruction same
+        //   cycle)
+        // - Preserve during multi-cycle execution otherwise
+        //
+        if (effective_flush) begin
+          valid_reg <= 1'b0;
+        end else if (!mc_in_progress_reg || (m_valid && m_ready)) begin
+          valid_reg <= s_valid;
+        end
+        //
+        // Other control signals: clear during all flushes
+        //
         reg_write_mem <= ex_mem_flush ? 1'b0 : reg_write_ex;
         mem_read_mem  <= ex_mem_flush ? 1'b0 : mem_read_ex;
         mem_write_mem <= ex_mem_flush ? 1'b0 : mem_write_ex;
@@ -650,12 +712,22 @@ module svc_rv_stage_ex #(
         jb_target_mem    <= jb_target_ex;
         pred_target_mem  <= pred_target_ex;
         csr_rdata_mem    <= csr_rdata_ex;
-        m_result_mem     <= m_result_ex;
         mul_ll_mem       <= mul_ll_ex;
         mul_lh_mem       <= mul_lh_ex;
         mul_hl_mem       <= mul_hl_ex;
         mul_hh_mem       <= mul_hh_ex;
         trap_code_mem    <= misalign_trap ? TRAP_INSTR_MISALIGN : trap_code_ex;
+      end
+
+      //
+      // m_result_mem: Update during multi-cycle ops to capture final result
+      //
+      // During multi-cycle ops, ex_mem_en may be 0 (when m_ready=0 and
+      // valid_reg=1). But we need m_result_mem to reflect the final
+      // division result when the operation completes.
+      //
+      if (ex_mem_en || mc_in_progress_ex) begin
+        m_result_mem <= m_result_ex;
       end
     end
 
@@ -704,6 +776,17 @@ module svc_rv_stage_ex #(
   `define FASSERT(label, a) label: assert(a)
   `define FASSUME(label, a) label: assume(a)
   `define FCOVER(label, a) label: cover(a)
+
+  //
+  // Force reset at start of formal verification
+  //
+  // This ensures the solver starts from a valid reset state rather than
+  // an arbitrary initial state that may violate module invariants.
+  //
+  // Only apply when verifying this module specifically, not when used as
+  // a submodule in other formal checks (like RVFI verification).
+  //
+  initial assume (!rst_n);
 `else
   `define FASSERT(label, a) label: assume(a)
   `define FASSUME(label, a) label: assert(a)
@@ -796,6 +879,266 @@ module svc_rv_stage_ex #(
       // Cover stalled transfer (valid high, ready low for a cycle)
       //
       `FCOVER(c_stalled, $past(m_valid && !m_ready) && m_valid && m_ready);
+    end
+  end
+
+  //
+  // Multi-cycle operation assertions (pipelined mode only)
+  //
+  if (PIPELINED != 0) begin : g_mc_formal
+    //
+    // mc_in_progress_reg must clear when result is consumed
+    //
+    always_ff @(posedge clk) begin
+      if (f_past_valid && $past(rst_n) && rst_n) begin
+        //
+        // After m_valid && m_ready handshake, mc_in_progress_reg must be 0
+        // UNLESS a new mc op started in the same cycle
+        //
+        if ($past(m_valid && m_ready) && !$past(is_mc_ex && s_valid)) begin
+          `FASSERT(a_mc_clears_on_handshake, !g_registered.mc_in_progress_reg);
+        end
+
+        //
+        // mc_in_progress_reg should only be set for multi-cycle ops
+        //
+        if ($rose(g_registered.mc_in_progress_reg)) begin
+          `FASSERT(a_mc_set_only_for_mc_op, $past(is_mc_ex && s_valid));
+        end
+
+        //
+        // When mc_state is IDLE and no mc op starting, mc_in_progress_reg
+        // should eventually clear (after handshake)
+        //
+        if (mc_state == MC_STATE_IDLE && !is_mc_ex) begin
+          //
+          // If we're idle with no mc op, and m_valid && m_ready happened,
+          // mc_in_progress_reg must be 0
+          //
+          if ($past(m_valid && m_ready)) begin
+            `FASSERT(a_mc_idle_clears, !g_registered.mc_in_progress_reg);
+          end
+        end
+
+        //
+        // op_active_ex should only be high during multi-cycle execution
+        //
+        if (op_active_ex) begin
+          `FASSERT(a_op_active_implies_mc,
+                   (mc_state == MC_STATE_IDLE && is_mc_ex) ||
+                       (mc_state == MC_STATE_EXEC && m_busy_ex));
+        end
+
+        //
+        // When DIV completes (mc_state goes IDLE, was EXEC), if there's no
+        // new mc op starting, op_active_ex should be 0
+        //
+        if ($past(mc_state == MC_STATE_EXEC) && mc_state == MC_STATE_IDLE) begin
+          if (!is_mc_ex) begin
+            `FASSERT(a_op_active_clears_on_complete, !op_active_ex);
+          end
+        end
+
+        //
+        // s_ready should be low during multi-cycle execution
+        //
+        if (mc_state == MC_STATE_EXEC && m_busy_ex) begin
+          `FASSERT(a_sready_low_during_mc, !s_ready);
+        end
+
+        //
+        // After mc op completes and result consumed, s_ready should be high
+        // (assuming no backpressure from downstream)
+        //
+        if ($past(m_valid && m_ready) && !op_active_ex && m_ready) begin
+          `FASSERT(a_sready_high_after_mc, s_ready);
+        end
+      end
+    end
+
+    //
+    // Cover multi-cycle operation scenarios
+    //
+    always_ff @(posedge clk) begin
+      if (f_past_valid && $past(rst_n) && rst_n) begin
+        //
+        // Cover: DIV starts
+        //
+        `FCOVER(c_mc_starts, $rose(op_active_ex) && is_mc_ex);
+
+        //
+        // Cover: DIV completes and result consumed same cycle
+        //
+        `FCOVER(c_mc_complete_immediate, $past(mc_state == MC_STATE_EXEC
+                ) && mc_state == MC_STATE_IDLE && m_valid && m_ready);
+
+        //
+        // Cover: DIV completes but result held (m_ready=0)
+        //
+        `FCOVER(c_mc_complete_held, $past(mc_state == MC_STATE_EXEC
+                ) && mc_state == MC_STATE_IDLE && m_valid && !m_ready);
+
+        //
+        // Cover: Back-to-back DIV operations
+        //
+        `FCOVER(c_mc_back_to_back, $past(
+                m_valid && m_ready && g_registered.mc_in_progress_reg
+                ) && is_mc_ex && s_valid);
+
+        //
+        // Cover: DIV followed by non-mc instruction
+        //
+        `FCOVER(c_mc_then_normal, $past(
+                m_valid && m_ready && g_registered.mc_in_progress_reg
+                ) && !is_mc_ex && s_valid);
+      end
+    end
+  end
+
+  //
+  // State machine invariants
+  //
+  // Ensure the mc FSM only does intended transitions and never sits in
+  // EXEC without a pending operation.
+  //
+  if (PIPELINED != 0) begin : g_mc_state_invariants
+    always_ff @(posedge clk) begin
+      if (f_past_valid && $past(rst_n) && rst_n) begin
+        //
+        // mc_state must always be a legal enum value
+        //
+        `FASSERT(a_mc_state_legal,
+                 mc_state == MC_STATE_IDLE || mc_state == MC_STATE_EXEC);
+
+        //
+        // Only transition IDLE -> EXEC when we actually start a mc op
+        //
+        if ($past(mc_state) == MC_STATE_IDLE && mc_state == MC_STATE_EXEC) begin
+          `FASSERT(a_mc_idle_to_exec_only_on_mc, $past(
+                   is_mc_ex && s_valid && g_registered.ex_mem_en));
+        end
+
+        //
+        // Only transition EXEC -> IDLE when divider reports not busy
+        //
+        if ($past(mc_state) == MC_STATE_EXEC && mc_state == MC_STATE_IDLE) begin
+          `FASSERT(a_mc_exec_to_idle_only_when_not_busy, !$past(m_busy_ex));
+        end
+
+        //
+        // While busy, we must stay in EXEC
+        //
+        if ($past(mc_state) == MC_STATE_EXEC && $past(m_busy_ex)) begin
+          `FASSERT(a_mc_stays_exec_while_busy, mc_state == MC_STATE_EXEC);
+        end
+
+        //
+        // We should never be in EXEC without having an active op
+        //
+        if (mc_state == MC_STATE_EXEC) begin
+          `FASSERT(a_mc_exec_implies_active, op_active_ex || !m_busy_ex);
+        end
+      end
+    end
+  end
+
+  //
+  // Operand capture & stability during mc ops
+  //
+  // Verify captured operands are correct and stable during multi-cycle ops.
+  //
+  if (PIPELINED != 0) begin : g_mc_operand_checks
+    always_ff @(posedge clk) begin
+      if (f_past_valid && $past(rst_n) && rst_n) begin
+        //
+        // On the first cycle of a mc op, captured operands must equal the
+        // forwarded values we saw on that cycle.
+        //
+        if (mc_state == MC_STATE_EXEC && $past(
+                mc_state == MC_STATE_IDLE && is_mc_ex && s_valid &&
+                    g_registered.ex_mem_en
+            )) begin
+          `FASSERT(a_mc_capture_rs1_correct, mc_rs1_captured == $past(fwd_rs1_ex
+                   ));
+          `FASSERT(a_mc_capture_rs2_correct, mc_rs2_captured == $past(fwd_rs2_ex
+                   ));
+        end
+
+        //
+        // Once in EXEC, captured operands must not change
+        //
+        if ($past(mc_state == MC_STATE_EXEC) && mc_state == MC_STATE_EXEC) begin
+          `FASSERT(a_mc_rs1_captured_stable, $stable(mc_rs1_captured));
+          `FASSERT(a_mc_rs2_captured_stable, $stable(mc_rs2_captured));
+        end
+      end
+    end
+  end
+
+  //
+  // Handshake vs mc_state / valid_reg / m_valid invariants
+  //
+  if (PIPELINED != 0) begin : g_mc_handshake_invariants
+    always_ff @(posedge clk) begin
+      if (f_past_valid && $past(rst_n) && rst_n) begin
+        //
+        // We only assert m_valid when the mc FSM is idle
+        //
+        if (m_valid) begin
+          `FASSERT(a_m_valid_implies_idle,
+                   mc_state == MC_STATE_IDLE && !mc_in_progress_ex);
+        end
+
+        //
+        // If we're in EXEC, the EX/MEM valid_reg must be holding the
+        // instruction associated with this mc op.
+        //
+        if (mc_state == MC_STATE_EXEC) begin
+          `FASSERT(a_exec_implies_valid_reg, g_registered.valid_reg);
+        end
+
+        //
+        // When we start a mc op, valid_reg must get set if s_valid was high.
+        //
+        if ($past(
+                mc_state == MC_STATE_IDLE && is_mc_ex && s_valid &&
+                    g_registered.ex_mem_en
+            )) begin
+          `FASSERT(a_mc_start_sets_valid_reg, g_registered.valid_reg);
+        end
+
+        //
+        // While op_active_ex, s_ready must be low
+        //
+        if (op_active_ex) begin
+          `FASSERT(a_op_active_blocks_s_ready, !s_ready);
+        end
+
+        //
+        // If EX accepts a new non-mc instruction, we must not be in EXEC
+        // in the next cycle.
+        //
+        if ($past(s_valid && s_ready && !is_mc_ex)) begin
+          `FASSERT(a_non_mc_accept_keeps_idle, mc_state == MC_STATE_IDLE);
+        end
+      end
+    end
+  end
+
+  //
+  // Contract with m_busy_ex / divider (EXT_M enabled)
+  //
+  if (PIPELINED != 0 && EXT_M != 0) begin : g_mc_busy_contract
+    always_ff @(posedge clk) begin
+      if (f_past_valid && $past(rst_n) && rst_n) begin
+        //
+        // Divider 'busy' should never be asserted when we're in IDLE and
+        // no mc op is active.
+        //
+        if (mc_state == MC_STATE_IDLE && !is_mc_ex) begin
+          `FASSERT(a_idle_not_busy, !m_busy_ex);
+        end
+      end
     end
   end
 
