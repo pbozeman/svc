@@ -1,0 +1,25 @@
+[tasks]
+bmc
+cover
+
+[options]
+bmc: mode bmc
+bmc: depth 20
+cover: mode cover
+cover: depth 20
+
+[engines]
+smtbmc boolector
+
+[script]
+read_verilog -formal -DFORMAL -DFORMAL_SVC_RV_PIPE_DATA -sv svc_rv_pipe_data.sv
+prep -top svc_rv_pipe_data
+
+[files]
+--pycode-begin--
+import glob
+files = "\n".join(glob.glob("rtl/**/*.sv", recursive=True))
+files += "\n"
+files += "\n".join(glob.glob("rtl/**/*.svh", recursive=True))
+output(files)
+--pycode-end--
