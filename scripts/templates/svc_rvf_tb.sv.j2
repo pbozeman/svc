@@ -238,6 +238,13 @@ module {{ name }};
   // Test: run trace and check spec assertions
   //
   task automatic test_trace();
+{% if liveness_insn_order is not none %}
+    //
+    // Liveness check: verify instruction {{ liveness_insn_order + 1 }} eventually retires
+    // (following trigger on instruction {{ liveness_insn_order }})
+    //
+    `CHECK_WAIT_FOR(clk, rvfi_valid && rvfi_order == {{ liveness_insn_order + 1 }}, {{ max_cycles }});
+{% else %}
 {% for check in spec_checks %}
     `CHECK_WAIT_FOR(clk, rvfi_valid && rvfi_order == {{ check.order }}, {{ max_cycles }});
 {% if check.spec_pc_wdata is defined %}
@@ -279,6 +286,7 @@ module {{ name }};
 {% endif %}
 {% endif %}
 {% endfor %}
+{% endif %}
   endtask
 
   //
