@@ -87,10 +87,15 @@ module svc_rv_pipe_ctrl #(
     f_past_valid <= 1'b1;
   end
 
-  // Input assumptions: valid_i stable while stalled
+  //
+  // Input assumptions: valid_i stable while stalled (unless flush/bubble)
+  // Only check when still stalled - if ready_i went high, handshake completed
+  //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      if ($past(valid_i && valid_o && !ready_i)) begin
+      if ($past(
+              valid_i && valid_o && !ready_i && !flush_i && !bubble_i
+          ) && !ready_i) begin
         `FASSUME(a_valid_i_stable, valid_i);
       end
     end

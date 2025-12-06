@@ -74,7 +74,7 @@ def extract_init_from_trace_tb(trace_tb_file):
     # Known enum types - use force/release to assign
     #
     FORCE_SIGNALS = {
-        "stage_ex.mc_state",
+        "stage_ex.ex_state",
     }
 
     #
