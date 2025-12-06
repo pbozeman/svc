@@ -131,9 +131,8 @@ $(F_TARGETS): %_f : $(F_BUILD_DIR)/%_f/ran ;
 define f_run_formal
 	@echo "$1" >> $(F_BUILD_DIR)/f_run.log
 	@$(SBY) --prefix $(F_BUILD_DIR)/$1_f -f $(PRJ_FORMAL_DIR)/$1.sby\
-		&& echo "$1" >> $(F_BUILD_DIR)/f_success.log\
-		|| echo "make $1_f" >> $(F_BUILD_DIR)/f_failure.log
-	@touch $(F_BUILD_DIR)/$1_f/ran
+		&& (echo "$1" >> $(F_BUILD_DIR)/f_success.log && touch $(F_BUILD_DIR)/$1_f/ran)\
+		|| (echo "make $1_f" >> $(F_BUILD_DIR)/f_failure.log && rm -f $(F_BUILD_DIR)/$1_f/ran)
 endef
 
 # create dependencies for future runs
