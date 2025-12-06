@@ -118,13 +118,15 @@ f_report:
 	@$(call f_quick_report)
 	@echo "==============================";
 
+# Include generated dependency files for RTL dependencies
+-include $(wildcard $(F_BUILD_DIR)/*_f/ran.d)
+
 .PRECIOUS: $(F_BUILD_DIR)/%_f/ran
 $(F_BUILD_DIR)/%_f/ran: $(PRJ_FORMAL_DIR)/%.sby $(F_BUILD_DIR)/%_f $(F_BUILD_DIR)/%_f/ran.d
 	$(call f_run_formal,$*)
 
 .PHONY: $(F_TARGETS)
-$(F_TARGETS): %_f : $(F_BUILD_DIR)/%_f
-	$(call f_run_formal,$*)
+$(F_TARGETS): %_f : $(F_BUILD_DIR)/%_f/ran ;
 
 define f_run_formal
 	@echo "$1" >> $(F_BUILD_DIR)/f_run.log
