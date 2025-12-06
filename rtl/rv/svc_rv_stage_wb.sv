@@ -26,6 +26,12 @@ module svc_rv_stage_wb #(
     input logic rst_n,
 
     //
+    // Ready/valid interface from MEM stage
+    //
+    input  logic s_valid,
+    output logic s_ready,
+
+    //
     // From MEM stage
     //
     input logic [     2:0] res_src_wb,
@@ -56,12 +62,6 @@ module svc_rv_stage_wb #(
     input logic [XLEN-1:0] f_dmem_rdata_wb,
     input logic [     3:0] f_dmem_rstrb_wb,
 `endif
-
-    //
-    // Ready/valid interface from MEM stage
-    //
-    input  logic s_valid,
-    output logic s_ready,
 
     //
     // Manager interface to svc_rv
