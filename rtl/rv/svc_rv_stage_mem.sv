@@ -357,9 +357,7 @@ module svc_rv_stage_mem #(
       .bubble_o (pipe_bubble)
   );
 
-  // clang-format off
   localparam int PIPE_WIDTH = 1 + 3 + 32 + 5 + 3 + 7 * XLEN + 64 + 1 + 2;
-  // clang-format on
 
   //
   // Note: s_valid/s_ready for formal stability checks are handled by

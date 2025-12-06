@@ -53,9 +53,9 @@ module svc_rv_fwd_ex #(
     // and we cannot forward from there. On the first cycle (mc_in_progress=0),
     // MEM→EX forwarding provides the correct values which get captured.
     //
-    input logic            mc_in_progress_ex,
-    input logic [XLEN-1:0] mc_rs1_captured,
-    input logic [XLEN-1:0] mc_rs2_captured,
+    input logic            is_mc,
+    input logic [XLEN-1:0] mc_rs1,
+    input logic [XLEN-1:0] mc_rs2,
 
     //
     // MEM stage inputs (producer)
@@ -101,8 +101,8 @@ module svc_rv_fwd_ex #(
       mem_to_ex_fwd_a = 1'b0;
       mem_to_ex_fwd_b = 1'b0;
 
-      if (!mc_in_progress_ex && reg_write_mem && rd_mem != 5'd0 &&
-          !is_load_mem && !is_csr_mem && !is_m_result_mem) begin
+      if (!is_mc && reg_write_mem && rd_mem != 5'd0 && !is_load_mem &&
+          !is_csr_mem && !is_m_result_mem) begin
         mem_to_ex_fwd_a = (rd_mem == rs1_ex);
         mem_to_ex_fwd_b = (rd_mem == rs2_ex);
       end
@@ -122,8 +122,7 @@ module svc_rv_fwd_ex #(
         mem_to_ex_fwd_load_a = 1'b0;
         mem_to_ex_fwd_load_b = 1'b0;
 
-        if (!mc_in_progress_ex && reg_write_mem && rd_mem != 5'd0 &&
-            is_load_mem) begin
+        if (!is_mc && reg_write_mem && rd_mem != 5'd0 && is_load_mem) begin
           mem_to_ex_fwd_load_a = (rd_mem == rs1_ex);
           mem_to_ex_fwd_load_b = (rd_mem == rs2_ex);
         end
@@ -135,7 +134,7 @@ module svc_rv_fwd_ex #(
       //
       always_comb begin
         case (1'b1)
-          mc_in_progress_ex:    fwd_rs1_ex = mc_rs1_captured;
+          is_mc:                fwd_rs1_ex = mc_rs1;
           mem_to_ex_fwd_load_a: fwd_rs1_ex = load_data_mem;
           mem_to_ex_fwd_a:      fwd_rs1_ex = result_mem;
           default:              fwd_rs1_ex = rs1_data_ex;
@@ -144,7 +143,7 @@ module svc_rv_fwd_ex #(
 
       always_comb begin
         case (1'b1)
-          mc_in_progress_ex:    fwd_rs2_ex = mc_rs2_captured;
+          is_mc:                fwd_rs2_ex = mc_rs2;
           mem_to_ex_fwd_load_b: fwd_rs2_ex = load_data_mem;
           mem_to_ex_fwd_b:      fwd_rs2_ex = result_mem;
           default:              fwd_rs2_ex = rs2_data_ex;
@@ -160,17 +159,17 @@ module svc_rv_fwd_ex #(
       //
       always_comb begin
         case (1'b1)
-          mc_in_progress_ex: fwd_rs1_ex = mc_rs1_captured;
-          mem_to_ex_fwd_a:   fwd_rs1_ex = result_mem;
-          default:           fwd_rs1_ex = rs1_data_ex;
+          is_mc:           fwd_rs1_ex = mc_rs1;
+          mem_to_ex_fwd_a: fwd_rs1_ex = result_mem;
+          default:         fwd_rs1_ex = rs1_data_ex;
         endcase
       end
 
       always_comb begin
         case (1'b1)
-          mc_in_progress_ex: fwd_rs2_ex = mc_rs2_captured;
-          mem_to_ex_fwd_b:   fwd_rs2_ex = result_mem;
-          default:           fwd_rs2_ex = rs2_data_ex;
+          is_mc:           fwd_rs2_ex = mc_rs2;
+          mem_to_ex_fwd_b: fwd_rs2_ex = result_mem;
+          default:         fwd_rs2_ex = rs2_data_ex;
         endcase
       end
 
@@ -181,8 +180,8 @@ module svc_rv_fwd_ex #(
     //
     // No forwarding, just pass through (but still use captured for mc ops)
     //
-    assign fwd_rs1_ex = mc_in_progress_ex ? mc_rs1_captured : rs1_data_ex;
-    assign fwd_rs2_ex = mc_in_progress_ex ? mc_rs2_captured : rs2_data_ex;
+    assign fwd_rs1_ex = is_mc ? mc_rs1 : rs1_data_ex;
+    assign fwd_rs2_ex = is_mc ? mc_rs2 : rs2_data_ex;
 
     // verilog_format: off
     `SVC_UNUSED({rs1_ex, rs2_ex, rd_mem, reg_write_mem,
