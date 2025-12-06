@@ -22,11 +22,8 @@ include mk/top.mk
 .PHONY: quick
 quick: SILENT_SUCCESS := 1
 quick: F_SILENT := 1
-ifeq ($(SVC_SKIP_FORMAL),1)
-quick: tb .WAIT report
-else
+quick: RV_F_SILENT := 1
 quick: tb .WAIT formal .WAIT report
-endif
 
 .PHONY:
 report:
@@ -37,6 +34,8 @@ ifneq ($(wildcard $(PRJ_FORMAL_DIR)),)
 	@echo
 	@$(call f_quick_report)
 endif
+endif
+ifneq ($(SVC_SKIP_RV_FORMAL),1)
 ifneq ($(wildcard $(PRJ_TB_DIR)/riscv-formal/cores/svc_rv),)
 	@echo
 	@$(call rv_f_quick_report)

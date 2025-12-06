@@ -226,7 +226,19 @@ include mk/rv_formal.mk
 #
 ##############################################################################
 .PHONY: formal
+ifeq ($(SVC_SKIP_FORMAL),1)
+ifeq ($(SVC_SKIP_RV_FORMAL),1)
+formal: ;
+else
+formal: rv_f
+endif
+else
+ifeq ($(SVC_SKIP_RV_FORMAL),1)
+formal: svc_f
+else
 formal: svc_f rv_f
+endif
+endif
 
 .PHONY: list_f
 list_f: list_svc_f list_rv_f
