@@ -130,8 +130,10 @@ module svc_rv_pipe_data #(
 
   // Data behavior assertions
   always_ff @(posedge clk) begin
+    // Priority in implementation: reset > flush > bubble > advance
+    // Assertions must account for this priority order.
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      if ($past(advance)) begin
+      if ($past(advance && !flush && !bubble)) begin
         `FASSERT(a_advance_loads_data, data_o == $past(data_i));
       end
       if ($past(!flush && !bubble && !advance)) begin
