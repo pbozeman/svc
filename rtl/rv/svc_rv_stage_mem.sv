@@ -8,6 +8,8 @@
 `include "svc_rv_fmt_st.sv"
 `include "svc_rv_ext_mul_mem.sv"
 `include "svc_rv_bpred_mem.sv"
+`include "svc_rv_pipe_ctrl.sv"
+`include "svc_rv_pipe_data.sv"
 
 //
 // RISC-V Memory (MEM) Stage
@@ -19,9 +21,6 @@
 // - Result selection for forwarding
 // - MEM/WB pipeline register
 //
-// This stage handles memory accesses and forwards results to the
-// writeback stage.
-//
 module svc_rv_stage_mem #(
     parameter int XLEN       = 32,
     parameter int PIPELINED  = 1,
@@ -31,6 +30,12 @@ module svc_rv_stage_mem #(
 ) (
     input logic clk,
     input logic rst_n,
+
+    //
+    // Ready/valid interface from EX stage
+    //
+    input  logic s_valid,
+    output logic s_ready,
 
     //
     // From EX stage
@@ -63,12 +68,6 @@ module svc_rv_stage_mem #(
     input logic [     1:0] trap_code_mem,
 
     //
-    // Ready/valid interface from EX stage
-    //
-    input  logic s_valid,
-    output logic s_ready,
-
-    //
     // Data memory interface
     //
     output logic        dmem_ren,
@@ -78,6 +77,12 @@ module svc_rv_stage_mem #(
     output logic [31:0] dmem_waddr,
     output logic [31:0] dmem_wdata,
     output logic [ 3:0] dmem_wstrb,
+
+    //
+    // Ready/valid interface to WB stage
+    //
+    output logic m_valid,
+    input  logic m_ready,
 
     //
     // Outputs to WB stage
@@ -110,12 +115,6 @@ module svc_rv_stage_mem #(
 `endif
 
     //
-    // Ready/valid interface to WB stage
-    //
-    output logic m_valid,
-    input  logic m_ready,
-
-    //
     // Outputs for forwarding (MEM stage result)
     //
     output logic [XLEN-1:0] result_mem,
@@ -138,18 +137,13 @@ module svc_rv_stage_mem #(
 
   `include "svc_rv_defs.svh"
 
-  //
   // Handshake: instruction accepted into stage
-  //
   logic s_accept;
   assign s_accept = s_valid && s_ready;
 
-  //
+  //===========================================================================
   // Store data formatting
-  //
-  // Stores use rs2_data_mem, which comes from fwd_rs2_ex in EX stage.
-  // This means stores automatically get forwarded values.
-  //
+  //===========================================================================
   logic [3:0] st_fmt_wstrb;
 
   svc_rv_fmt_st #(
@@ -162,11 +156,9 @@ module svc_rv_stage_mem #(
       .wstrb   (st_fmt_wstrb)
   );
 
-  assign dmem_wstrb = mem_write_mem ? st_fmt_wstrb : 4'b0000;
-
-  //
+  //===========================================================================
   // Trap detection (MEM stage)
-  //
+  //===========================================================================
   logic       misalign_trap;
   logic [1:0] funct3_size;
   logic       halfword_misalign;
@@ -191,26 +183,25 @@ module svc_rv_stage_mem #(
 
   assign misalign_trap = trap_mem | mem_misalign;
 
-  //
+  //===========================================================================
   // Data memory interface
   //
   // Suppress memory operations on misalignment trap
-  //
-  // Memory addresses are word-aligned (bits[1:0] cleared).
-  // Byte strobes indicate which bytes within the word are accessed.
-  //
+  //===========================================================================
+
   assign dmem_ren      = s_accept && mem_read_mem && !misalign_trap;
   assign dmem_raddr    = {alu_result_mem[31:2], 2'b00};
 
   assign dmem_we       = s_accept && mem_write_mem && !misalign_trap;
   assign dmem_waddr    = {alu_result_mem[31:2], 2'b00};
+  assign dmem_wstrb    = mem_write_mem ? st_fmt_wstrb : 4'b0000;
 
-  //
+  //===========================================================================
   // Load data extension
   //
   // For SRAM: Format in MEM stage (combinational memory)
   // For BRAM: Format in WB stage (registered memory)
-  //
+  //===========================================================================
   logic [XLEN-1:0] ld_data_mem;
 
   logic [     1:0] ld_fmt_addr;
@@ -227,17 +218,12 @@ module svc_rv_stage_mem #(
     assign ld_data_mem   = ld_fmt_out;
 
   end else begin : g_ld_fmt_signals_bram
-    //
     // Use funct3_wb from pipeline registers for BRAM load formatting
-    //
     assign ld_fmt_addr   = alu_result_wb[1:0];
     assign ld_fmt_funct3 = funct3_wb;
 
-    //
-    // BRAM formatter output is already WB-stage timed
-    //
+    // BRAM: load data not available in MEM stage (no forwarding)
     assign ld_data_mem   = '0;
-    assign ld_data_wb    = ld_fmt_out;
   end
 
   svc_rv_fmt_ld #(
@@ -252,7 +238,7 @@ module svc_rv_stage_mem #(
       .data_out(ld_fmt_out)
   );
 
-  //
+  //===========================================================================
   // MEM stage result for forwarding
   //
   // Select the actual result in MEM stage based on res_src_mem.
@@ -265,7 +251,7 @@ module svc_rv_stage_mem #(
   //
   // Note: Multiply results are not forwarded from MEM (completed in WB stage).
   // Division results are in m_result_mem and can be forwarded.
-  //
+  //===========================================================================
   always_comb begin
     case (res_src_mem)
       RES_M:   result_mem = m_result_mem;
@@ -277,20 +263,24 @@ module svc_rv_stage_mem #(
 
   assign load_data_mem = ld_data_mem;
 
+  //===========================================================================
   // RAS Update Logic
   //
   // Detect JAL/JALR instructions and generate push/pop signals for RAS
   // - Push: JAL or JALR with rd != x0 (call instructions)
   // - Pop: JALR (return instructions)
   // - Push address: PC+4 (return address)
+  //===========================================================================
   assign ras_push_en   = s_accept && is_jmp_mem && (rd_mem != 5'b0);
   assign ras_push_addr = pc_plus4_mem;
   assign ras_pop_en    = s_accept && is_jalr_mem;
 
+  //===========================================================================
   // JALR misprediction detection (MEM stage)
   //
   // Moved from EX stage to break critical timing path:
   // forwarding → ALU → JALR target → comparison → PC
+  //===========================================================================
   logic branch_mispredicted_mem;
 
   svc_rv_bpred_mem #(
@@ -312,6 +302,7 @@ module svc_rv_stage_mem #(
   assign mispredicted_mem = (s_accept &&
                              (branch_mispredicted_mem | jalr_mispredicted_mem));
 
+  //===========================================================================
   // PC redirect target calculation
   //
   // On branch misprediction:
@@ -319,22 +310,20 @@ module svc_rv_stage_mem #(
   // - If predicted not-taken but actually taken: redirect to jb_target
   //
   // On JALR misprediction: redirect to jb_target
-  //
+  //===========================================================================
   logic mispred_not_taken;
   assign mispred_not_taken = branch_mispredicted_mem && !branch_taken_mem;
 
   always_comb begin
     pc_redirect_target_mem = jb_target_mem;
     if (mispred_not_taken) begin
-      // Branch was predicted taken but is actually not-taken
-      // Redirect to sequential PC (already in jb_target for branches)
       pc_redirect_target_mem = pc_plus4_mem;
     end
   end
 
-  //
+  //===========================================================================
   // M Extension MEM stage: combine partial products
-  //
+  //===========================================================================
   logic [63:0] product_64_mem;
 
   svc_rv_ext_mul_mem ext_mul_mem (
@@ -346,59 +335,124 @@ module svc_rv_stage_mem #(
       .product_64(product_64_mem)
   );
 
+  //===========================================================================
+  // MEM/WB Pipeline
+  //===========================================================================
+  logic pipe_advance;
+  logic pipe_flush;
+  logic pipe_bubble;
+
+  svc_rv_pipe_ctrl #(
+      .REG(PIPELINED)
+  ) pipe_ctrl (
+      .clk      (clk),
+      .rst_n    (rst_n),
+      .valid_i  (s_valid),
+      .valid_o  (m_valid),
+      .ready_i  (m_ready),
+      .flush_i  (1'b0),
+      .bubble_i (!s_valid),
+      .advance_o(pipe_advance),
+      .flush_o  (pipe_flush),
+      .bubble_o (pipe_bubble)
+  );
+
+  // clang-format off
+  localparam int PIPE_WIDTH = 1 + 3 + 32 + 5 + 3 + 7 * XLEN + 64 + 1 + 2;
+  // clang-format on
+
   //
-  // MEM/WB Pipeline Register
+  // Note: s_valid/s_ready for formal stability checks are handled by
+  // MEM stage's formal section, not pipe_data's internal checks.
   //
-  if (PIPELINED != 0) begin : g_registered
-    always_ff @(posedge clk) begin
-      if (!rst_n) begin
-        m_valid <= 1'b0;
-      end else if (!m_valid || m_ready) begin
-        m_valid <= s_valid;
-      end
-    end
+  svc_rv_pipe_data #(
+      .WIDTH(PIPE_WIDTH),
+      .REG  (PIPELINED)
+  ) pipe_data_inst (
+      .clk(clk),
+      .rst_n(rst_n),
+      .advance(pipe_advance),
+      .flush(pipe_flush),
+      .bubble(pipe_bubble),
+`ifdef FORMAL
+      .s_valid(1'b0),
+      .s_ready(1'b1),
+`endif
+      .data_i({
+        reg_write_mem && !misalign_trap,
+        res_src_mem,
+        instr_mem,
+        rd_mem,
+        funct3_mem,
+        alu_result_mem,
+        rs1_data_mem,
+        rs2_data_mem,
+        pc_plus4_mem,
+        jb_target_mem,
+        csr_rdata_mem,
+        m_result_mem,
+        product_64_mem,
+        misalign_trap,
+        mem_misalign ? TRAP_LDST_MISALIGN : trap_code_mem
+      }),
+      .data_o({
+        reg_write_wb,
+        res_src_wb,
+        instr_wb,
+        rd_wb,
+        funct3_wb,
+        alu_result_wb,
+        rs1_data_wb,
+        rs2_data_wb,
+        pc_plus4_wb,
+        jb_target_wb,
+        csr_rdata_wb,
+        m_result_wb,
+        product_64_wb,
+        trap_wb,
+        trap_code_wb
+      })
+  );
 
-    //
-    // payload
-    //
-    always_ff @(posedge clk) begin
-      if (!m_valid || m_ready) begin
-        reg_write_wb  <= reg_write_mem && !misalign_trap;
-        res_src_wb    <= res_src_mem;
-        instr_wb      <= instr_mem;
-        rd_wb         <= rd_mem;
-        funct3_wb     <= funct3_mem;
-        alu_result_wb <= alu_result_mem;
-        rs1_data_wb   <= rs1_data_mem;
-        rs2_data_wb   <= rs2_data_mem;
-        pc_plus4_wb   <= pc_plus4_mem;
-        jb_target_wb  <= jb_target_mem;
-        csr_rdata_wb  <= csr_rdata_mem;
-        m_result_wb   <= m_result_mem;
-        product_64_wb <= product_64_mem;
-        trap_wb       <= misalign_trap;
-        trap_code_wb  <= (mem_misalign ? TRAP_LDST_MISALIGN : trap_code_mem);
-      end
-    end
+  //===========================================================================
+  // Load data to WB stage
+  //
+  // BRAM: formatter uses WB-stage signals, ld_fmt_out is WB-timed, passthrough
+  // SRAM pipelined: formatter uses MEM-stage signals, needs pipeline register
+  // SRAM single-cycle: formatter uses MEM-stage signals, passthrough
+  //===========================================================================
+  localparam bit LD_DATA_REG = (PIPELINED != 0) && (MEM_TYPE == MEM_TYPE_SRAM);
 
-    //
-    // Pipeline SRAM load data
-    //
-    // BRAM data is already assigned in the formatter section above
-    //
-    if (MEM_TYPE == MEM_TYPE_SRAM) begin : g_dmem_rdata_sram
-      logic [XLEN-1:0] ld_data_wb_piped;
+  svc_rv_pipe_data #(
+      .WIDTH(XLEN),
+      .REG  (LD_DATA_REG)
+  ) pipe_ld_data (
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .advance(pipe_advance),
+      .flush  (pipe_flush),
+      .bubble (pipe_bubble),
+`ifdef FORMAL
+      // Note: No s_valid/s_ready for formal - ld_fmt_out comes from dmem_rdata
+      // (external memory) which isn't guaranteed stable during backpressure.
+      .s_valid(1'b0),
+      .s_ready(1'b1),
+`endif
+      .data_i (ld_fmt_out),
+      .data_o (ld_data_wb)
+  );
 
-      always_ff @(posedge clk) begin
-        if (!m_valid || m_ready) begin
-          ld_data_wb_piped <= ld_data_mem;
-        end
-      end
+  //===========================================================================
+  // Ready/valid interface
+  //===========================================================================
+  assign s_ready = m_ready;
 
-      assign ld_data_wb = ld_data_wb_piped;
-    end
 
+  //===========================================================================
+  // RVFI mem addrs
+  //===========================================================================
 `ifdef RISCV_FORMAL
+  if (PIPELINED != 0) begin : g_rvfi_store_pipelined
     always_ff @(posedge clk) begin
       if (!rst_n) begin
         f_mem_write_wb  <= 1'b0;
@@ -407,34 +461,20 @@ module svc_rv_stage_mem #(
         f_dmem_wdata_wb <= '0;
         f_dmem_wstrb_wb <= '0;
       end else if (dmem_we) begin
-        // dmem_we only pulses high for one cycle per write (for MMIO safety).
-        // During stalls, mem_write_mem gets cleared but we must preserve the
-        // write info for RVFI. Capture here before it's lost.
+        // Capture on dmem_we pulse (before stall clears mem_write_mem)
         f_mem_write_wb  <= 1'b1;
         f_dmem_waddr_wb <= dmem_waddr;
         f_dmem_raddr_wb <= dmem_raddr;
         f_dmem_wdata_wb <= dmem_wdata;
         f_dmem_wstrb_wb <= dmem_wstrb;
       end else begin
-        //
-        // Clear write signals when the store retires. This ensures the write
-        // info is captured by the lag buffer BEFORE clearing.
-        //
-        // Using m_valid (the retiring instruction) instead of valid_mem (the
-        // advancing instruction) ensures proper timing for both:
-        // - Stores followed by multi-cycle ops (wmask preserved until
-        //   retirement)
-        // - Non-stores after multi-cycle ops (wmask cleared after store
-        //   retired)
-        //
-        if (m_valid && f_mem_write_wb) begin
+        // Clear when store retires
+        if (m_valid && m_ready && f_mem_write_wb) begin
           f_mem_write_wb  <= 1'b0;
           f_dmem_wstrb_wb <= '0;
         end
 
-        //
-        // Update address/data signals when pipeline advances (for loads).
-        //
+        // Update address/data on pipeline advance (for loads)
         if (!m_valid || m_ready) begin
           f_dmem_waddr_wb <= dmem_waddr;
           f_dmem_raddr_wb <= dmem_raddr;
@@ -442,73 +482,40 @@ module svc_rv_stage_mem #(
         end
       end
     end
-
-    // BRAM: dmem_rdata is already WB-stage timed (1-cycle latency)
-    // SRAM: dmem_rdata is MEM-stage timed, needs registering
-    if (MEM_TYPE == MEM_TYPE_BRAM) begin : g_f_dmem_rdata_bram
-      assign f_dmem_rdata_wb = dmem_rdata;
-      assign f_dmem_rstrb_wb = f_ld_fmt_rstrb;
-    end else begin : g_f_dmem_rdata_sram
-      always_ff @(posedge clk) begin
-        if (!rst_n) begin
-          f_dmem_rdata_wb <= '0;
-          f_dmem_rstrb_wb <= '0;
-        end else if (!m_valid || m_ready) begin
-          f_dmem_rdata_wb <= dmem_rdata;
-          f_dmem_rstrb_wb <= f_ld_fmt_rstrb;
-        end
-      end
-    end
-`endif
-
-  end else begin : g_passthrough
-    assign reg_write_wb  = reg_write_mem && !misalign_trap;
-    assign res_src_wb    = res_src_mem;
-    assign instr_wb      = instr_mem;
-    assign rd_wb         = rd_mem;
-    assign funct3_wb     = funct3_mem;
-    assign alu_result_wb = alu_result_mem;
-    assign rs1_data_wb   = rs1_data_mem;
-    assign rs2_data_wb   = rs2_data_mem;
-    assign pc_plus4_wb   = pc_plus4_mem;
-    assign jb_target_wb  = jb_target_mem;
-    assign csr_rdata_wb  = csr_rdata_mem;
-    assign m_result_wb   = m_result_mem;
-    assign product_64_wb = product_64_mem;
-    assign trap_wb       = misalign_trap;
-    assign trap_code_wb  = mem_misalign ? TRAP_LDST_MISALIGN : trap_code_mem;
-    assign m_valid       = s_valid;
-
-    //
-    // Pass through SRAM load data
-    //
-    // BRAM data is already assigned in the formatter section above
-    //
-    if (MEM_TYPE == MEM_TYPE_SRAM) begin : g_dmem_rdata_sram
-      assign ld_data_wb = ld_data_mem;
-    end
-
-`ifdef RISCV_FORMAL
+  end else begin : g_rvfi_store_passthrough
     assign f_mem_write_wb  = mem_write_mem;
     assign f_dmem_waddr_wb = dmem_waddr;
     assign f_dmem_raddr_wb = dmem_raddr;
     assign f_dmem_wdata_wb = dmem_wdata;
     assign f_dmem_wstrb_wb = dmem_wstrb;
-    assign f_dmem_rdata_wb = dmem_rdata;
-    assign f_dmem_rstrb_wb = f_ld_fmt_rstrb;
-`endif
-
-    `SVC_UNUSED({clk, rst_n});
   end
 
+  //===========================================================================
+  // RVFI load data - use pipe_data with MEM_TYPE-aware policy
   //
-  // Ready/valid interface (from EX stage)
-  //
-  // s_ready: For now, pass through from WB (m_ready).
-  //          Later with cache: s_ready = m_ready && !cache_busy
-  // s_valid: Used for misprediction gating and m_valid pipeline register.
-  //
-  assign s_ready = m_ready;
+  // BRAM: passthrough (memory has 1-cycle latency)
+  // SRAM: needs pipeline register (combinational memory)
+  //===========================================================================
+  localparam
+      bit RVFI_RDATA_REG = (PIPELINED != 0) && (MEM_TYPE == MEM_TYPE_SRAM);
+
+  svc_rv_pipe_data #(
+      .WIDTH(XLEN + 4),
+      .REG  (RVFI_RDATA_REG)
+  ) pipe_rvfi_rdata (
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .advance(pipe_advance),
+      .flush  (pipe_flush),
+      .bubble (pipe_bubble),
+`ifdef FORMAL
+      .s_valid(1'b0),
+      .s_ready(1'b1),
+`endif
+      .data_i ({dmem_rdata, f_ld_fmt_rstrb}),
+      .data_o ({f_dmem_rdata_wb, f_dmem_rstrb_wb})
+  );
+`endif
 
   //
   // Formal verification
@@ -528,6 +535,38 @@ module svc_rv_stage_mem #(
 
   always @(posedge clk) begin
     f_past_valid <= 1'b1;
+  end
+
+  //
+  // s_valid/s_ready handshake assumptions (input interface)
+  //
+  // When backpressured (s_valid && !s_ready), input signals must be stable.
+  // This is required for proper ready/valid semantics from upstream.
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      if ($past(s_valid && !s_ready)) begin
+        `FASSUME(a_s_valid_stable, s_valid);
+        `FASSUME(a_reg_write_mem_stable, $stable(reg_write_mem));
+        `FASSUME(a_res_src_mem_stable, $stable(res_src_mem));
+        `FASSUME(a_instr_mem_stable, $stable(instr_mem));
+        `FASSUME(a_rd_mem_stable, $stable(rd_mem));
+        `FASSUME(a_funct3_mem_stable, $stable(funct3_mem));
+        `FASSUME(a_alu_result_mem_stable, $stable(alu_result_mem));
+        `FASSUME(a_rs1_data_mem_stable, $stable(rs1_data_mem));
+        `FASSUME(a_rs2_data_mem_stable, $stable(rs2_data_mem));
+        `FASSUME(a_pc_plus4_mem_stable, $stable(pc_plus4_mem));
+        `FASSUME(a_jb_target_mem_stable, $stable(jb_target_mem));
+        `FASSUME(a_csr_rdata_mem_stable, $stable(csr_rdata_mem));
+        `FASSUME(a_m_result_mem_stable, $stable(m_result_mem));
+        `FASSUME(a_mul_ll_mem_stable, $stable(mul_ll_mem));
+        `FASSUME(a_mul_lh_mem_stable, $stable(mul_lh_mem));
+        `FASSUME(a_mul_hl_mem_stable, $stable(mul_hl_mem));
+        `FASSUME(a_mul_hh_mem_stable, $stable(mul_hh_mem));
+        `FASSUME(a_trap_mem_stable, $stable(trap_mem));
+        `FASSUME(a_trap_code_mem_stable, $stable(trap_code_mem));
+      end
+    end
   end
 
   //
