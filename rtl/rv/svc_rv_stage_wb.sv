@@ -4,6 +4,8 @@
 `include "svc.sv"
 `include "svc_muxn.sv"
 `include "svc_rv_ext_mul_wb.sv"
+`include "svc_rv_pipe_ctrl.sv"
+`include "svc_rv_pipe_data.sv"
 `include "svc_unused.sv"
 
 //
@@ -98,12 +100,6 @@ module svc_rv_stage_wb #(
     //
     output logic [XLEN-1:0] rd_data_wb
 );
-  //
-  // Handshake: instruction accepted into stage
-  //
-  logic s_accept;
-  assign s_accept = s_valid && s_ready;
-
   `include "svc_rv_defs.svh"
 
   //
@@ -155,66 +151,114 @@ module svc_rv_stage_wb #(
   );
 
   //
-  // Ready/valid interface
+  // Computed input values
   //
+  logic [XLEN-1:0] pc_wb;
+  logic            ebreak_wb;
+
+  assign pc_wb     = pc_plus4_wb - XLEN'(32'd4);
+  assign ebreak_wb = (instr_wb == I_EBREAK);
+
+  //
+  // Pipeline control
+  //
+  logic pipe_advance;
+  logic pipe_flush;
+  logic pipe_bubble;
+
+  svc_rv_pipe_ctrl pipe_ctrl (
+      .clk      (clk),
+      .rst_n    (rst_n),
+      .valid_i  (s_valid),
+      .valid_o  (m_valid),
+      .ready_i  (m_ready),
+      .flush_i  (1'b0),
+      .bubble_i (1'b0),
+      .advance_o(pipe_advance),
+      .flush_o  (pipe_flush),
+      .bubble_o (pipe_bubble)
+  );
+
   assign s_ready = !m_valid || m_ready;
 
   //
-  // Pipeline
+  // Pipeline data register
   //
-  always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      m_valid       <= 1'b0;
-      instr_ret     <= '0;
-      pc_ret        <= '0;
-      rs1_data_ret  <= '0;
-      rs2_data_ret  <= '0;
-      rd_data_ret   <= '0;
-      trap_ret      <= 1'b0;
-      trap_code_ret <= '0;
-      reg_write_ret <= 1'b0;
-      ebreak_ret    <= 1'b0;
-    end else begin
-      if (s_accept) begin
-        m_valid       <= 1'b1;
-        instr_ret     <= instr_wb;
-        pc_ret        <= pc_plus4_wb - XLEN'(32'd4);
-        rs1_data_ret  <= rs1_data_wb;
-        rs2_data_ret  <= rs2_data_wb;
-        rd_data_ret   <= rd_data_wb;
-        trap_ret      <= trap_wb;
-        trap_code_ret <= trap_code_wb;
-        reg_write_ret <= reg_write_wb;
-        ebreak_ret    <= (instr_wb == I_EBREAK);
-      end else if (m_ready) begin
-        m_valid <= 1'b0;
-      end
-    end
-  end
+  localparam int PIPE_WIDTH = 32 + 4 * XLEN + 1 + 2 + 1 + 1;
 
+  svc_rv_pipe_data #(
+      .WIDTH(PIPE_WIDTH)
+  ) pipe_data_inst (
+      .clk(clk),
+      .rst_n(rst_n),
+      .advance(pipe_advance),
+      .flush(pipe_flush),
+      .bubble(pipe_bubble),
+`ifdef FORMAL
+      .s_valid(s_valid),
+      .s_ready(s_ready),
+`endif
+      .data_i({
+        instr_wb,
+        pc_wb,
+        rs1_data_wb,
+        rs2_data_wb,
+        rd_data_wb,
+        trap_wb,
+        trap_code_wb,
+        reg_write_wb,
+        ebreak_wb
+      }),
+      .data_o({
+        instr_ret,
+        pc_ret,
+        rs1_data_ret,
+        rs2_data_ret,
+        rd_data_ret,
+        trap_ret,
+        trap_code_ret,
+        reg_write_ret,
+        ebreak_ret
+      })
+  );
+
+  //
+  // RVFI interface
+  //
 `ifdef RISCV_FORMAL
-  //
-  // RVFI memory signal registers
-  //
-  always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      f_mem_write_ret  <= 1'b0;
-      f_dmem_waddr_ret <= '0;
-      f_dmem_raddr_ret <= '0;
-      f_dmem_wdata_ret <= '0;
-      f_dmem_wstrb_ret <= '0;
-      f_dmem_rdata_ret <= '0;
-      f_dmem_rstrb_ret <= '0;
-    end else if (s_accept) begin
-      f_mem_write_ret  <= f_mem_write_wb;
-      f_dmem_waddr_ret <= f_dmem_waddr_wb;
-      f_dmem_raddr_ret <= f_dmem_raddr_wb;
-      f_dmem_wdata_ret <= f_dmem_wdata_wb;
-      f_dmem_wstrb_ret <= f_dmem_wstrb_wb;
-      f_dmem_rdata_ret <= f_dmem_rdata_wb;
-      f_dmem_rstrb_ret <= f_dmem_rstrb_wb;
-    end
-  end
+  localparam int RVFI_WIDTH = 1 + 4 * XLEN + 4 + 4;
+
+  svc_rv_pipe_data #(
+      .WIDTH(RVFI_WIDTH)
+  ) pipe_rvfi (
+      .clk(clk),
+      .rst_n(rst_n),
+      .advance(pipe_advance),
+      .flush(pipe_flush),
+      .bubble(pipe_bubble),
+`ifdef FORMAL
+      .s_valid(s_valid),
+      .s_ready(s_ready),
+`endif
+      .data_i({
+        f_mem_write_wb,
+        f_dmem_waddr_wb,
+        f_dmem_raddr_wb,
+        f_dmem_wdata_wb,
+        f_dmem_wstrb_wb,
+        f_dmem_rdata_wb,
+        f_dmem_rstrb_wb
+      }),
+      .data_o({
+        f_mem_write_ret,
+        f_dmem_waddr_ret,
+        f_dmem_raddr_ret,
+        f_dmem_wdata_ret,
+        f_dmem_wstrb_ret,
+        f_dmem_rdata_ret,
+        f_dmem_rstrb_ret
+      })
+  );
 `endif
 
   //
@@ -237,64 +281,40 @@ module svc_rv_stage_wb #(
     f_past_valid <= 1'b1;
   end
 
-  //
-  // Ready/valid relationship assertions
-  //
-  // Pipeline register semantics:
-  // - s_ready allows accepting when empty (!m_valid) or output consumed (m_ready)
-  // - m_valid goes high on s_accept, low on m_ready without s_accept
-  //
-  always_comb begin
-    `FASSERT(a_s_ready_formula, s_ready == (!m_valid || m_ready));
-  end
-
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      //
-      // m_valid goes high after s_accept
-      //
-      if ($past(s_accept)) begin
-        `FASSERT(a_m_valid_after_accept, m_valid);
-      end
+      // res_src_wb must be valid (0-5 for 6-way mux)
+      `FASSUME(a_res_src_valid, res_src_wb < 3'd6);
 
-      //
-      // m_valid goes low after m_ready without s_accept
-      //
-      if ($past(m_ready && !s_accept)) begin
-        `FASSERT(a_m_valid_clears, !m_valid);
-      end
-
-      //
-      // All outputs stable while m_valid && !m_ready
-      //
-      if ($past(m_valid && !m_ready)) begin
-        `FASSERT(a_m_valid_stable, $stable(m_valid));
-        `FASSERT(a_instr_ret_stable, $stable(instr_ret));
-        `FASSERT(a_pc_ret_stable, $stable(pc_ret));
-        `FASSERT(a_rs1_data_ret_stable, $stable(rs1_data_ret));
-        `FASSERT(a_rs2_data_ret_stable, $stable(rs2_data_ret));
-        `FASSERT(a_rd_data_ret_stable, $stable(rd_data_ret));
-        `FASSERT(a_trap_ret_stable, $stable(trap_ret));
-        `FASSERT(a_trap_code_ret_stable, $stable(trap_code_ret));
-        `FASSERT(a_reg_write_ret_stable, $stable(reg_write_ret));
-        `FASSERT(a_ebreak_ret_stable, $stable(ebreak_ret));
+      // When backpressured, raw inputs must be stable
+      if ($past(s_valid && !s_ready)) begin
+        `FASSUME(a_res_src_stable, res_src_wb == $past(res_src_wb));
+        `FASSUME(a_instr_stable, instr_wb == $past(instr_wb));
+        `FASSUME(a_alu_result_stable, alu_result_wb == $past(alu_result_wb));
+        `FASSUME(a_ld_data_stable, ld_data_wb == $past(ld_data_wb));
+        `FASSUME(a_pc_plus4_stable, pc_plus4_wb == $past(pc_plus4_wb));
+        `FASSUME(a_jb_target_stable, jb_target_wb == $past(jb_target_wb));
+        `FASSUME(a_csr_rdata_stable, csr_rdata_wb == $past(csr_rdata_wb));
+        `FASSUME(a_m_result_stable, m_result_wb == $past(m_result_wb));
+        `FASSUME(a_funct3_stable, funct3_wb == $past(funct3_wb));
+        `FASSUME(a_rs1_data_stable, rs1_data_wb == $past(rs1_data_wb));
+        `FASSUME(a_rs2_data_stable, rs2_data_wb == $past(rs2_data_wb));
+        `FASSUME(a_product_64_stable, product_64_wb == $past(product_64_wb));
+        `FASSUME(a_trap_stable, trap_wb == $past(trap_wb));
+        `FASSUME(a_trap_code_stable, trap_code_wb == $past(trap_code_wb));
+        `FASSUME(a_reg_write_stable, reg_write_wb == $past(reg_write_wb));
+        `FASSUME(a_s_valid_stable, s_valid == $past(s_valid));
       end
     end
   end
 
-  //
   // Cover properties
-  //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      //
       // Cover back-to-back valid transfers
-      //
       `FCOVER(c_back_to_back, $past(m_valid && m_ready) && m_valid);
 
-      //
       // Cover halt conditions in retiring instruction
-      //
       `FCOVER(c_ebreak_ret, ebreak_ret);
       `FCOVER(c_trap_ret, trap_ret);
     end
