@@ -357,27 +357,49 @@ module svc_rv_stage_mem #(
       .bubble_o (pipe_bubble)
   );
 
-  localparam int PIPE_WIDTH = 1 + 3 + 32 + 5 + 3 + 7 * XLEN + 64 + 1 + 2;
-
   //
-  // Note: s_valid/s_ready for formal stability checks are handled by
-  // MEM stage's formal section, not pipe_data's internal checks.
+  // Control signals (WITH bubble)
+  //
+  // These trigger actions (regfile write, trap handling) so they must be
+  // cleared when invalid. This allows downstream to use them directly
+  // without re-checking valid.
   //
   svc_rv_pipe_data #(
-      .WIDTH(PIPE_WIDTH),
+      .WIDTH(2),
       .REG  (PIPELINED)
-  ) pipe_data_inst (
+  ) pipe_ctrl_data (
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .advance(pipe_advance),
+      .flush  (pipe_flush),
+      .bubble (pipe_bubble),
+`ifdef FORMAL
+      .s_valid(1'b0),
+      .s_ready(1'b1),
+`endif
+      .data_i ({reg_write_mem && !misalign_trap, misalign_trap}),
+      .data_o ({reg_write_wb, trap_wb})
+  );
+
+  //
+  // Payload signals (NO bubble) - can be stale
+  //
+  localparam int PAYLOAD_WIDTH = 3 + 32 + 5 + 3 + 7 * XLEN + 64 + 2;
+
+  svc_rv_pipe_data #(
+      .WIDTH(PAYLOAD_WIDTH),
+      .REG  (PIPELINED)
+  ) pipe_payload_data (
       .clk(clk),
       .rst_n(rst_n),
       .advance(pipe_advance),
       .flush(pipe_flush),
-      .bubble(pipe_bubble),
+      .bubble(1'b0),
 `ifdef FORMAL
       .s_valid(1'b0),
       .s_ready(1'b1),
 `endif
       .data_i({
-        reg_write_mem && !misalign_trap,
         res_src_mem,
         instr_mem,
         rd_mem,
@@ -390,11 +412,9 @@ module svc_rv_stage_mem #(
         csr_rdata_mem,
         m_result_mem,
         product_64_mem,
-        misalign_trap,
         mem_misalign ? TRAP_LDST_MISALIGN : trap_code_mem
       }),
       .data_o({
-        reg_write_wb,
         res_src_wb,
         instr_wb,
         rd_wb,
@@ -407,7 +427,6 @@ module svc_rv_stage_mem #(
         csr_rdata_wb,
         m_result_wb,
         product_64_wb,
-        trap_wb,
         trap_code_wb
       })
   );
@@ -443,7 +462,7 @@ module svc_rv_stage_mem #(
   //===========================================================================
   // Ready/valid interface
   //===========================================================================
-  assign s_ready = m_ready;
+  assign s_ready = !m_valid || m_ready;
 
 
   //===========================================================================
