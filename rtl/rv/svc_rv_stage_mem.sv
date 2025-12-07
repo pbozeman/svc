@@ -338,9 +338,9 @@ module svc_rv_stage_mem #(
   //===========================================================================
   // MEM/WB Pipeline
   //===========================================================================
-  logic pipe_advance;
-  logic pipe_flush;
-  logic pipe_bubble;
+  logic pipe_advance_o;
+  logic pipe_flush_o;
+  logic pipe_bubble_o;
 
   svc_rv_pipe_ctrl #(
       .REG(PIPELINED)
@@ -352,9 +352,9 @@ module svc_rv_stage_mem #(
       .ready_i  (m_ready),
       .flush_i  (1'b0),
       .bubble_i (!s_valid),
-      .advance_o(pipe_advance),
-      .flush_o  (pipe_flush),
-      .bubble_o (pipe_bubble)
+      .advance_o(pipe_advance_o),
+      .flush_o  (pipe_flush_o),
+      .bubble_o (pipe_bubble_o)
   );
 
   //
@@ -370,9 +370,9 @@ module svc_rv_stage_mem #(
   ) pipe_ctrl_data (
       .clk    (clk),
       .rst_n  (rst_n),
-      .advance(pipe_advance),
-      .flush  (pipe_flush),
-      .bubble (pipe_bubble),
+      .advance(pipe_advance_o),
+      .flush  (pipe_flush_o),
+      .bubble (pipe_bubble_o),
 `ifdef FORMAL
       .s_valid(1'b0),
       .s_ready(1'b1),
@@ -392,8 +392,8 @@ module svc_rv_stage_mem #(
   ) pipe_payload_data (
       .clk(clk),
       .rst_n(rst_n),
-      .advance(pipe_advance),
-      .flush(pipe_flush),
+      .advance(pipe_advance_o),
+      .flush(pipe_flush_o),
       .bubble(1'b0),
 `ifdef FORMAL
       .s_valid(1'b0),
@@ -446,9 +446,9 @@ module svc_rv_stage_mem #(
   ) pipe_ld_data (
       .clk    (clk),
       .rst_n  (rst_n),
-      .advance(pipe_advance),
-      .flush  (pipe_flush),
-      .bubble (pipe_bubble),
+      .advance(pipe_advance_o),
+      .flush  (pipe_flush_o),
+      .bubble (pipe_bubble_o),
 `ifdef FORMAL
       // Note: No s_valid/s_ready for formal - ld_fmt_out comes from dmem_rdata
       // (external memory) which isn't guaranteed stable during backpressure.
@@ -522,9 +522,9 @@ module svc_rv_stage_mem #(
   ) pipe_rvfi_rdata (
       .clk    (clk),
       .rst_n  (rst_n),
-      .advance(pipe_advance),
-      .flush  (pipe_flush),
-      .bubble (pipe_bubble),
+      .advance(pipe_advance_o),
+      .flush  (pipe_flush_o),
+      .bubble (pipe_bubble_o),
 `ifdef FORMAL
       .s_valid(1'b0),
       .s_ready(1'b1),
