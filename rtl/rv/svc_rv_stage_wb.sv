@@ -162,9 +162,9 @@ module svc_rv_stage_wb #(
   //
   // Pipeline control
   //
-  logic pipe_advance;
-  logic pipe_flush;
-  logic pipe_bubble;
+  logic pipe_advance_o;
+  logic pipe_flush_o;
+  logic pipe_bubble_o;
 
   svc_rv_pipe_ctrl pipe_ctrl (
       .clk      (clk),
@@ -174,9 +174,9 @@ module svc_rv_stage_wb #(
       .ready_i  (m_ready),
       .flush_i  (1'b0),
       .bubble_i (1'b0),
-      .advance_o(pipe_advance),
-      .flush_o  (pipe_flush),
-      .bubble_o (pipe_bubble)
+      .advance_o(pipe_advance_o),
+      .flush_o  (pipe_flush_o),
+      .bubble_o (pipe_bubble_o)
   );
 
   assign s_ready = !m_valid || m_ready;
@@ -191,9 +191,9 @@ module svc_rv_stage_wb #(
   ) pipe_data_inst (
       .clk(clk),
       .rst_n(rst_n),
-      .advance(pipe_advance),
-      .flush(pipe_flush),
-      .bubble(pipe_bubble),
+      .advance(pipe_advance_o),
+      .flush(pipe_flush_o),
+      .bubble(pipe_bubble_o),
 `ifdef FORMAL
       .s_valid(s_valid),
       .s_ready(s_ready),
@@ -233,9 +233,9 @@ module svc_rv_stage_wb #(
   ) pipe_rvfi (
       .clk(clk),
       .rst_n(rst_n),
-      .advance(pipe_advance),
-      .flush(pipe_flush),
-      .bubble(pipe_bubble),
+      .advance(pipe_advance_o),
+      .flush(pipe_flush_o),
+      .bubble(pipe_bubble_o),
 `ifdef FORMAL
       .s_valid(s_valid),
       .s_ready(s_ready),
