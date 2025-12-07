@@ -27,14 +27,11 @@ module svc_rv_stage_if #(
     input logic if_id_flush,
 
     //
-    // Ready/valid interface from PC stage
+    // PC inputs from stage_pc
     //
     input  logic s_valid,
     output logic s_ready,
 
-    //
-    // PC inputs from stage_pc
-    //
     input logic [XLEN-1:0] pc_if,
     input logic [XLEN-1:0] pc_next_if,
 
@@ -63,6 +60,9 @@ module svc_rv_stage_if #(
     //
     // Outputs to ID stage
     //
+    output logic m_valid,
+    input  logic m_ready,
+
     output logic [    31:0] instr_id,
     output logic [XLEN-1:0] pc_id,
     output logic [XLEN-1:0] pc_plus4_id,
@@ -71,13 +71,7 @@ module svc_rv_stage_if #(
     output logic [XLEN-1:0] btb_target_id,
     output logic            btb_is_return_id,
     output logic            ras_valid_id,
-    output logic [XLEN-1:0] ras_target_id,
-
-    //
-    // Ready/valid interface to ID stage
-    //
-    output logic m_valid,
-    input  logic m_ready
+    output logic [XLEN-1:0] ras_target_id
 );
 
   `include "svc_rv_defs.svh"
