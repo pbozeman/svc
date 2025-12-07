@@ -397,6 +397,133 @@ module svc_rv_stage_if #(
     end
   end
 
+  //
+  // Input stability: data must be held when s_valid && !s_ready
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      if ($past(s_valid && !s_ready)) begin
+        `FASSUME(a_in_pc_stable, pc_if == $past(pc_if));
+        `FASSUME(a_in_btb_hit_stable, btb_hit_if == $past(btb_hit_if));
+        `FASSUME(a_in_btb_pred_taken_stable, btb_pred_taken_if == $past(
+                 btb_pred_taken_if));
+        `FASSUME(a_in_btb_target_stable, btb_target_if == $past(btb_target_if));
+        `FASSUME(a_in_btb_is_return_stable, btb_is_return_if == $past(
+                 btb_is_return_if));
+        `FASSUME(a_in_ras_valid_stable, ras_valid_if == $past(ras_valid_if));
+        `FASSUME(a_in_ras_target_stable, ras_target_if == $past(ras_target_if));
+      end
+    end
+  end
+
+  //
+  // Shadow registers capture inputs on s_valid && s_ready
+  //
+  logic            f_captured;
+  logic            f_btb_hit;
+  logic            f_btb_pred_taken;
+  logic [XLEN-1:0] f_btb_target;
+  logic            f_btb_is_return;
+  logic            f_ras_valid;
+  logic [XLEN-1:0] f_ras_target;
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      f_captured <= 1'b0;
+    end else if (s_valid && s_ready && !if_id_flush) begin
+      //
+      // Valid handshake - capture inputs
+      //
+      f_captured       <= 1'b1;
+      f_btb_hit        <= btb_hit_if;
+      f_btb_pred_taken <= btb_pred_taken_if;
+      f_btb_target     <= btb_target_if;
+      f_btb_is_return  <= btb_is_return_if;
+      f_ras_valid      <= ras_valid_if;
+      f_ras_target     <= ras_target_if;
+    end else begin
+      f_captured <= 1'b0;
+    end
+  end
+
+  // Constrain initial state: f_captured must be 0 before first cycle
+  always_ff @(posedge clk) begin
+    if (!f_past_valid) begin
+      `FASSUME(a_initial_no_captured, !f_captured);
+    end
+  end
+
+  // Data integrity assertions
+  //
+  // When we have captured data and output is valid, compare outputs
+  // to the captured shadow values.
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      if (f_captured && m_valid && !if_id_flush) begin
+        `FASSERT(a_btb_hit_integrity, btb_hit_id == f_btb_hit);
+        `FASSERT(a_btb_pred_taken_integrity,
+                 btb_pred_taken_id == f_btb_pred_taken);
+        `FASSERT(a_btb_target_integrity, btb_target_id == f_btb_target);
+        `FASSERT(a_btb_is_return_integrity,
+                 btb_is_return_id == f_btb_is_return);
+        `FASSERT(a_ras_valid_integrity, ras_valid_id == f_ras_valid);
+        `FASSERT(a_ras_target_integrity, ras_target_id == f_ras_target);
+      end
+    end
+  end
+
+  //
+  // Cover data flowing through pipeline
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      `FCOVER(c_data_flow, $past(s_valid && s_ready) && m_valid && m_ready);
+
+      // Cover input backpressure (s_valid && !s_ready)
+      `FCOVER(c_input_backpressure, $past(s_valid && !s_ready));
+    end
+  end
+
+  //
+  // Mem latency tracking
+  //
+  logic [1:0] f_req_cycles;
+  logic       f_req_pending;
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      f_req_pending <= 1'b0;
+      f_req_cycles  <= '0;
+    end else if (s_valid && s_ready) begin
+      f_req_pending <= 1'b1;
+      f_req_cycles  <= '0;
+    end else if (f_req_pending) begin
+      if (imem_rvalid) begin
+        f_req_pending <= 1'b0;
+      end else if (f_req_cycles < 2'd3) begin
+        f_req_cycles <= f_req_cycles + 1'b1;
+      end
+    end
+  end
+
+  //
+  // Cover 1, 2, and 3 cycle memory responses
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      // 1-cycle response: imem_rvalid same cycle as request
+      `FCOVER(c_mem_resp_1cyc, $past(s_valid && s_ready) && imem_rvalid);
+
+      // 2-cycle response: imem_rvalid one cycle after request
+      `FCOVER(c_mem_resp_2cyc,
+              f_req_pending && f_req_cycles == 2'd1 && imem_rvalid);
+
+      // 3-cycle response: imem_rvalid two cycles after request
+      `FCOVER(c_mem_resp_3cyc,
+              f_req_pending && f_req_cycles == 2'd2 && imem_rvalid);
+    end
+  end
+
   `undef FASSERT
   `undef FASSUME
   `undef FCOVER
