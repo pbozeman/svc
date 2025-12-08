@@ -749,9 +749,7 @@ module svc_rv_stage_ex #(
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      //
       // s_valid must stay high until s_ready
-      //
       if ($past(s_valid && !s_ready)) begin
         `FASSUME(a_s_valid_stable, s_valid);
       end
@@ -766,17 +764,20 @@ module svc_rv_stage_ex #(
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      //
+      // No new request accepted while multi-cycle op is active
+      if (op_active_ex) begin
+        `FASSERT(a_no_accept_while_busy, !s_ready);
+      end
+
       // Valid must stay high until ready (unless flushed)
-      //
-      if ($past(m_valid && !m_ready && !pipe_flush_i)) begin
+      if ($past(m_valid && !m_ready && !ex_mem_flush)) begin
         `FASSERT(a_m_valid_stable, m_valid);
       end
 
       //
       // Output signals must be stable while valid && !ready (unless flush)
       //
-      if ($past(m_valid && !m_ready && !pipe_flush_i)) begin
+      if ($past(m_valid && !m_ready && !ex_mem_flush)) begin
         `FASSERT(a_reg_write_mem_stable, $stable(reg_write_mem));
         `FASSERT(a_mem_read_mem_stable, $stable(mem_read_mem));
         `FASSERT(a_mem_write_mem_stable, $stable(mem_write_mem));

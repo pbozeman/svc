@@ -13,6 +13,7 @@ smtbmc boolector
 
 [script]
 read_verilog -formal -DFORMAL -DFORMAL_SVC_RV_STAGE_EX -sv svc_rv_stage_ex.sv
+chparam -set EXT_M 1 svc_rv_stage_ex
 prep -top svc_rv_stage_ex
 
 [files]
