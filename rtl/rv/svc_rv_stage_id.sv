@@ -7,8 +7,10 @@
 
 `include "svc_rv_bpred_id.sv"
 `include "svc_rv_idec.sv"
-`include "svc_rv_regfile.sv"
 `include "svc_rv_fwd_id.sv"
+`include "svc_rv_pipe_ctrl.sv"
+`include "svc_rv_pipe_data.sv"
+`include "svc_rv_regfile.sv"
 
 //
 // RISC-V Instruction Decode (ID) Stage
@@ -37,15 +39,11 @@ module svc_rv_stage_id #(
     input logic clk,
     input logic rst_n,
 
-    //
     // Hazard control
-    //
     input logic data_hazard_id,
     input logic id_ex_flush,
 
-    //
     // From IF stage
-    //
     input  logic s_valid,
     output logic s_ready,
 
@@ -58,25 +56,19 @@ module svc_rv_stage_id #(
     input logic            ras_valid_id,
     input logic [XLEN-1:0] ras_target_id,
 
-    //
     // Write-back from WB stage
-    //
     input logic        reg_write_wb,
     input logic [ 4:0] rd_wb,
     input logic [31:0] rd_data_wb,
 
-    //
     // MEM stage forwarding inputs
-    //
     input logic [     4:0] rd_mem,
     input logic            reg_write_mem,
     input logic [     2:0] res_src_mem,
     input logic [XLEN-1:0] result_mem,
     input logic [XLEN-1:0] load_data_mem,
 
-    //
     // Outputs to EX stage
-    //
     output logic m_valid,
     input  logic m_ready,
 
@@ -111,28 +103,17 @@ module svc_rv_stage_id #(
     output logic            bpred_taken_ex,
     output logic [XLEN-1:0] pred_target_ex,
 
-    //
     // Outputs to hazard unit
-    //
     output logic [4:0] rs1_id,
     output logic [4:0] rs2_id,
     output logic       rs1_used_id,
     output logic       rs2_used_id,
 
-    //
     // Branch prediction outputs to IF stage
-    //
     output logic [     1:0] pc_sel_id,
     output logic [XLEN-1:0] pred_target,
     output logic            pred_taken_id,
-    output logic            is_jalr_id,
-
-    //
-    // BTB prediction inputs
-    //
-    input logic            btb_hit,
-    input logic [XLEN-1:0] btb_target,
-    input logic            btb_taken
+    output logic            is_jalr_id
 );
 
   `include "svc_rv_defs.svh"
@@ -301,225 +282,267 @@ module svc_rv_stage_id #(
       .bpred_taken_id   (bpred_taken_id)
   );
 
-  //
-  // Current BTB lookup signals unused - we use buffered signals from IF
-  //
-  `SVC_UNUSED({btb_hit, btb_target, btb_taken, btb_target_id});
+  assign s_ready = m_ready && !data_hazard_id;
 
-  //
+  // ==========================================================================
   // ID/EX Pipeline Register
+  // ==========================================================================
+
   //
-  if (PIPELINED != 0) begin : g_registered
-    logic [XLEN-1:0] final_pred_target_id;
+  // Pipeline control
+  //
+  logic advance;
+  logic flush;
+  logic bubble;
 
-    if (BPRED != 0) begin : g_bpred_pipe
-      //
-      // RAS prediction signal: valid when RAS has a target and instruction is JALR
-      //
-      logic ras_pred_taken_id;
-      assign ras_pred_taken_id = ras_valid_id && is_jalr_id;
+  svc_rv_pipe_ctrl #(
+      .REG(PIPELINED)
+  ) pipe_ctrl (
+      .clk      (clk),
+      .rst_n    (rst_n),
+      .valid_i  (s_valid),
+      .valid_o  (m_valid),
+      .ready_i  (m_ready),
+      .flush_i  (id_ex_flush),
+      .bubble_i (data_hazard_id),
+      .advance_o(advance),
+      .flush_o  (flush),
+      .bubble_o (bubble)
+  );
 
-      //
-      // Final predicted target: RAS > BTB > static (matches bpred module priority)
-      //
-      assign final_pred_target_id = ras_pred_taken_id ?
-          ras_target_id : (btb_pred_taken_id ? btb_target_id : pred_target);
-    end else begin : g_no_bpred_pipe
-      assign final_pred_target_id = '0;
-    end
+  //
+  // Processor control signals
+  //
+  svc_rv_pipe_data #(
+      .WIDTH(8),
+      .REG  (PIPELINED)
+  ) pipe_ctrl_signals (
+      .clk(clk),
+      .rst_n(rst_n),
+      .advance(advance),
+      .flush(flush),
+      .bubble(bubble),
+`ifdef FORMAL
+      .s_valid(s_valid),
+      .s_ready(s_ready),
+`endif
+      .data_i({
+        reg_write_id,
+        mem_read_id,
+        mem_write_id,
+        is_branch_id,
+        is_jmp_id,
+        is_jal_id,
+        is_jalr_id,
+        instr_invalid_id
+      }),
+      .data_o({
+        reg_write_ex,
+        mem_read_ex,
+        mem_write_ex,
+        is_branch_ex,
+        is_jmp_ex,
+        is_jal_ex,
+        is_jalr_ex,
+        trap_ex
+      })
+  );
 
-    //
-    // Ready/valid interface
-    //
-    // s_ready gates on data_hazard_id to backpressure IF when the instruction
-    // being decoded has a RAW dependency that cannot be forwarded yet.
-    //
-    assign s_ready = m_ready && !data_hazard_id;
+  //
+  // Processor datapath signals
+  //
+  localparam int DATA_W = 2 + 1 + 2 + 3 + 1 + 1 + 1 + 1 + 2 + 5 + 5 + 5 + 3 + 7;
 
-    //
-    // Control signals: need reset for correct behavior
-    //
-    // Capture logic:
-    // - Reset: initialize all signals
-    // - Flush (id_ex_flush): zero control signals on redirect/misprediction
-    // - Pipeline advance (!m_valid || m_ready): update when transfer occurs
-    //   - If data_hazard_id: insert bubble (m_valid=0), don't capture dependent
-    //   - If no hazard: normal capture
-    //
-    // When data_hazard_id is true, the instruction being decoded cannot advance
-    // because it depends on a value not yet available. The writer instruction
-    // in the output register advances to EX normally, then we insert a bubble.
-    // s_ready = 0 backpressures IF to hold the dependent instruction.
-    //
-    always_ff @(posedge clk) begin
-      if (!rst_n) begin
-        reg_write_ex   <= 1'b0;
-        mem_read_ex    <= 1'b0;
-        mem_write_ex   <= 1'b0;
-        m_valid        <= 1'b0;
-        is_branch_ex   <= 1'b0;
-        is_jmp_ex      <= 1'b0;
-        is_jal_ex      <= 1'b0;
-        is_jalr_ex     <= 1'b0;
-        trap_ex        <= 1'b0;
-        bpred_taken_ex <= 1'b0;
-      end else if (id_ex_flush) begin
-        //
-        // Flush on control flow changes (redirect, misprediction)
-        //
-        reg_write_ex   <= 1'b0;
-        mem_read_ex    <= 1'b0;
-        mem_write_ex   <= 1'b0;
-        m_valid        <= 1'b0;
-        is_branch_ex   <= 1'b0;
-        is_jmp_ex      <= 1'b0;
-        is_jal_ex      <= 1'b0;
-        is_jalr_ex     <= 1'b0;
-        trap_ex        <= 1'b0;
-        //
-        // Capture bpred_taken_id even during flush
-        // When hazards hold an instruction in ID, we need to latch its
-        // prediction before RAS/BTB buffers get overwritten
-        //
-        bpred_taken_ex <= bpred_taken_id;
-      end else if (!m_valid || m_ready) begin
-        //
-        // Pipeline advance: transfer occurred or register empty
-        //
-        if (data_hazard_id) begin
-          //
-          // Data hazard: insert bubble, don't capture dependent instruction
-          //
-          m_valid        <= 1'b0;
-          reg_write_ex   <= 1'b0;
-          mem_read_ex    <= 1'b0;
-          mem_write_ex   <= 1'b0;
-          is_branch_ex   <= 1'b0;
-          is_jmp_ex      <= 1'b0;
-          is_jal_ex      <= 1'b0;
-          is_jalr_ex     <= 1'b0;
-          trap_ex        <= 1'b0;
-          bpred_taken_ex <= bpred_taken_id;
-        end else begin
-          //
-          // Normal capture: advance decoded instruction
-          //
-          m_valid        <= s_valid;
-          reg_write_ex   <= reg_write_id;
-          mem_read_ex    <= mem_read_id;
-          mem_write_ex   <= mem_write_id;
-          is_branch_ex   <= is_branch_id;
-          is_jmp_ex      <= is_jmp_id;
-          is_jal_ex      <= is_jal_id;
-          is_jalr_ex     <= is_jalr_id;
-          trap_ex        <= instr_invalid_id;
-          bpred_taken_ex <= bpred_taken_id;
-        end
-      end
-    end
+  svc_rv_pipe_data #(
+      .WIDTH(DATA_W),
+      .REG  (PIPELINED)
+  ) pipe_data_signals (
+      .clk(clk),
+      .rst_n(rst_n),
+      .advance(advance),
+      .flush(flush),
+      .bubble(bubble),
+`ifdef FORMAL
+      .s_valid(s_valid),
+      .s_ready(s_ready),
+`endif
+      .data_i({
+        alu_a_src_id,
+        alu_b_src_id,
+        alu_instr_id,
+        res_src_id,
+        jb_target_src_id,
+        is_mc_id,
+        is_m_id,
+        is_csr_id,
+        instr_invalid_id ? TRAP_INSTR_INVALID : TRAP_NONE,
+        rd_id,
+        rs1_id,
+        rs2_id,
+        funct3_id,
+        funct7_id
+      }),
+      .data_o({
+        alu_a_src_ex,
+        alu_b_src_ex,
+        alu_instr_ex,
+        res_src_ex,
+        jb_target_src_ex,
+        is_mc_ex,
+        is_m_ex,
+        is_csr_ex,
+        trap_code_ex,
+        rd_ex,
+        rs1_ex,
+        rs2_ex,
+        funct3_ex,
+        funct7_ex
+      })
+  );
 
-    //
-    // Datapath registers
-    //
-    always_ff @(posedge clk) begin
-      if (id_ex_flush) begin
-        //
-        // Flush on control flow changes (redirect, misprediction)
-        //
-        alu_a_src_ex     <= '0;
-        alu_b_src_ex     <= 1'b0;
-        alu_instr_ex     <= '0;
-        res_src_ex       <= '0;
-        jb_target_src_ex <= 1'b0;
-        is_mc_ex         <= 1'b0;
-        is_m_ex          <= 1'b0;
-        is_csr_ex        <= 1'b0;
-        trap_code_ex     <= TRAP_NONE;
-        instr_ex         <= I_NOP;
-        rd_ex            <= '0;
-        rs1_ex           <= '0;
-        rs2_ex           <= '0;
-        funct3_ex        <= '0;
-        funct7_ex        <= '0;
-        rs1_data_ex      <= '0;
-        rs2_data_ex      <= '0;
-        imm_ex           <= '0;
-        pc_ex            <= '0;
-        pc_plus4_ex      <= '0;
-        //
-        // Capture pred_target_ex even during flush
-        // When hazards hold an instruction in ID, we need to latch its
-        // prediction before RAS/BTB buffers get overwritten
-        //
-        pred_target_ex   <= final_pred_target_id;
-      end else if ((!m_valid || m_ready) && !data_hazard_id) begin
-        //
-        // Normal pipeline advance: capture decoded instruction
-        //
-        alu_a_src_ex     <= alu_a_src_id;
-        alu_b_src_ex     <= alu_b_src_id;
-        alu_instr_ex     <= alu_instr_id;
-        res_src_ex       <= res_src_id;
-        jb_target_src_ex <= jb_target_src_id;
-        is_mc_ex         <= is_mc_id;
-        is_m_ex          <= is_m_id;
-        is_csr_ex        <= is_csr_id;
-        trap_code_ex     <= instr_invalid_id ? TRAP_INSTR_INVALID : TRAP_NONE;
-        instr_ex         <= instr_id;
-        rd_ex            <= rd_id;
-        rs1_ex           <= rs1_id;
-        rs2_ex           <= rs2_id;
-        funct3_ex        <= funct3_id;
-        funct7_ex        <= funct7_id;
-        rs1_data_ex      <= fwd_rs1_id;
-        rs2_data_ex      <= fwd_rs2_id;
-        imm_ex           <= imm_id;
-        pc_ex            <= pc_id;
-        pc_plus4_ex      <= pc_plus4_id;
-        pred_target_ex   <= final_pred_target_id;
-      end
-    end
+  // Forwarded register data: rs1_data, rs2_data
+  //
+  // When pipelined, use forwarded register values; otherwise use raw regfile.
+  // Forwarded values can change during backpressure as downstream stages
+  // progress, so stability check is disabled.
+  //
+  localparam int FWD_DATA_W = 2 * XLEN;
 
+  logic [FWD_DATA_W-1:0] fwd_data_id;
 
-  end else begin : g_passthrough
-    assign reg_write_ex     = reg_write_id;
-    assign mem_read_ex      = mem_read_id;
-    assign mem_write_ex     = mem_write_id;
-    assign alu_a_src_ex     = alu_a_src_id;
-    assign alu_b_src_ex     = alu_b_src_id;
-    assign alu_instr_ex     = alu_instr_id;
-    assign res_src_ex       = res_src_id;
-    assign is_branch_ex     = is_branch_id;
-    assign is_jmp_ex        = is_jmp_id;
-    assign jb_target_src_ex = jb_target_src_id;
-    assign is_mc_ex         = is_mc_id;
-    assign is_m_ex          = is_m_id;
-    assign is_csr_ex        = is_csr_id;
-    assign is_jal_ex        = is_jal_id;
-    assign is_jalr_ex       = is_jalr_id;
-    assign trap_ex          = instr_invalid_id;
-    assign trap_code_ex     = instr_invalid_id ? TRAP_INSTR_INVALID : TRAP_NONE;
-    assign instr_ex         = instr_id;
-    assign rd_ex            = rd_id;
-    assign rs1_ex           = rs1_id;
-    assign rs2_ex           = rs2_id;
-    assign funct3_ex        = funct3_id;
-    assign funct7_ex        = funct7_id;
-    assign rs1_data_ex      = rs1_data_id;
-    assign rs2_data_ex      = rs2_data_id;
-    assign imm_ex           = imm_id;
-    assign pc_ex            = pc_id;
-    assign pc_plus4_ex      = pc_plus4_id;
-    assign bpred_taken_ex   = 1'b0;
-    assign pred_target_ex   = '0;
-    assign m_valid          = s_valid;
-    assign s_ready          = m_ready && !data_hazard_id;
-
-    // verilog_format: off
-    `SVC_UNUSED({rst_n, id_ex_flush, fwd_rs1_id, fwd_rs2_id,
-                 bpred_taken_id, ras_valid_id, ras_target_id});
-    // verilog_format: on
+  if (PIPELINED != 0) begin : g_fwd
+    assign fwd_data_id = {fwd_rs1_id, fwd_rs2_id};
+  end else begin : g_fwd_raw
+    assign fwd_data_id = {rs1_data_id, rs2_data_id};
+    `SVC_UNUSED({fwd_rs1_id, fwd_rs2_id});
   end
+
+  svc_rv_pipe_data #(
+      .WIDTH(FWD_DATA_W),
+      .REG  (PIPELINED)
+  ) pipe_fwd_data (
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .advance(advance),
+      .flush  (flush),
+      .bubble (bubble),
+`ifdef FORMAL
+      // see note above
+      .s_valid(s_valid),
+      .s_ready(1'b1),
+`endif
+      .data_i (fwd_data_id),
+      .data_o ({rs1_data_ex, rs2_data_ex})
+  );
+
+  //
+  // Immediate and PC values: imm, pc, pc_plus4
+  //
+  localparam int IMM_PC_W = 3 * XLEN;
+
+  svc_rv_pipe_data #(
+      .WIDTH(IMM_PC_W),
+      .REG  (PIPELINED)
+  ) pipe_imm_pc (
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .advance(advance),
+      .flush  (flush),
+      .bubble (bubble),
+`ifdef FORMAL
+      .s_valid(s_valid),
+      .s_ready(s_ready),
+`endif
+      .data_i ({imm_id, pc_id, pc_plus4_id}),
+      .data_o ({imm_ex, pc_ex, pc_plus4_ex})
+  );
+
+  //
+  // Instruction register: flush to NOP
+  //
+  svc_rv_pipe_data #(
+      .WIDTH    (32),
+      .REG      (PIPELINED),
+      .FLUSH_VAL(I_NOP)
+  ) pipe_instr (
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .advance(advance),
+      .flush  (flush),
+      .bubble (bubble),
+`ifdef FORMAL
+      .s_valid(s_valid),
+      .s_ready(s_ready),
+`endif
+      .data_i (instr_id),
+      .data_o (instr_ex)
+  );
+
+  //
+  // Branch prediction signals
+  //
+  // When pipelined with BPRED, capture predictions that need to be preserved
+  // across flush/bubble for misprediction recovery. Otherwise, pass through 0.
+  //
+  logic [XLEN-1:0] final_pred_target_id;
+  logic            final_bpred_taken_id;
+
+  if (PIPELINED != 0 && BPRED != 0) begin : g_bpred_pipe
+    //
+    // RAS prediction signal: valid when RAS has a target and instruction is JALR
+    //
+    logic ras_pred_taken_id;
+    assign ras_pred_taken_id = ras_valid_id && is_jalr_id;
+
+    //
+    // Final predicted target: RAS > BTB > static (matches bpred module priority)
+    //
+    assign final_pred_target_id = ras_pred_taken_id ?
+        ras_target_id : (btb_pred_taken_id ? btb_target_id : pred_target);
+    assign final_bpred_taken_id = bpred_taken_id;
+  end else begin : g_no_bpred_pipe
+    assign final_pred_target_id = '0;
+    assign final_bpred_taken_id = 1'b0;
+
+    `SVC_UNUSED({bpred_taken_id, btb_target_id, ras_valid_id, ras_target_id});
+  end
+
+  svc_rv_pipe_data #(
+      .WIDTH     (1),
+      .REG       (PIPELINED),
+      .FLUSH_REG (1),
+      .BUBBLE_REG(1)
+  ) pipe_bpred_taken (
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .advance(advance),
+      .flush  (flush),
+      .bubble (bubble),
+`ifdef FORMAL
+      .s_valid(s_valid),
+      .s_ready(s_ready),
+`endif
+      .data_i (final_bpred_taken_id),
+      .data_o (bpred_taken_ex)
+  );
+
+  svc_rv_pipe_data #(
+      .WIDTH    (XLEN),
+      .REG      (PIPELINED),
+      .FLUSH_REG(1)
+  ) pipe_pred_target (
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .advance(advance),
+      .flush  (flush),
+      .bubble (bubble),
+`ifdef FORMAL
+      .s_valid(s_valid),
+      .s_ready(s_ready),
+`endif
+      .data_i (final_pred_target_id),
+      .data_o (pred_target_ex)
+  );
 
 `ifdef FORMAL
 `ifdef FORMAL_SVC_RV_STAGE_ID
@@ -536,6 +559,47 @@ module svc_rv_stage_id #(
 
   always @(posedge clk) begin
     f_past_valid <= 1'b1;
+  end
+
+  //
+  // Input stability assumptions (s_valid/s_ready interface from IF)
+  //
+  // When backpressured (s_valid && !s_ready), IF must hold its outputs stable.
+  // This is the standard valid/ready protocol contract.
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      if ($past(s_valid && !s_ready)) begin
+        `FASSUME(a_s_valid_stable, s_valid);
+        `FASSUME(a_instr_id_stable, instr_id == $past(instr_id));
+        `FASSUME(a_pc_id_stable, pc_id == $past(pc_id));
+        `FASSUME(a_pc_plus4_id_stable, pc_plus4_id == $past(pc_plus4_id));
+
+        //
+        // Decoder outputs are combinational from instr_id, so stable if
+        // instr_id stable. Formal tools don't propagate stability through
+        // combinational logic, so we need explicit assumptions.
+        //
+        `FASSUME(a_alu_a_src_id_stable, alu_a_src_id == $past(alu_a_src_id));
+        `FASSUME(a_alu_b_src_id_stable, alu_b_src_id == $past(alu_b_src_id));
+        `FASSUME(a_alu_instr_id_stable, alu_instr_id == $past(alu_instr_id));
+        `FASSUME(a_res_src_id_stable, res_src_id == $past(res_src_id));
+        `FASSUME(a_jb_target_src_id_stable, jb_target_src_id == $past(
+                 jb_target_src_id));
+        `FASSUME(a_is_mc_id_stable, is_mc_id == $past(is_mc_id));
+        `FASSUME(a_is_m_id_stable, is_m_id == $past(is_m_id));
+        `FASSUME(a_is_csr_id_stable, is_csr_id == $past(is_csr_id));
+        `FASSUME(a_instr_invalid_id_stable, instr_invalid_id == $past(
+                 instr_invalid_id));
+        `FASSUME(a_rd_id_stable, rd_id == $past(rd_id));
+        `FASSUME(a_rs1_id_stable, rs1_id == $past(rs1_id));
+        `FASSUME(a_rs2_id_stable, rs2_id == $past(rs2_id));
+        `FASSUME(a_funct3_id_stable, funct3_id == $past(funct3_id));
+        `FASSUME(a_funct7_id_stable, funct7_id == $past(funct7_id));
+        `FASSUME(a_imm_pc_id_stable, {imm_id, pc_id, pc_plus4_id} == $past(
+                 {imm_id, pc_id, pc_plus4_id}));
+      end
+    end
   end
 
   //
