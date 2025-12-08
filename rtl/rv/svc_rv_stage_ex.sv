@@ -176,8 +176,8 @@ module svc_rv_stage_ex #(
     EX_MC_DONE
   } ex_state_t;
 
-  ex_state_t            ex_state;
-  ex_state_t            ex_state_next;
+  ex_state_t            state;
+  ex_state_t            state_next;
 
   // our output is valid (input to pipe_ctrl)
   logic                 m_valid_next;
@@ -187,22 +187,22 @@ module svc_rv_stage_ex #(
   logic      [XLEN-1:0] mc_rs2;
 
   always_comb begin
-    ex_state_next = ex_state;
-    m_valid_next  = m_valid && !m_ready;
+    state_next   = state;
+    m_valid_next = m_valid && !m_ready;
 
-    op_active_ex  = 1'b0;
-    op_en_ex      = 1'b0;
+    op_active_ex = 1'b0;
+    op_en_ex     = 1'b0;
 
-    case (ex_state)
+    case (state)
       EX_IDLE: begin
         if (!m_valid || m_ready) begin
           if (s_valid) begin
             if (!is_mc_ex) begin
               m_valid_next = 1'b1;
             end else begin
-              ex_state_next = EX_MC_EXEC;
-              op_en_ex      = 1'b1;
-              op_active_ex  = 1'b1;
+              state_next   = EX_MC_EXEC;
+              op_en_ex     = 1'b1;
+              op_active_ex = 1'b1;
             end
           end
         end
@@ -212,28 +212,28 @@ module svc_rv_stage_ex #(
         op_active_ex = 1'b1;
 
         if (!m_busy_ex) begin
-          op_active_ex  = 1'b0;
-          ex_state_next = EX_MC_DONE;
-          m_valid_next  = 1'b1;
+          op_active_ex = 1'b0;
+          state_next   = EX_MC_DONE;
+          m_valid_next = 1'b1;
         end
       end
 
       EX_MC_DONE: begin
         if (m_valid && m_ready) begin
           if (s_valid && is_mc_ex) begin
-            ex_state_next = EX_MC_EXEC;
-            op_en_ex      = 1'b1;
-            op_active_ex  = 1'b1;
+            state_next   = EX_MC_EXEC;
+            op_en_ex     = 1'b1;
+            op_active_ex = 1'b1;
           end else begin
-            m_valid_next  = s_valid;
-            ex_state_next = EX_IDLE;
+            m_valid_next = s_valid;
+            state_next   = EX_IDLE;
           end
         end
       end
 
       default: begin
-        ex_state_next = EX_IDLE;
-        m_valid_next  = 1'b0;
+        state_next   = EX_IDLE;
+        m_valid_next = 1'b0;
       end
     endcase
   end
@@ -243,11 +243,11 @@ module svc_rv_stage_ex #(
   //
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      ex_state <= EX_IDLE;
-      mc_rs1   <= '0;
-      mc_rs2   <= '0;
+      state  <= EX_IDLE;
+      mc_rs1 <= '0;
+      mc_rs2 <= '0;
     end else begin
-      ex_state <= ex_state_next;
+      state <= state_next;
 
       //
       // Capture forwarded operands when starting a multi-cycle op
@@ -283,7 +283,7 @@ module svc_rv_stage_ex #(
       .FWD     ((PIPELINED != 0 && FWD != 0) ? 1 : 0),
       .MEM_TYPE(MEM_TYPE)
   ) forward (
-      .is_mc(ex_state == EX_MC_EXEC),
+      .is_mc(state == EX_MC_EXEC),
       .*
   );
 
@@ -542,7 +542,7 @@ module svc_rv_stage_ex #(
 
     assign ex_mem_en    = !m_valid || m_ready;
     assign s_ready      = ex_mem_en && !op_active_ex;
-    assign mc_active    = op_active_ex || (ex_state != EX_IDLE);
+    assign mc_active    = op_active_ex || (state != EX_IDLE);
 
     // the hazard unit might request a flush while we are mid
     // mc op. by the time the op completes, it might lower the
@@ -559,7 +559,7 @@ module svc_rv_stage_ex #(
   if (PIPELINED != 0) begin : g_pipelined_valid
     assign pipe_valid_i = m_valid_next;
   end else begin : g_passthrough_valid
-    assign pipe_valid_i = s_valid && ex_state != EX_MC_EXEC;
+    assign pipe_valid_i = s_valid && state != EX_MC_EXEC;
   end
 
   svc_rv_pipe_ctrl #(
@@ -827,14 +827,14 @@ module svc_rv_stage_ex #(
     always_ff @(posedge clk) begin
       if (f_past_valid && $past(rst_n) && rst_n) begin
         `FCOVER(c_mc_starts, $rose(op_active_ex) && is_mc_ex);
-        `FCOVER(c_mc_complete_immediate, $past(ex_state == EX_MC_EXEC
-                ) && ex_state == EX_MC_DONE && m_valid && m_ready);
-        `FCOVER(c_mc_complete_held, $past(ex_state == EX_MC_EXEC
-                ) && ex_state == EX_MC_DONE && m_valid && !m_ready);
-        `FCOVER(c_mc_back_to_back, $past(ex_state == EX_MC_DONE
-                ) && ex_state == EX_MC_EXEC);
-        `FCOVER(c_mc_then_normal, $past(ex_state == EX_MC_DONE
-                ) && ex_state == EX_IDLE && s_valid);
+        `FCOVER(c_mc_complete_immediate, $past(state == EX_MC_EXEC
+                ) && state == EX_MC_DONE && m_valid && m_ready);
+        `FCOVER(c_mc_complete_held, $past(state == EX_MC_EXEC
+                ) && state == EX_MC_DONE && m_valid && !m_ready);
+        `FCOVER(c_mc_back_to_back, $past(state == EX_MC_DONE
+                ) && state == EX_MC_EXEC);
+        `FCOVER(c_mc_then_normal, $past(state == EX_MC_DONE
+                ) && state == EX_IDLE && s_valid);
       end
     end
   end
