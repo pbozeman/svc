@@ -46,6 +46,9 @@ module svc_rv_stage_id #(
     //
     // From IF stage
     //
+    input  logic s_valid,
+    output logic s_ready,
+
     input logic [    31:0] instr_id,
     input logic [    31:0] pc_id,
     input logic [    31:0] pc_plus4_id,
@@ -54,12 +57,6 @@ module svc_rv_stage_id #(
     input logic [XLEN-1:0] btb_target_id,
     input logic            ras_valid_id,
     input logic [XLEN-1:0] ras_target_id,
-
-    //
-    // Ready/valid interface from IF stage
-    //
-    input  logic s_valid,
-    output logic s_ready,
 
     //
     // Write-back from WB stage
@@ -80,6 +77,9 @@ module svc_rv_stage_id #(
     //
     // Outputs to EX stage
     //
+    output logic m_valid,
+    input  logic m_ready,
+
     output logic            reg_write_ex,
     output logic            mem_read_ex,
     output logic            mem_write_ex,
@@ -112,13 +112,7 @@ module svc_rv_stage_id #(
     output logic [XLEN-1:0] pred_target_ex,
 
     //
-    // Ready/valid interface to EX stage
-    //
-    output logic m_valid,
-    input  logic m_ready,
-
-    //
-    // Outputs to hazard unit (combinational from ID stage)
+    // Outputs to hazard unit
     //
     output logic [4:0] rs1_id,
     output logic [4:0] rs2_id,
@@ -554,9 +548,7 @@ module svc_rv_stage_id #(
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
       if ($past(m_valid && !m_ready && !id_ex_flush)) begin
-        //
         // Valid must remain asserted until ready (unless flushed)
-        //
         `FASSERT(a_valid_stable, m_valid || id_ex_flush);
 
         //
@@ -606,14 +598,10 @@ module svc_rv_stage_id #(
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      //
       // Cover back-to-back valid transfers
-      //
       `FCOVER(c_back_to_back, $past(m_valid && m_ready) && m_valid);
 
-      //
       // Cover stalled transfer (valid high, ready low for a cycle)
-      //
       `FCOVER(c_stalled, $past(m_valid && !m_ready) && m_valid && m_ready);
     end
   end
