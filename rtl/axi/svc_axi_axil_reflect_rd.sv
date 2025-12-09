@@ -74,6 +74,7 @@ module svc_axi_axil_reflect_rd #(
   ) svc_sync_fifo_n_id_i (
       .clk  (clk),
       .rst_n(rst_n),
+      .clr  (1'b0),
 
       .w_inc    (s_axi_arvalid && s_axi_arready),
       .w_data   ({s_axi_arid, s_axi_aruser}),

@@ -222,6 +222,7 @@ module svc_axi_stripe_wr #(
   ) svc_sync_fifo_w_i (
       .clk        (clk),
       .rst_n      (rst_n),
+      .clr        (1'b0),
       .w_inc      (sb_s_awvalid && sb_s_awready),
       .w_data     ({aw_stripe_start_idx, sb_s_awlen}),
       .w_full     (fifo_w_w_full),
@@ -350,6 +351,7 @@ module svc_axi_stripe_wr #(
   ) svc_sync_fifo_b_i (
       .clk        (clk),
       .rst_n      (rst_n),
+      .clr        (1'b0),
       .w_inc      (sb_s_awvalid && sb_s_awready),
       .w_data     ({aw_stripe_end_idx, aw_stripe_valid}),
       .w_full     (fifo_b_w_full),

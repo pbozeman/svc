@@ -154,6 +154,7 @@ module svc_fb_pix_vga #(
   ) svc_pix_fifo_i (
       .clk        (clk),
       .rst_n      (rst_n),
+      .clr        (1'b0),
       .w_inc      (fb_pix_valid && fb_pix_ready),
       .w_data     (pix_fifo_w_data),
       .w_full     (pix_fifo_w_full),

@@ -14,6 +14,7 @@ module svc_sync_fifo #(
 ) (
     input logic clk,
     input logic rst_n,
+    input logic clr,
 
     input  logic                  w_inc,
     input  logic [DATA_WIDTH-1:0] w_data,
@@ -55,7 +56,7 @@ module svc_sync_fifo #(
   end
 
   always @(posedge clk) begin
-    if (!rst_n) begin
+    if (!rst_n || clr) begin
       w_ptr <= 0;
     end else begin
       w_ptr <= w_ptr_next;
@@ -73,7 +74,7 @@ module svc_sync_fifo #(
   end
 
   always @(posedge clk) begin
-    if (!rst_n) begin
+    if (!rst_n || clr) begin
       r_ptr <= 0;
     end else begin
       r_ptr <= r_ptr_next;
@@ -91,7 +92,7 @@ module svc_sync_fifo #(
                         w_addr_next == r_addr_next);
 
   always @(posedge clk) begin
-    if (!rst_n) begin
+    if (!rst_n || clr) begin
       w_addr      <= 0;
       w_full      <= 1'b0;
       w_half_full <= 1'b0;
@@ -159,7 +160,7 @@ module svc_sync_fifo #(
   int f_count = 0;
   int f_max_count = (1 << ADDR_WIDTH);
   always @(posedge clk) begin
-    if (~rst_n) begin
+    if (~rst_n || clr) begin
       f_count <= 0;
     end else if ((w_inc && !w_full) && (!r_inc || r_empty)) begin
       f_count <= f_count + 1;
@@ -173,6 +174,14 @@ module svc_sync_fifo #(
       `ASSERT(a_reset_ptrs, w_ptr == 0 && r_ptr == 0);
       `ASSERT(a_reset_empty, r_empty);
       `ASSERT(a_reset_full, !w_full);
+    end
+  end
+
+  always @(posedge clk) begin
+    if (f_past_valid && rst_n && $past(clr)) begin
+      `ASSERT(a_clr_ptrs, w_ptr == 0 && r_ptr == 0);
+      `ASSERT(a_clr_empty, r_empty);
+      `ASSERT(a_clr_full, !w_full);
     end
   end
 
@@ -224,7 +233,7 @@ module svc_sync_fifo #(
   int                    f_shadow_wptr = 0;
 
   always @(posedge clk) begin
-    if (~rst_n) begin
+    if (~rst_n || clr) begin
       f_shadow_rptr <= 0;
       f_shadow_wptr <= 0;
     end else begin

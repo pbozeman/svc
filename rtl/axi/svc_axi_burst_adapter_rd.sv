@@ -129,6 +129,7 @@ module svc_axi_burst_adapter_rd #(
   ) svc_sync_fifo_r_i (
       .clk  (clk),
       .rst_n(rst_n),
+      .clr  (1'b0),
 
       .w_inc      (split_arvalid && split_arready),
       .w_data     (split_last),
