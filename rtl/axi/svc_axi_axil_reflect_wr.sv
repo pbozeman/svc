@@ -101,6 +101,7 @@ module svc_axi_axil_reflect_wr #(
   ) svc_sync_fifo_n_id_i (
       .clk  (clk),
       .rst_n(rst_n),
+      .clr  (1'b0),
 
       .w_inc    (s_axi_awvalid && s_axi_awready),
       .w_data   ({s_axi_awid, s_axi_awuser}),

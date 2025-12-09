@@ -161,6 +161,7 @@ module svc_ice40_sram_io_if #(
   ) svc_sync_fifo_i (
       .clk        (clk),
       .rst_n      (rst_n),
+      .clr        (1'b0),
       .w_inc      (pad_rd_valid),
       .w_data     (pad_rd_data),
       .w_full     (),
@@ -281,6 +282,7 @@ module svc_ice40_sram_io_if #(
   ) f_fifo_i (
       .clk(clk),
       .rst_n(rst_n),
+      .clr(1'b0),
       .w_inc(sram_cmd_valid && sram_cmd_ready && !sram_cmd_wr_en),
       .w_data({f_written_valid[sram_cmd_addr], f_written_data[sram_cmd_addr]}),
       .w_full(f_fifo_w_full),

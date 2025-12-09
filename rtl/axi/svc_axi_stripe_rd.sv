@@ -208,6 +208,7 @@ module svc_axi_stripe_rd #(
   ) svc_sync_fifo_r_i (
       .clk        (clk),
       .rst_n      (rst_n),
+      .clr        (1'b0),
       .w_inc      (sb_s_arvalid && sb_s_arready),
       .w_data     ({ar_stripe_start_idx, ar_stripe_end_idx}),
       .w_full     (fifo_r_w_full),

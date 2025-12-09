@@ -57,6 +57,7 @@ module svc_sync_fifo_zl #(
   ) fifo_inst (
       .clk  (clk),
       .rst_n(rst_n),
+      .clr  (1'b0),
 
       // prevent fifo write if data is being consumed in zero-latency mode.
       // note: r_inc on an empty fifo is a no-op, so it doesn't need a guard

@@ -134,6 +134,7 @@ module svc_fb_pix #(
   ) svc_sync_fifo_i (
       .clk        (clk),
       .rst_n      (rst_n),
+      .clr        (1'b0),
       .w_inc      (m_axi_arvalid && m_axi_arready),
       .w_data     ({x, y, m_axi_araddr}),
       .w_full     (),

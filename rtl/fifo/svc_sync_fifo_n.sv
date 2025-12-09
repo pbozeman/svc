@@ -15,6 +15,7 @@ module svc_sync_fifo_n #(
 ) (
     input logic clk,
     input logic rst_n,
+    input logic clr,
 
     input  logic                  w_inc,
     input  logic [DATA_WIDTH-1:0] w_data,
@@ -36,6 +37,7 @@ module svc_sync_fifo_n #(
   ) svc_sync_fifo_i (
       .clk        (clk),
       .rst_n      (rst_n),
+      .clr        (clr),
       .w_inc      (w_inc),
       .w_data     (w_data),
       .w_half_full(),

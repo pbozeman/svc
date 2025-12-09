@@ -24,6 +24,7 @@ module svc_sync_fifo_tb;
   ) uut (
       .clk        (clk),
       .rst_n      (rst_n),
+      .clr        (1'b0),
       .w_inc      (w_inc),
       .w_data     (w_data),
       .w_half_full(),

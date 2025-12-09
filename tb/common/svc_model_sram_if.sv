@@ -47,6 +47,7 @@ module svc_model_sram_if #(
   ) svc_sync_fifo_i (
       .clk        (clk),
       .rst_n      (rst_n),
+      .clr        (1'b0),
       .w_inc      (fifo_w_inc),
       .w_data     (fifo_w_data),
       .w_full     (),
