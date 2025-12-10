@@ -6,7 +6,11 @@
 //
 // Synchronous FIFO with FWFT (first word fall through.)
 //
-// Full/empty signals are registered
+// Full/empty signals are registered.
+//
+// Special behavior: clr + w_inc in same cycle clears old data AND
+// writes new data. FIFO ends up with exactly one entry (the new data).
+// This enables atomic "flush and restart" operations.
 //
 module svc_sync_fifo #(
     parameter ADDR_WIDTH = 3,
@@ -56,8 +60,14 @@ module svc_sync_fifo #(
   end
 
   always @(posedge clk) begin
-    if (!rst_n || clr) begin
+    if (!rst_n) begin
       w_ptr <= 0;
+    end else if (clr) begin
+      //
+      // On clr + w_inc: clear old data but accept new write.
+      // New data goes to address 0, so w_ptr becomes 1.
+      //
+      w_ptr <= w_inc ? 1 : 0;
     end else begin
       w_ptr <= w_ptr_next;
     end
@@ -92,12 +102,23 @@ module svc_sync_fifo #(
                         w_addr_next == r_addr_next);
 
   always @(posedge clk) begin
-    if (!rst_n || clr) begin
+    if (!rst_n) begin
       w_addr      <= 0;
       w_full      <= 1'b0;
       w_half_full <= 1'b0;
 
       r_empty     <= 1'b1;
+      r_addr      <= 0;
+    end else if (clr) begin
+      //
+      // On clr + w_inc: FIFO has exactly one entry after clear.
+      // w_addr becomes 1 (next write position), r_addr stays 0.
+      //
+      w_addr      <= w_inc ? 1 : 0;
+      w_full      <= 1'b0;
+      w_half_full <= 1'b0;
+
+      r_empty     <= !w_inc;
       r_addr      <= 0;
     end else begin
       w_addr      <= w_addr_next;
@@ -115,8 +136,15 @@ module svc_sync_fifo #(
   always @(posedge clk) begin
     // the rst_n check here helps with timing on the ice40
     if (rst_n) begin
-      if (w_inc & !w_full) begin
-        mem[w_addr] <= w_data;
+      if (w_inc) begin
+        if (clr) begin
+          //
+          // On clr + w_inc: write to address 0 (start of cleared FIFO)
+          //
+          mem[0] <= w_data;
+        end else if (!w_full) begin
+          mem[w_addr] <= w_data;
+        end
       end
     end
   end
@@ -160,8 +188,13 @@ module svc_sync_fifo #(
   int f_count = 0;
   int f_max_count = (1 << ADDR_WIDTH);
   always @(posedge clk) begin
-    if (~rst_n || clr) begin
+    if (~rst_n) begin
       f_count <= 0;
+    end else if (clr) begin
+      //
+      // On clr + w_inc: FIFO has exactly 1 entry
+      //
+      f_count <= w_inc ? 1 : 0;
     end else if ((w_inc && !w_full) && (!r_inc || r_empty)) begin
       f_count <= f_count + 1;
     end else if ((r_inc && !r_empty) && (!w_inc || w_full)) begin
@@ -178,10 +211,23 @@ module svc_sync_fifo #(
   end
 
   always @(posedge clk) begin
-    if (f_past_valid && rst_n && $past(clr)) begin
-      `ASSERT(a_clr_ptrs, w_ptr == 0 && r_ptr == 0);
-      `ASSERT(a_clr_empty, r_empty);
-      `ASSERT(a_clr_full, !w_full);
+    //
+    // clr behavior only applies when not in reset ($past(rst_n))
+    //
+    if (f_past_valid && rst_n && $past(rst_n) && $past(clr)) begin
+      if ($past(w_inc)) begin
+        //
+        // clr + w_inc: FIFO has exactly 1 entry
+        //
+        `ASSERT(a_clr_winc_wptr, w_ptr == 1);
+        `ASSERT(a_clr_winc_rptr, r_ptr == 0);
+        `ASSERT(a_clr_winc_not_empty, !r_empty);
+        `ASSERT(a_clr_winc_not_full, !w_full);
+      end else begin
+        `ASSERT(a_clr_ptrs, w_ptr == 0 && r_ptr == 0);
+        `ASSERT(a_clr_empty, r_empty);
+        `ASSERT(a_clr_full, !w_full);
+      end
     end
   end
 
@@ -216,6 +262,18 @@ module svc_sync_fifo #(
       `COVER(c_read_half_full,
              (r_inc && w_half_full && f_count == (f_max_count >> 1)));
       `COVER(c_rw_half_full, (w_inc && r_inc && w_half_full));
+
+`ifdef FORMAL_SVC_SYNC_FIFO
+`ifndef FORMAL_SVC_SYNC_FIFO_ZL
+      //
+      // Cover clr + w_inc (flush and restart)
+      // Only when testing FIFO directly (wrappers may tie clr to 0)
+      //
+      `COVER(c_clr_with_write, (clr && w_inc));
+      `COVER(c_clr_with_write_then_read, $past(clr && w_inc
+             ) && r_inc && !r_empty);
+`endif
+`endif
     end
   end
 
@@ -233,9 +291,20 @@ module svc_sync_fifo #(
   int                    f_shadow_wptr = 0;
 
   always @(posedge clk) begin
-    if (~rst_n || clr) begin
+    if (~rst_n) begin
       f_shadow_rptr <= 0;
       f_shadow_wptr <= 0;
+    end else if (clr) begin
+      f_shadow_rptr <= 0;
+      if (w_inc) begin
+        //
+        // clr + w_inc: new data at position 0
+        //
+        f_shadow_queue[0] <= w_data;
+        f_shadow_wptr     <= 1;
+      end else begin
+        f_shadow_wptr <= 0;
+      end
     end else begin
       // Write operation
       if (w_inc && !w_full) begin
