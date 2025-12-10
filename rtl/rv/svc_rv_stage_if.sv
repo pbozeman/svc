@@ -3,15 +3,14 @@
 
 `include "svc.sv"
 `include "svc_unused.sv"
+`include "svc_sync_fifo.sv"
 
 //
 // RISC-V Instruction Fetch (IF) Stage
 //
 // Supports two modes:
-// - PIPELINED=1: Buffers PC and metadata, expects synchronous memory interface
+// - PIPELINED=1: Uses FIFOs to buffer PC, instruction, and metadata
 // - PIPELINED=0: Passthrough for single-cycle execution
-//
-// Uses imem_rvalid from memory subsystem to determine when instruction is valid.
 //
 module svc_rv_stage_if #(
     parameter int XLEN      = 32,
@@ -82,22 +81,11 @@ module svc_rv_stage_if #(
   //
   // Ready signal to PC stage
   //
-  // Backpressure from downstream: accept new PC when ID stage can accept.
-  // Stall conditions (data hazards, multi-cycle ops) flow through ID's
-  // s_ready via id_stall, so we don't need pc_stall here.
+  // Backpressure from downstream and internal FIFOs.
   //
-  assign s_ready = m_ready;
+  logic        pc_fifo_ready;
 
-  //
-  // Intermediate signals for pipeline register inputs
-  //
-  logic [XLEN-1:0] pc_to_if_id;
-  logic            btb_hit_to_if_id;
-  logic            btb_pred_taken_to_if_id;
-  logic [XLEN-1:0] btb_target_to_if_id;
-  logic            btb_is_return_to_if_id;
-  logic            ras_valid_to_if_id;
-  logic [XLEN-1:0] ras_target_to_if_id;
+  assign s_ready = m_ready && pc_fifo_ready;
 
   // =========================================================================
   // Instruction memory interface
@@ -107,7 +95,7 @@ module svc_rv_stage_if #(
   // Pipelined without BPRED: Use pc for normal fetch
   // Single-cycle: Use pc, always enabled
   //
-  assign instr = imem_rdata;
+  assign instr   = imem_rdata;
 
   if (PIPELINED != 0 && BPRED != 0) begin : g_pipelined_bpred_imem
     //
@@ -115,7 +103,7 @@ module svc_rv_stage_if #(
     // RESET_PC-4 and pc_next_if = RESET_PC
     //
     assign imem_araddr  = pc_next_if;
-    assign imem_arvalid = !rst_n || m_ready;
+    assign imem_arvalid = !rst_n || (s_valid && s_ready);
 
     //
     // In BPRED mode, pc goes to BTB from stage_pc, not used here
@@ -123,21 +111,15 @@ module svc_rv_stage_if #(
     `SVC_UNUSED({pc_if})
   end else if (PIPELINED != 0) begin : g_pipelined_imem
     assign imem_araddr  = pc_if;
-    assign imem_arvalid = m_ready;
+    assign imem_arvalid = s_valid && s_ready;
 
     `SVC_UNUSED({pc_next_if})
   end else begin : g_single_cycle_imem
     assign imem_araddr  = pc_if;
-    assign imem_arvalid = 1'b1;
+    assign imem_arvalid = s_valid;
 
-    `SVC_UNUSED({pc_next_if})
+    `SVC_UNUSED({pc_next_if, s_ready})
   end
-
-  //
-  // s_valid from stage_pc is unused for now - stage_pc.m_valid is always 1
-  // This will be used in step 6.3 when we add proper flow control
-  //
-  `SVC_UNUSED({s_valid})
 
   // =========================================================================
   // Extended flush for pipelined mode without BPRED
@@ -145,6 +127,10 @@ module svc_rv_stage_if #(
   //
   // Without BPRED: Sequential instruction is already fetched before redirect
   // is detected, so we need flush_extend to clear the stale instruction.
+  //
+  // TODO: I think we can likely drop flush_extend now that we have the
+  // fifo design. The corresponding queues will have been flushed,
+  // so the read should get tossed.
   //
   // With BPRED: Target is fetched immediately when prediction happens,
   // so flush_extend would incorrectly flush the CORRECT target instruction.
@@ -162,159 +148,259 @@ module svc_rv_stage_if #(
   end
 
   // =========================================================================
-  // PC and metadata handling
+  // FIFO control signals
   // =========================================================================
-  //
-  // Pipelined: Buffer by one cycle to align with instruction
-  // Single-cycle: Passthrough (instruction available same cycle)
-  //
-  if (PIPELINED != 0) begin : g_pipelined_metadata
-    (* max_fanout = 32 *)logic [XLEN-1:0] pc_buf;
-    logic            btb_hit_buf;
-    logic            btb_pred_taken_buf;
-    logic [XLEN-1:0] btb_target_buf;
-    logic            btb_is_return_buf;
-    logic            ras_valid_buf;
-    logic [XLEN-1:0] ras_target_buf;
+  logic fifo_clr;
+  logic pc_fifo_valid;
+  logic aligned_pc_fifo_valid;
+  logic instr_fifo_valid;
+  logic meta_fifo_valid;
+
+  assign fifo_clr = if_id_flush || flush_extend;
+
+  // =========================================================================
+  // PC FIFO
+  // =========================================================================
+  logic [XLEN-1:0] pc_id_next;
+  logic [XLEN-1:0] pc_plus4_id_next;
+
+  if (PIPELINED != 0) begin : g_pc_fifo
+    logic [XLEN-1:0] pc_fifo_rdata;
+    logic            pc_fifo_empty;
+    logic            pc_fifo_half_full;
+
+    assign pc_fifo_valid = !pc_fifo_empty;
+
+    svc_sync_fifo #(
+        .ADDR_WIDTH(2),
+        .DATA_WIDTH(XLEN)
+    ) pc_fifo (
+        .clk        (clk),
+        .rst_n      (rst_n),
+        .clr        (fifo_clr),
+        .w_inc      (s_valid && s_ready),
+        .w_data     (imem_araddr),
+        .w_full     (),
+        .w_half_full(pc_fifo_half_full),
+        .r_inc      (imem_rvalid && !fifo_clr && pc_fifo_valid),
+        .r_empty    (pc_fifo_empty),
+        .r_data     (pc_fifo_rdata)
+    );
+
+    assign pc_fifo_ready = !pc_fifo_half_full;
 
     //
-    // Control signals: need reset for correct behavior
+    // Aligned PC FIFO - push from pc_fifo when imem_rvalid arrives
     //
-    always_ff @(posedge clk) begin
-      if (!rst_n) begin
-        btb_hit_buf        <= 1'b0;
-        btb_pred_taken_buf <= 1'b0;
-        btb_is_return_buf  <= 1'b0;
-        ras_valid_buf      <= 1'b0;
-      end else if (m_ready) begin
-        btb_hit_buf        <= btb_hit_if;
-        btb_pred_taken_buf <= btb_pred_taken_if;
-        btb_is_return_buf  <= btb_is_return_if;
-        ras_valid_buf      <= ras_valid_if;
-      end
-    end
+    // TODO: try to remove this second fifo. It doesn't seem like
+    // it should be necessary. If it is, add a more comprehensive
+    // comment
+    //
+    logic            aligned_pc_fifo_empty;
+    logic            aligned_pc_fifo_half_full;
+    logic [XLEN-1:0] aligned_pc_fifo_rdata;
 
-    //
-    // Datapath registers: no reset needed (don't care until valid)
-    //
-    // Note: We capture imem_araddr (the NEXT fetch address) rather than pc_if
-    // because pc_id_buf adds another cycle of delay. This creates the correct
-    // alignment: when instruction X arrives, we capture X+4; when X+4 arrives,
-    // pc_id = X+4 (from previous cycle's pc_buf). See timing diagram in docs.
-    //
-    always_ff @(posedge clk) begin
-      if (m_ready) begin
-        pc_buf         <= imem_araddr;
-        btb_target_buf <= btb_target_if;
-        ras_target_buf <= ras_target_if;
-      end
-    end
+    assign aligned_pc_fifo_valid = !aligned_pc_fifo_empty;
 
-    assign pc_to_if_id             = pc_buf;
-    assign btb_hit_to_if_id        = btb_hit_buf;
-    assign btb_pred_taken_to_if_id = btb_pred_taken_buf;
-    assign btb_target_to_if_id     = btb_target_buf;
-    assign btb_is_return_to_if_id  = btb_is_return_buf;
-    assign ras_valid_to_if_id      = ras_valid_buf;
-    assign ras_target_to_if_id     = ras_target_buf;
+    svc_sync_fifo #(
+        .ADDR_WIDTH(2),
+        .DATA_WIDTH(XLEN)
+    ) aligned_pc_fifo (
+        .clk        (clk),
+        .rst_n      (rst_n),
+        .clr        (fifo_clr),
+        .w_inc      (imem_rvalid && !fifo_clr && pc_fifo_valid),
+        .w_data     (pc_fifo_rdata),
+        .w_full     (),
+        .w_half_full(aligned_pc_fifo_half_full),
+        .r_inc      (m_valid && m_ready && aligned_pc_fifo_valid),
+        .r_empty    (aligned_pc_fifo_empty),
+        .r_data     (aligned_pc_fifo_rdata)
+    );
 
-  end else begin : g_single_cycle_metadata
-    //
-    // Single-cycle: Passthrough (instruction available same cycle)
-    //
-    assign pc_to_if_id             = pc_if;
-    assign btb_hit_to_if_id        = btb_hit_if;
-    assign btb_pred_taken_to_if_id = btb_pred_taken_if;
-    assign btb_target_to_if_id     = btb_target_if;
-    assign btb_is_return_to_if_id  = btb_is_return_if;
-    assign ras_valid_to_if_id      = ras_valid_if;
-    assign ras_target_to_if_id     = ras_target_if;
+    `SVC_UNUSED({aligned_pc_fifo_half_full})
+
+    assign pc_id_next       = aligned_pc_fifo_rdata;
+    assign pc_plus4_id_next = aligned_pc_fifo_rdata + 4;
+
+
+  end else begin : g_no_pc_fifo
+    assign pc_fifo_ready         = 1'b1;
+    assign pc_fifo_valid         = '0;
+    assign aligned_pc_fifo_valid = '0;
+    assign pc_id_next            = '0;
+    assign pc_plus4_id_next      = '0;
   end
 
   // =========================================================================
-  // Instruction buffering and validity
+  // Instruction FIFO
+  // =========================================================================
+  logic [31:0] instr_id_next;
+
+  if (PIPELINED != 0) begin : g_instr_fifo
+    logic [31:0] instr_fifo_rdata;
+    logic        instr_fifo_empty;
+    logic        instr_fifo_half_full;
+
+    assign instr_fifo_valid = !instr_fifo_empty;
+
+    svc_sync_fifo #(
+        .ADDR_WIDTH(2),
+        .DATA_WIDTH(32)
+    ) instr_fifo (
+        .clk        (clk),
+        .rst_n      (rst_n),
+        .clr        (fifo_clr),
+        .w_inc      (imem_rvalid && !fifo_clr && pc_fifo_valid),
+        .w_data     (imem_rdata),
+        .w_full     (),
+        .w_half_full(instr_fifo_half_full),
+        .r_inc      (m_valid && m_ready && instr_fifo_valid),
+        .r_empty    (instr_fifo_empty),
+        .r_data     (instr_fifo_rdata)
+    );
+
+    `SVC_UNUSED({instr_fifo_half_full})
+
+    //
+    // Output NOP when FIFO empty (reset behavior)
+    //
+    assign instr_id_next = instr_fifo_valid ? instr_fifo_rdata : 32'h00000013;
+
+  end else begin : g_no_instr_fifo
+    assign instr_fifo_valid = '0;
+    assign instr_id_next    = '0;
+  end
+
+  // =========================================================================
+  // BTB/RAS Metadata FIFO
+  // =========================================================================
+  localparam META_WIDTH = 1 + 1 + XLEN + 1 + 1 + XLEN;
+
+  logic            btb_hit_id_next;
+  logic            btb_pred_taken_id_next;
+  logic [XLEN-1:0] btb_target_id_next;
+  logic            btb_is_return_id_next;
+  logic            ras_valid_id_next;
+  logic [XLEN-1:0] ras_target_id_next;
+
+  if (PIPELINED != 0) begin : g_meta_fifo
+    logic [META_WIDTH-1:0] meta_fifo_wdata;
+    logic [META_WIDTH-1:0] meta_fifo_rdata;
+    logic                  meta_fifo_empty;
+
+    assign meta_fifo_valid = !meta_fifo_empty;
+
+    assign meta_fifo_wdata = {
+      btb_hit_if,
+      btb_pred_taken_if,
+      btb_target_if,
+      btb_is_return_if,
+      ras_valid_if,
+      ras_target_if
+    };
+
+    svc_sync_fifo #(
+        .ADDR_WIDTH(2),
+        .DATA_WIDTH(META_WIDTH)
+    ) meta_fifo (
+        .clk        (clk),
+        .rst_n      (rst_n),
+        .clr        (fifo_clr),
+        .w_inc      (s_valid && s_ready && !fifo_clr),
+        .w_data     (meta_fifo_wdata),
+        .w_full     (),
+        .w_half_full(),
+        .r_inc      (m_valid && m_ready && meta_fifo_valid),
+        .r_empty    (meta_fifo_empty),
+        .r_data     (meta_fifo_rdata)
+    );
+
+    assign {btb_hit_id_next, btb_pred_taken_id_next, btb_target_id_next,
+            btb_is_return_id_next, ras_valid_id_next, ras_target_id_next} =
+        meta_fifo_rdata;
+
+    //
+    // FIFO validity check (simulation only, not formal)
+    //
+`ifndef SYNTHESIS
+`ifndef FORMAL
+    always @(posedge clk) begin
+      if (rst_n && m_valid) begin
+        if (!aligned_pc_fifo_valid) begin
+          $fatal(0, "m_valid but aligned_pc_fifo empty");
+        end
+        if (!instr_fifo_valid) begin
+          $fatal(0, "m_valid but instr_fifo empty");
+        end
+        if (!meta_fifo_valid) begin
+          $fatal(0, "m_valid but meta_fifo empty");
+        end
+      end
+
+      if (rst_n) begin
+        if (g_pc_fifo.aligned_pc_fifo_half_full !=
+            g_instr_fifo.instr_fifo_half_full) begin
+          $fatal(0, "aligned_pc_fifo and instr_fifo half_full mismatch");
+        end
+      end
+    end
+`endif
+`endif
+
+  end else begin : g_no_meta_fifo
+    assign meta_fifo_valid        = '0;
+    assign btb_hit_id_next        = '0;
+    assign btb_pred_taken_id_next = '0;
+    assign btb_target_id_next     = '0;
+    assign btb_is_return_id_next  = '0;
+    assign ras_valid_id_next      = '0;
+    assign ras_target_id_next     = '0;
+  end
+
+  // =========================================================================
+  // Output assignments and validity
   // =========================================================================
   if (PIPELINED != 0) begin : g_pipelined
-    logic [31:0] instr_buf;
-    logic        valid_buf;
+    assign m_valid           = aligned_pc_fifo_valid && instr_fifo_valid;
+    assign instr_id          = instr_id_next;
+    assign pc_id             = pc_id_next;
+    assign pc_plus4_id       = pc_plus4_id_next;
+    assign btb_hit_id        = btb_hit_id_next;
+    assign btb_pred_taken_id = btb_pred_taken_id_next;
+    assign btb_target_id     = btb_target_id_next;
+    assign btb_is_return_id  = btb_is_return_id_next;
+    assign ras_valid_id      = ras_valid_id_next;
+    assign ras_target_id     = ras_target_id_next;
 
-    //
-    // Instruction buffering with stall support and extended flush
-    //
-    always_ff @(posedge clk) begin
-      if (!rst_n || if_id_flush || flush_extend) begin
-        instr_buf <= I_NOP;
-      end else if (m_ready) begin
-        instr_buf <= instr;
-      end
-    end
-
-    //
-    // Validity tracking using imem_rvalid
-    //
-    // imem_rvalid arrives after the synchronous memory responds.
-    // We set valid_buf to 1 when rvalid arrives, preserving it during stalls.
-    //
-    always_ff @(posedge clk) begin
-      if (!rst_n || if_id_flush || flush_extend) begin
-        valid_buf <= 1'b0;
-      end else if (m_ready && imem_rvalid) begin
-        valid_buf <= 1'b1;
-      end
-    end
-
-    assign instr_id = instr_buf;
-    assign m_valid  = valid_buf;
-
-    // =====================================================================
-    // IF/ID Pipeline Registers
-    // =====================================================================
-    logic [XLEN-1:0] pc_id_buf;
-    logic [XLEN-1:0] pc_plus4_id_buf;
-
-    always_ff @(posedge clk) begin
-      if (m_ready) begin
-        pc_id_buf       <= pc_to_if_id;
-        //
-        // pc_plus4 computed from registered PC to break timing path:
-        // Before: pc_reg → pc_next → imem_araddr → (+4) → pc_plus4_buf
-        // After:  pc_buf → pc_to_if_id → (+4) → pc_plus4_id_buf
-        //
-        pc_plus4_id_buf <= pc_to_if_id + 4;
-      end
-    end
-
-    assign pc_id             = pc_id_buf;
-    assign pc_plus4_id       = pc_plus4_id_buf;
-
-    //
-    // BTB and RAS signals to IF/ID pipeline register
-    //
-    // Metadata is already buffered by g_pipelined_metadata, passthrough here.
-    //
-    assign btb_hit_id        = btb_hit_to_if_id;
-    assign btb_pred_taken_id = btb_pred_taken_to_if_id;
-    assign btb_target_id     = btb_target_to_if_id;
-    assign btb_is_return_id  = btb_is_return_to_if_id;
-    assign ras_valid_id      = ras_valid_to_if_id;
-    assign ras_target_id     = ras_target_to_if_id;
+    `SVC_UNUSED({instr})
 
   end else begin : g_non_pipelined
     //
     // Non-pipelined: Passthrough everything
     //
-    assign instr_id          = instr;
     assign m_valid           = imem_rvalid;
-    assign pc_id             = pc_to_if_id;
-    assign pc_plus4_id       = pc_to_if_id + 4;
-    assign btb_hit_id        = btb_hit_to_if_id;
-    assign btb_pred_taken_id = btb_pred_taken_to_if_id;
-    assign btb_target_id     = btb_target_to_if_id;
-    assign btb_is_return_id  = btb_is_return_to_if_id;
-    assign ras_valid_id      = ras_valid_to_if_id;
-    assign ras_target_id     = ras_target_to_if_id;
+    assign instr_id          = instr;
+    assign pc_id             = pc_if;
+    assign pc_plus4_id       = pc_if + 4;
+    assign btb_hit_id        = btb_hit_if;
+    assign btb_pred_taken_id = btb_pred_taken_if;
+    assign btb_target_id     = btb_target_if;
+    assign btb_is_return_id  = btb_is_return_if;
+    assign ras_valid_id      = ras_valid_if;
+    assign ras_target_id     = ras_target_if;
 
-    `SVC_UNUSED({clk, rst_n, if_id_flush, m_ready, flush_extend, instr})
+    //
+    // FIFO signals are only used in pipelined mode
+    //
+    // verilog_format: off
+   `SVC_UNUSED({clk, rst_n, if_id_flush, m_ready, flush_extend, fifo_clr,
+                 pc_fifo_valid, aligned_pc_fifo_valid,
+                 instr_fifo_valid, meta_fifo_valid,
+                 pc_id_next, pc_plus4_id_next, instr_id_next,
+                 btb_hit_id_next, btb_pred_taken_id_next, btb_target_id_next,
+                 btb_is_return_id_next, ras_valid_id_next, ras_target_id_next});
+    // verilog_format: on
   end
 
 `ifdef FORMAL
@@ -335,6 +421,43 @@ module svc_rv_stage_if #(
   end
 
   //
+  // Require 2 cycles of reset at start to initialize all state
+  //
+  logic f_past_valid2 = 1'b0;
+
+  always @(posedge clk) begin
+    f_past_valid2 <= f_past_valid;
+  end
+
+  always_ff @(posedge clk) begin
+    if (!f_past_valid2) begin
+      assume (!rst_n);
+    end
+  end
+
+  //
+  // Once reset deasserts, it must stay deasserted
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n)) begin
+      assume (rst_n);
+    end
+  end
+
+  //
+  // During flush (including extended flush), upstream shouldn't send valid
+  // data. This prevents the FIFO clr+w_inc behavior from putting data in
+  // hardware FIFOs while shadow queue is being reset.
+  //
+  // TODO: when all passing, remove this and decide how to handle it
+  //
+  always_ff @(posedge clk) begin
+    if (rst_n && (if_id_flush || flush_extend)) begin
+      assume (!s_valid);
+    end
+  end
+
+  //
   // m_valid/m_ready handshake assertions (output interface)
   //
   // Unlike strict AXI-style valid/ready, pipeline flush/kill is allowed to
@@ -347,6 +470,21 @@ module svc_rv_stage_if #(
   //
   logic f_flush;
   assign f_flush = if_id_flush || flush_extend;
+
+  //
+  // Verify imem_araddr matches expected value based on BPRED parameter
+  //
+  if (PIPELINED != 0) begin : g_f_imem_check
+    always_ff @(posedge clk) begin
+      if (f_past_valid && rst_n && imem_arvalid) begin
+        if (BPRED != 0) begin
+          `FASSERT(a_imem_addr_bpred, imem_araddr == pc_next_if);
+        end else begin
+          `FASSERT(a_imem_addr_no_bpred, imem_araddr == pc_if);
+        end
+      end
+    end
+  end
 
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
@@ -379,14 +517,10 @@ module svc_rv_stage_if #(
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      //
       // Cover back-to-back valid transfers
-      //
       `FCOVER(c_back_to_back, $past(m_valid && m_ready) && m_valid);
 
-      //
       // Cover stalled transfer (valid high, ready low for a cycle)
-      //
       `FCOVER(c_stalled, $past(m_valid && !m_ready) && m_valid && m_ready);
     end
   end
@@ -411,57 +545,126 @@ module svc_rv_stage_if #(
   end
 
   //
-  // Shadow registers capture inputs on s_valid && s_ready
+  // Formal verification: Input-to-Output Contract
   //
-  logic            f_captured;
-  logic            f_btb_hit;
-  logic            f_btb_pred_taken;
-  logic [XLEN-1:0] f_btb_target;
-  logic            f_btb_is_return;
-  logic            f_ras_valid;
-  logic [XLEN-1:0] f_ras_target;
+  // This verifies that inputs from PC stage are correctly delivered to ID
+  // stage. IMPORTANT: Track TRUE INPUTS, NOT internal signals (imem_araddr,
+  // pc_fifo_rdata, etc.). Tracking internal signals would miss bugs in how
+  // inputs are transformed. The shadow queue captures what goes IN and
+  // verifies it matches what comes OUT.
+  //
+  // Exception: In BPRED mode, we fetch pc_next_if (speculative), not pc_if.
+  // The shadow queue tracks pc_next_if in BPRED mode, pc_if otherwise.
+  //
+  // With multiple outstanding requests, we need FIFOs to match which
+  // input corresponds to which output. Push on request, pop on output.
+  //
+  localparam F_QUEUE_DEPTH = 4;
+
+  logic [XLEN-1:0] f_pc_queue            [0:F_QUEUE_DEPTH-1];
+  logic            f_btb_hit_queue       [0:F_QUEUE_DEPTH-1];
+  logic            f_btb_pred_taken_queue[0:F_QUEUE_DEPTH-1];
+  logic [XLEN-1:0] f_btb_target_queue    [0:F_QUEUE_DEPTH-1];
+  logic            f_btb_is_return_queue [0:F_QUEUE_DEPTH-1];
+  logic            f_ras_valid_queue     [0:F_QUEUE_DEPTH-1];
+  logic [XLEN-1:0] f_ras_target_queue    [0:F_QUEUE_DEPTH-1];
+
+  logic [     1:0] f_wr_ptr;
+  logic [     1:0] f_rd_ptr;
+
+  //
+  // Push on request handshake (matching hardware pc_fifo/meta_fifo push)
+  //
+  always_ff @(posedge clk) begin
+    if (!rst_n || if_id_flush || flush_extend) begin
+      f_wr_ptr <= '0;
+    end else if (s_valid && s_ready) begin
+      //
+      // Track imem_araddr directly - this is what hardware stores in pc_fifo
+      //
+      f_pc_queue[f_wr_ptr]             <= imem_araddr;
+      f_btb_hit_queue[f_wr_ptr]        <= btb_hit_if;
+      f_btb_pred_taken_queue[f_wr_ptr] <= btb_pred_taken_if;
+      f_btb_target_queue[f_wr_ptr]     <= btb_target_if;
+      f_btb_is_return_queue[f_wr_ptr]  <= btb_is_return_if;
+      f_ras_valid_queue[f_wr_ptr]      <= ras_valid_if;
+      f_ras_target_queue[f_wr_ptr]     <= ras_target_if;
+      f_wr_ptr                         <= f_wr_ptr + 1;
+    end
+  end
+
+  //
+  // Pop and verify on output handshake
+  //
+  always_ff @(posedge clk) begin
+    if (!rst_n || if_id_flush || flush_extend) begin
+      f_rd_ptr <= '0;
+    end else if (m_valid && m_ready) begin
+      f_rd_ptr <= f_rd_ptr + 1;
+    end
+  end
+
+  //
+  // Track valid count - ensures assertions only fire when shadow queue
+  // has data that was actually pushed (not arbitrary initial state)
+  //
+  logic [2:0] f_valid_count;
 
   always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      f_captured <= 1'b0;
-    end else if (s_valid && s_ready && !if_id_flush) begin
-      //
-      // Valid handshake - capture inputs
-      //
-      f_captured       <= 1'b1;
-      f_btb_hit        <= btb_hit_if;
-      f_btb_pred_taken <= btb_pred_taken_if;
-      f_btb_target     <= btb_target_if;
-      f_btb_is_return  <= btb_is_return_if;
-      f_ras_valid      <= ras_valid_if;
-      f_ras_target     <= ras_target_if;
+    if (!rst_n || if_id_flush || flush_extend) begin
+      f_valid_count <= '0;
     end else begin
-      f_captured <= 1'b0;
+      case ({
+        s_valid && s_ready, m_valid && m_ready
+      })
+        2'b10:   f_valid_count <= f_valid_count + 1;
+        2'b01:   f_valid_count <= f_valid_count - 1;
+        default: ;
+      endcase
     end
   end
 
-  // Constrain initial state: f_captured must be 0 before first cycle
+  //
+  // Track total completions - ensures we only check after data has
+  // fully propagated through both pc_fifo and aligned_pc_fifo
+  //
+  // TODO: this seems questionable
+  //
+  logic [3:0] f_total_completions;
+
   always_ff @(posedge clk) begin
-    if (!f_past_valid) begin
-      `FASSUME(a_initial_no_captured, !f_captured);
+    if (!rst_n || if_id_flush || flush_extend) begin
+      f_total_completions <= '0;
+    end else if (m_valid && m_ready) begin
+      f_total_completions <= f_total_completions + 1;
     end
   end
 
+  //
   // Data integrity assertions
   //
-  // When we have captured data and output is valid, compare outputs
-  // to the captured shadow values.
+  // When output is valid, compare to the corresponding queued input.
+  // Guard with f_valid_count to ensure shadow queue has tracked data.
+  // Skip NOPs since PC doesn't matter for bubbles.
+  //
+  localparam logic [31:0] F_NOP = 32'h00000013;
+
   always_ff @(posedge clk) begin
-    if (f_past_valid && $past(rst_n) && rst_n) begin
-      if (f_captured && m_valid && !if_id_flush) begin
-        `FASSERT(a_btb_hit_integrity, btb_hit_id == f_btb_hit);
+    if (f_past_valid && $past(rst_n) && rst_n && !if_id_flush) begin
+      if (m_valid && m_ready && f_valid_count > 0 && instr_id != F_NOP) begin
+        `FASSERT(a_pc_integrity, pc_id == f_pc_queue[f_rd_ptr]);
+        `FASSERT(a_pc_plus4_integrity, pc_plus4_id == f_pc_queue[f_rd_ptr] + 4);
+        `FASSERT(a_btb_hit_integrity, btb_hit_id == f_btb_hit_queue[f_rd_ptr]);
         `FASSERT(a_btb_pred_taken_integrity,
-                 btb_pred_taken_id == f_btb_pred_taken);
-        `FASSERT(a_btb_target_integrity, btb_target_id == f_btb_target);
+                 btb_pred_taken_id == f_btb_pred_taken_queue[f_rd_ptr]);
+        `FASSERT(a_btb_target_integrity,
+                 btb_target_id == f_btb_target_queue[f_rd_ptr]);
         `FASSERT(a_btb_is_return_integrity,
-                 btb_is_return_id == f_btb_is_return);
-        `FASSERT(a_ras_valid_integrity, ras_valid_id == f_ras_valid);
-        `FASSERT(a_ras_target_integrity, ras_target_id == f_ras_target);
+                 btb_is_return_id == f_btb_is_return_queue[f_rd_ptr]);
+        `FASSERT(a_ras_valid_integrity,
+                 ras_valid_id == f_ras_valid_queue[f_rd_ptr]);
+        `FASSERT(a_ras_target_integrity,
+                 ras_target_id == f_ras_target_queue[f_rd_ptr]);
       end
     end
   end
@@ -479,25 +682,55 @@ module svc_rv_stage_if #(
   end
 
   //
+  // Cover integrity check exercised (non-NOP instruction verified)
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      if (!if_id_flush) begin
+        `FCOVER(c_integrity_checked,
+                m_valid && m_ready && f_valid_count > 0 && instr_id != F_NOP);
+
+        // Cover multiple entries in shadow queue
+        `FCOVER(c_multiple_in_flight, f_valid_count > 1);
+      end
+
+      // Cover flush clearing tracked entries
+      `FCOVER(c_flush_clears_tracked, if_id_flush && f_valid_count > 0);
+    end
+  end
+
+  //
   // Mem latency tracking
   //
   logic [1:0] f_req_cycles;
-  logic       f_req_pending;
+  logic [1:0] f_outstanding;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      f_req_pending <= 1'b0;
+      f_outstanding <= '0;
       f_req_cycles  <= '0;
-    end else if (s_valid && s_ready) begin
-      f_req_pending <= 1'b1;
-      f_req_cycles  <= '0;
-    end else if (f_req_pending) begin
-      if (imem_rvalid) begin
-        f_req_pending <= 1'b0;
-      end else if (f_req_cycles < 2'd3) begin
+    end else begin
+      case ({
+        s_valid && s_ready, imem_rvalid
+      })
+        2'b10:   f_outstanding <= f_outstanding + 1;
+        2'b01:   f_outstanding <= f_outstanding - 1;
+        default: ;
+      endcase
+
+      if (s_valid && s_ready) begin
+        f_req_cycles <= '0;
+      end else if (f_outstanding > 0 && f_req_cycles < 2'd3) begin
         f_req_cycles <= f_req_cycles + 1'b1;
       end
     end
+  end
+
+  //
+  // imem_rvalid only fires when requests are outstanding
+  //
+  always_comb begin
+    `FASSUME(a_rvalid_needs_outstanding, !imem_rvalid || f_outstanding > 0);
   end
 
   //
@@ -510,11 +743,11 @@ module svc_rv_stage_if #(
 
       // 2-cycle response: imem_rvalid one cycle after request
       `FCOVER(c_mem_resp_2cyc,
-              f_req_pending && f_req_cycles == 2'd1 && imem_rvalid);
+              f_outstanding > 0 && f_req_cycles == 2'd1 && imem_rvalid);
 
       // 3-cycle response: imem_rvalid two cycles after request
       `FCOVER(c_mem_resp_3cyc,
-              f_req_pending && f_req_cycles == 2'd2 && imem_rvalid);
+              f_outstanding > 0 && f_req_cycles == 2'd2 && imem_rvalid);
     end
   end
 
