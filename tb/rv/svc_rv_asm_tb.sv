@@ -33,6 +33,7 @@ module svc_rv_asm_tb;
   logic        jb_target_src;
   logic        is_m;
   logic        is_csr;
+  logic        is_ebreak;
   logic        is_jal;
   logic        is_jalr;
   logic [ 4:0] rd;
@@ -66,6 +67,7 @@ module svc_rv_asm_tb;
       .jb_target_src(jb_target_src),
       .is_m         (is_m),
       .is_csr       (is_csr),
+      .is_ebreak    (is_ebreak),
       .is_jal       (is_jal),
       .is_jalr      (is_jalr),
       .rd           (rd),

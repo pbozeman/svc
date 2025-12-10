@@ -187,6 +187,7 @@ module svc_rv #(
   logic            is_mc_ex;
   logic            trap_ex;
   logic [     1:0] trap_code_ex;
+  logic            is_ebreak_ex;
   logic [    31:0] instr_ex;
   logic [     4:0] rd_ex;
   logic [     4:0] rs1_ex;
@@ -239,6 +240,7 @@ module svc_rv #(
   logic [XLEN-1:0] pred_target_mem;
   logic            trap_mem;
   logic [     1:0] trap_code_mem;
+  logic            is_ebreak_mem;
   logic            mispredicted_mem;
   logic [XLEN-1:0] csr_rdata_mem;
   logic [XLEN-1:0] m_result_mem;
@@ -272,6 +274,7 @@ module svc_rv #(
   logic [    63:0] product_64_wb;
   logic            trap_wb;
   logic [     1:0] trap_code_wb;
+  logic            is_ebreak_wb;
 `ifdef RISCV_FORMAL
   logic            f_mem_write_wb;
   logic [XLEN-1:0] f_dmem_waddr_wb;

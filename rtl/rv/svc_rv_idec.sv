@@ -38,6 +38,7 @@ module svc_rv_idec #(
     output logic       is_jalr,
     output logic       is_m,
     output logic       is_csr,
+    output logic       is_ebreak,
     output logic       instr_invalid,
 
     output logic [4:0] rd,
@@ -189,6 +190,13 @@ module svc_rv_idec #(
   end else begin : g_no_m_ext
     assign is_m = 1'b0;
   end
+
+  //
+  // EBREAK detection
+  //
+  // Decoded early to avoid timing-critical 32-bit comparison in WB stage.
+  //
+  assign is_ebreak = (instr == I_EBREAK);
 
   //
   // Invalid instruction detection

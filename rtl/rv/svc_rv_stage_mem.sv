@@ -66,6 +66,7 @@ module svc_rv_stage_mem #(
     input logic [XLEN-1:0] pred_target_mem,
     input logic            trap_mem,
     input logic [     1:0] trap_code_mem,
+    input logic            is_ebreak_mem,
 
     //
     // Data memory interface
@@ -103,6 +104,7 @@ module svc_rv_stage_mem #(
     output logic [    63:0] product_64_wb,
     output logic            trap_wb,
     output logic [     1:0] trap_code_wb,
+    output logic            is_ebreak_wb,
 
 `ifdef RISCV_FORMAL
     output logic            f_mem_write_wb,
@@ -384,7 +386,7 @@ module svc_rv_stage_mem #(
   //
   // Payload signals (NO bubble) - can be stale
   //
-  localparam int PAYLOAD_WIDTH = 3 + 32 + 5 + 3 + 7 * XLEN + 64 + 2;
+  localparam int PAYLOAD_WIDTH = 3 + 32 + 5 + 3 + 7 * XLEN + 64 + 2 + 1;
 
   svc_rv_pipe_data #(
       .WIDTH(PAYLOAD_WIDTH),
@@ -412,6 +414,7 @@ module svc_rv_stage_mem #(
         csr_rdata_mem,
         m_result_mem,
         product_64_mem,
+        is_ebreak_mem,
         mem_misalign ? TRAP_LDST_MISALIGN : trap_code_mem
       }),
       .data_o({
@@ -427,6 +430,7 @@ module svc_rv_stage_mem #(
         csr_rdata_wb,
         m_result_wb,
         product_64_wb,
+        is_ebreak_wb,
         trap_code_wb
       })
   );
@@ -582,6 +586,7 @@ module svc_rv_stage_mem #(
         `FASSUME(a_mul_hh_mem_stable, $stable(mul_hh_mem));
         `FASSUME(a_trap_mem_stable, $stable(trap_mem));
         `FASSUME(a_trap_code_mem_stable, $stable(trap_code_mem));
+        `FASSUME(a_is_ebreak_mem_stable, $stable(is_ebreak_mem));
       end
     end
   end
@@ -615,6 +620,7 @@ module svc_rv_stage_mem #(
         `FASSERT(a_jb_target_wb_stable, $stable(jb_target_wb));
         `FASSERT(a_trap_wb_stable, $stable(trap_wb));
         `FASSERT(a_trap_code_wb_stable, $stable(trap_code_wb));
+        `FASSERT(a_is_ebreak_wb_stable, $stable(is_ebreak_wb));
       end
     end
   end
