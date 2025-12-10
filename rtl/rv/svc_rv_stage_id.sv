@@ -89,6 +89,7 @@ module svc_rv_stage_id #(
     output logic            is_jalr_ex,
     output logic            trap_ex,
     output logic [     1:0] trap_code_ex,
+    output logic            is_ebreak_ex,
     output logic [    31:0] instr_ex,
     output logic [     4:0] rd_ex,
     output logic [     4:0] rs1_ex,
@@ -136,6 +137,7 @@ module svc_rv_stage_id #(
   logic            is_csr_id;
   logic            is_jal_id;
   logic            is_mc_id;
+  logic            is_ebreak_id;
   logic            instr_invalid_id;
   logic [     4:0] rd_id;
   logic [     2:0] funct3_id;
@@ -171,6 +173,7 @@ module svc_rv_stage_id #(
       .jb_target_src(jb_target_src_id),
       .is_m         (is_m_id),
       .is_csr       (is_csr_id),
+      .is_ebreak    (is_ebreak_id),
       .is_jal       (is_jal_id),
       .is_jalr      (is_jalr_id),
       .instr_invalid(instr_invalid_id),
@@ -351,7 +354,8 @@ module svc_rv_stage_id #(
   //
   // Processor datapath signals
   //
-  localparam int DATA_W = 2 + 1 + 2 + 3 + 1 + 1 + 1 + 1 + 2 + 5 + 5 + 5 + 3 + 7;
+  localparam
+      int DATA_W = 2 + 1 + 2 + 3 + 1 + 1 + 1 + 1 + 1 + 2 + 5 + 5 + 5 + 3 + 7;
 
   svc_rv_pipe_data #(
       .WIDTH(DATA_W),
@@ -375,6 +379,7 @@ module svc_rv_stage_id #(
         is_mc_id,
         is_m_id,
         is_csr_id,
+        is_ebreak_id,
         instr_invalid_id ? TRAP_INSTR_INVALID : TRAP_NONE,
         rd_id,
         rs1_id,
@@ -391,6 +396,7 @@ module svc_rv_stage_id #(
         is_mc_ex,
         is_m_ex,
         is_csr_ex,
+        is_ebreak_ex,
         trap_code_ex,
         rd_ex,
         rs1_ex,
@@ -589,6 +595,7 @@ module svc_rv_stage_id #(
         `FASSUME(a_is_mc_id_stable, is_mc_id == $past(is_mc_id));
         `FASSUME(a_is_m_id_stable, is_m_id == $past(is_m_id));
         `FASSUME(a_is_csr_id_stable, is_csr_id == $past(is_csr_id));
+        `FASSUME(a_is_ebreak_id_stable, is_ebreak_id == $past(is_ebreak_id));
         `FASSUME(a_instr_invalid_id_stable, instr_invalid_id == $past(
                  instr_invalid_id));
         `FASSUME(a_rd_id_stable, rd_id == $past(rd_id));
@@ -632,6 +639,7 @@ module svc_rv_stage_id #(
         `FASSERT(a_is_mc_stable, is_mc_ex == $past(is_mc_ex));
         `FASSERT(a_is_m_stable, is_m_ex == $past(is_m_ex));
         `FASSERT(a_is_csr_stable, is_csr_ex == $past(is_csr_ex));
+        `FASSERT(a_is_ebreak_stable, is_ebreak_ex == $past(is_ebreak_ex));
         `FASSERT(a_is_jal_stable, is_jal_ex == $past(is_jal_ex));
         `FASSERT(a_is_jalr_stable, is_jalr_ex == $past(is_jalr_ex));
         `FASSERT(a_trap_stable, trap_ex == $past(trap_ex));

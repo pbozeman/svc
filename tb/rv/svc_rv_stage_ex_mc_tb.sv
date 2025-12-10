@@ -39,6 +39,7 @@ module svc_rv_stage_ex_mc_tb;
   logic            is_csr_ex;
   logic            trap_ex;
   logic [     1:0] trap_code_ex;
+  logic            is_ebreak_ex;
   logic [    31:0] instr_ex;
   logic [     4:0] rd_ex;
   logic [     4:0] rs1_ex;
@@ -101,6 +102,7 @@ module svc_rv_stage_ex_mc_tb;
   logic            btb_update_taken;
   logic            btb_update_is_ret;
   logic            btb_update_is_jal;
+  logic            is_ebreak_mem;
   // verilator lint_on UNUSEDSIGNAL
 
   logic            m_valid;
@@ -139,6 +141,7 @@ module svc_rv_stage_ex_mc_tb;
       .is_mc_ex             (is_mc_ex),
       .is_m_ex              (is_m_ex),
       .is_csr_ex            (is_csr_ex),
+      .is_ebreak_ex         (is_ebreak_ex),
       .trap_ex              (trap_ex),
       .trap_code_ex         (trap_code_ex),
       .instr_ex             (instr_ex),
@@ -189,6 +192,7 @@ module svc_rv_stage_ex_mc_tb;
       .pred_target_mem      (pred_target_mem),
       .trap_mem             (trap_mem),
       .trap_code_mem        (trap_code_mem),
+      .is_ebreak_mem        (is_ebreak_mem),
       .m_valid              (m_valid),
       .m_ready              (m_ready),
       .op_active_ex         (op_active_ex),
@@ -220,6 +224,7 @@ module svc_rv_stage_ex_mc_tb;
     is_mc_ex         = 1'b0;
     is_m_ex          = 1'b0;
     is_csr_ex        = 1'b0;
+    is_ebreak_ex     = 1'b0;
     trap_ex          = 1'b0;
     trap_code_ex     = TRAP_NONE;
     instr_ex         = I_NOP;

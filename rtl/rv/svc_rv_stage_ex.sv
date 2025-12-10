@@ -70,6 +70,7 @@ module svc_rv_stage_ex #(
     input logic            is_csr_ex,
     input logic            trap_ex,
     input logic [     1:0] trap_code_ex,
+    input logic            is_ebreak_ex,
     input logic [    31:0] instr_ex,
     input logic [     4:0] rd_ex,
     input logic [     4:0] rs1_ex,
@@ -127,6 +128,7 @@ module svc_rv_stage_ex #(
     output logic [XLEN-1:0] pred_target_mem,
     output logic            trap_mem,
     output logic [     1:0] trap_code_mem,
+    output logic            is_ebreak_mem,
 
     // Outputs to hazard unit
     output logic op_active_ex,
@@ -613,6 +615,7 @@ module svc_rv_stage_ex #(
   1 +  // is_jmp_mem
   1 +  // branch_taken_mem
   1 +  // bpred_taken_mem
+  1 +  // is_ebreak_mem
   32 +  // instr_mem
   3 +  // res_src_mem
   5 +  // rd_mem
@@ -647,6 +650,7 @@ module svc_rv_stage_ex #(
         is_jmp_ex,
         branch_taken_ex,
         bpred_taken_ex,
+        is_ebreak_ex,
         instr_ex,
         res_src_ex,
         rd_ex,
@@ -671,6 +675,7 @@ module svc_rv_stage_ex #(
         is_jmp_mem,
         branch_taken_mem,
         bpred_taken_mem,
+        is_ebreak_mem,
         instr_mem,
         res_src_mem,
         rd_mem,
@@ -802,6 +807,7 @@ module svc_rv_stage_ex #(
         `FASSERT(a_branch_taken_mem_stable, $stable(branch_taken_mem));
         `FASSERT(a_bpred_taken_mem_stable, $stable(bpred_taken_mem));
         `FASSERT(a_pred_target_mem_stable, $stable(pred_target_mem));
+        `FASSERT(a_is_ebreak_mem_stable, $stable(is_ebreak_mem));
         `FASSERT(a_trap_mem_stable, $stable(trap_mem));
         `FASSERT(a_trap_code_mem_stable, $stable(trap_code_mem));
       end

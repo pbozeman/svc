@@ -48,6 +48,7 @@ module svc_rv_stage_wb #(
     input logic [    63:0] product_64_wb,
     input logic            trap_wb,
     input logic [     1:0] trap_code_wb,
+    input logic            is_ebreak_wb,
     input logic            reg_write_wb,
 
 `ifdef RISCV_FORMAL
@@ -154,10 +155,8 @@ module svc_rv_stage_wb #(
   // Computed input values
   //
   logic [XLEN-1:0] pc_wb;
-  logic            ebreak_wb;
 
-  assign pc_wb     = pc_plus4_wb - XLEN'(32'd4);
-  assign ebreak_wb = (instr_wb == I_EBREAK);
+  assign pc_wb = pc_plus4_wb - XLEN'(32'd4);
 
   //
   // Pipeline control
@@ -207,7 +206,7 @@ module svc_rv_stage_wb #(
         trap_wb,
         trap_code_wb,
         reg_write_wb,
-        ebreak_wb
+        is_ebreak_wb
       }),
       .data_o({
         instr_ret,
@@ -303,6 +302,7 @@ module svc_rv_stage_wb #(
         `FASSUME(a_trap_stable, trap_wb == $past(trap_wb));
         `FASSUME(a_trap_code_stable, trap_code_wb == $past(trap_code_wb));
         `FASSUME(a_reg_write_stable, reg_write_wb == $past(reg_write_wb));
+        `FASSUME(a_is_ebreak_stable, is_ebreak_wb == $past(is_ebreak_wb));
         `FASSUME(a_s_valid_stable, s_valid == $past(s_valid));
       end
     end

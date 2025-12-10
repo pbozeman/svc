@@ -28,6 +28,7 @@ module svc_rv_idec_tb;
   logic [ 6:0] funct7;
   logic        is_m;
   logic        is_csr;
+  logic        is_ebreak;
   logic        is_jal;
   logic        is_jalr;
   logic        rs1_used;
@@ -58,6 +59,7 @@ module svc_rv_idec_tb;
       .jb_target_src(jb_target_src),
       .is_m         (is_m),
       .is_csr       (is_csr),
+      .is_ebreak    (is_ebreak),
       .is_jal       (is_jal),
       .is_jalr      (is_jalr),
 
@@ -85,6 +87,7 @@ module svc_rv_idec_tb;
     `CHECK_FALSE(is_branch);
     `CHECK_FALSE(is_jmp);
     `CHECK_FALSE(is_csr);
+    `CHECK_FALSE(is_ebreak);
     `CHECK_FALSE(is_jal);
     `CHECK_FALSE(is_jalr);
     `CHECK_FALSE(rs1_used);
@@ -363,8 +366,41 @@ module svc_rv_idec_tb;
     `CHECK_EQ(funct7, 7'b0000001);
   endtask
 
+  //
+  // Test: EBREAK instruction decode
+  //
+  task automatic test_ebreak_decode;
+    //
+    // EBREAK: 32'h00100073
+    //
+    instr = I_EBREAK;
+    `CHECK_TRUE(is_ebreak);
+    `CHECK_TRUE(reg_write);
+    `CHECK_FALSE(mem_read);
+    `CHECK_FALSE(mem_write);
+    `CHECK_FALSE(is_branch);
+    `CHECK_FALSE(is_jmp);
+    `CHECK_TRUE(is_csr);
+    `CHECK_FALSE(is_jal);
+    `CHECK_FALSE(is_jalr);
+  endtask
+
+  //
+  // Test: ECALL instruction does NOT set is_ebreak
+  //
+  task automatic test_ecall_not_ebreak;
+    //
+    // ECALL: 32'h00000073
+    //
+    instr = I_ECALL;
+    `CHECK_FALSE(is_ebreak);
+    `CHECK_TRUE(is_csr);
+  endtask
+
   `TEST_SUITE_BEGIN(svc_rv_idec_tb);
   `TEST_CASE(test_reset);
+  `TEST_CASE(test_ebreak_decode);
+  `TEST_CASE(test_ecall_not_ebreak);
   `TEST_CASE(test_csr_decode);
   `TEST_CASE(test_lw_decode);
   `TEST_CASE(test_sw_decode);
