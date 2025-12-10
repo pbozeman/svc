@@ -2068,8 +2068,8 @@ task automatic test_rdcycle;
   load_program();
 
   `CHECK_WAIT_FOR_EBREAK(clk);
-  `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[3] > 32'h0);
-  `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[3] < 32'd6);
+  `CHECK_GTE(uut.cpu.stage_id.regfile.regs[3], 32'd1);
+  `CHECK_LTE(uut.cpu.stage_id.regfile.regs[3], 32'd7);
 endtask
 
 //
@@ -2153,8 +2153,8 @@ task automatic test_csr_cycle_increments;
   load_program();
 
   `CHECK_WAIT_FOR_EBREAK(clk);
-  `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[3] > 32'h0);
-  `CHECK_TRUE(uut.cpu.stage_id.regfile.regs[3] < 32'd6);
+  `CHECK_GTE(uut.cpu.stage_id.regfile.regs[3], 32'd1);
+  `CHECK_LTE(uut.cpu.stage_id.regfile.regs[3], 32'd7);
 endtask
 
 //
