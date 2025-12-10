@@ -3,6 +3,8 @@
 
 `include "svc.sv"
 `include "svc_unused.sv"
+`include "svc_rv_pipe_ctrl.sv"
+`include "svc_rv_pipe_data.sv"
 
 //
 // RISC-V PC Stage
@@ -135,76 +137,128 @@ module svc_rv_stage_pc #(
   // When PC_REG=1, all signals to IF stage are registered for timing.
   // This aligns the BTB/RAS metadata with the instruction fetch.
   //
-  if (PC_REG != 0) begin : g_pc_if_reg
-    //
-    // Control signals: need reset
-    //
-    always_ff @(posedge clk) begin
-      if (!rst_n) begin
-        pc_if               <= PC_INIT;
-        pc_next_if          <= PC_INIT + 4;
-        redirect_pending_if <= 1'b0;
-        btb_hit_if          <= 1'b0;
-        btb_pred_taken_if   <= 1'b0;
-        btb_is_return_if    <= 1'b0;
-        ras_valid_if        <= 1'b0;
-      end else if (m_ready) begin
-        pc_if <= pc;
-        pc_next_if <= pc_next;
-        btb_hit_if <= btb_hit_pc;
-        btb_pred_taken_if <= btb_pred_taken_pc;
-        btb_is_return_if <= btb_is_return_pc;
-        ras_valid_if <= ras_valid_pc;
-        //
-        // Extended flush for registered PC changes
-        //
-        // Only set redirect_pending_if for PC changes that require an
-        // extended flush:
-        // - PC_SEL_REDIRECT: Misprediction recovery (always needs flush)
-        // - PC_SEL_PREDICTED with !btb_pred_taken: Late prediction (ID stage
-        //   static or RAS) where the sequential instruction was already
-        //   fetched and must be discarded
-        //
-        // Do NOT set for BTB early predictions (btb_pred_taken) because the
-        // sequential instruction was never fetched - BTB redirects in IF
-        // stage before the instruction arrives.
-        //
-        redirect_pending_if <= (pc_sel == PC_SEL_REDIRECT) ||
-            (pc_sel == PC_SEL_PREDICTED && !btb_pred_taken);
-      end
-    end
 
-    //
-    // Datapath signals: no reset needed
-    //
-    always_ff @(posedge clk) begin
-      if (m_ready) begin
-        btb_target_if <= btb_target_pc;
-        ras_target_if <= ras_target_pc;
-      end
-    end
+  //
+  // Pipeline control
+  //
+  // PC stage is always valid (source stage) - no flush or bubble needed.
+  //
+  logic pipe_advance;
+  logic pipe_flush;
+  logic pipe_bubble;
 
-  end else begin : g_pc_if_comb
-    assign pc_if               = pc;
-    assign pc_next_if          = pc_next;
-    assign redirect_pending_if = 1'b0;
-    assign btb_hit_if          = btb_hit_pc;
-    assign btb_pred_taken_if   = btb_pred_taken_pc;
-    assign btb_target_if       = btb_target_pc;
-    assign btb_is_return_if    = btb_is_return_pc;
-    assign ras_valid_if        = ras_valid_pc;
-    assign ras_target_if       = ras_target_pc;
+  svc_rv_pipe_ctrl #(
+      .REG(PC_REG)
+  ) pipe_ctrl (
+      .clk      (clk),
+      .rst_n    (rst_n),
+      .valid_i  (1'b1),
+      .valid_o  (m_valid),
+      .ready_i  (m_ready),
+      .flush_i  (1'b0),
+      .bubble_i (1'b0),
+      .advance_o(pipe_advance),
+      .flush_o  (pipe_flush),
+      .bubble_o (pipe_bubble)
+  );
 
-    //
-    // btb_pred_taken only used in PC_REG mode for redirect_pending_if
-    //
+  //
+  // Extended flush for registered PC changes
+  //
+  // Only set redirect_pending for PC changes that require an extended flush:
+  // - PC_SEL_REDIRECT: Misprediction recovery (always needs flush)
+  // - PC_SEL_PREDICTED with !btb_pred_taken: Late prediction (ID stage
+  //   static or RAS) where the sequential instruction was already
+  //   fetched and must be discarded
+  //
+  // Do NOT set for BTB early predictions (btb_pred_taken) because the
+  // sequential instruction was never fetched - BTB redirects in IF
+  // stage before the instruction arrives.
+  //
+  logic redirect_pending_next;
+
+  if (PC_REG != 0) begin : g_redirect_pending
+    assign redirect_pending_next = (pc_sel == PC_SEL_REDIRECT) ||
+        (pc_sel == PC_SEL_PREDICTED && !btb_pred_taken);
+  end else begin : g_no_redirect_pending
+    assign redirect_pending_next = 1'b0;
     `SVC_UNUSED({btb_pred_taken})
   end
 
   //
-  // Always valid after reset - we always have a PC to issue
+  // PC values to IF stage
   //
-  assign m_valid = 1'b1;
+  // Note: Reset value defaults to '0. After reset, the first advance loads
+  // the correct PC values from the pc register which is initialized to PC_INIT.
+  //
+  svc_rv_pipe_data #(
+      .WIDTH(2 * XLEN),
+      .REG  (PC_REG)
+  ) pipe_pc (
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .advance(pipe_advance),
+      .flush  (pipe_flush),
+      .bubble (pipe_bubble),
+`ifdef FORMAL
+      .s_valid(1'b1),
+      .s_ready(m_ready),
+`endif
+      .data_i ({pc, pc_next}),
+      .data_o ({pc_if, pc_next_if})
+  );
+
+  //
+  // Control signals to IF stage (need proper reset values)
+  //
+  svc_rv_pipe_data #(
+      .WIDTH(5),
+      .REG  (PC_REG)
+  ) pipe_ctrl_signals (
+      .clk(clk),
+      .rst_n(rst_n),
+      .advance(pipe_advance),
+      .flush(pipe_flush),
+      .bubble(pipe_bubble),
+`ifdef FORMAL
+      .s_valid(1'b1),
+      .s_ready(m_ready),
+`endif
+      .data_i({
+        redirect_pending_next,
+        btb_hit_pc,
+        btb_pred_taken_pc,
+        btb_is_return_pc,
+        ras_valid_pc
+      }),
+      .data_o({
+        redirect_pending_if,
+        btb_hit_if,
+        btb_pred_taken_if,
+        btb_is_return_if,
+        ras_valid_if
+      })
+  );
+
+  //
+  // Payload signals to IF stage (targets, no reset needed)
+  //
+  svc_rv_pipe_data #(
+      .WIDTH(2 * XLEN),
+      .REG  (PC_REG)
+  ) pipe_payload (
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .advance(pipe_advance),
+      .flush  (pipe_flush),
+      .bubble (pipe_bubble),
+`ifdef FORMAL
+      .s_valid(1'b1),
+      .s_ready(m_ready),
+`endif
+      .data_i ({btb_target_pc, ras_target_pc}),
+      .data_o ({btb_target_if, ras_target_if})
+  );
 
 `ifdef FORMAL
 `ifdef FORMAL_SVC_RV_STAGE_PC
