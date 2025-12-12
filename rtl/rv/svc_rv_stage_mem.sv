@@ -132,9 +132,9 @@ module svc_rv_stage_mem #(
     //
     // Branch/JALR misprediction detection and PC control (MEM stage)
     //
-    output logic            jalr_mispredicted_mem,
-    output logic            mispredicted_mem,
-    output logic [XLEN-1:0] pc_redirect_target_mem
+    output logic            redirect_valid_mem,
+    input  logic            redirect_ready_mem,
+    output logic [XLEN-1:0] redirect_target_mem
 );
 
   `include "svc_rv_defs.svh"
@@ -284,6 +284,7 @@ module svc_rv_stage_mem #(
   // forwarding → ALU → JALR target → comparison → PC
   //===========================================================================
   logic branch_mispredicted_mem;
+  logic jalr_mispredicted_mem;
 
   svc_rv_bpred_mem #(
       .XLEN      (XLEN),
@@ -300,10 +301,6 @@ module svc_rv_stage_mem #(
       .jalr_mispredicted_mem  (jalr_mispredicted_mem)
   );
 
-  // Combined misprediction signal
-  assign mispredicted_mem = (s_accept &&
-                             (branch_mispredicted_mem | jalr_mispredicted_mem));
-
   //===========================================================================
   // PC redirect target calculation
   //
@@ -316,12 +313,52 @@ module svc_rv_stage_mem #(
   logic mispred_not_taken;
   assign mispred_not_taken = branch_mispredicted_mem && !branch_taken_mem;
 
+  logic [XLEN-1:0] pc_redirect_target_comb;
   always_comb begin
-    pc_redirect_target_mem = jb_target_mem;
+    pc_redirect_target_comb = jb_target_mem;
     if (mispred_not_taken) begin
-      pc_redirect_target_mem = pc_plus4_mem;
+      pc_redirect_target_comb = pc_plus4_mem;
     end
   end
+
+  //===========================================================================
+  // Redirect skid buffer
+  //
+  // The redirect is a valid/ready handshake:
+  // - redirect_valid_mem = redirect valid
+  // - redirect_ready_mem = redirect acknowledged
+  // - redirect_target_mem = redirect data
+  //
+  // When a redirect is requested but can't be taken (pipeline stalled),
+  // we latch the redirect until it's acknowledged. This handles the case
+  // where a multicycle operation (DIVU) on the wrong path stalls the
+  // pipeline, preventing the redirect from being taken immediately.
+  //===========================================================================
+  logic            raw_mispredicted;
+  logic            redirect_pending;
+  logic [XLEN-1:0] redirect_target_latched;
+
+  assign raw_mispredicted = (s_accept &&
+                             (branch_mispredicted_mem | jalr_mispredicted_mem));
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      redirect_pending        <= 1'b0;
+      redirect_target_latched <= '0;
+    end else if (redirect_ready_mem) begin
+      redirect_pending <= 1'b0;
+    end else if (raw_mispredicted && !redirect_ready_mem) begin
+      redirect_pending        <= 1'b1;
+      redirect_target_latched <= pc_redirect_target_comb;
+    end
+  end
+
+  //
+  // Output: valid until acknowledged
+  //
+  assign redirect_valid_mem = raw_mispredicted || redirect_pending;
+  assign redirect_target_mem = redirect_pending ? redirect_target_latched :
+      pc_redirect_target_comb;
 
   //===========================================================================
   // M Extension MEM stage: combine partial products
@@ -626,6 +663,38 @@ module svc_rv_stage_mem #(
   end
 
   //
+  // Redirect valid/ready handshake assertions (skid buffer)
+  //
+  // The redirect interface is a valid/ready handshake where:
+  // - redirect_valid_mem stays high until redirect_ready_mem acknowledges
+  // - redirect_target_mem stays stable while valid && !ready
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      //
+      // Valid must stay high until ready acknowledges
+      //
+      if ($past(redirect_valid_mem && !redirect_ready_mem)) begin
+        `FASSERT(a_redirect_valid_stable, redirect_valid_mem);
+      end
+
+      //
+      // Target must be stable while valid && !ready
+      //
+      if ($past(redirect_valid_mem && !redirect_ready_mem)) begin
+        `FASSERT(a_redirect_target_stable, $stable(redirect_target_mem));
+      end
+
+      //
+      // After acknowledgment, pending must clear
+      //
+      if ($past(redirect_valid_mem && redirect_ready_mem)) begin
+        `FASSERT(a_redirect_pending_clears, !redirect_pending);
+      end
+    end
+  end
+
+  //
   // Cover properties
   //
   always_ff @(posedge clk) begin
@@ -639,6 +708,22 @@ module svc_rv_stage_mem #(
       // Cover stalled transfer (valid high, ready low for a cycle)
       //
       `FCOVER(c_stalled, $past(m_valid && !m_ready) && m_valid && m_ready);
+
+      //
+      // Cover redirect with immediate acknowledgment
+      //
+      `FCOVER(c_redirect_immediate, redirect_valid_mem && redirect_ready_mem);
+
+      //
+      // Cover redirect held due to stall (skid buffer active)
+      //
+      `FCOVER(c_redirect_pending, redirect_pending);
+
+      //
+      // Cover redirect pending then acknowledged
+      //
+      `FCOVER(c_redirect_pending_ack, $past(redirect_pending
+              ) && redirect_ready_mem);
     end
   end
 

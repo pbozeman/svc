@@ -23,9 +23,8 @@ module svc_rv_pc_sel #(
     //
     // PC selection from MEM stage (branch/JALR mispredictions)
     //
-    input logic            jalr_mispredicted_mem,
-    input logic            mispredicted_mem,
-    input logic [XLEN-1:0] pc_redirect_target_mem,
+    input logic            redirect_valid_mem,
+    input logic [XLEN-1:0] redirect_target_mem,
 
     //
     // PC selection from EX stage (non-predicted branch/jump redirects)
@@ -246,14 +245,14 @@ module svc_rv_pc_sel #(
   // Final PC selection: MEM mispredictions override EX, EX overrides predictions
   //
   // Priority:
-  // 1. MEM stage misprediction (branch/JALR - takes 2 cycles to detect)
+  // 1. MEM stage misprediction
   // 2. EX stage redirect (for non-predicted configurations)
   // 3. Predictions (speculative)
   //
   always_comb begin
-    if (mispredicted_mem) begin
+    if (redirect_valid_mem) begin
       pc_sel             = PC_SEL_REDIRECT;
-      pc_redirect_target = pc_redirect_target_mem;
+      pc_redirect_target = redirect_target_mem;
     end else if (pc_sel_ex == PC_SEL_REDIRECT) begin
       pc_sel             = PC_SEL_REDIRECT;
       pc_redirect_target = pc_redirect_target_ex;
@@ -262,9 +261,6 @@ module svc_rv_pc_sel #(
       pc_redirect_target = '0;
     end
   end
-
-
-  `SVC_UNUSED(jalr_mispredicted_mem);
 
 endmodule
 
