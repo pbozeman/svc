@@ -76,7 +76,6 @@ module svc_rv_stage_if #(
   `include "svc_rv_defs.svh"
 
   logic [31:0] instr;
-  logic        flush_extend;
 
   //
   // Ready signal to PC stage
@@ -122,32 +121,6 @@ module svc_rv_stage_if #(
   end
 
   // =========================================================================
-  // Extended flush for pipelined mode without BPRED
-  // =========================================================================
-  //
-  // Without BPRED: Sequential instruction is already fetched before redirect
-  // is detected, so we need flush_extend to clear the stale instruction.
-  //
-  // TODO: I think we can likely drop flush_extend now that we have the
-  // fifo design. The corresponding queues will have been flushed,
-  // so the read should get tossed.
-  //
-  // With BPRED: Target is fetched immediately when prediction happens,
-  // so flush_extend would incorrectly flush the CORRECT target instruction.
-  //
-  if (PIPELINED != 0 && BPRED == 0) begin : g_flush_extend
-    always_ff @(posedge clk) begin
-      if (!rst_n) begin
-        flush_extend <= 1'b0;
-      end else begin
-        flush_extend <= if_id_flush;
-      end
-    end
-  end else begin : g_no_flush_extend
-    assign flush_extend = 1'b0;
-  end
-
-  // =========================================================================
   // FIFO control signals
   // =========================================================================
   logic fifo_clr;
@@ -156,7 +129,55 @@ module svc_rv_stage_if #(
   logic instr_fifo_valid;
   logic meta_fifo_valid;
 
-  assign fifo_clr = if_id_flush || flush_extend;
+  assign fifo_clr = if_id_flush;
+
+  // =========================================================================
+  // Stale response discard logic
+  // =========================================================================
+  //
+  // When a flush occurs, any outstanding memory request becomes "stale" -
+  // its response will arrive but must be discarded to avoid associating
+  // old instruction with new PC value.
+  //
+  // With our memory interface, at most 1 request can be outstanding at any
+  // time, so we use simple 1-bit flags instead of counters.
+  //
+  logic outstanding;
+  logic discard_pending;
+
+  if (PIPELINED != 0) begin : g_discard
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        outstanding     <= 1'b0;
+        discard_pending <= 1'b0;
+      end else begin
+        // Track if there's an outstanding request
+        case ({
+          s_valid && s_ready, imem_rvalid
+        })
+          2'b10:   outstanding <= 1'b1;
+          2'b01:   outstanding <= 1'b0;
+          default: ;
+        endcase
+
+        //
+        // Stale response tracking
+        //
+        if (if_id_flush) begin
+          // On flush, if there's an outstanding request and no response
+          // this cycle, mark that we need to discard the next response.
+          // If rvalid fires this cycle, it's blocked by fifo_clr.
+          discard_pending <= outstanding && !imem_rvalid;
+        end else if (imem_rvalid && discard_pending) begin
+          discard_pending <= 1'b0;
+        end
+
+      end
+    end
+  end else begin : g_no_discard
+    assign outstanding     = 1'b0;
+    assign discard_pending = 1'b0;
+  end
 
   // =========================================================================
   // PC FIFO
@@ -171,6 +192,21 @@ module svc_rv_stage_if #(
 
     assign pc_fifo_valid = !pc_fifo_empty;
 
+    //
+    // Response accepted when valid, not clearing, FIFO has data, and not
+    // discarding a stale response from before a flush.
+    //
+    logic resp_accepted;
+    assign resp_accepted = imem_rvalid && !fifo_clr && pc_fifo_valid &&
+        !discard_pending;
+
+    //
+    // In non-BPRED mode, don't write on flush cycle - pc_if still has the
+    // stale value (PC register hasn't been updated yet with redirect target).
+    //
+    // In BPRED mode, we use pc_next_if which already has the correct
+    // redirect target on flush cycle, so no blocking needed.
+    //
     svc_sync_fifo #(
         .ADDR_WIDTH(2),
         .DATA_WIDTH(XLEN)
@@ -178,11 +214,11 @@ module svc_rv_stage_if #(
         .clk        (clk),
         .rst_n      (rst_n),
         .clr        (fifo_clr),
-        .w_inc      (s_valid && s_ready),
+        .w_inc      (s_valid && s_ready && (BPRED != 0 || !fifo_clr)),
         .w_data     (imem_araddr),
         .w_full     (),
         .w_half_full(pc_fifo_half_full),
-        .r_inc      (imem_rvalid && !fifo_clr && pc_fifo_valid),
+        .r_inc      (resp_accepted),
         .r_empty    (pc_fifo_empty),
         .r_data     (pc_fifo_rdata)
     );
@@ -209,7 +245,7 @@ module svc_rv_stage_if #(
         .clk        (clk),
         .rst_n      (rst_n),
         .clr        (fifo_clr),
-        .w_inc      (imem_rvalid && !fifo_clr && pc_fifo_valid),
+        .w_inc      (resp_accepted),
         .w_data     (pc_fifo_rdata),
         .w_full     (),
         .w_half_full(aligned_pc_fifo_half_full),
@@ -251,7 +287,7 @@ module svc_rv_stage_if #(
         .clk        (clk),
         .rst_n      (rst_n),
         .clr        (fifo_clr),
-        .w_inc      (imem_rvalid && !fifo_clr && pc_fifo_valid),
+        .w_inc      (g_pc_fifo.resp_accepted),
         .w_data     (imem_rdata),
         .w_full     (),
         .w_half_full(instr_fifo_half_full),
@@ -300,6 +336,14 @@ module svc_rv_stage_if #(
       ras_target_if
     };
 
+    //
+    // Meta FIFO stores BTB prediction metadata.
+    //
+    // Unlike pc_fifo, this ALWAYS blocks writes on flush cycle (no BPRED
+    // conditional). The redirect target's BTB lookup happens independently
+    // in the prediction logic - writing garbage metadata here would break
+    // the subsequent instructions' predictions.
+    //
     svc_sync_fifo #(
         .ADDR_WIDTH(2),
         .DATA_WIDTH(META_WIDTH)
@@ -394,7 +438,8 @@ module svc_rv_stage_if #(
     // FIFO signals are only used in pipelined mode
     //
     // verilog_format: off
-   `SVC_UNUSED({clk, rst_n, if_id_flush, m_ready, flush_extend, fifo_clr,
+   `SVC_UNUSED({clk, rst_n, if_id_flush, m_ready, fifo_clr,
+                 outstanding, discard_pending,
                  pc_fifo_valid, aligned_pc_fifo_valid,
                  instr_fifo_valid, meta_fifo_valid,
                  pc_id_next, pc_plus4_id_next, instr_id_next,
@@ -445,14 +490,14 @@ module svc_rv_stage_if #(
   end
 
   //
-  // During flush (including extended flush), upstream shouldn't send valid
-  // data. This prevents the FIFO clr+w_inc behavior from putting data in
-  // hardware FIFOs while shadow queue is being reset.
+  // During flush, upstream shouldn't send valid data. This simplifies the
+  // shadow queue tracking since we don't need to handle the atomic clear+write
+  // behavior in the formal model.
   //
   // TODO: when all passing, remove this and decide how to handle it
   //
   always_ff @(posedge clk) begin
-    if (rst_n && (if_id_flush || flush_extend)) begin
+    if (rst_n && if_id_flush) begin
       assume (!s_valid);
     end
   end
@@ -464,12 +509,11 @@ module svc_rv_stage_if #(
   // drop m_valid even when m_ready is low. This is intentional - flush is
   // orthogonal to flow control and gates m_valid to create bubbles.
   //
-  //
-  // flush_extend is an internal signal that clears the pipeline in
-  // non-BPRED pipelined mode. Include it in the flush condition.
+  // The discard_pending flag indicates we're still waiting for a stale
+  // response after a flush. During this time, m_valid dropping is expected.
   //
   logic f_flush;
-  assign f_flush = if_id_flush || flush_extend;
+  assign f_flush = if_id_flush || discard_pending;
 
   //
   // Verify imem_araddr matches expected value based on BPRED parameter
@@ -575,8 +619,11 @@ module svc_rv_stage_if #(
   //
   // Push on request handshake (matching hardware pc_fifo/meta_fifo push)
   //
+  // Note: Use if_id_flush (not f_flush) because hardware FIFOs only clear
+  // on actual flush, not during the discard period.
+  //
   always_ff @(posedge clk) begin
-    if (!rst_n || if_id_flush || flush_extend) begin
+    if (!rst_n || if_id_flush) begin
       f_wr_ptr <= '0;
     end else if (s_valid && s_ready) begin
       //
@@ -596,8 +643,11 @@ module svc_rv_stage_if #(
   //
   // Pop and verify on output handshake
   //
+  // Note: Use if_id_flush (not f_flush) because hardware FIFOs only clear
+  // on actual flush, not during the discard period.
+  //
   always_ff @(posedge clk) begin
-    if (!rst_n || if_id_flush || flush_extend) begin
+    if (!rst_n || if_id_flush) begin
       f_rd_ptr <= '0;
     end else if (m_valid && m_ready) begin
       f_rd_ptr <= f_rd_ptr + 1;
@@ -608,10 +658,12 @@ module svc_rv_stage_if #(
   // Track valid count - ensures assertions only fire when shadow queue
   // has data that was actually pushed (not arbitrary initial state)
   //
+  // Note: Use if_id_flush (not f_flush) to match hardware FIFO behavior.
+  //
   logic [2:0] f_valid_count;
 
   always_ff @(posedge clk) begin
-    if (!rst_n || if_id_flush || flush_extend) begin
+    if (!rst_n || if_id_flush) begin
       f_valid_count <= '0;
     end else begin
       case ({
@@ -628,12 +680,12 @@ module svc_rv_stage_if #(
   // Track total completions - ensures we only check after data has
   // fully propagated through both pc_fifo and aligned_pc_fifo
   //
-  // TODO: this seems questionable
+  // Note: Use if_id_flush (not f_flush) to match hardware FIFO behavior.
   //
   logic [3:0] f_total_completions;
 
   always_ff @(posedge clk) begin
-    if (!rst_n || if_id_flush || flush_extend) begin
+    if (!rst_n || if_id_flush) begin
       f_total_completions <= '0;
     end else if (m_valid && m_ready) begin
       f_total_completions <= f_total_completions + 1;
@@ -734,6 +786,14 @@ module svc_rv_stage_if #(
   end
 
   //
+  // With our memory interface, at most 1 request can be outstanding.
+  // This matches the design's use of a 1-bit outstanding flag.
+  //
+  always_comb begin
+    `FASSUME(a_max_one_outstanding, f_outstanding <= 1);
+  end
+
+  //
   // Cover 1, 2, and 3 cycle memory responses
   //
   always_ff @(posedge clk) begin
@@ -748,6 +808,61 @@ module svc_rv_stage_if #(
       // 3-cycle response: imem_rvalid two cycles after request
       `FCOVER(c_mem_resp_3cyc,
               f_outstanding > 0 && f_req_cycles == 2'd2 && imem_rvalid);
+    end
+  end
+
+  //
+  // Stale response detection
+  //
+  // When a flush occurs, any outstanding memory request becomes "stale".
+  // Its response will still arrive but must be discarded, not written
+  // to the instruction FIFO.
+  //
+  // With our memory interface, at most 1 request can be outstanding, so
+  // we track this as a simple flag rather than a counter.
+  //
+  logic f_stale_pending;
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      f_stale_pending <= 1'b0;
+    end else if (if_id_flush) begin
+      //
+      // On flush, if outstanding and no rvalid this cycle, expect stale.
+      // If rvalid fires this cycle, it's blocked by fifo_clr.
+      //
+      f_stale_pending <= f_outstanding > 0 && !imem_rvalid;
+    end else if (imem_rvalid && f_stale_pending) begin
+      f_stale_pending <= 1'b0;
+    end
+  end
+
+  //
+  // The instruction FIFO write condition (matches g_pc_fifo.resp_accepted)
+  //
+  logic f_instr_fifo_w_inc;
+  assign f_instr_fifo_w_inc = imem_rvalid && !fifo_clr && pc_fifo_valid &&
+      !discard_pending;
+
+  //
+  // Assert: Do not write stale responses to instruction FIFO
+  //
+  // If a stale response is pending, the instruction FIFO should NOT
+  // accept writes.
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && rst_n && f_stale_pending) begin
+      `FASSERT(a_no_stale_instr_write, !f_instr_fifo_w_inc);
+    end
+  end
+
+  //
+  // Cover: Stale response arrives after flush
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      `FCOVER(c_stale_response, f_stale_pending && imem_rvalid);
+      `FCOVER(c_flush_with_outstanding, if_id_flush && f_outstanding > 0);
     end
   end
 
