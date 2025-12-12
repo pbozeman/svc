@@ -169,6 +169,13 @@ module svc_rv #(
   logic            pc_m_valid;
   logic            pc_m_ready;
 
+  //
+  // Redirect valid/ready handshake with stage_mem
+  //
+  logic            redirect_valid_mem;
+  logic            redirect_ready_mem;
+  assign redirect_ready_mem = pc_m_ready;
+
   // ID -> EX
   logic            reg_write_ex;
   logic            mem_read_ex;
@@ -241,7 +248,6 @@ module svc_rv #(
   logic            trap_mem;
   logic [     1:0] trap_code_mem;
   logic            is_ebreak_mem;
-  logic            mispredicted_mem;
   logic [XLEN-1:0] csr_rdata_mem;
   logic [XLEN-1:0] m_result_mem;
   logic [XLEN-1:0] mul_ll_mem;
@@ -318,8 +324,7 @@ module svc_rv #(
   logic            mispredicted_ex;
 
   // MEM -> IF (PC control)
-  logic            jalr_mispredicted_mem;
-  logic [XLEN-1:0] pc_redirect_target_mem;
+  logic [XLEN-1:0] redirect_target_mem;
 
   // ID -> IF (branch prediction)
   logic [     1:0] pc_sel_id;

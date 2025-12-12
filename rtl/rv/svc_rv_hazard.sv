@@ -67,8 +67,8 @@ module svc_rv_hazard #(
     // PC selection mode from EX stage
     input logic [1:0] pc_sel,
 
-    // Branch/JALR misprediction (MEM stage)
-    input logic mispredicted_mem,
+    // Branch/JALR misprediction redirect (MEM stage)
+    input logic redirect_valid_mem,
 
     //
     // Prediction indicators (IF stage, synchronous with PC mux)
@@ -193,7 +193,7 @@ module svc_rv_hazard #(
   logic control_flush;
 
   assign pc_redirect   = (pc_sel == PC_SEL_REDIRECT);
-  assign control_flush = pc_redirect || mispredicted_mem;
+  assign control_flush = pc_redirect || redirect_valid_mem;
 
   if (FWD != 0) begin : g_external_forwarding
     //
@@ -365,7 +365,7 @@ module svc_rv_hazard #(
     `SVC_UNUSED(redirect_pending_if);
   end
 
-  assign ex_mem_flush = mispredicted_mem || op_active_ex;
+  assign ex_mem_flush = redirect_valid_mem || op_active_ex;
 
 endmodule
 
