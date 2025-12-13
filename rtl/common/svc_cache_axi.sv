@@ -2,21 +2,21 @@
 `define SVC_CACHE_AXI_SV
 
 `include "svc.sv"
-`include "svc_mux_onehot.sv"
 `include "svc_unused.sv"
 
 //
 // AXI-backed cache with simple BRAM-like CPU interface
 //
 // Cache organization:
-// - Configurable size, line size, and associativity
+// - Direct-mapped (1-way) or 2-way set associative
+// - LRU replacement for 2-way
 // - Write-through policy
 //
 module svc_cache_axi #(
     parameter int CACHE_SIZE_BYTES = 4096,
     parameter int CACHE_ADDR_WIDTH = 32,
     parameter int CACHE_LINE_BYTES = 32,
-    parameter int CACHE_NUM_WAYS   = 1,
+    parameter bit TWO_WAY          = 0,
     parameter int AXI_ADDR_WIDTH   = 32,
     parameter int AXI_DATA_WIDTH   = 128,
     parameter int AXI_ID_WIDTH     = 4
@@ -87,25 +87,16 @@ module svc_cache_axi #(
   // ===========================================================================
   // Cache geometry
   // ===========================================================================
-
-  // verilator lint_off UNUSEDPARAM
+  localparam int NUM_WAYS = TWO_WAY ? 2 : 1;
   localparam int NUM_LINES = CACHE_SIZE_BYTES / CACHE_LINE_BYTES;
-  localparam int NUM_SETS = NUM_LINES / CACHE_NUM_WAYS;
+  localparam int NUM_SETS = NUM_LINES / NUM_WAYS;
   localparam int WORDS_PER_LINE = CACHE_LINE_BYTES / 4;
 
   localparam int OFFSET_WIDTH = $clog2(CACHE_LINE_BYTES);
   localparam int SET_WIDTH = $clog2(NUM_SETS);
   localparam int TAG_WIDTH = CACHE_ADDR_WIDTH - SET_WIDTH - OFFSET_WIDTH;
 
-  localparam int DATA_DEPTH = NUM_LINES * WORDS_PER_LINE;
-  localparam int DATA_ADDR_WIDTH = $clog2(DATA_DEPTH);
-
-  // verilog_format: off
-  localparam int WAY_WIDTH = ($clog2(CACHE_NUM_WAYS) > 0 ? 
-                              $clog2(CACHE_NUM_WAYS) : 1);
-  // verilog_format: on
-
-  // verilator lint_on UNUSEDPARAM
+  localparam int WORD_IDX_WIDTH = $clog2(WORDS_PER_LINE);
 
   // AXI cache params
   localparam logic [AXI_ID_WIDTH-1:0] AXI_ID = 0;
@@ -113,62 +104,76 @@ module svc_cache_axi #(
   localparam int AXI_ARLEN = CACHE_LINE_BYTES / AXI_DATA_BYTES - 1;
   localparam int AXI_ARSIZE = $clog2(AXI_DATA_BYTES);
   localparam int WORDS_PER_BEAT = AXI_DATA_WIDTH / 32;
-  localparam int WORD_IDX_WIDTH = $clog2(WORDS_PER_LINE);
 
   // Addr fields
-  logic [TAG_WIDTH-1:0] addr_tag;
-  logic [SET_WIDTH-1:0] addr_set;
+  logic [   TAG_WIDTH-1:0] addr_tag;
+  logic [   SET_WIDTH-1:0] addr_set;
   logic [OFFSET_WIDTH-3:0] addr_offset;
 
   // Cache storage
   // verilator lint_off UNUSEDSIGNAL
   // verilator lint_off UNDRIVEN
-  logic [TAG_WIDTH-1:0] tag_table[NUM_SETS][CACHE_NUM_WAYS];
-  logic valid_table[NUM_SETS][CACHE_NUM_WAYS];
+  logic [   TAG_WIDTH-1:0] tag_table   [NUM_SETS][NUM_WAYS];
+  logic                    valid_table [NUM_SETS][NUM_WAYS];
 
   (* ram_style = "block" *)
-  logic [31:0] data_table[NUM_SETS][CACHE_NUM_WAYS][WORDS_PER_LINE];
+  logic [            31:0] data_table  [NUM_SETS][NUM_WAYS] [WORDS_PER_LINE];
   // verilator lint_on UNDRIVEN
   // verilator lint_on UNUSEDSIGNAL
+
 
   assign addr_tag    = addr[31:32-TAG_WIDTH];
   assign addr_set    = addr[OFFSET_WIDTH+SET_WIDTH-1:OFFSET_WIDTH];
   assign addr_offset = addr[OFFSET_WIDTH-1:2];
 
+  // LRU tracking for 2-way (1 bit per set: 0 = way0 is LRU, 1 = way1 is LRU)
+  // verilator lint_off UNUSEDSIGNAL
+  logic                 lru_table  [NUM_SETS];
+  // verilator lint_on UNUSEDSIGNAL
+
   // ===========================================================================
   // Cache lookup
   // ===========================================================================
-  logic                         hit;
-  logic [   CACHE_NUM_WAYS-1:0] way_hit;
-  logic [CACHE_NUM_WAYS*32-1:0] way_data;
-  logic [                 31:0] hit_data;
+  logic                 hit;
+  logic                 way0_hit;
+  logic                 way1_hit;
+  logic [         31:0] hit_data;
 
   //
-  // Cache lookup - extract from 2D arrays outside always_comb
+  // Way 0 lookup
   //
-  for (genvar w = 0; w < CACHE_NUM_WAYS; w++) begin : gen_way_lookup
-    logic                 way_valid;
-    logic [TAG_WIDTH-1:0] way_tag;
-    logic [         31:0] word_data;
+  logic                 way0_valid;
+  logic [TAG_WIDTH-1:0] way0_tag;
+  logic [         31:0] way0_data;
 
-    assign way_valid          = valid_table[addr_set][w];
-    assign way_tag            = tag_table[addr_set][w];
-    assign word_data          = data_table[addr_set][w][addr_offset];
+  assign way0_valid = valid_table[addr_set][0];
+  assign way0_tag   = tag_table[addr_set][0];
+  assign way0_data  = data_table[addr_set][0][addr_offset];
+  assign way0_hit   = way0_valid && (way0_tag == addr_tag);
 
-    assign way_hit[w]         = way_valid && (way_tag == addr_tag);
-    assign way_data[w*32+:32] = word_data;
+  //
+  // Way 1 lookup (only for 2-way)
+  //
+  logic                 way1_valid;
+  logic [TAG_WIDTH-1:0] way1_tag;
+  logic [         31:0] way1_data;
+
+  if (TWO_WAY) begin : gen_way1
+    assign way1_valid = valid_table[addr_set][1];
+    assign way1_tag   = tag_table[addr_set][1];
+    assign way1_data  = data_table[addr_set][1][addr_offset];
+    assign way1_hit   = way1_valid && (way1_tag == addr_tag);
+  end else begin : gen_no_way1
+    assign way1_valid = 1'b0;
+    assign way1_tag   = '0;
+    assign way1_data  = '0;
+    assign way1_hit   = 1'b0;
+
+    `SVC_UNUSED({way0_tag, way1_tag, way0_valid, way1_valid});
   end
 
-  assign hit = |way_hit;
-
-  svc_mux_onehot #(
-      .WIDTH(32),
-      .N    (CACHE_NUM_WAYS)
-  ) data_mux (
-      .sel (way_hit),
-      .data(way_data),
-      .out (hit_data)
-  );
+  assign hit      = way0_hit || way1_hit;
+  assign hit_data = way1_hit ? way1_data : way0_data;
 
   // ===========================================================================
   // Reads
@@ -197,37 +202,32 @@ module svc_cache_axi #(
   logic [     SET_WIDTH-1:0] fill_set_next;
   logic [     TAG_WIDTH-1:0] fill_tag;
   logic [     TAG_WIDTH-1:0] fill_tag_next;
-  logic [     WAY_WIDTH-1:0] fill_way;
-  logic [     WAY_WIDTH-1:0] fill_way_next;
+  logic                      fill_way;
+  logic                      fill_way_next;
   logic [WORD_IDX_WIDTH-1:0] fill_offset;
   logic [WORD_IDX_WIDTH-1:0] fill_offset_next;
   logic                      fill_done;
 
-  logic [CACHE_NUM_WAYS-1:0] set_valid;
-  logic [     WAY_WIDTH-1:0] evict_way;
+  logic                      evict_way;
 
   //
-  // Extract valid bits for current set
+  // Select way for eviction:
+  // - Direct-mapped: always way 0
+  // - 2-way: pick invalid way if available, else use LRU
   //
-  for (genvar w = 0; w < CACHE_NUM_WAYS; w++) begin : gen_set_valid
-    assign set_valid[w] = valid_table[addr_set][w];
+  if (TWO_WAY) begin : gen_evict_2way
+    always_comb begin
+      if (!way0_valid) begin
+        evict_way = 1'b0;
+      end else if (!way1_valid) begin
+        evict_way = 1'b1;
+      end else begin
+        evict_way = lru_table[addr_set];
+      end
+    end
+  end else begin : gen_evict_direct
+    assign evict_way = 1'b0;
   end
-
-  //
-  // Select way for eviction: pick invalid way if available, else way 0.
-  // TODO: use LRU when all ways are valid
-  //
-  logic [WAY_WIDTH-1:0] evict_way_pri[CACHE_NUM_WAYS];
-  assign evict_way_pri[0] = ~set_valid[0] ? WAY_WIDTH'(0) : '0;
-
-  // verilog_format: off
-  for (genvar w = 1; w < CACHE_NUM_WAYS; w++) begin : gen_evict_way
-    assign evict_way_pri[w] = ~set_valid[w] ? 
-                               WAY_WIDTH'(w) : evict_way_pri[w-1];
-  end
-  // verilog_format: on
-
-  assign evict_way = evict_way_pri[CACHE_NUM_WAYS-1];
 
   always_comb begin
     state_next         = state;
@@ -295,7 +295,7 @@ module svc_cache_axi #(
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       for (int s = 0; s < NUM_SETS; s++) begin
-        for (int w = 0; w < CACHE_NUM_WAYS; w++) begin
+        for (int w = 0; w < NUM_WAYS; w++) begin
           valid_table[s][w] <= 1'b0;
         end
       end
@@ -310,6 +310,22 @@ module svc_cache_axi #(
   always_ff @(posedge clk) begin
     if (fill_done) begin
       tag_table[fill_set][fill_way] <= fill_tag;
+    end
+  end
+
+  //
+  // Update LRU on hit or fill (2-way only)
+  //
+  // LRU bit indicates which way to evict next (least recently used).
+  // On access, mark the OTHER way as LRU.
+  //
+  if (TWO_WAY) begin : gen_lru_update
+    always_ff @(posedge clk) begin
+      if (ren && hit) begin
+        lru_table[addr_set] <= ~way1_hit;
+      end else if (fill_done) begin
+        lru_table[fill_set] <= ~fill_way;
+      end
     end
   end
 
@@ -386,9 +402,9 @@ module svc_cache_axi #(
   // ===========================================================================
   // Unused signals
   // ===========================================================================
-  `SVC_UNUSED({wen, wr_data, wr_strb, way_hit, m_axi_arready, m_axi_rid,
-               m_axi_rresp, m_axi_awready, m_axi_wready, m_axi_bvalid,
-               m_axi_bid, m_axi_bresp});
+  `SVC_UNUSED(
+      {wen, wr_data, wr_strb, m_axi_arready, m_axi_rid, m_axi_rresp,
+       m_axi_awready, m_axi_wready, m_axi_bvalid, m_axi_bid, m_axi_bresp});
 
   // ===========================================================================
   // Formal verification

@@ -1,12 +1,18 @@
 [tasks]
-bmc
-cover
+bmc_direct
+bmc_twoway
+cover_direct
+cover_twoway
 
 [options]
-bmc: mode bmc
-bmc: depth 5
-cover: mode cover
-cover: depth 8
+bmc_direct: mode bmc
+bmc_direct: depth 5
+bmc_twoway: mode bmc
+bmc_twoway: depth 5
+cover_direct: mode cover
+cover_direct: depth 8
+cover_twoway: mode cover
+cover_twoway: depth 8
 
 [engines]
 smtbmc boolector
@@ -36,7 +42,17 @@ for f in faxil_files:
 output(read_cmd)
 --pycode-end--
 
-prep -top svc_cache_axi
+bmc_direct: chparam -set TWO_WAY 0 svc_cache_axi
+bmc_direct: prep -top svc_cache_axi
+
+bmc_twoway: chparam -set TWO_WAY 1 svc_cache_axi
+bmc_twoway: prep -top svc_cache_axi
+
+cover_direct: chparam -set TWO_WAY 0 svc_cache_axi
+cover_direct: prep -top svc_cache_axi
+
+cover_twoway: chparam -set TWO_WAY 1 svc_cache_axi
+cover_twoway: prep -top svc_cache_axi
 
 [files]
 --pycode-begin--

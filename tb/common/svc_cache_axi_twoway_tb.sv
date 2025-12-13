@@ -3,15 +3,7 @@
 `include "svc_cache_axi.sv"
 `include "svc_axi_mem.sv"
 
-module svc_cache_axi_tb;
-  //
-  // Mirror of svc_cache_axi state enum for testbench access
-  //
-  typedef enum {
-    STATE_IDLE,
-    STATE_READ_BURST
-  } state_t;
-
+module svc_cache_axi_twoway_tb;
   localparam CACHE_SIZE_BYTES = 256;
   localparam CACHE_ADDR_WIDTH = 32;
   localparam CACHE_LINE_BYTES = 16;
@@ -71,12 +63,13 @@ module svc_cache_axi_tb;
   logic                      axi_bready;
 
   //
-  // Cache under test
+  // Cache under test (2-way set associative)
   //
   svc_cache_axi #(
       .CACHE_SIZE_BYTES(CACHE_SIZE_BYTES),
       .CACHE_ADDR_WIDTH(CACHE_ADDR_WIDTH),
       .CACHE_LINE_BYTES(CACHE_LINE_BYTES),
+      .TWO_WAY         (1),
       .AXI_ADDR_WIDTH  (AXI_ADDR_WIDTH),
       .AXI_DATA_WIDTH  (AXI_DATA_WIDTH),
       .AXI_ID_WIDTH    (AXI_ID_WIDTH)
@@ -173,81 +166,107 @@ module svc_cache_axi_tb;
       .s_axi_bready(axi_bready)
   );
 
-  //
-  // Test: Reset state
-  //
-  task automatic test_reset;
-    `CHECK_FALSE(rd_valid);
-    `CHECK_EQ(rd_data, '0);
-    `CHECK_FALSE(axi_arvalid);
-    `CHECK_FALSE(axi_awvalid);
-    `CHECK_FALSE(axi_wvalid);
-  endtask
+  `include "svc_cache_axi_test_defs.svh"
 
   //
-  // Test: Read miss transitions to STATE_READ_BURST
+  // Test: Both ways of a set can be cached and hit
   //
-  task automatic test_read_miss;
-    addr = 32'h100;
+  task automatic test_twoway_both_cached;
+    // Fill way 0: read 0x400
+    addr = 32'h400;
     ren  = 1;
-
-    `TICK(clk);
-    `CHECK_EQ(uut.state, STATE_READ_BURST);
-  endtask
-
-  //
-  // Reset and memory initialization
-  //
-  always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      ren                   <= 0;
-      wen                   <= 0;
-      addr                  <= 0;
-      wr_data               <= 0;
-      wr_strb               <= 0;
-
-      axi_mem.mem['h200>>2] <= 32'hDEADBEEF;
-      axi_mem.mem['h300>>2] <= 32'hCAC4ED00;
-    end
-  end
-
-  //
-  // Test: Read miss fetches data correctly
-  //
-  task automatic test_read_miss_data;
-    addr = 32'h200;
-    ren  = 1;
-
     `CHECK_WAIT_FOR(clk, rd_valid, 8);
-    `CHECK_EQ(rd_data, 32'hDEADBEEF);
-  endtask
-
-  //
-  // Test: Cache hit returns data immediately
-  //
-  task automatic test_cache_hit;
-    // First read - cache miss
-    addr = 32'h300;
-    ren  = 1;
-    `TICK(clk);
+    `CHECK_EQ(rd_data, 32'h12345678);
     ren = 0;
+    `TICK(clk);
 
+    // Fill way 1: read 0x480 (same set, different tag)
+    addr = 32'h480;
+    ren  = 1;
     `CHECK_WAIT_FOR(clk, rd_valid, 8);
-    `CHECK_EQ(rd_data, 32'hCAC4ED00);
+    `CHECK_EQ(rd_data, 32'hFEEDFACE);
+    ren = 0;
+    `TICK(clk);
 
-    // Second read - should hit cache
-    ren = 1;
+    // Verify both addresses map to same set
+    addr = 32'h400;
+    `CHECK_EQ(uut.addr_set, 3'd0);
+    addr = 32'h480;
+    `CHECK_EQ(uut.addr_set, 3'd0);
+
+    // Now both ways should be cached - verify single-cycle hits
+    // Read way 0 again
+    addr = 32'h400;
+    ren  = 1;
     `TICK(clk);
     `CHECK_TRUE(rd_valid);
-    `CHECK_EQ(rd_data, 32'hCAC4ED00);
+    `CHECK_EQ(rd_data, 32'h12345678);
+
+    // Read way 1 again
+    addr = 32'h480;
+    `TICK(clk);
+    `CHECK_TRUE(rd_valid);
+    `CHECK_EQ(rd_data, 32'hFEEDFACE);
   endtask
 
+  //
+  // Test: LRU eviction - least recently used way gets replaced
+  //
+  task automatic test_lru_eviction;
+    // Fill way 0 with 0x400
+    addr = 32'h400;
+    ren  = 1;
+    `CHECK_WAIT_FOR(clk, rd_valid, 8);
+    `CHECK_EQ(rd_data, 32'h12345678);
+    ren = 0;
+    `TICK(clk);
 
-  `TEST_SUITE_BEGIN(svc_cache_axi_tb);
-  `TEST_CASE(test_reset);
-  `TEST_CASE(test_read_miss);
-  `TEST_CASE(test_read_miss_data);
-  `TEST_CASE(test_cache_hit);
+    // Fill way 1 with 0x480 (same set)
+    addr = 32'h480;
+    ren  = 1;
+    `CHECK_WAIT_FOR(clk, rd_valid, 8);
+    `CHECK_EQ(rd_data, 32'hFEEDFACE);
+    ren = 0;
+    `TICK(clk);
+
+    // Access way 0 again - makes way 1 the LRU
+    addr = 32'h400;
+    ren  = 1;
+    `TICK(clk);
+    `CHECK_TRUE(rd_valid);
+    `CHECK_EQ(rd_data, 32'h12345678);
+    ren = 0;
+    `TICK(clk);
+
+    // Read 0x800 (same set, third tag) - should evict way 1 (LRU)
+    addr = 32'h800;
+    ren  = 1;
+    `CHECK_WAIT_FOR(clk, rd_valid, 8);
+    `CHECK_EQ(rd_data, 32'h0E71C7ED);
+    ren = 0;
+    `TICK(clk);
+
+    // Way 0 (0x400) should still be cached - single cycle hit
+    addr = 32'h400;
+    ren  = 1;
+    `TICK(clk);
+    `CHECK_TRUE(rd_valid);
+    `CHECK_EQ(rd_data, 32'h12345678);
+    ren = 0;
+    `TICK(clk);
+
+    // Way 1 (0x480) was evicted - should miss and refill
+    addr = 32'h480;
+    `CHECK_FALSE(uut.hit);
+    ren = 1;
+    `CHECK_WAIT_FOR(clk, rd_valid, 8);
+    `CHECK_EQ(rd_data, 32'hFEEDFACE);
+  endtask
+
+  `TEST_SUITE_BEGIN(svc_cache_axi_twoway_tb);
+  `include "svc_cache_axi_test_list.svh"
+  `TEST_CASE(test_twoway_both_cached);
+  `TEST_CASE(test_lru_eviction);
   `TEST_SUITE_END();
 
 endmodule
