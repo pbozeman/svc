@@ -1,0 +1,50 @@
+[tasks]
+bmc
+cover
+
+[options]
+bmc: mode bmc
+bmc: depth 5
+cover: mode cover
+cover: depth 8
+
+[engines]
+smtbmc boolector
+
+[script]
+--pycode-begin--
+import glob
+import os
+
+f_files = glob.glob("tb/formal/private/*.v")
+
+read_cmd = "read_verilog -formal -DFORMAL_SVC_CACHE_AXI "
+if f_files:
+  read_cmd += "-DZIPCPU_PRIVATE "
+else:
+  read_cmd += " -DFORMAL_NO_SUBMODULES "
+
+read_cmd += "-sv svc_cache_axi.sv\n"
+
+for f in f_files:
+  read_cmd += f"read_verilog -formal -sv {os.path.basename(f)}\n"
+
+faxil_files = glob.glob("tb/formal/*.v")
+for f in faxil_files:
+  read_cmd += f"read_verilog -formal -sv {os.path.basename(f)}\n"
+
+output(read_cmd)
+--pycode-end--
+
+prep -top svc_cache_axi
+
+[files]
+--pycode-begin--
+import glob
+files = "\n".join(glob.glob("tb/formal/private/*.v"))
+files += "\n"
+files += "\n".join(glob.glob("tb/formal/*.v"))
+files += "\n"
+files += "\n".join(glob.glob("rtl/**/*.sv", recursive=True))
+output(files)
+--pycode-end--
