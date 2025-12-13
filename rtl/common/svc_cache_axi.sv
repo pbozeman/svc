@@ -2,10 +2,19 @@
 `define SVC_CACHE_AXI_SV
 
 `include "svc.sv"
+`include "svc_sticky_bit.sv"
 `include "svc_unused.sv"
 
 //
 // AXI-backed cache with valid/ready CPU interface
+//
+// Write Policy: Write-through with no-write-allocate
+//   - Write hit:  Update cache AND write to memory
+//   - Write miss: Write to memory only (no cache fill)
+//
+// TODO: Future enhancements
+//   - Write-allocate: On write miss, fetch line first then update
+//   - Write-back: Track dirty bits, writeback on eviction
 //
 module svc_cache_axi #(
     parameter int CACHE_SIZE_BYTES = 4096,
@@ -95,60 +104,132 @@ module svc_cache_axi #(
 
   localparam int WORD_IDX_WIDTH = $clog2(WORDS_PER_LINE);
 
-  // AXI cache params
   localparam logic [AXI_ID_WIDTH-1:0] AXI_ID = 0;
   localparam int AXI_DATA_BYTES = AXI_DATA_WIDTH / 8;
   localparam int AXI_ARLEN = CACHE_LINE_BYTES / AXI_DATA_BYTES - 1;
   localparam int AXI_ARSIZE = $clog2(AXI_DATA_BYTES);
   localparam int WORDS_PER_BEAT = AXI_DATA_WIDTH / 32;
 
-  // Addr fields
-  logic [   TAG_WIDTH-1:0] addr_tag;
-  logic [   SET_WIDTH-1:0] addr_set;
+  // ===========================================================================
+  // Signal declarations
+  // ===========================================================================
+
+  //
+  // State machine
+  //
+  typedef enum {
+    STATE_IDLE,
+    STATE_READ_BURST,
+    STATE_WRITE
+  } state_t;
+
+  state_t state;
+  state_t state_next;
+
+  //
+  // Read address fields
+  //
+  logic [TAG_WIDTH-1:0] addr_tag;
+  logic [SET_WIDTH-1:0] addr_set;
   logic [OFFSET_WIDTH-3:0] addr_offset;
 
+  //
   // Cache storage
-  logic [   TAG_WIDTH-1:0] tag_table   [NUM_SETS][NUM_WAYS];
-  logic                    valid_table [NUM_SETS][NUM_WAYS];
+  //
+  logic [TAG_WIDTH-1:0] tag_table[NUM_SETS][NUM_WAYS];
+  logic valid_table[NUM_SETS][NUM_WAYS];
+  logic lru_table[NUM_SETS];
 
   (* ram_style = "block" *)
-  logic [            31:0] data_table  [NUM_SETS][NUM_WAYS] [WORDS_PER_LINE];
+  logic [31:0] data_table[NUM_SETS][NUM_WAYS][WORDS_PER_LINE];
 
+  //
+  // Cache lookup
+  //
+  logic hit;
+  logic way0_hit;
+  logic way1_hit;
+  logic [31:0] hit_data;
+  logic way0_valid;
+  logic [TAG_WIDTH-1:0] way0_tag;
+  logic [31:0] way0_data;
+  logic way1_valid;
+  logic [TAG_WIDTH-1:0] way1_tag;
+  logic [31:0] way1_data;
 
-  assign addr_tag    = rd_addr[31:32-TAG_WIDTH];
-  assign addr_set    = rd_addr[OFFSET_WIDTH+SET_WIDTH-1:OFFSET_WIDTH];
+  //
+  // Fill tracking
+  //
+  logic [WORD_IDX_WIDTH-1:0] beat_word_idx;
+  logic [WORD_IDX_WIDTH-1:0] beat_word_idx_next;
+  logic fill_way;
+  logic fill_way_next;
+  logic fill_done;
+  logic evict_way;
+  logic [31:0] fill_data;
+
+  //
+  // AXI read channel
+  //
+  logic m_axi_arvalid_next;
+  logic [AXI_ADDR_WIDTH-1:0] m_axi_araddr_next;
+  logic [AXI_ADDR_WIDTH-1:0] addr_line_aligned;
+
+  //
+  // Write address fields
+  //
+  logic [TAG_WIDTH-1:0] wr_addr_tag;
+  logic [SET_WIDTH-1:0] wr_addr_set;
+  logic [OFFSET_WIDTH-3:0] wr_addr_offset;
+
+  //
+  // Write hit detection
+  //
+  logic wr_way0_hit;
+  logic wr_way1_hit;
+  logic wr_hit;
+  logic wr_hit_way;
+
+  //
+  // AXI write channel tracking
+  //
+  logic wr_start;
+  logic aw_complete;
+  logic w_complete;
+  logic m_axi_awvalid_next;
+  logic m_axi_wvalid_next;
+
+  //
+  // Cache response
+  //
+  logic rd_data_valid_next;
+
+  // ===========================================================================
+  // Read address field extraction
+  // ===========================================================================
+  assign addr_tag = rd_addr[31:32-TAG_WIDTH];
+  assign addr_set = rd_addr[OFFSET_WIDTH+SET_WIDTH-1:OFFSET_WIDTH];
   assign addr_offset = rd_addr[OFFSET_WIDTH-1:2];
 
-  // LRU tracking for 2-way (1 bit per set: 0 = way0 is LRU, 1 = way1 is LRU)
-  logic                 lru_table  [NUM_SETS];
+  assign addr_line_aligned = {
+    rd_addr[AXI_ADDR_WIDTH-1:OFFSET_WIDTH], {OFFSET_WIDTH{1'b0}}
+  };
 
   // ===========================================================================
   // Cache lookup
   // ===========================================================================
-  logic                 hit;
-  logic                 way0_hit;
-  logic                 way1_hit;
-  logic [         31:0] hit_data;
 
   //
   // Way 0 lookup
   //
-  logic                 way0_valid;
-  logic [TAG_WIDTH-1:0] way0_tag;
-  logic [         31:0] way0_data;
-
   assign way0_valid = valid_table[addr_set][0];
-  assign way0_tag   = tag_table[addr_set][0];
-  assign way0_data  = data_table[addr_set][0][addr_offset];
-  assign way0_hit   = way0_valid && (way0_tag == addr_tag);
+  assign way0_tag = tag_table[addr_set][0];
+  assign way0_data = data_table[addr_set][0][addr_offset];
+  assign way0_hit = way0_valid && (way0_tag == addr_tag);
 
   //
   // Way 1 lookup (only for 2-way)
   //
-  logic                 way1_valid;
-  logic [TAG_WIDTH-1:0] way1_tag;
-  logic [         31:0] way1_data;
-
   if (TWO_WAY) begin : gen_way1
     assign way1_valid = valid_table[addr_set][1];
     assign way1_tag   = tag_table[addr_set][1];
@@ -163,34 +244,6 @@ module svc_cache_axi #(
 
   assign hit      = way0_hit || way1_hit;
   assign hit_data = way1_hit ? way1_data : way0_data;
-
-  // ===========================================================================
-  // Reads
-  // ===========================================================================
-  typedef enum {
-    STATE_IDLE,
-    STATE_READ_BURST
-  } state_t;
-
-  state_t                      state;
-  state_t                      state_next;
-
-  logic                        m_axi_arvalid_next;
-  logic   [AXI_ADDR_WIDTH-1:0] m_axi_araddr_next;
-  logic   [AXI_ADDR_WIDTH-1:0] addr_line_aligned;
-
-  assign addr_line_aligned = {
-    rd_addr[AXI_ADDR_WIDTH-1:OFFSET_WIDTH], {OFFSET_WIDTH{1'b0}}
-  };
-
-  logic [WORD_IDX_WIDTH-1:0] beat_word_idx;
-  logic [WORD_IDX_WIDTH-1:0] beat_word_idx_next;
-
-  logic                      fill_way;
-  logic                      fill_way_next;
-  logic                      fill_done;
-
-  logic                      evict_way;
 
   //
   // Select way for eviction:
@@ -211,10 +264,38 @@ module svc_cache_axi #(
     assign evict_way = 1'b0;
   end
 
+  // ===========================================================================
+  // Write address field extraction
+  // ===========================================================================
+  assign wr_addr_tag = wr_addr[31:32-TAG_WIDTH];
+  assign wr_addr_set = wr_addr[OFFSET_WIDTH+SET_WIDTH-1:OFFSET_WIDTH];
+  assign wr_addr_offset = wr_addr[OFFSET_WIDTH-1:2];
+
+  // ===========================================================================
+  // Write hit detection
+  // ===========================================================================
+  assign wr_way0_hit = (valid_table[wr_addr_set][0] &&
+                        (tag_table[wr_addr_set][0] == wr_addr_tag));
+
+  if (TWO_WAY) begin : gen_wr_way1_hit
+    assign wr_way1_hit = (valid_table[wr_addr_set][1] &&
+                          (tag_table[wr_addr_set][1] == wr_addr_tag));
+  end else begin : gen_wr_no_way1_hit
+    assign wr_way1_hit = 1'b0;
+  end
+
+  assign wr_hit     = wr_way0_hit || wr_way1_hit;
+  assign wr_hit_way = wr_way1_hit;
+
+  // ===========================================================================
+  // State machine
+  // ===========================================================================
   always_comb begin
     state_next         = state;
     m_axi_arvalid_next = m_axi_arvalid & ~m_axi_arready;
     m_axi_araddr_next  = m_axi_araddr;
+    m_axi_awvalid_next = m_axi_awvalid & ~m_axi_awready;
+    m_axi_wvalid_next  = m_axi_wvalid & ~m_axi_wready;
 
     beat_word_idx_next = beat_word_idx;
     fill_way_next      = fill_way;
@@ -230,6 +311,10 @@ module svc_cache_axi #(
           m_axi_araddr_next  = addr_line_aligned;
           beat_word_idx_next = '0;
           fill_way_next      = evict_way;
+        end else if (wr_valid) begin
+          state_next         = STATE_WRITE;
+          m_axi_awvalid_next = 1'b1;
+          m_axi_wvalid_next  = 1'b1;
         end
       end
 
@@ -244,13 +329,65 @@ module svc_cache_axi #(
         end
       end
 
+      STATE_WRITE: begin
+        // Both channels complete, return to idle
+        if (aw_complete && w_complete) begin
+          state_next = STATE_IDLE;
+        end
+      end
+
       default: begin
       end
     endcase
   end
 
+  // ===========================================================================
+  // State machine registration
+  // ===========================================================================
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      state <= STATE_IDLE;
+    end else begin
+      state <= state_next;
+    end
+  end
+
+  // ===========================================================================
+  // Fill tracking registration
+  // ===========================================================================
+  always_ff @(posedge clk) begin
+    beat_word_idx <= beat_word_idx_next;
+    fill_way      <= fill_way_next;
+  end
+
+  // ===========================================================================
+  // Cache update on write hit
+  // ===========================================================================
+
   //
+  // Write-through: update cache when we accept the write (before STATE_WRITE)
+  //
+  always_ff @(posedge clk) begin
+    if ((state == STATE_IDLE) && wr_valid && wr_hit) begin
+      if (wr_strb[0])
+        data_table[wr_addr_set][wr_hit_way][wr_addr_offset][7:0] <=
+            wr_data[7:0];
+      if (wr_strb[1])
+        data_table[wr_addr_set][wr_hit_way][wr_addr_offset][15:8] <=
+            wr_data[15:8];
+      if (wr_strb[2])
+        data_table[wr_addr_set][wr_hit_way][wr_addr_offset][23:16] <=
+            wr_data[23:16];
+      if (wr_strb[3])
+        data_table[wr_addr_set][wr_hit_way][wr_addr_offset][31:24] <=
+            wr_data[31:24];
+    end
+  end
+
+  // ===========================================================================
   // Data table write on each AXI beat
+  // ===========================================================================
+
   //
   // With 128-bit AXI, this writes 4 words (128 bits) per cycle. This exceeds
   // single BRAM write width (72 bits max on Xilinx), so synthesizer will
@@ -265,9 +402,9 @@ module svc_cache_axi #(
     end
   end
 
-  //
+  // ===========================================================================
   // Update valid on fill completion
-  //
+  // ===========================================================================
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       for (int s = 0; s < NUM_SETS; s++) begin
@@ -280,17 +417,19 @@ module svc_cache_axi #(
     end
   end
 
-  //
+  // ===========================================================================
   // Update tag on fill completion
-  //
+  // ===========================================================================
   always_ff @(posedge clk) begin
     if (fill_done) begin
       tag_table[addr_set][fill_way] <= addr_tag;
     end
   end
 
-  //
+  // ===========================================================================
   // Update LRU on hit or fill (2-way only)
+  // ===========================================================================
+
   //
   // LRU bit indicates which way to evict next (least recently used).
   // On access, mark the OTHER way as LRU.
@@ -299,6 +438,8 @@ module svc_cache_axi #(
     always_ff @(posedge clk) begin
       if (rd_valid && hit) begin
         lru_table[addr_set] <= ~way1_hit;
+      end else if (wr_valid && wr_ready && wr_hit) begin
+        lru_table[wr_addr_set] <= ~wr_way1_hit;
       end else if (fill_done) begin
         lru_table[addr_set] <= ~fill_way;
       end
@@ -309,36 +450,9 @@ module svc_cache_axi #(
     end
   end
 
-  //
-  // State machine registration
-  //
-  always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      state <= STATE_IDLE;
-    end else begin
-      state <= state_next;
-    end
-  end
-
-  //
-  // Fill tracking registration
-  //
-  always_ff @(posedge clk) begin
-    beat_word_idx <= beat_word_idx_next;
-    fill_way      <= fill_way_next;
-  end
-
-  //
-  // m_axi registration
-  //
-  always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      m_axi_arvalid <= 1'b0;
-    end else begin
-      m_axi_arvalid <= m_axi_arvalid_next;
-    end
-  end
-
+  // ===========================================================================
+  // AXI read address channel
+  // ===========================================================================
   always_ff @(posedge clk) begin
     m_axi_araddr <= m_axi_araddr_next;
   end
@@ -349,14 +463,88 @@ module svc_cache_axi #(
   assign m_axi_arburst = 2'b01;
   assign m_axi_rready  = 1'b1;
 
-  //
-  // Cache responses
-  //
-  logic [31:0] fill_data;
-  assign fill_data = data_table[addr_set][fill_way][addr_offset];
+  // ===========================================================================
+  // AXI write address channel
+  // ===========================================================================
+  assign m_axi_awid    = AXI_ID;
+  assign m_axi_awaddr  = wr_addr[AXI_ADDR_WIDTH-1:0];
+  assign m_axi_awlen   = 8'h00;
+  assign m_axi_awsize  = 3'b010;
+  assign m_axi_awburst = 2'b01;
 
-  logic rd_data_valid_next;
-  assign rd_data_valid_next = (rd_valid && hit) || fill_done;
+  // ===========================================================================
+  // AXI write data channel
+  // ===========================================================================
+  assign m_axi_wlast   = 1'b1;
+
+  //
+  // Shift data and strobe to correct position within AXI data width
+  //
+  if (AXI_DATA_WIDTH == 32) begin : gen_wdata_32
+    assign m_axi_wdata = wr_data;
+    assign m_axi_wstrb = wr_strb;
+  end else begin : gen_wdata_wide
+    localparam int AXI_WORD_OFFSET_BITS = $clog2(AXI_DATA_WIDTH / 32);
+
+    logic [AXI_WORD_OFFSET_BITS-1:0] wr_axi_word_offset;
+    assign wr_axi_word_offset = wr_addr[2+:AXI_WORD_OFFSET_BITS];
+
+    always_comb begin
+      m_axi_wdata                            = '0;
+      m_axi_wstrb                            = '0;
+      m_axi_wdata[wr_axi_word_offset*32+:32] = wr_data;
+      m_axi_wstrb[wr_axi_word_offset*4+:4]   = wr_strb;
+    end
+  end
+
+  //
+  // Sticky bits track channel completion. Clear when starting new write,
+  // set when respective handshake completes. Output is high when set or
+  // when handshake occurs this cycle.
+  //
+  assign wr_start = (state == STATE_IDLE) && wr_valid;
+
+  svc_sticky_bit svc_sticky_bit_aw_i (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clear(wr_start),
+      .in   (m_axi_awvalid && m_axi_awready),
+      .out  (aw_complete)
+  );
+
+  svc_sticky_bit svc_sticky_bit_w_i (
+      .clk  (clk),
+      .rst_n(rst_n),
+      .clear(wr_start),
+      .in   (m_axi_wvalid && m_axi_wready),
+      .out  (w_complete)
+  );
+
+  // ===========================================================================
+  // AXI write response channel
+  // ===========================================================================
+  assign m_axi_bready = 1'b1;
+
+  // ===========================================================================
+  // AXI valid registration
+  // ===========================================================================
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      m_axi_arvalid <= 1'b0;
+      m_axi_awvalid <= 1'b0;
+      m_axi_wvalid  <= 1'b0;
+    end else begin
+      m_axi_arvalid <= m_axi_arvalid_next;
+      m_axi_awvalid <= m_axi_awvalid_next;
+      m_axi_wvalid  <= m_axi_wvalid_next;
+    end
+  end
+
+  // ===========================================================================
+  // Cache responses
+  // ===========================================================================
+  assign fill_data          = data_table[addr_set][fill_way][addr_offset];
+  assign rd_data_valid_next = (rd_valid && rd_ready && hit) || fill_done;
   assign rd_data            = fill_done ? fill_data : hit_data;
 
   always_ff @(posedge clk) begin
@@ -367,36 +555,21 @@ module svc_cache_axi #(
     end
   end
 
-  //
-  // Read ready: can accept new read when idle
-  //
-  assign rd_ready      = (state == STATE_IDLE);
-
-  //
-  // Write ready: writes not implemented yet
-  //
-  assign wr_ready      = 1'b0;
-
-  assign m_axi_awvalid = 1'b0;
-  assign m_axi_awid    = '0;
-  assign m_axi_awaddr  = '0;
-  assign m_axi_awlen   = '0;
-  assign m_axi_awsize  = '0;
-  assign m_axi_awburst = '0;
-
-  assign m_axi_wvalid  = 1'b0;
-  assign m_axi_wdata   = '0;
-  assign m_axi_wstrb   = '0;
-  assign m_axi_wlast   = 1'b0;
-
-  assign m_axi_bready  = 1'b0;
+  // ===========================================================================
+  // Cache ready signals
+  // ===========================================================================
+  assign rd_ready = (state == STATE_IDLE) || (state != STATE_READ_BURST && hit);
+  assign wr_ready = (state == STATE_WRITE) && (state_next == STATE_IDLE);
 
   // ===========================================================================
   // Unused signals
   // ===========================================================================
-  `SVC_UNUSED({wr_valid, wr_addr, wr_data, wr_strb, m_axi_arready, m_axi_rid,
-               m_axi_rresp, m_axi_awready, m_axi_wready, m_axi_bvalid,
-               m_axi_bid, m_axi_bresp, rd_addr[1:0]});
+  `SVC_UNUSED({m_axi_arready, m_axi_rid, m_axi_rresp, m_axi_bid, m_axi_bresp,
+               m_axi_bvalid, rd_addr[1:0], wr_addr[1:0]});
+
+  if (AXI_ADDR_WIDTH < 32) begin : gen_unused_wr_addr_hi
+    `SVC_UNUSED(wr_addr[31:AXI_ADDR_WIDTH]);
+  end
 
   if (TWO_WAY == 0) begin : gen_unused_direct
     `SVC_UNUSED({way0_tag, way1_tag, way0_valid, way1_valid, lru_table});
@@ -433,8 +606,25 @@ module svc_cache_axi #(
     assume (!rst_n);
   end
 
+  //
+  // Reset is monotonic: once released, stays released
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n)) begin
+      `FASSUME(a_rst_n_stable, rst_n);
+    end
+  end
+
   always_ff @(posedge clk) begin
     `FASSUME(a_mutex_rd_wr, !(rd_valid && wr_valid));
+  end
+
+  //
+  // Addresses must be word-aligned (we use 4-byte accesses)
+  //
+  always_comb begin
+    `FASSUME(a_rd_addr_aligned, !rd_valid || rd_addr[1:0] == 2'b00);
+    `FASSUME(a_wr_addr_aligned, !wr_valid || wr_addr[1:0] == 2'b00);
   end
 
   //
@@ -484,6 +674,12 @@ module svc_cache_axi #(
       `FASSERT(a_araddr_aligned,
                !m_axi_arvalid || m_axi_araddr[OFFSET_WIDTH-1:0] == '0);
       `FASSERT(a_resp_le_req, f_resp_count <= f_req_count);
+
+      // rd_data_valid requires prior handshake or fill completion
+      if (rd_data_valid && !$past(rd_data_valid)) begin
+        `FASSERT(a_rd_data_valid_after_handshake, $past(
+                 rd_valid && rd_ready && hit) || $past(fill_done));
+      end
     end
   end
 
@@ -509,7 +705,7 @@ module svc_cache_axi #(
       .C_AXI_DATA_WIDTH(AXI_DATA_WIDTH),
       .F_OPT_INITIAL   (1'b0),
       .OPT_EXCLUSIVE   (1'b0),
-      .OPT_NARROW_BURST(1'b0),
+      .OPT_NARROW_BURST(1'b1),
       .F_LGDEPTH       (9),
       .F_AXI_MAXSTALL  (3),
       .F_AXI_MAXRSTALL (3),
@@ -518,7 +714,7 @@ module svc_cache_axi #(
       .i_clk        (clk),
       .i_axi_reset_n(rst_n),
 
-      // Write address - not used
+      // Write address
       .i_axi_awvalid(m_axi_awvalid),
       .i_axi_awready(m_axi_awready),
       .i_axi_awid   (m_axi_awid),
@@ -531,14 +727,14 @@ module svc_cache_axi #(
       .i_axi_awprot (3'b0),
       .i_axi_awqos  (4'b0),
 
-      // Write data - not used
+      // Write data
       .i_axi_wvalid(m_axi_wvalid),
       .i_axi_wready(m_axi_wready),
       .i_axi_wdata (m_axi_wdata),
       .i_axi_wstrb (m_axi_wstrb),
       .i_axi_wlast (m_axi_wlast),
 
-      // Write response - not used
+      // Write response
       .i_axi_bvalid(m_axi_bvalid),
       .i_axi_bready(m_axi_bready),
       .i_axi_bid   (m_axi_bid),
