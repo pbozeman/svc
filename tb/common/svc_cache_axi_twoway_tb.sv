@@ -17,11 +17,14 @@ module svc_cache_axi_twoway_tb;
   //
   // CPU interface
   //
-  logic                      ren;
-  logic                      wen;
-  logic [              31:0] addr;
+  logic                      rd_valid_in;
+  logic                      rd_ready;
+  logic [              31:0] rd_addr;
   logic [              31:0] rd_data;
-  logic                      rd_valid;
+  logic                      rd_data_valid;
+  logic                      wr_valid_in;
+  logic                      wr_ready;
+  logic [              31:0] wr_addr;
   logic [              31:0] wr_data;
   logic [               3:0] wr_strb;
 
@@ -77,13 +80,16 @@ module svc_cache_axi_twoway_tb;
       .clk  (clk),
       .rst_n(rst_n),
 
-      .ren     (ren),
-      .wen     (wen),
-      .addr    (addr),
-      .rd_data (rd_data),
-      .rd_valid(rd_valid),
-      .wr_data (wr_data),
-      .wr_strb (wr_strb),
+      .rd_valid     (rd_valid_in),
+      .rd_ready     (rd_ready),
+      .rd_addr      (rd_addr),
+      .rd_data      (rd_data),
+      .rd_data_valid(rd_data_valid),
+      .wr_valid     (wr_valid_in),
+      .wr_ready     (wr_ready),
+      .wr_addr      (wr_addr),
+      .wr_data      (wr_data),
+      .wr_strb      (wr_strb),
 
       .m_axi_arvalid(axi_arvalid),
       .m_axi_arid   (axi_arid),
@@ -173,39 +179,38 @@ module svc_cache_axi_twoway_tb;
   //
   task automatic test_twoway_both_cached;
     // Fill way 0: read 0x400
-    addr = 32'h400;
-    ren  = 1;
-    `CHECK_WAIT_FOR(clk, rd_valid, 8);
+    rd_addr     = 32'h400;
+    rd_valid_in = 1;
+    `CHECK_WAIT_FOR(clk, rd_data_valid, 8);
     `CHECK_EQ(rd_data, 32'h12345678);
-    ren = 0;
     `TICK(clk);
 
     // Fill way 1: read 0x480 (same set, different tag)
-    addr = 32'h480;
-    ren  = 1;
-    `CHECK_WAIT_FOR(clk, rd_valid, 8);
+    rd_addr     = 32'h480;
+    rd_valid_in = 1;
+    `CHECK_WAIT_FOR(clk, rd_data_valid, 8);
     `CHECK_EQ(rd_data, 32'hFEEDFACE);
-    ren = 0;
     `TICK(clk);
 
     // Verify both addresses map to same set
-    addr = 32'h400;
+    rd_addr = 32'h400;
     `CHECK_EQ(uut.addr_set, 3'd0);
-    addr = 32'h480;
+    rd_addr = 32'h480;
     `CHECK_EQ(uut.addr_set, 3'd0);
 
     // Now both ways should be cached - verify single-cycle hits
     // Read way 0 again
-    addr = 32'h400;
-    ren  = 1;
+    rd_addr     = 32'h400;
+    rd_valid_in = 1;
     `TICK(clk);
-    `CHECK_TRUE(rd_valid);
+    `CHECK_TRUE(rd_data_valid);
     `CHECK_EQ(rd_data, 32'h12345678);
 
     // Read way 1 again
-    addr = 32'h480;
+    rd_addr     = 32'h480;
+    rd_valid_in = 1;
     `TICK(clk);
-    `CHECK_TRUE(rd_valid);
+    `CHECK_TRUE(rd_data_valid);
     `CHECK_EQ(rd_data, 32'hFEEDFACE);
   endtask
 
@@ -214,52 +219,47 @@ module svc_cache_axi_twoway_tb;
   //
   task automatic test_lru_eviction;
     // Fill way 0 with 0x400
-    addr = 32'h400;
-    ren  = 1;
-    `CHECK_WAIT_FOR(clk, rd_valid, 8);
+    rd_addr     = 32'h400;
+    rd_valid_in = 1;
+    `CHECK_WAIT_FOR(clk, rd_data_valid, 8);
     `CHECK_EQ(rd_data, 32'h12345678);
-    ren = 0;
     `TICK(clk);
 
     // Fill way 1 with 0x480 (same set)
-    addr = 32'h480;
-    ren  = 1;
-    `CHECK_WAIT_FOR(clk, rd_valid, 8);
+    rd_addr     = 32'h480;
+    rd_valid_in = 1;
+    `CHECK_WAIT_FOR(clk, rd_data_valid, 8);
     `CHECK_EQ(rd_data, 32'hFEEDFACE);
-    ren = 0;
     `TICK(clk);
 
     // Access way 0 again - makes way 1 the LRU
-    addr = 32'h400;
-    ren  = 1;
+    rd_addr     = 32'h400;
+    rd_valid_in = 1;
     `TICK(clk);
-    `CHECK_TRUE(rd_valid);
+    `CHECK_TRUE(rd_data_valid);
     `CHECK_EQ(rd_data, 32'h12345678);
-    ren = 0;
     `TICK(clk);
 
     // Read 0x800 (same set, third tag) - should evict way 1 (LRU)
-    addr = 32'h800;
-    ren  = 1;
-    `CHECK_WAIT_FOR(clk, rd_valid, 8);
+    rd_addr     = 32'h800;
+    rd_valid_in = 1;
+    `CHECK_WAIT_FOR(clk, rd_data_valid, 8);
     `CHECK_EQ(rd_data, 32'h0E71C7ED);
-    ren = 0;
     `TICK(clk);
 
     // Way 0 (0x400) should still be cached - single cycle hit
-    addr = 32'h400;
-    ren  = 1;
+    rd_addr     = 32'h400;
+    rd_valid_in = 1;
     `TICK(clk);
-    `CHECK_TRUE(rd_valid);
+    `CHECK_TRUE(rd_data_valid);
     `CHECK_EQ(rd_data, 32'h12345678);
-    ren = 0;
     `TICK(clk);
 
     // Way 1 (0x480) was evicted - should miss and refill
-    addr = 32'h480;
+    rd_addr = 32'h480;
     `CHECK_FALSE(uut.hit);
-    ren = 1;
-    `CHECK_WAIT_FOR(clk, rd_valid, 8);
+    rd_valid_in = 1;
+    `CHECK_WAIT_FOR(clk, rd_data_valid, 8);
     `CHECK_EQ(rd_data, 32'hFEEDFACE);
   endtask
 

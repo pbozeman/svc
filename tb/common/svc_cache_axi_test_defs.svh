@@ -15,9 +15,10 @@ typedef enum {
 //
 always_ff @(posedge clk) begin
   if (!rst_n) begin
-    ren                   <= 0;
-    wen                   <= 0;
-    addr                  <= 0;
+    rd_valid_in           <= 0;
+    rd_addr               <= 0;
+    wr_valid_in           <= 0;
+    wr_addr               <= 0;
     wr_data               <= 0;
     wr_strb               <= 0;
 
@@ -36,10 +37,22 @@ always_ff @(posedge clk) begin
 end
 
 //
+// Auto-clear valid signals on handshake
+//
+always_ff @(posedge clk) begin
+  if (rd_valid_in && rd_ready) begin
+    rd_valid_in <= 1'b0;
+  end
+  if (wr_valid_in && wr_ready) begin
+    wr_valid_in <= 1'b0;
+  end
+end
+
+//
 // Test: Reset state
 //
 task automatic test_reset;
-  `CHECK_FALSE(rd_valid);
+  `CHECK_FALSE(rd_data_valid);
   `CHECK_FALSE(axi_arvalid);
   `CHECK_FALSE(axi_awvalid);
   `CHECK_FALSE(axi_wvalid);
@@ -49,8 +62,8 @@ endtask
 // Test: Read miss transitions to STATE_READ_BURST
 //
 task automatic test_read_miss;
-  addr = 32'h100;
-  ren  = 1;
+  rd_addr     = 32'h100;
+  rd_valid_in = 1;
 
   `TICK(clk);
   `CHECK_EQ(uut.state, STATE_READ_BURST);
@@ -60,10 +73,10 @@ endtask
 // Test: Read miss fetches data correctly
 //
 task automatic test_read_miss_data;
-  addr = 32'h200;
-  ren  = 1;
+  rd_addr     = 32'h200;
+  rd_valid_in = 1;
 
-  `CHECK_WAIT_FOR(clk, rd_valid, 8);
+  `CHECK_WAIT_FOR(clk, rd_data_valid, 8);
   `CHECK_EQ(rd_data, 32'hDEADBEEF);
 endtask
 
@@ -72,18 +85,16 @@ endtask
 //
 task automatic test_cache_hit;
   // First read - cache miss
-  addr = 32'h300;
-  ren  = 1;
-  `TICK(clk);
-  ren = 0;
+  rd_addr     = 32'h300;
+  rd_valid_in = 1;
 
-  `CHECK_WAIT_FOR(clk, rd_valid, 8);
+  `CHECK_WAIT_FOR(clk, rd_data_valid, 8);
   `CHECK_EQ(rd_data, 32'hCAC4ED00);
 
   // Second read - should hit cache
-  ren = 1;
+  rd_valid_in = 1;
   `TICK(clk);
-  `CHECK_TRUE(rd_valid);
+  `CHECK_TRUE(rd_data_valid);
   `CHECK_EQ(rd_data, 32'hCAC4ED00);
 endtask
 
@@ -93,21 +104,19 @@ endtask
 task automatic test_stress;
   // Read 32 words, verify each returns correct data
   for (int i = 0; i < 32; i++) begin
-    addr = i << 2;
-    ren  = 1;
-    `CHECK_WAIT_FOR(clk, rd_valid, 10);
+    rd_addr     = i << 2;
+    rd_valid_in = 1;
+    `CHECK_WAIT_FOR(clk, rd_data_valid, 10);
     `CHECK_EQ(rd_data, 32'(i));
-    ren = 0;
     `TICK(clk);
   end
 
   // Re-read in reverse to exercise cache
   for (int i = 31; i >= 0; i--) begin
-    addr = i << 2;
-    ren  = 1;
-    `CHECK_WAIT_FOR(clk, rd_valid, 10);
+    rd_addr     = i << 2;
+    rd_valid_in = 1;
+    `CHECK_WAIT_FOR(clk, rd_data_valid, 10);
     `CHECK_EQ(rd_data, 32'(i));
-    ren = 0;
     `TICK(clk);
   end
 endtask

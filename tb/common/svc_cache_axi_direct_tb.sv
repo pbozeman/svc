@@ -17,11 +17,14 @@ module svc_cache_axi_direct_tb;
   //
   // CPU interface
   //
-  logic                      ren;
-  logic                      wen;
-  logic [              31:0] addr;
+  logic                      rd_valid_in;
+  logic                      rd_ready;
+  logic [              31:0] rd_addr;
   logic [              31:0] rd_data;
-  logic                      rd_valid;
+  logic                      rd_data_valid;
+  logic                      wr_valid_in;
+  logic                      wr_ready;
+  logic [              31:0] wr_addr;
   logic [              31:0] wr_data;
   logic [               3:0] wr_strb;
 
@@ -77,13 +80,16 @@ module svc_cache_axi_direct_tb;
       .clk  (clk),
       .rst_n(rst_n),
 
-      .ren     (ren),
-      .wen     (wen),
-      .addr    (addr),
-      .rd_data (rd_data),
-      .rd_valid(rd_valid),
-      .wr_data (wr_data),
-      .wr_strb (wr_strb),
+      .rd_valid     (rd_valid_in),
+      .rd_ready     (rd_ready),
+      .rd_addr      (rd_addr),
+      .rd_data      (rd_data),
+      .rd_data_valid(rd_data_valid),
+      .wr_valid     (wr_valid_in),
+      .wr_ready     (wr_ready),
+      .wr_addr      (wr_addr),
+      .wr_data      (wr_data),
+      .wr_strb      (wr_strb),
 
       .m_axi_arvalid(axi_arvalid),
       .m_axi_arid   (axi_arid),
