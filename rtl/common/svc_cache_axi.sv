@@ -457,12 +457,33 @@ module svc_cache_axi #(
   end
 
   //
+  // Request/response counting: responses should never exceed requests
+  //
+  logic [3:0] f_req_count;
+  logic [3:0] f_resp_count;
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      f_req_count  <= '0;
+      f_resp_count <= '0;
+    end else begin
+      if (rd_valid && rd_ready) begin
+        f_req_count <= f_req_count + 1'b1;
+      end
+      if (rd_data_valid) begin
+        f_resp_count <= f_resp_count + 1'b1;
+      end
+    end
+  end
+
+  //
   // Internal state assertions
   //
   always_ff @(posedge clk) begin
-    if (f_past_valid && $past(rst_n)) begin
+    if (f_past_valid && rst_n) begin
       `FASSERT(a_araddr_aligned,
                !m_axi_arvalid || m_axi_araddr[OFFSET_WIDTH-1:0] == '0);
+      `FASSERT(a_resp_le_req, f_resp_count <= f_req_count);
     end
   end
 
