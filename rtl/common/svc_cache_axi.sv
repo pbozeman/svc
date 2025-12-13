@@ -5,12 +5,7 @@
 `include "svc_unused.sv"
 
 //
-// AXI-backed cache with simple BRAM-like CPU interface
-//
-// Cache organization:
-// - Direct-mapped (1-way) or 2-way set associative
-// - LRU replacement for 2-way
-// - Write-through policy
+// AXI-backed cache with valid/ready CPU interface
 //
 module svc_cache_axi #(
     parameter int CACHE_SIZE_BYTES = 4096,
@@ -25,21 +20,23 @@ module svc_cache_axi #(
     input logic rst_n,
 
     //
-    // Cache interface
+    // Read interface
     //
-    input logic ren,
-    input logic wen,
-
-    // verilator lint_off UNUSEDSIGNAL
-    // addr[1:0] is byte offset within 32-bit word, not used for word-aligned access
-    input logic [31:0] addr,
-    // verilator lint_on UNUSEDSIGNAL
+    input  logic        rd_valid,
+    output logic        rd_ready,
+    input  logic [31:0] rd_addr,
 
     output logic [31:0] rd_data,
-    output logic        rd_valid,
+    output logic        rd_data_valid,
 
-    input logic [31:0] wr_data,
-    input logic [ 3:0] wr_strb,
+    //
+    // Write interface
+    //
+    input  logic        wr_valid,
+    output logic        wr_ready,
+    input  logic [31:0] wr_addr,
+    input  logic [31:0] wr_data,
+    input  logic [ 3:0] wr_strb,
 
     //
     // AXI4 manager interface
@@ -111,25 +108,19 @@ module svc_cache_axi #(
   logic [OFFSET_WIDTH-3:0] addr_offset;
 
   // Cache storage
-  // verilator lint_off UNUSEDSIGNAL
-  // verilator lint_off UNDRIVEN
   logic [   TAG_WIDTH-1:0] tag_table   [NUM_SETS][NUM_WAYS];
   logic                    valid_table [NUM_SETS][NUM_WAYS];
 
   (* ram_style = "block" *)
   logic [            31:0] data_table  [NUM_SETS][NUM_WAYS] [WORDS_PER_LINE];
-  // verilator lint_on UNDRIVEN
-  // verilator lint_on UNUSEDSIGNAL
 
 
-  assign addr_tag    = addr[31:32-TAG_WIDTH];
-  assign addr_set    = addr[OFFSET_WIDTH+SET_WIDTH-1:OFFSET_WIDTH];
-  assign addr_offset = addr[OFFSET_WIDTH-1:2];
+  assign addr_tag    = rd_addr[31:32-TAG_WIDTH];
+  assign addr_set    = rd_addr[OFFSET_WIDTH+SET_WIDTH-1:OFFSET_WIDTH];
+  assign addr_offset = rd_addr[OFFSET_WIDTH-1:2];
 
   // LRU tracking for 2-way (1 bit per set: 0 = way0 is LRU, 1 = way1 is LRU)
-  // verilator lint_off UNUSEDSIGNAL
   logic                 lru_table  [NUM_SETS];
-  // verilator lint_on UNUSEDSIGNAL
 
   // ===========================================================================
   // Cache lookup
@@ -168,8 +159,6 @@ module svc_cache_axi #(
     assign way1_tag   = '0;
     assign way1_data  = '0;
     assign way1_hit   = 1'b0;
-
-    `SVC_UNUSED({way0_tag, way1_tag, way0_valid, way1_valid});
   end
 
   assign hit      = way0_hit || way1_hit;
@@ -186,26 +175,19 @@ module svc_cache_axi #(
   state_t                      state;
   state_t                      state_next;
 
-  logic                        rd_valid_next;
   logic                        m_axi_arvalid_next;
   logic   [AXI_ADDR_WIDTH-1:0] m_axi_araddr_next;
   logic   [AXI_ADDR_WIDTH-1:0] addr_line_aligned;
 
   assign addr_line_aligned = {
-    addr[AXI_ADDR_WIDTH-1:OFFSET_WIDTH], {OFFSET_WIDTH{1'b0}}
+    rd_addr[AXI_ADDR_WIDTH-1:OFFSET_WIDTH], {OFFSET_WIDTH{1'b0}}
   };
 
   logic [WORD_IDX_WIDTH-1:0] beat_word_idx;
   logic [WORD_IDX_WIDTH-1:0] beat_word_idx_next;
 
-  logic [     SET_WIDTH-1:0] fill_set;
-  logic [     SET_WIDTH-1:0] fill_set_next;
-  logic [     TAG_WIDTH-1:0] fill_tag;
-  logic [     TAG_WIDTH-1:0] fill_tag_next;
   logic                      fill_way;
   logic                      fill_way_next;
-  logic [WORD_IDX_WIDTH-1:0] fill_offset;
-  logic [WORD_IDX_WIDTH-1:0] fill_offset_next;
   logic                      fill_done;
 
   logic                      evict_way;
@@ -235,25 +217,19 @@ module svc_cache_axi #(
     m_axi_araddr_next  = m_axi_araddr;
 
     beat_word_idx_next = beat_word_idx;
-    fill_set_next      = fill_set;
-    fill_tag_next      = fill_tag;
     fill_way_next      = fill_way;
-    fill_offset_next   = fill_offset;
     fill_done          = 1'b0;
 
     case (state)
       STATE_IDLE: begin
-        if (ren && !hit) begin
+        if (rd_valid && !hit) begin
           state_next         = STATE_READ_BURST;
           m_axi_arvalid_next = 1'b1;
 
           // Align read to cache line and capture fill target
           m_axi_araddr_next  = addr_line_aligned;
           beat_word_idx_next = '0;
-          fill_set_next      = addr_set;
-          fill_tag_next      = addr_tag;
           fill_way_next      = evict_way;
-          fill_offset_next   = WORD_IDX_WIDTH'(addr_offset);
         end
       end
 
@@ -283,7 +259,7 @@ module svc_cache_axi #(
   always_ff @(posedge clk) begin
     if (state == STATE_READ_BURST && m_axi_rvalid) begin
       for (int i = 0; i < WORDS_PER_BEAT; i++) begin
-        data_table[fill_set][fill_way][beat_word_idx+WORD_IDX_WIDTH'(i)] <=
+        data_table[addr_set][fill_way][beat_word_idx+WORD_IDX_WIDTH'(i)] <=
             m_axi_rdata[i*32+:32];
       end
     end
@@ -300,7 +276,7 @@ module svc_cache_axi #(
         end
       end
     end else if (fill_done) begin
-      valid_table[fill_set][fill_way] <= 1'b1;
+      valid_table[addr_set][fill_way] <= 1'b1;
     end
   end
 
@@ -309,7 +285,7 @@ module svc_cache_axi #(
   //
   always_ff @(posedge clk) begin
     if (fill_done) begin
-      tag_table[fill_set][fill_way] <= fill_tag;
+      tag_table[addr_set][fill_way] <= addr_tag;
     end
   end
 
@@ -321,11 +297,15 @@ module svc_cache_axi #(
   //
   if (TWO_WAY) begin : gen_lru_update
     always_ff @(posedge clk) begin
-      if (ren && hit) begin
+      if (rd_valid && hit) begin
         lru_table[addr_set] <= ~way1_hit;
       end else if (fill_done) begin
-        lru_table[fill_set] <= ~fill_way;
+        lru_table[addr_set] <= ~fill_way;
       end
+    end
+  end else begin : gen_lru_unused
+    for (genvar s = 0; s < NUM_SETS; s++) begin : gen_lru_zero
+      assign lru_table[s] = 1'b0;
     end
   end
 
@@ -345,10 +325,7 @@ module svc_cache_axi #(
   //
   always_ff @(posedge clk) begin
     beat_word_idx <= beat_word_idx_next;
-    fill_set      <= fill_set_next;
-    fill_tag      <= fill_tag_next;
     fill_way      <= fill_way_next;
-    fill_offset   <= fill_offset_next;
   end
 
   //
@@ -376,14 +353,29 @@ module svc_cache_axi #(
   // Cache responses
   //
   logic [31:0] fill_data;
-  assign fill_data     = data_table[fill_set][fill_way][fill_offset];
+  assign fill_data = data_table[addr_set][fill_way][addr_offset];
 
-  assign rd_valid_next = (ren && hit) || fill_done;
-  assign rd_data       = fill_done ? fill_data : hit_data;
+  logic rd_data_valid_next;
+  assign rd_data_valid_next = (rd_valid && hit) || fill_done;
+  assign rd_data            = fill_done ? fill_data : hit_data;
 
   always_ff @(posedge clk) begin
-    rd_valid <= rd_valid_next;
+    if (!rst_n) begin
+      rd_data_valid <= 1'b0;
+    end else begin
+      rd_data_valid <= rd_data_valid_next;
+    end
   end
+
+  //
+  // Read ready: can accept new read when idle
+  //
+  assign rd_ready      = (state == STATE_IDLE);
+
+  //
+  // Write ready: writes not implemented yet
+  //
+  assign wr_ready      = 1'b0;
 
   assign m_axi_awvalid = 1'b0;
   assign m_axi_awid    = '0;
@@ -402,9 +394,13 @@ module svc_cache_axi #(
   // ===========================================================================
   // Unused signals
   // ===========================================================================
-  `SVC_UNUSED(
-      {wen, wr_data, wr_strb, m_axi_arready, m_axi_rid, m_axi_rresp,
-       m_axi_awready, m_axi_wready, m_axi_bvalid, m_axi_bid, m_axi_bresp});
+  `SVC_UNUSED({wr_valid, wr_addr, wr_data, wr_strb, m_axi_arready, m_axi_rid,
+               m_axi_rresp, m_axi_awready, m_axi_wready, m_axi_bvalid,
+               m_axi_bid, m_axi_bresp, rd_addr[1:0]});
+
+  if (TWO_WAY == 0) begin : gen_unused_direct
+    `SVC_UNUSED({way0_tag, way1_tag, way0_valid, way1_valid, lru_table});
+  end
 
   // ===========================================================================
   // Formal verification
@@ -438,7 +434,26 @@ module svc_cache_axi #(
   end
 
   always_ff @(posedge clk) begin
-    `FASSUME(a_mutex_ren_wen, !(ren && wen));
+    `FASSUME(a_mutex_rd_wr, !(rd_valid && wr_valid));
+  end
+
+  //
+  // When backpressured, inputs must be stable
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      if ($past(rd_valid && !rd_ready)) begin
+        `FASSUME(a_rd_valid_stable, rd_valid);
+        `FASSUME(a_rd_addr_stable, $stable(rd_addr));
+      end
+
+      if ($past(wr_valid && !wr_ready)) begin
+        `FASSUME(a_wr_valid_stable, wr_valid);
+        `FASSUME(a_wr_addr_stable, $stable(wr_addr));
+        `FASSUME(a_wr_data_stable, $stable(wr_data));
+        `FASSUME(a_wr_strb_stable, $stable(wr_strb));
+      end
+    end
   end
 
   //
@@ -459,7 +474,7 @@ module svc_cache_axi #(
       `FCOVER(c_read_burst_start, $past(state
               ) == STATE_IDLE && state == STATE_READ_BURST);
       `FCOVER(c_fill_done, fill_done);
-      `FCOVER(c_hit_after_fill, $past(fill_done) && ren && hit);
+      `FCOVER(c_hit_after_fill, $past(fill_done) && rd_valid && hit);
     end
   end
 
