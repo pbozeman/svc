@@ -7,7 +7,9 @@
 //
 typedef enum {
   STATE_IDLE,
-  STATE_READ_BURST
+  STATE_READ_BURST,
+  STATE_WRITE,
+  STATE_WRITE_RESP
 } state_t;
 
 //
@@ -28,6 +30,8 @@ always_ff @(posedge clk) begin
     axi_mem.mem['h480>>2] <= 32'hFEEDFACE;
     axi_mem.mem['h500>>2] <= 32'hABCDEF00;
     axi_mem.mem['h800>>2] <= 32'h0E71C7ED;
+    axi_mem.mem['hC00>>2] <= 32'hAABBCCDD;
+    axi_mem.mem['hC40>>2] <= 32'h11223344;
 
     // Stress test data: mem[addr] = addr
     for (int i = 0; i < 64; i++) begin
@@ -119,4 +123,197 @@ task automatic test_stress;
     `CHECK_EQ(rd_data, 32'(i));
     `TICK(clk);
   end
+endtask
+
+//
+// Test: Write miss - write to uncached address goes to memory
+//
+task automatic test_write_miss;
+  // Write to address not in cache
+  wr_addr     = 32'h800;
+  wr_data     = 32'hBEEFCAFE;
+  wr_strb     = 4'hF;
+  wr_valid_in = 1;
+
+  // Wait for write to complete (return to IDLE)
+  `TICK(clk);
+  `CHECK_EQ(uut.state, STATE_WRITE);
+  `CHECK_WAIT_FOR(clk, uut.state == STATE_IDLE, 10);
+
+  // Verify data was written to memory
+  `CHECK_EQ(axi_mem.mem['h800>>2], 32'hBEEFCAFE);
+endtask
+
+//
+// Test: Write hit - write to cached address updates cache
+//
+task automatic test_write_hit;
+  // First, read to bring line into cache
+  rd_addr     = 32'h400;
+  rd_valid_in = 1;
+  `CHECK_WAIT_FOR(clk, rd_data_valid, 10);
+  `CHECK_EQ(rd_data, 32'h12345678);
+  `TICK(clk);
+
+  // Now write to same address (cache hit)
+  wr_addr     = 32'h400;
+  wr_data     = 32'hAAAABBBB;
+  wr_strb     = 4'hF;
+  wr_valid_in = 1;
+
+  `TICK(clk);
+  `CHECK_WAIT_FOR(clk, uut.state == STATE_IDLE, 10);
+
+  // Verify memory was updated
+  `CHECK_EQ(axi_mem.mem['h400>>2], 32'hAAAABBBB);
+endtask
+
+//
+// Test: Write strobe - partial writes work correctly
+//
+task automatic test_write_strobe;
+  // First, read to bring line into cache
+  rd_addr     = 32'h500;
+  rd_valid_in = 1;
+  `CHECK_WAIT_FOR(clk, rd_data_valid, 10);
+  `CHECK_EQ(rd_data, 32'hABCDEF00);
+  `TICK(clk);
+
+  // Write only low byte (strobe = 0001)
+  wr_addr     = 32'h500;
+  wr_data     = 32'hFFFFFFAA;
+  wr_strb     = 4'b0001;
+  wr_valid_in = 1;
+
+  `TICK(clk);
+  `CHECK_WAIT_FOR(clk, uut.state == STATE_IDLE, 10);
+
+  // Read back - should have only low byte changed
+  rd_addr     = 32'h500;
+  rd_valid_in = 1;
+  `TICK(clk);
+  `CHECK_TRUE(rd_data_valid);
+  `CHECK_EQ(rd_data, 32'hABCDEFAA);
+endtask
+
+//
+// Test: Read after write hit returns written data from cache
+//
+task automatic test_read_after_write_hit;
+  // First, read to bring line into cache
+  rd_addr     = 32'h480;
+  rd_valid_in = 1;
+  `CHECK_WAIT_FOR(clk, rd_data_valid, 10);
+  `CHECK_EQ(rd_data, 32'hFEEDFACE);
+  `TICK(clk);
+
+  // Write new data (cache hit)
+  wr_addr     = 32'h480;
+  wr_data     = 32'h11223344;
+  wr_strb     = 4'hF;
+  wr_valid_in = 1;
+
+  `TICK(clk);
+  `CHECK_WAIT_FOR(clk, uut.state == STATE_IDLE, 10);
+
+  // Read same address - should return written data from cache
+  rd_addr     = 32'h480;
+  rd_valid_in = 1;
+  `TICK(clk);
+  `CHECK_TRUE(rd_data_valid);
+  `CHECK_EQ(rd_data, 32'h11223344);
+endtask
+
+//
+// Test: Read after write miss - verify write went to memory correctly
+//
+task automatic test_read_after_write_miss;
+  // Write to uncached address with partial strobe
+  // Initial memory at 0xC40 is 0x11223344
+  // Write high byte only -> expect 0xEE223344
+  wr_addr     = 32'hC40;
+  wr_data     = 32'hEEFFFFFF;
+  wr_strb     = 4'b1000;
+  wr_valid_in = 1;
+
+  `TICK(clk);
+  `CHECK_WAIT_FOR(clk, uut.state == STATE_IDLE, 10);
+
+  // Read back and verify
+  rd_addr     = 32'hC40;
+  rd_valid_in = 1;
+  `CHECK_WAIT_FOR(clk, rd_data_valid, 10);
+  `CHECK_EQ(rd_data, 32'hEE223344);
+endtask
+
+//
+// Test: Read during write - read different cache line
+//
+task automatic test_read_during_write_diff_line;
+  // Pre-fill cache line at 0xC00
+  rd_addr     = 32'hC00;
+  rd_valid_in = 1;
+  `CHECK_WAIT_FOR(clk, rd_data_valid, 10);
+  `CHECK_EQ(rd_data, 32'hAABBCCDD);
+  `TICK(clk);
+
+  // Start write to different address (0x800)
+  wr_addr     = 32'h800;
+  wr_data     = 32'h55667788;
+  wr_strb     = 4'hF;
+  wr_valid_in = 1;
+
+  `TICK(clk);
+  `CHECK_EQ(uut.state, STATE_WRITE);
+
+  // Read from pre-filled cache line while write in progress
+  rd_addr     = 32'hC00;
+  rd_valid_in = 1;
+
+  // Read hit should be accepted during write
+  `CHECK_TRUE(rd_ready);
+
+  // Data should be available next cycle
+  `TICK(clk);
+  `CHECK_TRUE(rd_data_valid);
+  `CHECK_EQ(rd_data, 32'hAABBCCDD);
+
+  // Wait for write to complete
+  `CHECK_WAIT_FOR(clk, uut.state == STATE_IDLE, 10);
+endtask
+
+//
+// Test: Read during write - read same cache line being written
+//
+task automatic test_read_during_write_same_line;
+  // Pre-fill cache line at 0xC00
+  rd_addr     = 32'hC00;
+  rd_valid_in = 1;
+  `CHECK_WAIT_FOR(clk, rd_data_valid, 10);
+  `CHECK_EQ(rd_data, 32'hAABBCCDD);
+  `TICK(clk);
+
+  // Write to same address (cache updates before STATE_WRITE)
+  wr_addr     = 32'hC00;
+  wr_data     = 32'h99887766;
+  wr_strb     = 4'hF;
+  wr_valid_in = 1;
+
+  `TICK(clk);
+  `CHECK_EQ(uut.state, STATE_WRITE);
+
+  // Read from same cache line while write in progress
+  rd_addr     = 32'hC00;
+  rd_valid_in = 1;
+
+  // Read hit should be accepted during write
+  `CHECK_TRUE(rd_ready);
+
+  // Data should be the NEW written value
+  `TICK(clk);
+  `CHECK_TRUE(rd_data_valid);
+  `CHECK_EQ(rd_data, 32'h99887766);
+
+  // Wait for write to complete
+  `CHECK_WAIT_FOR(clk, uut.state == STATE_IDLE, 10);
 endtask
