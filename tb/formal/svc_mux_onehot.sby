@@ -1,0 +1,18 @@
+[tasks]
+bmc
+cover
+
+[options]
+bmc: mode bmc
+cover: mode cover
+cover: depth 10
+
+[engines]
+smtbmc boolector
+
+[script]
+read_verilog -formal -DFORMAL_SVC_MUX_ONEHOT -sv common/svc_mux_onehot.sv
+prep -top svc_mux_onehot
+
+[files]
+rtl/
