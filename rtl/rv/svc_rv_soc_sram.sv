@@ -117,6 +117,9 @@ module svc_rv_soc_sram #(
   //
   // For single-cycle mode: Combinational passthrough.
   //
+  // stage_if expects a minimum of 1 cycle. It would need to use
+  // zero latency fifos if were to do same cycle reads here.
+  //
   if (PIPELINED != 0) begin : g_pipelined_imem
     //
     // Hold instruction data for 1-cycle latency
