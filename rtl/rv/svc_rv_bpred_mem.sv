@@ -30,8 +30,8 @@ module svc_rv_bpred_mem #(
     input logic            branch_taken_mem,
     input logic            is_jalr_mem,
     input logic            bpred_taken_mem,
-    input logic [XLEN-1:0] jb_target_mem,
-    input logic [XLEN-1:0] pred_target_mem,
+    input logic [XLEN-1:0] jb_tgt_mem,
+    input logic [XLEN-1:0] pred_tgt_mem,
 
     //
     // Misprediction detection outputs
@@ -62,7 +62,7 @@ module svc_rv_bpred_mem #(
     // JALR mispredicted if: not predicted OR predicted target doesn't match actual
     //
     assign jalr_mispredicted_mem = is_jalr_mem &&
-        (!bpred_taken_mem || (pred_target_mem != jb_target_mem));
+        (!bpred_taken_mem || (pred_tgt_mem != jb_tgt_mem));
 
   end else if (BPRED != 0) begin : g_jalr_no_ras
     //
@@ -70,7 +70,7 @@ module svc_rv_bpred_mem #(
     //
     assign jalr_mispredicted_mem = is_jalr_mem;
 
-    `SVC_UNUSED({bpred_taken_mem, jb_target_mem, pred_target_mem});
+    `SVC_UNUSED({bpred_taken_mem, jb_tgt_mem, pred_tgt_mem});
 
   end else begin : g_no_jalr_mispred
     //
@@ -79,8 +79,8 @@ module svc_rv_bpred_mem #(
     assign jalr_mispredicted_mem = 1'b0;
 
     // verilog_format: off
-    `SVC_UNUSED({is_jalr_mem, bpred_taken_mem, pred_target_mem,
-                 jb_target_mem});
+    `SVC_UNUSED({is_jalr_mem, bpred_taken_mem, pred_tgt_mem,
+                 jb_tgt_mem});
     // verilog_format: on
   end
 

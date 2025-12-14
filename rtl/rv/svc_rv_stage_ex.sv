@@ -62,7 +62,7 @@ module svc_rv_stage_ex #(
     input logic [     2:0] res_src_ex,
     input logic            is_branch_ex,
     input logic            is_jmp_ex,
-    input logic            jb_target_src_ex,
+    input logic            jb_tgt_src_ex,
     input logic            is_jal_ex,
     input logic            is_jalr_ex,
     input logic            is_mc_ex,
@@ -83,7 +83,7 @@ module svc_rv_stage_ex #(
     input logic [XLEN-1:0] pc_ex,
     input logic [XLEN-1:0] pc_plus4_ex,
     input logic            bpred_taken_ex,
-    input logic [XLEN-1:0] pred_target_ex,
+    input logic [XLEN-1:0] pred_tgt_ex,
 
     // Forwarding from MEM stage
     input logic [XLEN-1:0] result_mem,
@@ -94,7 +94,7 @@ module svc_rv_stage_ex #(
 
     // PC control outputs to IF
     output logic [     1:0] pc_sel_ex,
-    output logic [XLEN-1:0] pc_redirect_target_ex,
+    output logic [XLEN-1:0] pc_redir_tgt_ex,
     output logic            mispredicted_ex,
 
     // Outputs to MEM stage
@@ -113,7 +113,7 @@ module svc_rv_stage_ex #(
     output logic [XLEN-1:0] rs1_data_mem,
     output logic [XLEN-1:0] rs2_data_mem,
     output logic [XLEN-1:0] pc_plus4_mem,
-    output logic [XLEN-1:0] jb_target_mem,
+    output logic [XLEN-1:0] jb_tgt_mem,
     output logic [XLEN-1:0] csr_rdata_mem,
     output logic [XLEN-1:0] m_result_mem,
     output logic [XLEN-1:0] mul_ll_mem,
@@ -125,7 +125,7 @@ module svc_rv_stage_ex #(
     output logic            is_jmp_mem,
     output logic            branch_taken_mem,
     output logic            bpred_taken_mem,
-    output logic [XLEN-1:0] pred_target_mem,
+    output logic [XLEN-1:0] pred_tgt_mem,
     output logic            trap_mem,
     output logic [     1:0] trap_code_mem,
     output logic            is_ebreak_mem,
@@ -136,7 +136,7 @@ module svc_rv_stage_ex #(
     // BTB update interface
     output logic            btb_update_en,
     output logic [XLEN-1:0] btb_update_pc,
-    output logic [XLEN-1:0] btb_update_target,
+    output logic [XLEN-1:0] btb_update_tgt,
     output logic            btb_update_taken,
     output logic            btb_update_is_ret,
     output logic            btb_update_is_jal
@@ -149,7 +149,7 @@ module svc_rv_stage_ex #(
   logic [XLEN-1:0] alu_a_ex;
   logic [XLEN-1:0] alu_b_ex;
   logic [XLEN-1:0] alu_result_ex;
-  logic [XLEN-1:0] jb_target_ex;
+  logic [XLEN-1:0] jb_tgt_ex;
 
   // Multi-cycle operation control
   logic            op_en_ex;
@@ -395,22 +395,22 @@ module svc_rv_stage_ex #(
   //    target = (rs1 + offset) & ~1
   //    The ALU computes rs1+offset, then LSB is cleared per RISC-V spec.
   //    This ensures all jump targets are aligned to even addresses
-  logic [XLEN-1:0] jb_target_jalr;
-  logic [XLEN-1:0] jb_target_pc_rel;
+  logic [XLEN-1:0] jb_tgt_jalr;
+  logic [XLEN-1:0] jb_tgt_pc_rel;
 
   // JALR target: ALU result with LSB cleared
-  assign jb_target_jalr   = {alu_result_ex[XLEN-1:1], 1'b0};
+  assign jb_tgt_jalr   = {alu_result_ex[XLEN-1:1], 1'b0};
 
   // PC-relative target: Dedicated adder for JAL and branches
-  assign jb_target_pc_rel = pc_ex + imm_ex;
+  assign jb_tgt_pc_rel = pc_ex + imm_ex;
 
   svc_muxn #(
       .WIDTH(XLEN),
       .N    (2)
-  ) mux_jb_target (
-      .sel (jb_target_src_ex),
-      .data({jb_target_jalr, jb_target_pc_rel}),
-      .out (jb_target_ex)
+  ) mux_jb_tgt (
+      .sel (jb_tgt_src_ex),
+      .data({jb_tgt_jalr, jb_tgt_pc_rel}),
+      .out (jb_tgt_ex)
   );
 
   //===========================================================================
@@ -421,7 +421,7 @@ module svc_rv_stage_ex #(
   logic jb_active;
 
   assign jb_active = (is_branch_ex & branch_taken_ex) | is_jal_ex | is_jalr_ex;
-  assign misalign_trap = jb_active & (|jb_target_ex[1:0]);
+  assign misalign_trap = jb_active & (|jb_tgt_ex[1:0]);
 
   //===========================================================================
   // Branch comparison
@@ -455,22 +455,22 @@ module svc_rv_stage_ex #(
 
   // On misprediction, redirect to:
   // - pc + 4 if predicted taken but actually not-taken
-  // - jb_target if predicted not-taken but actually taken
-  // On actual taken branch/jump: jb_target
+  // - jb_tgt if predicted not-taken but actually taken
+  // On actual taken branch/jump: jb_tgt
   //
-  if (BPRED != 0) begin : g_pc_redirect
+  if (BPRED != 0) begin : g_pc_redir
     logic mispred_not_taken;
 
     assign mispred_not_taken = mispredicted_ex && !branch_taken_ex;
 
     always_comb begin
-      pc_redirect_target_ex = jb_target_ex;
+      pc_redir_tgt_ex = jb_tgt_ex;
       if (mispred_not_taken) begin
-        pc_redirect_target_ex = pc_ex + 4;
+        pc_redir_tgt_ex = pc_ex + 4;
       end
     end
-  end else begin : g_no_pc_redirect
-    assign pc_redirect_target_ex = jb_target_ex;
+  end else begin : g_no_pc_redir
+    assign pc_redir_tgt_ex = jb_tgt_ex;
   end
 
   //===========================================================================
@@ -493,14 +493,14 @@ module svc_rv_stage_ex #(
   //
   logic pc_sel_branch_or_jump;
 
-  if (BPRED != 0) begin : g_bpred_ex_redirect
+  if (BPRED != 0) begin : g_bpred_ex_redir
     // With prediction: only redirect on UNPREDICTED JALR
     // - Predicted JALR: Wait for MEM stage misprediction check (timing opt)
     // - Unpredicted JALR: Redirect immediately in EX (avoid wrong-path execution)
     // - Branches: Never redirect in EX (handled by misprediction logic)
     // - JAL: Predicted in ID stage, never reaches here
     assign pc_sel_branch_or_jump = is_jalr_ex && !bpred_taken_ex;
-  end else begin : g_no_bpred_redirect
+  end else begin : g_no_bpred_redir
     // Without prediction: taken branches and all jumps redirect in EX
     assign pc_sel_branch_or_jump = ((is_branch_ex & branch_taken_ex) ||
                                     is_jal_ex || is_jalr_ex);
@@ -625,8 +625,8 @@ module svc_rv_stage_ex #(
   XLEN +  // rs1_data_mem
   XLEN +  // rs2_data_mem
   XLEN +  // pc_plus4_mem
-  XLEN +  // jb_target_mem
-  XLEN +  // pred_target_mem
+  XLEN +  // jb_tgt_mem
+  XLEN +  // pred_tgt_mem
   XLEN +  // csr_rdata_mem
   4 * XLEN +  // mul_ll/lh/hl/hh_mem
   2;  // trap_code_mem
@@ -660,8 +660,8 @@ module svc_rv_stage_ex #(
         fwd_rs1_ex,
         fwd_rs2_ex,
         pc_plus4_ex,
-        jb_target_ex,
-        pred_target_ex,
+        jb_tgt_ex,
+        pred_tgt_ex,
         csr_rdata_ex,
         mul_ll_ex,
         mul_lh_ex,
@@ -685,8 +685,8 @@ module svc_rv_stage_ex #(
         rs1_data_mem,
         rs2_data_mem,
         pc_plus4_mem,
-        jb_target_mem,
-        pred_target_mem,
+        jb_tgt_mem,
+        pred_tgt_mem,
         csr_rdata_mem,
         mul_ll_mem,
         mul_lh_mem,
@@ -794,7 +794,7 @@ module svc_rv_stage_ex #(
         `FASSERT(a_rs1_data_mem_stable, $stable(rs1_data_mem));
         `FASSERT(a_rs2_data_mem_stable, $stable(rs2_data_mem));
         `FASSERT(a_pc_plus4_mem_stable, $stable(pc_plus4_mem));
-        `FASSERT(a_jb_target_mem_stable, $stable(jb_target_mem));
+        `FASSERT(a_jb_tgt_mem_stable, $stable(jb_tgt_mem));
         `FASSERT(a_csr_rdata_mem_stable, $stable(csr_rdata_mem));
         `FASSERT(a_m_result_mem_stable, $stable(m_result_mem));
         `FASSERT(a_mul_ll_mem_stable, $stable(mul_ll_mem));
@@ -806,7 +806,7 @@ module svc_rv_stage_ex #(
         `FASSERT(a_is_jmp_mem_stable, $stable(is_jmp_mem));
         `FASSERT(a_branch_taken_mem_stable, $stable(branch_taken_mem));
         `FASSERT(a_bpred_taken_mem_stable, $stable(bpred_taken_mem));
-        `FASSERT(a_pred_target_mem_stable, $stable(pred_target_mem));
+        `FASSERT(a_pred_tgt_mem_stable, $stable(pred_tgt_mem));
         `FASSERT(a_is_ebreak_mem_stable, $stable(is_ebreak_mem));
         `FASSERT(a_trap_mem_stable, $stable(trap_mem));
         `FASSERT(a_trap_code_mem_stable, $stable(trap_code_mem));

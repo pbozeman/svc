@@ -33,7 +33,7 @@ module svc_rv_idec #(
     output logic [2:0] imm_type,
     output logic       is_branch,
     output logic       is_jmp,
-    output logic       jb_target_src,
+    output logic       jb_tgt_src,
     output logic       is_jal,
     output logic       is_jalr,
     output logic       is_m,
@@ -151,7 +151,7 @@ module svc_rv_idec #(
 
     { valid_opcode, reg_write, mem_read, mem_write,
       alu_a_src, alu_b_src, alu_instr, res_src, imm_type,
-      is_branch, is_jmp, jb_target_src, is_jal, is_jalr, is_csr,
+      is_branch, is_jmp, jb_tgt_src, is_jal, is_jalr, is_csr,
       rs1_used, rs2_used } = c;
 
     //

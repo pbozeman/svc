@@ -18,7 +18,7 @@ module svc_rv_soc_sram_ras_fwd_tb;
   // This configuration provides the best performance with:
   // - FWD=1: EX and MEM hazards handled without stalling
   // - BPRED=1: Branch prediction reduces branch penalty
-  // - BTB_ENABLE=1: Dynamic branch target buffer
+  // - BTB_ENABLE=1: Dynamic branch tgt buffer
   // - EXT_M=1: Hardware multiply/divide support
   //
   // SRAM has zero-latency reads, achieving near-ideal CPI (~1.0) for all

@@ -23,36 +23,36 @@ module svc_rv_pc_sel #(
     //
     // PC selection from MEM stage (branch/JALR mispredictions)
     //
-    input logic            redirect_valid_mem,
-    input logic [XLEN-1:0] redirect_target_mem,
+    input logic            redir_valid_mem,
+    input logic [XLEN-1:0] redir_tgt_mem,
 
     //
     // PC selection from EX stage (non-predicted branch/jump redirects)
     //
     input logic [     1:0] pc_sel_ex,
-    input logic [XLEN-1:0] pc_redirect_target_ex,
+    input logic [XLEN-1:0] pc_redir_tgt_ex,
 
     //
     // PC selection and target from ID stage (static prediction)
     //
     input logic [     1:0] pc_sel_id,
-    input logic [XLEN-1:0] pred_target_id,
+    input logic [XLEN-1:0] pred_tgt_id,
 
     //
     // RAS prediction
     //
     input logic            ras_valid,
-    input logic [XLEN-1:0] ras_target,
+    input logic [XLEN-1:0] ras_tgt,
     input logic            is_jalr_id,
     input logic            ras_valid_id,
-    input logic [XLEN-1:0] ras_target_id,
+    input logic [XLEN-1:0] ras_tgt_id,
 
     //
     // BTB prediction (IF stage)
     //
     input logic            btb_hit,
     input logic            btb_taken,
-    input logic [XLEN-1:0] btb_target,
+    input logic [XLEN-1:0] btb_tgt,
     input logic            btb_is_return,
 
     //
@@ -65,8 +65,8 @@ module svc_rv_pc_sel #(
     // Final PC selection outputs
     //
     output logic [     1:0] pc_sel,
-    output logic [XLEN-1:0] pred_target,
-    output logic [XLEN-1:0] pc_redirect_target,
+    output logic [XLEN-1:0] pred_tgt,
+    output logic [XLEN-1:0] pc_redir_tgt,
     output logic            btb_pred_taken,
     output logic            ras_pred_taken,
 
@@ -74,10 +74,10 @@ module svc_rv_pc_sel #(
     // Prediction signals to PC stage (for optional registration)
     //
     output logic            ras_valid_pc,
-    output logic [XLEN-1:0] ras_target_pc,
+    output logic [XLEN-1:0] ras_tgt_pc,
     output logic            btb_hit_pc,
     output logic            btb_pred_taken_pc,
-    output logic [XLEN-1:0] btb_target_pc,
+    output logic [XLEN-1:0] btb_tgt_pc,
     output logic            btb_is_return_pc
 );
 
@@ -117,19 +117,19 @@ module svc_rv_pc_sel #(
       assign ras_prediction_valid = ((ras_early_pred_if && ras_valid) ||
                                      (ras_late_pred_id && ras_valid_id));
       assign ras_valid_pc = ras_valid;
-      assign ras_target_pc = ras_target;
+      assign ras_tgt_pc = ras_tgt;
     end else begin : g_no_ras_pred
       assign ras_prediction_valid = 1'b0;
       assign ras_early_pred_if    = 1'b0;
       assign ras_late_pred_id     = 1'b0;
       assign ras_valid_pc         = 1'b0;
-      assign ras_target_pc        = '0;
+      assign ras_tgt_pc           = '0;
 
       `SVC_UNUSED({
                   ras_valid,
                   ras_valid_id,
-                  ras_target,
-                  ras_target_id,
+                  ras_tgt,
+                  ras_tgt_id,
                   is_jalr_id,
                   btb_is_return,
                   btb_hit_id,
@@ -148,16 +148,16 @@ module svc_rv_pc_sel #(
       assign btb_prediction_valid = btb_hit && btb_taken;
       assign btb_hit_pc           = btb_hit;
       assign btb_pred_taken_pc    = btb_prediction_valid;
-      assign btb_target_pc        = btb_target;
+      assign btb_tgt_pc           = btb_tgt;
       assign btb_is_return_pc     = btb_is_return;
     end else begin : g_no_btb_pred
       assign btb_prediction_valid = 1'b0;
       assign btb_hit_pc           = 1'b0;
       assign btb_pred_taken_pc    = 1'b0;
-      assign btb_target_pc        = '0;
+      assign btb_tgt_pc           = '0;
       assign btb_is_return_pc     = 1'b0;
 
-      `SVC_UNUSED({btb_hit, btb_taken, btb_target});
+      `SVC_UNUSED({btb_hit, btb_taken, btb_tgt});
     end
 
     //
@@ -178,15 +178,15 @@ module svc_rv_pc_sel #(
     always_comb begin
       if (pc_sel_id == PC_SEL_PREDICTED) begin
         pc_sel_ras_btb = pc_sel_id;
-        pred_target    = pred_target_id;
+        pred_tgt       = pred_tgt_id;
       end else if (ras_prediction_valid) begin
         pc_sel_ras_btb = PC_SEL_PREDICTED;
         //
-        // Late prediction uses ras_target_id (buffered from IF to ID) to match
+        // Late prediction uses ras_tgt_id (buffered from IF to ID) to match
         // the target that bpred_taken_id was based on. This ensures consistency
         // with misprediction detection in MEM stage.
         //
-        // Early prediction uses current ras_target (prediction happens in IF).
+        // Early prediction uses current ras_tgt (prediction happens in IF).
         //
         // Note: Use ras_late_pred_id (not ras_early_pred_if) to select the
         // target. ras_early_pred_if reflects the current IF state, which may be
@@ -194,13 +194,13 @@ module svc_rv_pc_sel #(
         // ID-stage JALR, we must use the buffered target even if IF currently
         // has an early prediction for a different instruction.
         //
-        pred_target    = ras_late_pred_id ? ras_target_id : ras_target;
+        pred_tgt       = ras_late_pred_id ? ras_tgt_id : ras_tgt;
       end else if (btb_prediction_valid) begin
         pc_sel_ras_btb = PC_SEL_PREDICTED;
-        pred_target    = btb_target;
+        pred_tgt       = btb_tgt;
       end else begin
         pc_sel_ras_btb = pc_sel_id;
-        pred_target    = pred_target_id;
+        pred_tgt       = pred_tgt_id;
       end
     end
 
@@ -224,19 +224,19 @@ module svc_rv_pc_sel #(
 
   end else begin : g_no_ras_btb_pc_sel
     assign pc_sel_ras_btb    = pc_sel_id;
-    assign pred_target       = pred_target_id;
+    assign pred_tgt          = pred_tgt_id;
     assign btb_pred_taken    = 1'b0;
     assign ras_pred_taken    = 1'b0;
     assign btb_hit_pc        = 1'b0;
     assign btb_pred_taken_pc = 1'b0;
-    assign btb_target_pc     = '0;
+    assign btb_tgt_pc        = '0;
     assign btb_is_return_pc  = 1'b0;
     assign ras_valid_pc      = 1'b0;
-    assign ras_target_pc     = '0;
+    assign ras_tgt_pc        = '0;
 
     // verilog_format: off
-    `SVC_UNUSED({ras_valid, ras_valid_id, ras_target, ras_target_id, is_jalr_id,
-                 btb_hit, btb_taken, btb_target, btb_is_return, btb_hit_id,
+    `SVC_UNUSED({ras_valid, ras_valid_id, ras_tgt, ras_tgt_id, is_jalr_id,
+                 btb_hit, btb_taken, btb_tgt, btb_is_return, btb_hit_id,
                  btb_is_return_id});
     // verilog_format: on
   end
@@ -250,15 +250,15 @@ module svc_rv_pc_sel #(
   // 3. Predictions (speculative)
   //
   always_comb begin
-    if (redirect_valid_mem) begin
-      pc_sel             = PC_SEL_REDIRECT;
-      pc_redirect_target = redirect_target_mem;
+    if (redir_valid_mem) begin
+      pc_sel       = PC_SEL_REDIRECT;
+      pc_redir_tgt = redir_tgt_mem;
     end else if (pc_sel_ex == PC_SEL_REDIRECT) begin
-      pc_sel             = PC_SEL_REDIRECT;
-      pc_redirect_target = pc_redirect_target_ex;
+      pc_sel       = PC_SEL_REDIRECT;
+      pc_redir_tgt = pc_redir_tgt_ex;
     end else begin
-      pc_sel             = pc_sel_ras_btb;
-      pc_redirect_target = '0;
+      pc_sel       = pc_sel_ras_btb;
+      pc_redir_tgt = '0;
     end
   end
 

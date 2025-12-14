@@ -39,14 +39,14 @@ module svc_rv_stage_if #(
     //
     input logic            btb_hit_if,
     input logic            btb_pred_taken_if,
-    input logic [XLEN-1:0] btb_target_if,
+    input logic [XLEN-1:0] btb_tgt_if,
     input logic            btb_is_return_if,
 
     //
     // RAS prediction signals
     //
     input logic            ras_valid_if,
-    input logic [XLEN-1:0] ras_target_if,
+    input logic [XLEN-1:0] ras_tgt_if,
 
     //
     // Instruction memory interface
@@ -67,10 +67,10 @@ module svc_rv_stage_if #(
     output logic [XLEN-1:0] pc_plus4_id,
     output logic            btb_hit_id,
     output logic            btb_pred_taken_id,
-    output logic [XLEN-1:0] btb_target_id,
+    output logic [XLEN-1:0] btb_tgt_id,
     output logic            btb_is_return_id,
     output logic            ras_valid_id,
-    output logic [XLEN-1:0] ras_target_id
+    output logic [XLEN-1:0] ras_tgt_id
 );
 
   `include "svc_rv_defs.svh"
@@ -315,10 +315,10 @@ module svc_rv_stage_if #(
 
   logic            btb_hit_id_next;
   logic            btb_pred_taken_id_next;
-  logic [XLEN-1:0] btb_target_id_next;
+  logic [XLEN-1:0] btb_tgt_id_next;
   logic            btb_is_return_id_next;
   logic            ras_valid_id_next;
-  logic [XLEN-1:0] ras_target_id_next;
+  logic [XLEN-1:0] ras_tgt_id_next;
 
   if (PIPELINED != 0) begin : g_meta_fifo
     logic [META_WIDTH-1:0] meta_fifo_wdata;
@@ -330,10 +330,10 @@ module svc_rv_stage_if #(
     assign meta_fifo_wdata = {
       btb_hit_if,
       btb_pred_taken_if,
-      btb_target_if,
+      btb_tgt_if,
       btb_is_return_if,
       ras_valid_if,
-      ras_target_if
+      ras_tgt_if
     };
 
     //
@@ -360,8 +360,8 @@ module svc_rv_stage_if #(
         .r_data     (meta_fifo_rdata)
     );
 
-    assign {btb_hit_id_next, btb_pred_taken_id_next, btb_target_id_next,
-            btb_is_return_id_next, ras_valid_id_next, ras_target_id_next} =
+    assign {btb_hit_id_next, btb_pred_taken_id_next, btb_tgt_id_next,
+            btb_is_return_id_next, ras_valid_id_next, ras_tgt_id_next} =
         meta_fifo_rdata;
 
     //
@@ -396,10 +396,10 @@ module svc_rv_stage_if #(
     assign meta_fifo_valid        = '0;
     assign btb_hit_id_next        = '0;
     assign btb_pred_taken_id_next = '0;
-    assign btb_target_id_next     = '0;
+    assign btb_tgt_id_next        = '0;
     assign btb_is_return_id_next  = '0;
     assign ras_valid_id_next      = '0;
-    assign ras_target_id_next     = '0;
+    assign ras_tgt_id_next        = '0;
   end
 
   // =========================================================================
@@ -412,10 +412,10 @@ module svc_rv_stage_if #(
     assign pc_plus4_id       = pc_plus4_id_next;
     assign btb_hit_id        = btb_hit_id_next;
     assign btb_pred_taken_id = btb_pred_taken_id_next;
-    assign btb_target_id     = btb_target_id_next;
+    assign btb_tgt_id        = btb_tgt_id_next;
     assign btb_is_return_id  = btb_is_return_id_next;
     assign ras_valid_id      = ras_valid_id_next;
-    assign ras_target_id     = ras_target_id_next;
+    assign ras_tgt_id        = ras_tgt_id_next;
 
     `SVC_UNUSED({instr})
 
@@ -429,10 +429,10 @@ module svc_rv_stage_if #(
     assign pc_plus4_id       = pc_if + 4;
     assign btb_hit_id        = btb_hit_if;
     assign btb_pred_taken_id = btb_pred_taken_if;
-    assign btb_target_id     = btb_target_if;
+    assign btb_tgt_id        = btb_tgt_if;
     assign btb_is_return_id  = btb_is_return_if;
     assign ras_valid_id      = ras_valid_if;
-    assign ras_target_id     = ras_target_if;
+    assign ras_tgt_id        = ras_tgt_if;
 
     //
     // FIFO signals are only used in pipelined mode
@@ -443,8 +443,8 @@ module svc_rv_stage_if #(
                  pc_fifo_valid, aligned_pc_fifo_valid,
                  instr_fifo_valid, meta_fifo_valid,
                  pc_id_next, pc_plus4_id_next, instr_id_next,
-                 btb_hit_id_next, btb_pred_taken_id_next, btb_target_id_next,
-                 btb_is_return_id_next, ras_valid_id_next, ras_target_id_next});
+                 btb_hit_id_next, btb_pred_taken_id_next, btb_tgt_id_next,
+                 btb_is_return_id_next, ras_valid_id_next, ras_tgt_id_next});
     // verilog_format: on
   end
 
@@ -547,11 +547,11 @@ module svc_rv_stage_if #(
         `FASSERT(a_btb_hit_stable, btb_hit_id == $past(btb_hit_id));
         `FASSERT(a_btb_pred_taken_stable, btb_pred_taken_id == $past(
                  btb_pred_taken_id));
-        `FASSERT(a_btb_target_stable, btb_target_id == $past(btb_target_id));
+        `FASSERT(a_btb_tgt_stable, btb_tgt_id == $past(btb_tgt_id));
         `FASSERT(a_btb_is_return_stable, btb_is_return_id == $past(
                  btb_is_return_id));
         `FASSERT(a_ras_valid_stable, ras_valid_id == $past(ras_valid_id));
-        `FASSERT(a_ras_target_stable, ras_target_id == $past(ras_target_id));
+        `FASSERT(a_ras_tgt_stable, ras_tgt_id == $past(ras_tgt_id));
       end
     end
   end
@@ -579,11 +579,11 @@ module svc_rv_stage_if #(
         `FASSUME(a_in_btb_hit_stable, btb_hit_if == $past(btb_hit_if));
         `FASSUME(a_in_btb_pred_taken_stable, btb_pred_taken_if == $past(
                  btb_pred_taken_if));
-        `FASSUME(a_in_btb_target_stable, btb_target_if == $past(btb_target_if));
+        `FASSUME(a_in_btb_tgt_stable, btb_tgt_if == $past(btb_tgt_if));
         `FASSUME(a_in_btb_is_return_stable, btb_is_return_if == $past(
                  btb_is_return_if));
         `FASSUME(a_in_ras_valid_stable, ras_valid_if == $past(ras_valid_if));
-        `FASSUME(a_in_ras_target_stable, ras_target_if == $past(ras_target_if));
+        `FASSUME(a_in_ras_tgt_stable, ras_tgt_if == $past(ras_tgt_if));
       end
     end
   end
@@ -608,10 +608,10 @@ module svc_rv_stage_if #(
   logic [XLEN-1:0] f_pc_queue            [0:F_QUEUE_DEPTH-1];
   logic            f_btb_hit_queue       [0:F_QUEUE_DEPTH-1];
   logic            f_btb_pred_taken_queue[0:F_QUEUE_DEPTH-1];
-  logic [XLEN-1:0] f_btb_target_queue    [0:F_QUEUE_DEPTH-1];
+  logic [XLEN-1:0] f_btb_tgt_queue       [0:F_QUEUE_DEPTH-1];
   logic            f_btb_is_return_queue [0:F_QUEUE_DEPTH-1];
   logic            f_ras_valid_queue     [0:F_QUEUE_DEPTH-1];
-  logic [XLEN-1:0] f_ras_target_queue    [0:F_QUEUE_DEPTH-1];
+  logic [XLEN-1:0] f_ras_tgt_queue       [0:F_QUEUE_DEPTH-1];
 
   logic [     1:0] f_wr_ptr;
   logic [     1:0] f_rd_ptr;
@@ -632,10 +632,10 @@ module svc_rv_stage_if #(
       f_pc_queue[f_wr_ptr]             <= imem_araddr;
       f_btb_hit_queue[f_wr_ptr]        <= btb_hit_if;
       f_btb_pred_taken_queue[f_wr_ptr] <= btb_pred_taken_if;
-      f_btb_target_queue[f_wr_ptr]     <= btb_target_if;
+      f_btb_tgt_queue[f_wr_ptr]        <= btb_tgt_if;
       f_btb_is_return_queue[f_wr_ptr]  <= btb_is_return_if;
       f_ras_valid_queue[f_wr_ptr]      <= ras_valid_if;
-      f_ras_target_queue[f_wr_ptr]     <= ras_target_if;
+      f_ras_tgt_queue[f_wr_ptr]        <= ras_tgt_if;
       f_wr_ptr                         <= f_wr_ptr + 1;
     end
   end
@@ -709,14 +709,12 @@ module svc_rv_stage_if #(
         `FASSERT(a_btb_hit_integrity, btb_hit_id == f_btb_hit_queue[f_rd_ptr]);
         `FASSERT(a_btb_pred_taken_integrity,
                  btb_pred_taken_id == f_btb_pred_taken_queue[f_rd_ptr]);
-        `FASSERT(a_btb_target_integrity,
-                 btb_target_id == f_btb_target_queue[f_rd_ptr]);
+        `FASSERT(a_btb_tgt_integrity, btb_tgt_id == f_btb_tgt_queue[f_rd_ptr]);
         `FASSERT(a_btb_is_return_integrity,
                  btb_is_return_id == f_btb_is_return_queue[f_rd_ptr]);
         `FASSERT(a_ras_valid_integrity,
                  ras_valid_id == f_ras_valid_queue[f_rd_ptr]);
-        `FASSERT(a_ras_target_integrity,
-                 ras_target_id == f_ras_target_queue[f_rd_ptr]);
+        `FASSERT(a_ras_tgt_integrity, ras_tgt_id == f_ras_tgt_queue[f_rd_ptr]);
       end
     end
   end

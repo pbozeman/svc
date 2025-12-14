@@ -39,7 +39,7 @@ module svc_rv_stage_wb #(
     input logic [XLEN-1:0] alu_result_wb,
     input logic [XLEN-1:0] ld_data_wb,
     input logic [XLEN-1:0] pc_plus4_wb,
-    input logic [XLEN-1:0] jb_target_wb,
+    input logic [XLEN-1:0] jb_tgt_wb,
     input logic [XLEN-1:0] csr_rdata_wb,
     input logic [XLEN-1:0] m_result_wb,
     input logic [     2:0] funct3_wb,
@@ -143,7 +143,7 @@ module svc_rv_stage_wb #(
       .data({
         m_ext_result_wb,
         csr_rdata_wb,
-        jb_target_wb,
+        jb_tgt_wb,
         pc_plus4_wb,
         ld_data_wb,
         alu_result_wb
@@ -292,7 +292,7 @@ module svc_rv_stage_wb #(
         `FASSUME(a_alu_result_stable, alu_result_wb == $past(alu_result_wb));
         `FASSUME(a_ld_data_stable, ld_data_wb == $past(ld_data_wb));
         `FASSUME(a_pc_plus4_stable, pc_plus4_wb == $past(pc_plus4_wb));
-        `FASSUME(a_jb_target_stable, jb_target_wb == $past(jb_target_wb));
+        `FASSUME(a_jb_tgt_stable, jb_tgt_wb == $past(jb_tgt_wb));
         `FASSUME(a_csr_rdata_stable, csr_rdata_wb == $past(csr_rdata_wb));
         `FASSUME(a_m_result_stable, m_result_wb == $past(m_result_wb));
         `FASSUME(a_funct3_stable, funct3_wb == $past(funct3_wb));

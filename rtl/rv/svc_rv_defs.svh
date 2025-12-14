@@ -120,7 +120,7 @@ localparam logic [2:0] IMM_B = 3'b010;
 localparam logic [2:0] IMM_J = 3'b011;
 localparam logic [2:0] IMM_U = 3'b100;
 
-// jb_target_src values
+// jb_tgt_src values
 localparam logic JB_TARGET_PC  = 1'b0;
 localparam logic JB_TARGET_ALU = 1'b1;
 

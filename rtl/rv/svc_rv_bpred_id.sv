@@ -44,13 +44,13 @@ module svc_rv_bpred_id #(
     // RAS prediction from IF stage (via pipeline register)
     //
     input logic            ras_valid_id,
-    input logic [XLEN-1:0] ras_target_id,
+    input logic [XLEN-1:0] ras_tgt_id,
 
     //
     // Prediction outputs
     //
     output logic [     1:0] pc_sel_id,
-    output logic [XLEN-1:0] pred_target,
+    output logic [XLEN-1:0] pred_tgt,
     output logic            pred_taken_id,
     output logic            bpred_taken_id
 );
@@ -103,11 +103,11 @@ module svc_rv_bpred_id #(
         if (!is_predictable || (ras_pred_taken || btb_pred_valid)) begin
           // No redirect from ID - either already predicted in IF or not predictable
           pred_taken_id = 1'b0;
-          pred_target   = '0;
+          pred_tgt      = '0;
         end else begin
           // RAS/BTB missed - use static BTFNT prediction
           pred_taken_id = static_taken;
-          pred_target   = pc_id + imm_id;
+          pred_tgt      = pc_id + imm_id;
         end
       end
 
@@ -128,21 +128,21 @@ module svc_rv_bpred_id #(
       end
 
       //
-      // ras_target_id is passed through from IF stage
+      // ras_tgt_id is passed through from IF stage
       // but not used in this module (used elsewhere in pipeline)
       //
-      `SVC_UNUSED(ras_target_id);
+      `SVC_UNUSED(ras_tgt_id);
 
     end else begin : g_static_pred
       //
       // Static BTFNT only (no RAS or BTB)
       //
       assign pred_taken_id  = ((is_branch_id && imm_id[XLEN-1]) || is_jal_id);
-      assign pred_target    = pc_id + imm_id;
+      assign pred_tgt       = pc_id + imm_id;
       assign bpred_taken_id = pred_taken_id;
 
       // verilog_format: off
-      `SVC_UNUSED({btb_hit_id, btb_pred_taken_id, ras_valid_id, ras_target_id,
+      `SVC_UNUSED({btb_hit_id, btb_pred_taken_id, ras_valid_id, ras_tgt_id,
                    is_jalr_id});
       // verilog_format: on
     end
@@ -154,13 +154,13 @@ module svc_rv_bpred_id #(
 
   end else begin : g_no_bpred
     assign pred_taken_id  = 1'b0;
-    assign pred_target    = '0;
+    assign pred_tgt       = '0;
     assign pc_sel_id      = PC_SEL_SEQUENTIAL;
     assign bpred_taken_id = 1'b0;
 
     // verilog_format: off
     `SVC_UNUSED({pc_id, imm_id, is_branch_id, is_jal_id, is_jalr_id, btb_hit_id,
-                 btb_pred_taken_id, ras_valid_id, ras_target_id});
+                 btb_pred_taken_id, ras_valid_id, ras_tgt_id});
     // verilog_format: on
   end
 

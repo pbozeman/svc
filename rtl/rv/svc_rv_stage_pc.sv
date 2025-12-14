@@ -30,8 +30,8 @@ module svc_rv_stage_pc #(
     // PC selection inputs (from pc_sel arbiter)
     //
     input logic [     1:0] pc_sel,
-    input logic [XLEN-1:0] pc_redirect_target,
-    input logic [XLEN-1:0] pred_target,
+    input logic [XLEN-1:0] pc_redir_tgt,
+    input logic [XLEN-1:0] pred_tgt,
 
     //
     // BTB early prediction indicator
@@ -39,7 +39,7 @@ module svc_rv_stage_pc #(
     // When btb_pred_taken is set, the prediction happened early in IF stage
     // and no extended flush is needed (the sequential instruction wasn't
     // fetched yet). When clear, the prediction happened late (ID stage static
-    // or RAS) and requires extended flush via redirect_pending_if.
+    // or RAS) and requires extended flush via redir_pending_if.
     //
     input logic btb_pred_taken,
 
@@ -48,10 +48,10 @@ module svc_rv_stage_pc #(
     //
     input logic            btb_hit_pc,
     input logic            btb_pred_taken_pc,
-    input logic [XLEN-1:0] btb_target_pc,
+    input logic [XLEN-1:0] btb_tgt_pc,
     input logic            btb_is_return_pc,
     input logic            ras_valid_pc,
-    input logic [XLEN-1:0] ras_target_pc,
+    input logic [XLEN-1:0] ras_tgt_pc,
 
     //
     // Ready/valid interface to IF stage
@@ -75,15 +75,15 @@ module svc_rv_stage_pc #(
     //
     output logic            btb_hit_if,
     output logic            btb_pred_taken_if,
-    output logic [XLEN-1:0] btb_target_if,
+    output logic [XLEN-1:0] btb_tgt_if,
     output logic            btb_is_return_if,
     output logic            ras_valid_if,
-    output logic [XLEN-1:0] ras_target_if,
+    output logic [XLEN-1:0] ras_tgt_if,
 
     //
     // Registered redirect pending (for hazard unit)
     //
-    output logic redirect_pending_if
+    output logic redir_pending_if
 );
 
   `include "svc_rv_defs.svh"
@@ -111,8 +111,8 @@ module svc_rv_stage_pc #(
   //
   always_comb begin
     case (pc_sel)
-      PC_SEL_REDIRECT:   pc_next = pc_redirect_target;
-      PC_SEL_PREDICTED:  pc_next = pred_target;
+      PC_SEL_REDIRECT:   pc_next = pc_redir_tgt;
+      PC_SEL_PREDICTED:  pc_next = pred_tgt;
       PC_SEL_SEQUENTIAL: pc_next = pc + 4;
       default:           pc_next = pc + 4;
     endcase
@@ -165,23 +165,23 @@ module svc_rv_stage_pc #(
   //
   // Extended flush for registered PC changes
   //
-  // Only set redirect_pending for PC changes that require an extended flush:
+  // Only set redir_pending for PC changes that require an extended flush:
   // - PC_SEL_REDIRECT: Misprediction recovery (always needs flush)
   // - PC_SEL_PREDICTED with !btb_pred_taken: Late prediction (ID stage
   //   static or RAS) where the sequential instruction was already
   //   fetched and must be discarded
   //
   // Do NOT set for BTB early predictions (btb_pred_taken) because the
-  // sequential instruction was never fetched - BTB redirects in IF
+  // sequential instruction was never fetched - BTB redirs in IF
   // stage before the instruction arrives.
   //
-  logic redirect_pending_next;
+  logic redir_pending_next;
 
-  if (PC_REG != 0) begin : g_redirect_pending
-    assign redirect_pending_next = (pc_sel == PC_SEL_REDIRECT) ||
+  if (PC_REG != 0) begin : g_redir_pending
+    assign redir_pending_next = (pc_sel == PC_SEL_REDIRECT) ||
         (pc_sel == PC_SEL_PREDICTED && !btb_pred_taken);
-  end else begin : g_no_redirect_pending
-    assign redirect_pending_next = 1'b0;
+  end else begin : g_no_redir_pending
+    assign redir_pending_next = 1'b0;
     `SVC_UNUSED({btb_pred_taken})
   end
 
@@ -225,14 +225,14 @@ module svc_rv_stage_pc #(
       .s_ready(m_ready),
 `endif
       .data_i({
-        redirect_pending_next,
+        redir_pending_next,
         btb_hit_pc,
         btb_pred_taken_pc,
         btb_is_return_pc,
         ras_valid_pc
       }),
       .data_o({
-        redirect_pending_if,
+        redir_pending_if,
         btb_hit_if,
         btb_pred_taken_if,
         btb_is_return_if,
@@ -241,7 +241,7 @@ module svc_rv_stage_pc #(
   );
 
   //
-  // Payload signals to IF stage (targets, no reset needed)
+  // Payload signals to IF stage (tgts, no reset needed)
   //
   svc_rv_pipe_data #(
       .WIDTH(2 * XLEN),
@@ -256,8 +256,8 @@ module svc_rv_stage_pc #(
       .s_valid(1'b1),
       .s_ready(m_ready),
 `endif
-      .data_i ({btb_target_pc, ras_target_pc}),
-      .data_o ({btb_target_if, ras_target_if})
+      .data_i ({btb_tgt_pc, ras_tgt_pc}),
+      .data_o ({btb_tgt_if, ras_tgt_if})
   );
 
 `ifdef FORMAL
@@ -300,9 +300,8 @@ module svc_rv_stage_pc #(
         // Assume inputs are stable when stalled (upstream contract)
         //
         `FASSUME(a_pc_sel_stable, pc_sel == $past(pc_sel));
-        `FASSUME(a_redirect_target_stable, pc_redirect_target == $past(
-                 pc_redirect_target));
-        `FASSUME(a_pred_target_stable, pred_target == $past(pred_target));
+        `FASSUME(a_redir_tgt_stable, pc_redir_tgt == $past(pc_redir_tgt));
+        `FASSUME(a_pred_tgt_stable, pred_tgt == $past(pred_tgt));
 
         //
         // Assert output is stable (follows from above)
