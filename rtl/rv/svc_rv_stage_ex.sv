@@ -87,7 +87,7 @@ module svc_rv_stage_ex #(
 
     // Forwarding from MEM stage
     input logic [XLEN-1:0] result_mem,
-    input logic [XLEN-1:0] load_data_mem,
+    input logic [XLEN-1:0] ld_data_mem,
 
     // Instruction retirement (for CSR)
     input logic retired,

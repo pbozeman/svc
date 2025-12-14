@@ -66,7 +66,7 @@ module svc_rv_stage_id #(
     input logic            reg_write_mem,
     input logic [     2:0] res_src_mem,
     input logic [XLEN-1:0] result_mem,
-    input logic [XLEN-1:0] load_data_mem,
+    input logic [XLEN-1:0] ld_data_mem,
 
     // Outputs to EX stage
     output logic m_valid,
@@ -253,7 +253,7 @@ module svc_rv_stage_id #(
       .reg_write_mem(reg_write_mem),
       .res_src_mem  (res_src_mem),
       .result_mem   (result_mem),
-      .load_data_mem(load_data_mem),
+      .ld_data_mem  (ld_data_mem),
       .rd_wb        (rd_wb),
       .reg_write_wb (reg_write_wb),
       .rd_data_wb   (rd_data_wb),

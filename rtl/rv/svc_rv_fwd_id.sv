@@ -31,7 +31,7 @@ module svc_rv_fwd_id #(
     input logic            reg_write_mem,
     input logic [     2:0] res_src_mem,
     input logic [XLEN-1:0] result_mem,
-    input logic [XLEN-1:0] load_data_mem,
+    input logic [XLEN-1:0] ld_data_mem,
 
     //
     // WB stage forwarding source
@@ -52,11 +52,11 @@ module svc_rv_fwd_id #(
   //
   // Decode result source to determine forwarding eligibility
   //
-  logic is_load_mem;
+  logic is_ld_mem;
   logic is_csr_mem;
   logic is_m_result_mem;
 
-  assign is_load_mem     = (res_src_mem == RES_MEM);
+  assign is_ld_mem       = (res_src_mem == RES_MEM);
   assign is_csr_mem      = (res_src_mem == RES_CSR);
   assign is_m_result_mem = (res_src_mem == RES_M);
 
@@ -74,7 +74,7 @@ module svc_rv_fwd_id #(
     mem_to_id_fwd_a = 1'b0;
     mem_to_id_fwd_b = 1'b0;
 
-    if (reg_write_mem && rd_mem != 5'd0 && !is_load_mem && !is_csr_mem &&
+    if (reg_write_mem && rd_mem != 5'd0 && !is_ld_mem && !is_csr_mem &&
         !is_m_result_mem) begin
       mem_to_id_fwd_a = (rd_mem == rs1_id);
       mem_to_id_fwd_b = (rd_mem == rs2_id);
@@ -111,7 +111,7 @@ module svc_rv_fwd_id #(
       mem_to_id_fwd_load_a = 1'b0;
       mem_to_id_fwd_load_b = 1'b0;
 
-      if (reg_write_mem && rd_mem != 5'd0 && is_load_mem) begin
+      if (reg_write_mem && rd_mem != 5'd0 && is_ld_mem) begin
         mem_to_id_fwd_load_a = (rd_mem == rs1_id);
         mem_to_id_fwd_load_b = (rd_mem == rs2_id);
       end
@@ -122,7 +122,7 @@ module svc_rv_fwd_id #(
     //
     always_comb begin
       case (1'b1)
-        mem_to_id_fwd_load_a: fwd_rs1_id = load_data_mem;
+        mem_to_id_fwd_load_a: fwd_rs1_id = ld_data_mem;
         mem_to_id_fwd_a:      fwd_rs1_id = result_mem;
         wb_fwd_rs1:           fwd_rs1_id = rd_data_wb;
         default:              fwd_rs1_id = rs1_data_id;
@@ -131,7 +131,7 @@ module svc_rv_fwd_id #(
 
     always_comb begin
       case (1'b1)
-        mem_to_id_fwd_load_b: fwd_rs2_id = load_data_mem;
+        mem_to_id_fwd_load_b: fwd_rs2_id = ld_data_mem;
         mem_to_id_fwd_b:      fwd_rs2_id = result_mem;
         wb_fwd_rs2:           fwd_rs2_id = rd_data_wb;
         default:              fwd_rs2_id = rs2_data_id;
@@ -160,7 +160,7 @@ module svc_rv_fwd_id #(
       endcase
     end
 
-    `SVC_UNUSED({load_data_mem});
+    `SVC_UNUSED({ld_data_mem});
   end
 
   `SVC_UNUSED({clk, XLEN});

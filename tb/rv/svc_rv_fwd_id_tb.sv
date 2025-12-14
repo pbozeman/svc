@@ -18,7 +18,7 @@ module svc_rv_fwd_id_tb;
   logic            reg_write_mem;
   logic [     2:0] res_src_mem;
   logic [XLEN-1:0] result_mem;
-  logic [XLEN-1:0] load_data_mem;
+  logic [XLEN-1:0] ld_data_mem;
   logic [     4:0] rd_wb;
   logic            reg_write_wb;
   logic [XLEN-1:0] rd_data_wb;
@@ -38,7 +38,7 @@ module svc_rv_fwd_id_tb;
       .reg_write_mem(reg_write_mem),
       .res_src_mem  (res_src_mem),
       .result_mem   (result_mem),
-      .load_data_mem(load_data_mem),
+      .ld_data_mem  (ld_data_mem),
       .rd_wb        (rd_wb),
       .reg_write_wb (reg_write_wb),
       .rd_data_wb   (rd_data_wb),
@@ -55,7 +55,7 @@ module svc_rv_fwd_id_tb;
     reg_write_mem = 1'b0;
     res_src_mem   = 3'd0;
     result_mem    = 32'h0;
-    load_data_mem = 32'h0;
+    ld_data_mem   = 32'h0;
     rd_wb         = 5'd0;
     reg_write_wb  = 1'b0;
     rd_data_wb    = 32'h0;

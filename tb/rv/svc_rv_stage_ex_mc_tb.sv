@@ -58,7 +58,7 @@ module svc_rv_stage_ex_mc_tb;
   logic            s_ready;
 
   logic [XLEN-1:0] result_mem;
-  logic [XLEN-1:0] load_data_mem;
+  logic [XLEN-1:0] ld_data_mem;
 
   logic            retired;
 
@@ -160,7 +160,7 @@ module svc_rv_stage_ex_mc_tb;
       .s_valid              (s_valid),
       .s_ready              (s_ready),
       .result_mem           (result_mem),
-      .load_data_mem        (load_data_mem),
+      .ld_data_mem          (ld_data_mem),
       .retired              (retired),
       .pc_sel_ex            (pc_sel_ex_out),
       .pc_redirect_target_ex(pc_redirect_target_ex_out),
@@ -242,7 +242,7 @@ module svc_rv_stage_ex_mc_tb;
     pred_target_ex   = 32'd0;
     s_valid          = 1'b0;
     result_mem       = 32'd0;
-    load_data_mem    = 32'd0;
+    ld_data_mem      = 32'd0;
     retired          = 1'b0;
     m_ready          = 1'b1;
   endtask

@@ -26,7 +26,7 @@ module svc_rv_fwd_ex_tb;
   logic            reg_write_mem;
   logic [     2:0] res_src_mem;
   logic [XLEN-1:0] result_mem;
-  logic [XLEN-1:0] load_data_mem;
+  logic [XLEN-1:0] ld_data_mem;
   logic [XLEN-1:0] fwd_rs1_ex;
   logic [XLEN-1:0] fwd_rs2_ex;
 
@@ -46,7 +46,7 @@ module svc_rv_fwd_ex_tb;
       .reg_write_mem(reg_write_mem),
       .res_src_mem  (res_src_mem),
       .result_mem   (result_mem),
-      .load_data_mem(load_data_mem),
+      .ld_data_mem  (ld_data_mem),
       .fwd_rs1_ex   (fwd_rs1_ex),
       .fwd_rs2_ex   (fwd_rs2_ex)
   );
@@ -63,7 +63,7 @@ module svc_rv_fwd_ex_tb;
     reg_write_mem = 1'b0;
     res_src_mem   = 3'd0;
     result_mem    = 32'h0;
-    load_data_mem = 32'h0;
+    ld_data_mem   = 32'h0;
   endtask
 
   //
@@ -157,7 +157,7 @@ module svc_rv_fwd_ex_tb;
   // Test: Load forwarding for SRAM (data ready in MEM stage)
   //
   // This testbench uses MEM_TYPE=0 (SRAM), so load data can be forwarded
-  // from MEM stage via load_data_mem signal
+  // from MEM stage via ld_data_mem signal
   //
   task automatic test_sram_load_fwd;
     reset_inputs();
@@ -171,7 +171,7 @@ module svc_rv_fwd_ex_tb;
     reg_write_mem = 1'b1;
     res_src_mem   = 3'd1;
     result_mem    = 32'h99990000;
-    load_data_mem = 32'h12340000;
+    ld_data_mem   = 32'h12340000;
 
     `TICK(clk);
 
@@ -195,7 +195,7 @@ module svc_rv_fwd_ex_tb;
     reg_write_mem = 1'b1;
     res_src_mem   = 3'd1;
     result_mem    = 32'h99990000;
-    load_data_mem = 32'hFEEDBEEF;
+    ld_data_mem   = 32'hFEEDBEEF;
 
     `TICK(clk);
 

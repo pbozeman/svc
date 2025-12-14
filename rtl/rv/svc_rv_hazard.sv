@@ -49,7 +49,7 @@ module svc_rv_hazard #(
     // EX stage control signals and destination
     input logic [4:0] rd_ex,
     input logic       reg_write_ex,
-    input logic       is_load_ex,
+    input logic       is_ld_ex,
     input logic       is_csr_ex,
     input logic       is_m_ex,
     input logic       op_active_ex,
@@ -239,14 +239,14 @@ module svc_rv_hazard #(
       //
       // Load/CSR/M-ext in EX, consumer in ID: Data not computed yet
       //
-      assign load_use_ex = ((is_load_ex || is_csr_ex || is_m_ex) &&
+      assign load_use_ex = ((is_ld_ex || is_csr_ex || is_m_ex) &&
                             (ex_hazard_rs1 || ex_hazard_rs2));
 
       //
       // Load/CSR/M-ext in MEM, consumer in ID: Data not ready yet (BRAM latency)
       //
       // MEM→ID forwarding skips loads, CSRs, and M extension results (checked via
-      // !is_load_mem && !is_csr_mem && !is_m_result_mem in svc_rv_fwd_id).
+      // !is_ld_mem && !is_csr_mem && !is_m_result_mem in svc_rv_fwd_id).
       // Must stall until result reaches WB where WB→ID can forward it.
       //
       assign load_use_mem = ((mem_read_mem || is_csr_mem || is_m_result_mem) &&
@@ -274,7 +274,7 @@ module svc_rv_hazard #(
 
       assign load_use_hazard = load_use_ex || load_use_mem;
 
-      `SVC_UNUSED({is_load_ex, mem_read_mem});
+      `SVC_UNUSED({is_ld_ex, mem_read_mem});
     end
 
     //
@@ -299,7 +299,7 @@ module svc_rv_hazard #(
     //
     assign data_hazard_id = (ex_hazard || mem_hazard || wb_hazard) &&
         !control_flush;
-    `SVC_UNUSED({is_load_ex, is_csr_ex, is_m_ex, mem_read_mem, res_src_mem});
+    `SVC_UNUSED({is_ld_ex, is_csr_ex, is_m_ex, mem_read_mem, res_src_mem});
   end
 
 

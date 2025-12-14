@@ -64,7 +64,7 @@ module svc_rv_fwd_ex #(
     input logic            reg_write_mem,
     input logic [     2:0] res_src_mem,
     input logic [XLEN-1:0] result_mem,
-    input logic [XLEN-1:0] load_data_mem,
+    input logic [XLEN-1:0] ld_data_mem,
 
     //
     // Forwarded outputs
@@ -79,11 +79,11 @@ module svc_rv_fwd_ex #(
     //
     // Decode result source to determine forwarding eligibility
     //
-    logic is_load_mem;
+    logic is_ld_mem;
     logic is_csr_mem;
     logic is_m_result_mem;
 
-    assign is_load_mem     = (res_src_mem == RES_MEM);
+    assign is_ld_mem       = (res_src_mem == RES_MEM);
     assign is_csr_mem      = (res_src_mem == RES_CSR);
     assign is_m_result_mem = (res_src_mem == RES_M);
 
@@ -101,7 +101,7 @@ module svc_rv_fwd_ex #(
       mem_to_ex_fwd_a = 1'b0;
       mem_to_ex_fwd_b = 1'b0;
 
-      if (!is_mc && reg_write_mem && rd_mem != 5'd0 && !is_load_mem &&
+      if (!is_mc && reg_write_mem && rd_mem != 5'd0 && !is_ld_mem &&
           !is_csr_mem && !is_m_result_mem) begin
         mem_to_ex_fwd_a = (rd_mem == rs1_ex);
         mem_to_ex_fwd_b = (rd_mem == rs2_ex);
@@ -122,7 +122,7 @@ module svc_rv_fwd_ex #(
         mem_to_ex_fwd_load_a = 1'b0;
         mem_to_ex_fwd_load_b = 1'b0;
 
-        if (!is_mc && reg_write_mem && rd_mem != 5'd0 && is_load_mem) begin
+        if (!is_mc && reg_write_mem && rd_mem != 5'd0 && is_ld_mem) begin
           mem_to_ex_fwd_load_a = (rd_mem == rs1_ex);
           mem_to_ex_fwd_load_b = (rd_mem == rs2_ex);
         end
@@ -135,7 +135,7 @@ module svc_rv_fwd_ex #(
       always_comb begin
         case (1'b1)
           is_mc:                fwd_rs1_ex = mc_rs1;
-          mem_to_ex_fwd_load_a: fwd_rs1_ex = load_data_mem;
+          mem_to_ex_fwd_load_a: fwd_rs1_ex = ld_data_mem;
           mem_to_ex_fwd_a:      fwd_rs1_ex = result_mem;
           default:              fwd_rs1_ex = rs1_data_ex;
         endcase
@@ -144,7 +144,7 @@ module svc_rv_fwd_ex #(
       always_comb begin
         case (1'b1)
           is_mc:                fwd_rs2_ex = mc_rs2;
-          mem_to_ex_fwd_load_b: fwd_rs2_ex = load_data_mem;
+          mem_to_ex_fwd_load_b: fwd_rs2_ex = ld_data_mem;
           mem_to_ex_fwd_b:      fwd_rs2_ex = result_mem;
           default:              fwd_rs2_ex = rs2_data_ex;
         endcase
@@ -173,7 +173,7 @@ module svc_rv_fwd_ex #(
         endcase
       end
 
-      `SVC_UNUSED({load_data_mem});
+      `SVC_UNUSED({ld_data_mem});
     end
 
   end else begin : g_no_forwarding
@@ -185,7 +185,7 @@ module svc_rv_fwd_ex #(
 
     // verilog_format: off
     `SVC_UNUSED({rs1_ex, rs2_ex, rd_mem, reg_write_mem,
-                 res_src_mem, result_mem, load_data_mem, MEM_TYPE});
+                 res_src_mem, result_mem, ld_data_mem, MEM_TYPE});
     // verilog_format: on
   end
 

@@ -120,7 +120,7 @@ module svc_rv_stage_mem #(
     // Outputs for forwarding (MEM stage result)
     //
     output logic [XLEN-1:0] result_mem,
-    output logic [XLEN-1:0] load_data_mem,
+    output logic [XLEN-1:0] ld_data_mem,
 
     //
     // RAS update outputs
@@ -204,8 +204,6 @@ module svc_rv_stage_mem #(
   // For SRAM: Format in MEM stage (combinational memory)
   // For BRAM: Format in WB stage (registered memory)
   //===========================================================================
-  logic [XLEN-1:0] ld_data_mem;
-
   logic [     1:0] ld_fmt_addr;
   logic [     2:0] ld_fmt_funct3;
   logic [XLEN-1:0] ld_fmt_out;
@@ -262,8 +260,6 @@ module svc_rv_stage_mem #(
       default: result_mem = alu_result_mem;
     endcase
   end
-
-  assign load_data_mem = ld_data_mem;
 
   //===========================================================================
   // RAS Update Logic
