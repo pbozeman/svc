@@ -386,7 +386,7 @@ endtask
 // Sequence:
 //   1. BEQ x0, x0 (always taken, forward branch)
 //   2. DIV instruction (fetched but should be flushed)
-//   3. Branch target: ADDI to set result register
+//   3. Branch tgt: ADDI to set result register
 //
 task automatic test_branch_flush_div;
   //
@@ -408,7 +408,7 @@ task automatic test_branch_flush_div;
   //
   DIV(x3, x1, x2);
   //
-  // Branch target: set x4 = 123 to verify we got here
+  // Branch tgt: set x4 = 123 to verify we got here
   //
   ADDI(x4, x0, 123);
   EBREAK();
@@ -421,7 +421,7 @@ task automatic test_branch_flush_div;
   //
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'd42);
   //
-  // x4 should be 123 (branch target executed)
+  // x4 should be 123 (branch tgt executed)
   //
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[4], 32'd123);
 endtask

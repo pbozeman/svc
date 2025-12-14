@@ -30,7 +30,7 @@ module svc_rv_asm_tb;
   logic [ 2:0] imm_type;
   logic        is_branch;
   logic        is_jmp;
-  logic        jb_target_src;
+  logic        jb_tgt_src;
   logic        is_m;
   logic        is_csr;
   logic        is_ebreak;
@@ -64,7 +64,7 @@ module svc_rv_asm_tb;
       .imm_type     (imm_type),
       .is_branch    (is_branch),
       .is_jmp       (is_jmp),
-      .jb_target_src(jb_target_src),
+      .jb_tgt_src   (jb_tgt_src),
       .is_m         (is_m),
       .is_csr       (is_csr),
       .is_ebreak    (is_ebreak),

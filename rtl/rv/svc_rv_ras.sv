@@ -6,7 +6,7 @@
 //
 // Return Address Stack (RAS)
 //
-// A circular return address stack for predicting function return targets.
+// A circular return address stack for predicting function return tgts.
 // Used to improve branch prediction for JALR return instructions.
 //
 // Architecture:
@@ -37,7 +37,7 @@ module svc_rv_ras #(
     // Lookup Interface (combinational, used in Fetch Stage)
     //
     output logic            ras_valid,
-    output logic [XLEN-1:0] ras_target,
+    output logic [XLEN-1:0] ras_tgt,
 
     //
     // Update Interface (sequential, used in MEM Stage)
@@ -56,7 +56,7 @@ module svc_rv_ras #(
   //
   // RAS Storage
   //
-  logic [      XLEN-1:0] stack         [DEPTH];
+  logic [      XLEN-1:0] stack        [DEPTH];
   logic [   SP_BITS-1:0] sp;
   logic [COUNT_BITS-1:0] count;
 
@@ -80,15 +80,15 @@ module svc_rv_ras #(
   // Use count_next only when push (without pop) is active to see incremented count.
   //
   logic                  lookup_valid;
-  logic [      XLEN-1:0] lookup_target;
+  logic [      XLEN-1:0] lookup_tgt;
   logic                  push_only;
 
-  assign push_only     = push_en && !pop_en;
-  assign lookup_valid  = push_only ? (count_next > 0) : (count > 0);
-  assign lookup_target = push_only ? push_addr : stack[sp];
+  assign push_only    = push_en && !pop_en;
+  assign lookup_valid = push_only ? (count_next > 0) : (count > 0);
+  assign lookup_tgt   = push_only ? push_addr : stack[sp];
 
-  assign ras_valid     = lookup_valid;
-  assign ras_target    = lookup_valid ? lookup_target : '0;
+  assign ras_valid    = lookup_valid;
+  assign ras_tgt      = lookup_valid ? lookup_tgt : '0;
 
   //
   // Update path (combinational next-state logic)

@@ -19,7 +19,7 @@ module svc_rv_idec_tb;
   logic [ 2:0] imm_type;
   logic        is_branch;
   logic        is_jmp;
-  logic        jb_target_src;
+  logic        jb_tgt_src;
 
   logic [ 4:0] rd;
   logic [ 4:0] rs1;
@@ -46,22 +46,22 @@ module svc_rv_idec_tb;
   ) uut (
       .instr(instr),
 
-      .reg_write    (reg_write),
-      .mem_read     (mem_read),
-      .mem_write    (mem_write),
-      .alu_a_src    (alu_a_src),
-      .alu_b_src    (alu_b_src),
-      .alu_instr    (alu_instr),
-      .res_src      (res_src),
-      .imm_type     (imm_type),
-      .is_branch    (is_branch),
-      .is_jmp       (is_jmp),
-      .jb_target_src(jb_target_src),
-      .is_m         (is_m),
-      .is_csr       (is_csr),
-      .is_ebreak    (is_ebreak),
-      .is_jal       (is_jal),
-      .is_jalr      (is_jalr),
+      .reg_write (reg_write),
+      .mem_read  (mem_read),
+      .mem_write (mem_write),
+      .alu_a_src (alu_a_src),
+      .alu_b_src (alu_b_src),
+      .alu_instr (alu_instr),
+      .res_src   (res_src),
+      .imm_type  (imm_type),
+      .is_branch (is_branch),
+      .is_jmp    (is_jmp),
+      .jb_tgt_src(jb_tgt_src),
+      .is_m      (is_m),
+      .is_csr    (is_csr),
+      .is_ebreak (is_ebreak),
+      .is_jal    (is_jal),
+      .is_jalr   (is_jalr),
 
       .rd           (rd),
       .rs1          (rs1),
@@ -322,7 +322,7 @@ module svc_rv_idec_tb;
     `CHECK_TRUE(is_jalr);
     `CHECK_TRUE(rs1_used);
     `CHECK_FALSE(rs2_used);
-    `CHECK_EQ(jb_target_src, JB_TARGET_ALU);
+    `CHECK_EQ(jb_tgt_src, JB_TARGET_ALU);
 
     `CHECK_EQ(rd, 5'd2);
     `CHECK_EQ(rs1, 5'd1);

@@ -17,13 +17,13 @@ module svc_rv_btb_tb;
   //
   logic [XLEN-1:0] lookup_pc;
   logic            hit;
-  logic [XLEN-1:0] predicted_target;
+  logic [XLEN-1:0] predicted_tgt;
   logic            predicted_taken;
   logic            is_return;
 
   logic            update_en;
   logic [XLEN-1:0] update_pc;
-  logic [XLEN-1:0] update_target;
+  logic [XLEN-1:0] update_tgt;
   logic            update_taken;
   logic            update_is_ret;
   logic            update_is_jal;
@@ -35,19 +35,19 @@ module svc_rv_btb_tb;
       .XLEN    (XLEN),
       .NENTRIES(NENTRIES)
   ) uut (
-      .clk             (clk),
-      .rst_n           (rst_n),
-      .lookup_pc       (lookup_pc),
-      .hit             (hit),
-      .predicted_target(predicted_target),
-      .predicted_taken (predicted_taken),
-      .is_return       (is_return),
-      .update_en       (update_en),
-      .update_pc       (update_pc),
-      .update_target   (update_target),
-      .update_taken    (update_taken),
-      .update_is_ret   (update_is_ret),
-      .update_is_jal   (update_is_jal)
+      .clk            (clk),
+      .rst_n          (rst_n),
+      .lookup_pc      (lookup_pc),
+      .hit            (hit),
+      .predicted_tgt  (predicted_tgt),
+      .predicted_taken(predicted_taken),
+      .is_return      (is_return),
+      .update_en      (update_en),
+      .update_pc      (update_pc),
+      .update_tgt     (update_tgt),
+      .update_taken   (update_taken),
+      .update_is_ret  (update_is_ret),
+      .update_is_jal  (update_is_jal)
   );
 
   `SVC_UNUSED({is_return});
@@ -57,7 +57,7 @@ module svc_rv_btb_tb;
       lookup_pc     <= '0;
       update_en     <= 1'b0;
       update_pc     <= '0;
-      update_target <= '0;
+      update_tgt    <= '0;
       update_taken  <= 1'b0;
       update_is_ret <= 1'b0;
       update_is_jal <= 1'b0;
@@ -87,10 +87,10 @@ module svc_rv_btb_tb;
     //
     // Write one entry
     //
-    update_en     = 1'b1;
-    update_pc     = 32'h0000_1000;
-    update_target = 32'h0000_2000;
-    update_taken  = 1'b1;
+    update_en    = 1'b1;
+    update_pc    = 32'h0000_1000;
+    update_tgt   = 32'h0000_2000;
+    update_taken = 1'b1;
     `TICK(clk);
 
     //
@@ -105,7 +105,7 @@ module svc_rv_btb_tb;
     lookup_pc = 32'h0000_1000;
     `TICK(clk);
     `CHECK_TRUE(hit);
-    `CHECK_EQ(predicted_target, 32'h0000_2000);
+    `CHECK_EQ(predicted_tgt, 32'h0000_2000);
     `CHECK_TRUE(predicted_taken);
 
     //
@@ -124,10 +124,10 @@ module svc_rv_btb_tb;
     //
     // Initialize entry to weakly taken (first update)
     //
-    update_en     = 1'b1;
-    update_pc     = 32'h0000_3000;
-    update_target = 32'h0000_4000;
-    update_taken  = 1'b1;
+    update_en    = 1'b1;
+    update_pc    = 32'h0000_3000;
+    update_tgt   = 32'h0000_4000;
+    update_taken = 1'b1;
     `TICK(clk);
 
     //
@@ -170,10 +170,10 @@ module svc_rv_btb_tb;
     //
     // Initialize entry to weakly not-taken
     //
-    update_en     = 1'b1;
-    update_pc     = 32'h0000_5000;
-    update_target = 32'h0000_6000;
-    update_taken  = 1'b0;
+    update_en    = 1'b1;
+    update_pc    = 32'h0000_5000;
+    update_tgt   = 32'h0000_6000;
+    update_taken = 1'b0;
     `TICK(clk);
 
     //
@@ -213,10 +213,10 @@ module svc_rv_btb_tb;
     //
     // Start with taken (initialize to 10 -> weakly taken)
     //
-    update_en     = 1'b1;
-    update_pc     = 32'h0000_7000;
-    update_target = 32'h0000_8000;
-    update_taken  = 1'b1;
+    update_en    = 1'b1;
+    update_pc    = 32'h0000_7000;
+    update_tgt   = 32'h0000_8000;
+    update_taken = 1'b1;
     `TICK(clk);
 
     update_en = 1'b0;
@@ -305,9 +305,9 @@ module svc_rv_btb_tb;
     //
     update_en = 1'b1;
     for (i = 0; i < 16; i++) begin
-      update_pc     = pc_base + (i * 4);
-      update_target = pc_base + 32'h1000 + (i * 4);
-      update_taken  = (i % 2 == 0);
+      update_pc    = pc_base + (i * 4);
+      update_tgt   = pc_base + 32'h1000 + (i * 4);
+      update_taken = (i % 2 == 0);
       `TICK(clk);
     end
     update_en = 1'b0;
@@ -315,13 +315,13 @@ module svc_rv_btb_tb;
     `TICK(clk);
 
     //
-    // Verify all 16 entries hit with correct targets
+    // Verify all 16 entries hit with correct tgts
     //
     for (i = 0; i < 16; i++) begin
       lookup_pc = pc_base + (i * 4);
       `TICK(clk);
       `CHECK_TRUE(hit);
-      `CHECK_EQ(predicted_target, pc_base + 32'h1000 + (i * 4));
+      `CHECK_EQ(predicted_tgt, pc_base + 32'h1000 + (i * 4));
       `CHECK_EQ(predicted_taken, (i % 2 == 0));
     end
   endtask
@@ -337,16 +337,16 @@ module svc_rv_btb_tb;
     // Create two PCs with same index but different tags
     // Index uses bits [5:2], so we change upper bits
     //
-    pc_a          = 32'h0000_1000;
-    pc_b          = 32'h0001_1000;
+    pc_a         = 32'h0000_1000;
+    pc_b         = 32'h0001_1000;
 
     //
     // Write PC_A
     //
-    update_en     = 1'b1;
-    update_pc     = pc_a;
-    update_target = 32'hAAAA_AAAA;
-    update_taken  = 1'b1;
+    update_en    = 1'b1;
+    update_pc    = pc_a;
+    update_tgt   = 32'hAAAA_AAAA;
+    update_taken = 1'b1;
     `TICK(clk);
 
     //
@@ -356,15 +356,15 @@ module svc_rv_btb_tb;
     lookup_pc = pc_a;
     `TICK(clk);
     `CHECK_TRUE(hit);
-    `CHECK_EQ(predicted_target, 32'hAAAA_AAAA);
+    `CHECK_EQ(predicted_tgt, 32'hAAAA_AAAA);
 
     //
     // Write PC_B (same index, different tag - replaces PC_A)
     //
-    update_en     = 1'b1;
-    update_pc     = pc_b;
-    update_target = 32'hBBBB_BBBB;
-    update_taken  = 1'b0;
+    update_en    = 1'b1;
+    update_pc    = pc_b;
+    update_tgt   = 32'hBBBB_BBBB;
+    update_taken = 1'b0;
     `TICK(clk);
     update_en = 1'b0;
 
@@ -383,7 +383,7 @@ module svc_rv_btb_tb;
     lookup_pc = pc_b;
     `TICK(clk);
     `CHECK_TRUE(hit);
-    `CHECK_EQ(predicted_target, 32'hBBBB_BBBB);
+    `CHECK_EQ(predicted_tgt, 32'hBBBB_BBBB);
     `CHECK_FALSE(predicted_taken);
   endtask
 
@@ -394,31 +394,31 @@ module svc_rv_btb_tb;
     //
     // Setup two entries
     //
-    update_en     = 1'b1;
-    update_pc     = 32'h0002_0000;
-    update_target = 32'h0002_1000;
-    update_taken  = 1'b1;
+    update_en    = 1'b1;
+    update_pc    = 32'h0002_0000;
+    update_tgt   = 32'h0002_1000;
+    update_taken = 1'b1;
     `TICK(clk);
 
-    update_pc     = 32'h0002_0004;
-    update_target = 32'h0002_2000;
-    update_taken  = 1'b0;
+    update_pc    = 32'h0002_0004;
+    update_tgt   = 32'h0002_2000;
+    update_taken = 1'b0;
     `TICK(clk);
 
     //
     // Update entry 0 while looking up entry 1 (different indices)
     //
-    update_pc     = 32'h0002_0000;
-    update_target = 32'h0002_9000;
-    update_taken  = 1'b0;
-    lookup_pc     = 32'h0002_0004;
+    update_pc    = 32'h0002_0000;
+    update_tgt   = 32'h0002_9000;
+    update_taken = 1'b0;
+    lookup_pc    = 32'h0002_0004;
     `TICK(clk);
 
     //
     // Lookup should see old value (before update)
     //
     `CHECK_TRUE(hit);
-    `CHECK_EQ(predicted_target, 32'h0002_2000);
+    `CHECK_EQ(predicted_tgt, 32'h0002_2000);
 
     //
     // Next cycle, lookup entry 0 to see new value
@@ -427,47 +427,47 @@ module svc_rv_btb_tb;
     lookup_pc = 32'h0002_0000;
     `TICK(clk);
     `CHECK_TRUE(hit);
-    `CHECK_EQ(predicted_target, 32'h0002_9000);
+    `CHECK_EQ(predicted_tgt, 32'h0002_9000);
     `CHECK_FALSE(predicted_taken);
   endtask
 
   //
   // Target update on same PC
   //
-  task automatic test_target_update;
+  task automatic test_tgt_update;
     //
-    // Write initial target
+    // Write initial tgt
     //
-    update_en     = 1'b1;
-    update_pc     = 32'h0003_0000;
-    update_target = 32'h0003_1000;
-    update_taken  = 1'b1;
+    update_en    = 1'b1;
+    update_pc    = 32'h0003_0000;
+    update_tgt   = 32'h0003_1000;
+    update_taken = 1'b1;
     `TICK(clk);
 
     update_en = 1'b0;
     lookup_pc = 32'h0003_0000;
     `TICK(clk);
     `CHECK_TRUE(hit);
-    `CHECK_EQ(predicted_target, 32'h0003_1000);
+    `CHECK_EQ(predicted_tgt, 32'h0003_1000);
 
     //
-    // Update with new target
+    // Update with new tgt
     //
-    update_en     = 1'b1;
-    update_target = 32'h0003_2000;
-    update_taken  = 1'b1;
+    update_en    = 1'b1;
+    update_tgt   = 32'h0003_2000;
+    update_taken = 1'b1;
     `TICK(clk);
 
     update_en = 1'b0;
     `TICK(clk);
 
     //
-    // Verify new target
+    // Verify new tgt
     //
     lookup_pc = 32'h0003_0000;
     `TICK(clk);
     `CHECK_TRUE(hit);
-    `CHECK_EQ(predicted_target, 32'h0003_2000);
+    `CHECK_EQ(predicted_tgt, 32'h0003_2000);
   endtask
 
   //
@@ -482,7 +482,7 @@ module svc_rv_btb_tb;
   `TEST_CASE(test_full_table);
   `TEST_CASE(test_aliasing);
   `TEST_CASE(test_concurrent_access);
-  `TEST_CASE(test_target_update);
+  `TEST_CASE(test_tgt_update);
   `TEST_SUITE_END();
 
 endmodule

@@ -610,7 +610,7 @@ endtask
 //
 // Test: Simple JALR
 //
-// Tests basic JALR functionality: computes target as base register (x0) plus
+// Tests basic JALR functionality: computes tgt as base register (x0) plus
 // offset, jumps to that address, and saves return address in link register.
 //
 // See NOP note above.
@@ -630,7 +630,7 @@ endtask
 //
 // Test: JALR LSB clearing
 //
-// Tests that JALR clears the least significant bit of the computed target
+// Tests that JALR clears the least significant bit of the computed tgt
 // address. Uses offset 9 (odd), which should become 8 after LSB clearing.
 //
 // See NOP note above.
@@ -704,7 +704,7 @@ endtask
 //
 // Test: JAL to misaligned address
 //
-// Tests that JAL to a misaligned target address (not on a 2-byte boundary)
+// Tests that JAL to a misaligned tgt address (not on a 2-byte boundary)
 // triggers a trap. This should trap before updating any registers.
 //
 task automatic test_jal_misaligned;
@@ -720,7 +720,7 @@ endtask
 //
 // Test: JALR to misaligned address
 //
-// Tests that JALR to a misaligned target address triggers a trap.
+// Tests that JALR to a misaligned tgt address triggers a trap.
 // Sets x2 to 2 (misaligned after LSB clear), then attempts JALR using x2 as base.
 // JALR clears LSB: (2 + 0) & ~1 = 2, which has bit[1] set (misaligned).
 //
@@ -881,7 +881,7 @@ endtask
 // Memory layout:
 //   PC 0:  ADDI x10=42 (test value, should not be overwritten)
 //   PC 4:  ADDI x15=2 (loop counter)
-//   PC 8:  ADDI x2=44 (JALR target address)
+//   PC 8:  ADDI x2=44 (JALR tgt address)
 //   PC 12: JAL to PC 20, pushes return address (PC 16) onto RAS
 //   PC 16: ADDI x10=99 (WRONG PATH - RAS predicts JALR returns here)
 //   PC 20: ADDI x3=1 (JAL lands here, work before JALR)
@@ -908,7 +908,7 @@ endtask
 //   - JALR at PC 40 reaches ID stage, BTB predicts as return
 //   - RAS pops and predicts return to PC 16
 //   - Pipeline speculatively fetches wrong-path ADDI at PC 16
-//   - JALR advances to EX, computes actual target = PC 44
+//   - JALR advances to EX, computes actual tgt = PC 44
 //   - Wrong-path ADDI advances from ID to EX
 //   - JALR advances to MEM, misprediction detected (pred=16, actual=44)
 //   - Pipeline redirects to PC 44, flushes IF/ID stages
@@ -1020,7 +1020,7 @@ task automatic test_jal_btb_not_taken;
   NOP();  // 0x54
   NOP();  // 0x58
   NOP();  // 0x5C
-  // jal_target:
+  // jal_tgt:
   ADDI(x14, x0, 42);  // 0x60: x14 = 42
   BNE(x20, x0, 12);  // 0x64: if x20!=0 goto done (0x70)
   ADDI(x20, x0, 1);  // 0x68: x20 = 1 (flag)
@@ -1036,7 +1036,7 @@ task automatic test_jal_btb_not_taken;
   // x13 = 0 (skipped by JAL)
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[13], 32'd0);
 
-  // x14 = 42 (target reached)
+  // x14 = 42 (tgt reached)
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[14], 32'd42);
 endtask
 
@@ -1392,9 +1392,9 @@ endtask
 //
 // Test: BEQ to misaligned address
 //
-// Tests that BEQ branch to a misaligned target address triggers a trap.
-// Sets up equal registers so branch is taken to a misaligned target.
-// BEQ at PC=8, offset=6 -> target = 8 + 6 = 14 (bit[1]=1, misaligned).
+// Tests that BEQ branch to a misaligned tgt address triggers a trap.
+// Sets up equal registers so branch is taken to a misaligned tgt.
+// BEQ at PC=8, offset=6 -> tgt = 8 + 6 = 14 (bit[1]=1, misaligned).
 //
 task automatic test_beq_misaligned;
   ADDI(x1, x0, 42);
@@ -1411,9 +1411,9 @@ endtask
 //
 // Test: BNE to misaligned address
 //
-// Tests that BNE branch to a misaligned target address triggers a trap.
-// Sets up unequal registers so branch is taken to a misaligned target.
-// BNE at PC=8, offset=6 -> target = 8 + 6 = 14 (bit[1]=1, misaligned).
+// Tests that BNE branch to a misaligned tgt address triggers a trap.
+// Sets up unequal registers so branch is taken to a misaligned tgt.
+// BNE at PC=8, offset=6 -> tgt = 8 + 6 = 14 (bit[1]=1, misaligned).
 //
 task automatic test_bne_misaligned;
   ADDI(x1, x0, 42);
@@ -1430,9 +1430,9 @@ endtask
 //
 // Test: BLT backward to misaligned address
 //
-// Tests that BLT branch backward to a misaligned target triggers a trap.
-// Creates a taken backward branch with misaligned target.
-// BLT at PC=16, offset=-6 -> target = 16 - 6 = 10 (bit[1]=1, misaligned).
+// Tests that BLT branch backward to a misaligned tgt triggers a trap.
+// Creates a taken backward branch with misaligned tgt.
+// BLT at PC=16, offset=-6 -> tgt = 16 - 6 = 10 (bit[1]=1, misaligned).
 //
 task automatic test_blt_misaligned_backward;
   NOP();
@@ -1802,7 +1802,7 @@ endtask
 //
 // Test: Store byte preserves other bytes
 //
-// Tests that SB only modifies the target byte without affecting others.
+// Tests that SB only modifies the tgt byte without affecting others.
 //
 task automatic test_sb_partial_word;
   uut.dmem.mem[0] = 32'hDEADBEEF;
@@ -1822,7 +1822,7 @@ endtask
 //
 // Test: Store halfword preserves other halfword
 //
-// Tests that SH only modifies the target halfword without affecting others.
+// Tests that SH only modifies the tgt halfword without affecting others.
 //
 task automatic test_sh_partial_word;
   uut.dmem.mem[0] = 32'hDEADBEEF;
@@ -2770,7 +2770,7 @@ task automatic test_forward_taken_loop;
   EBREAK();
 
   //
-  // taken_target: (PC=28)
+  // taken_tgt: (PC=28)
   //
   ADDI(x10, x10, 1);
   BLT(x10, x11, -16);

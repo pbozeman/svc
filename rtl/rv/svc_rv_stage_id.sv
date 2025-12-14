@@ -52,9 +52,9 @@ module svc_rv_stage_id #(
     input logic [    31:0] pc_plus4_id,
     input logic            btb_hit_id,
     input logic            btb_pred_taken_id,
-    input logic [XLEN-1:0] btb_target_id,
+    input logic [XLEN-1:0] btb_tgt_id,
     input logic            ras_valid_id,
-    input logic [XLEN-1:0] ras_target_id,
+    input logic [XLEN-1:0] ras_tgt_id,
 
     // Write-back from WB stage
     input logic        reg_write_wb,
@@ -81,7 +81,7 @@ module svc_rv_stage_id #(
     output logic [     2:0] res_src_ex,
     output logic            is_branch_ex,
     output logic            is_jmp_ex,
-    output logic            jb_target_src_ex,
+    output logic            jb_tgt_src_ex,
     output logic            is_mc_ex,
     output logic            is_m_ex,
     output logic            is_csr_ex,
@@ -102,7 +102,7 @@ module svc_rv_stage_id #(
     output logic [XLEN-1:0] pc_ex,
     output logic [XLEN-1:0] pc_plus4_ex,
     output logic            bpred_taken_ex,
-    output logic [XLEN-1:0] pred_target_ex,
+    output logic [XLEN-1:0] pred_tgt_ex,
 
     // Outputs to hazard unit
     output logic [4:0] rs1_id,
@@ -112,7 +112,7 @@ module svc_rv_stage_id #(
 
     // Branch prediction outputs to IF stage
     output logic [     1:0] pc_sel_id,
-    output logic [XLEN-1:0] pred_target,
+    output logic [XLEN-1:0] pred_tgt,
     output logic            pred_taken_id,
     output logic            is_jalr_id
 );
@@ -132,7 +132,7 @@ module svc_rv_stage_id #(
   logic [     2:0] imm_type;
   logic            is_branch_id;
   logic            is_jmp_id;
-  logic            jb_target_src_id;
+  logic            jb_tgt_src_id;
   logic            is_m_id;
   logic            is_csr_id;
   logic            is_jal_id;
@@ -170,7 +170,7 @@ module svc_rv_stage_id #(
       .imm_type     (imm_type),
       .is_branch    (is_branch_id),
       .is_jmp       (is_jmp_id),
-      .jb_target_src(jb_target_src_id),
+      .jb_tgt_src   (jb_tgt_src_id),
       .is_m         (is_m_id),
       .is_csr       (is_csr_id),
       .is_ebreak    (is_ebreak_id),
@@ -278,9 +278,9 @@ module svc_rv_stage_id #(
       .btb_hit_id       (btb_hit_id),
       .btb_pred_taken_id(btb_pred_taken_id),
       .ras_valid_id     (ras_valid_id),
-      .ras_target_id    (ras_target_id),
+      .ras_tgt_id       (ras_tgt_id),
       .pc_sel_id        (pc_sel_id),
-      .pred_target      (pred_target),
+      .pred_tgt         (pred_tgt),
       .pred_taken_id    (pred_taken_id),
       .bpred_taken_id   (bpred_taken_id)
   );
@@ -375,7 +375,7 @@ module svc_rv_stage_id #(
         alu_b_src_id,
         alu_instr_id,
         res_src_id,
-        jb_target_src_id,
+        jb_tgt_src_id,
         is_mc_id,
         is_m_id,
         is_csr_id,
@@ -392,7 +392,7 @@ module svc_rv_stage_id #(
         alu_b_src_ex,
         alu_instr_ex,
         res_src_ex,
-        jb_target_src_ex,
+        jb_tgt_src_ex,
         is_mc_ex,
         is_m_ex,
         is_csr_ex,
@@ -490,7 +490,7 @@ module svc_rv_stage_id #(
   // When pipelined with BPRED, capture predictions that need to be preserved
   // across flush/bubble for misprediction recovery. Otherwise, pass through 0.
   //
-  logic [XLEN-1:0] final_pred_target_id;
+  logic [XLEN-1:0] final_pred_tgt_id;
   logic            final_bpred_taken_id;
 
   if (PIPELINED != 0 && BPRED != 0) begin : g_bpred_pipe
@@ -503,14 +503,14 @@ module svc_rv_stage_id #(
     //
     // Final predicted target: RAS > BTB > static (matches bpred module priority)
     //
-    assign final_pred_target_id = ras_pred_taken_id ?
-        ras_target_id : (btb_pred_taken_id ? btb_target_id : pred_target);
+    assign final_pred_tgt_id = ras_pred_taken_id ?
+        ras_tgt_id : (btb_pred_taken_id ? btb_tgt_id : pred_tgt);
     assign final_bpred_taken_id = bpred_taken_id;
   end else begin : g_no_bpred_pipe
-    assign final_pred_target_id = '0;
+    assign final_pred_tgt_id    = '0;
     assign final_bpred_taken_id = 1'b0;
 
-    `SVC_UNUSED({bpred_taken_id, btb_target_id, ras_valid_id, ras_target_id});
+    `SVC_UNUSED({bpred_taken_id, btb_tgt_id, ras_valid_id, ras_tgt_id});
   end
 
   svc_rv_pipe_data #(
@@ -536,7 +536,7 @@ module svc_rv_stage_id #(
       .WIDTH    (XLEN),
       .REG      (PIPELINED),
       .FLUSH_REG(1)
-  ) pipe_pred_target (
+  ) pipe_pred_tgt (
       .clk    (clk),
       .rst_n  (rst_n),
       .advance(advance),
@@ -546,8 +546,8 @@ module svc_rv_stage_id #(
       .s_valid(s_valid),
       .s_ready(s_ready),
 `endif
-      .data_i (final_pred_target_id),
-      .data_o (pred_target_ex)
+      .data_i (final_pred_tgt_id),
+      .data_o (pred_tgt_ex)
   );
 
 `ifdef FORMAL
@@ -590,8 +590,7 @@ module svc_rv_stage_id #(
         `FASSUME(a_alu_b_src_id_stable, alu_b_src_id == $past(alu_b_src_id));
         `FASSUME(a_alu_instr_id_stable, alu_instr_id == $past(alu_instr_id));
         `FASSUME(a_res_src_id_stable, res_src_id == $past(res_src_id));
-        `FASSUME(a_jb_target_src_id_stable, jb_target_src_id == $past(
-                 jb_target_src_id));
+        `FASSUME(a_jb_tgt_src_id_stable, jb_tgt_src_id == $past(jb_tgt_src_id));
         `FASSUME(a_is_mc_id_stable, is_mc_id == $past(is_mc_id));
         `FASSUME(a_is_m_id_stable, is_m_id == $past(is_m_id));
         `FASSUME(a_is_csr_id_stable, is_csr_id == $past(is_csr_id));
@@ -634,8 +633,7 @@ module svc_rv_stage_id #(
         `FASSERT(a_res_src_stable, res_src_ex == $past(res_src_ex));
         `FASSERT(a_is_branch_stable, is_branch_ex == $past(is_branch_ex));
         `FASSERT(a_is_jmp_stable, is_jmp_ex == $past(is_jmp_ex));
-        `FASSERT(a_jb_target_src_stable, jb_target_src_ex == $past(
-                 jb_target_src_ex));
+        `FASSERT(a_jb_tgt_src_stable, jb_tgt_src_ex == $past(jb_tgt_src_ex));
         `FASSERT(a_is_mc_stable, is_mc_ex == $past(is_mc_ex));
         `FASSERT(a_is_m_stable, is_m_ex == $past(is_m_ex));
         `FASSERT(a_is_csr_stable, is_csr_ex == $past(is_csr_ex));
@@ -660,7 +658,7 @@ module svc_rv_stage_id #(
         `FASSERT(a_pc_stable, pc_ex == $past(pc_ex));
         `FASSERT(a_pc_plus4_stable, pc_plus4_ex == $past(pc_plus4_ex));
         `FASSERT(a_bpred_taken_stable, bpred_taken_ex == $past(bpred_taken_ex));
-        `FASSERT(a_pred_target_stable, pred_target_ex == $past(pred_target_ex));
+        `FASSERT(a_pred_tgt_stable, pred_tgt_ex == $past(pred_tgt_ex));
       end
     end
   end

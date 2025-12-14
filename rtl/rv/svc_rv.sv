@@ -172,9 +172,9 @@ module svc_rv #(
   //
   // Redirect valid/ready handshake with stage_mem
   //
-  logic            redirect_valid_mem;
-  logic            redirect_ready_mem;
-  assign redirect_ready_mem = pc_m_ready;
+  logic            redir_valid_mem;
+  logic            redir_ready_mem;
+  assign redir_ready_mem = pc_m_ready;
 
   // ID -> EX
   logic            reg_write_ex;
@@ -188,7 +188,7 @@ module svc_rv #(
   logic [     2:0] res_src_ex;
   logic            is_branch_ex;
   logic            is_jmp_ex;
-  logic            jb_target_src_ex;
+  logic            jb_tgt_src_ex;
   logic            is_jal_ex;
   logic            is_jalr_ex;
   logic            is_mc_ex;
@@ -207,7 +207,7 @@ module svc_rv #(
   logic [XLEN-1:0] pc_ex;
   logic [XLEN-1:0] pc_plus4_ex;
   logic            bpred_taken_ex;
-  logic [XLEN-1:0] pred_target_ex;
+  logic [XLEN-1:0] pred_tgt_ex;
 
   // ID -> Hazard
   logic [     4:0] rs1_id;
@@ -238,13 +238,13 @@ module svc_rv #(
   logic [XLEN-1:0] rs1_data_mem;
   logic [XLEN-1:0] rs2_data_mem;
   logic [XLEN-1:0] pc_plus4_mem;
-  logic [XLEN-1:0] jb_target_mem;
+  logic [XLEN-1:0] jb_tgt_mem;
   logic            is_branch_mem;
   logic            is_jalr_mem;
   logic            is_jmp_mem;
   logic            branch_taken_mem;
   logic            bpred_taken_mem;
-  logic [XLEN-1:0] pred_target_mem;
+  logic [XLEN-1:0] pred_tgt_mem;
   logic            trap_mem;
   logic [     1:0] trap_code_mem;
   logic            is_ebreak_mem;
@@ -274,7 +274,7 @@ module svc_rv #(
   logic [XLEN-1:0] rs2_data_wb;
   logic [XLEN-1:0] ld_data_wb;
   logic [XLEN-1:0] pc_plus4_wb;
-  logic [XLEN-1:0] jb_target_wb;
+  logic [XLEN-1:0] jb_tgt_wb;
   logic [XLEN-1:0] csr_rdata_wb;
   logic [XLEN-1:0] m_result_wb;
   logic [    63:0] product_64_wb;
@@ -320,25 +320,25 @@ module svc_rv #(
 
   // EX -> IF (PC control)
   (* max_fanout = 32 *)logic [     1:0] pc_sel_ex;
-  logic [XLEN-1:0] pc_redirect_target_ex;
+  logic [XLEN-1:0] pc_redir_tgt_ex;
   logic            mispredicted_ex;
 
   // MEM -> IF (PC control)
-  logic [XLEN-1:0] redirect_target_mem;
+  logic [XLEN-1:0] redir_tgt_mem;
 
   // ID -> IF (branch prediction)
   logic [     1:0] pc_sel_id;
-  logic [XLEN-1:0] pred_target_id;
+  logic [XLEN-1:0] pred_tgt_id;
   logic            pred_taken_id;
   logic            is_jalr_id;
 
   // Arbitrated PC control to IF
   logic [     1:0] pc_sel;
-  logic [XLEN-1:0] pc_redirect_target;
-  logic [XLEN-1:0] pred_target;
+  logic [XLEN-1:0] pc_redir_tgt;
+  logic [XLEN-1:0] pred_tgt;
 
   // Registered redirect pending signal (from stage_pc)
-  logic redirect_pending_if;
+  logic redir_pending_if;
 
   // MEM -> EX (forwarding)
   logic [XLEN-1:0] result_mem;
@@ -369,15 +369,15 @@ module svc_rv #(
   //
   logic            btb_hit_pc;
   logic            btb_pred_taken_pc;
-  logic [XLEN-1:0] btb_target_pc;
+  logic [XLEN-1:0] btb_tgt_pc;
   logic            btb_is_return_pc;
   logic            btb_hit_if;
   logic            btb_pred_taken_if;
-  logic [XLEN-1:0] btb_target_if;
+  logic [XLEN-1:0] btb_tgt_if;
   logic            btb_is_return_if;
   logic            btb_hit_id;
   logic            btb_pred_taken_id;
-  logic [XLEN-1:0] btb_target_id;
+  logic [XLEN-1:0] btb_tgt_id;
   logic            btb_is_return_id;
   logic            btb_pred_taken;
   logic            ras_pred_taken;
@@ -386,22 +386,22 @@ module svc_rv #(
   // RAS prediction signals
   //
   logic            ras_valid_pc;
-  logic [XLEN-1:0] ras_target_pc;
+  logic [XLEN-1:0] ras_tgt_pc;
   logic            ras_valid_if;
-  logic [XLEN-1:0] ras_target_if;
+  logic [XLEN-1:0] ras_tgt_if;
   logic            ras_valid_id;
-  logic [XLEN-1:0] ras_target_id;
+  logic [XLEN-1:0] ras_tgt_id;
 
   //
   // BTB signals
   //
   logic            btb_hit;
-  logic [XLEN-1:0] btb_target;
+  logic [XLEN-1:0] btb_tgt;
   logic            btb_taken;
   logic            btb_is_return;
   logic            btb_update_en;
   logic [XLEN-1:0] btb_update_pc;
-  logic [XLEN-1:0] btb_update_target;
+  logic [XLEN-1:0] btb_update_tgt;
   logic            btb_update_taken;
   logic            btb_update_is_ret;
   logic            btb_update_is_jal;
@@ -410,7 +410,7 @@ module svc_rv #(
   // RAS signals
   //
   logic            ras_valid;
-  logic [XLEN-1:0] ras_target;
+  logic [XLEN-1:0] ras_tgt;
   logic            ras_push_en;
   logic [XLEN-1:0] ras_push_addr;
   logic            ras_pop_en;
@@ -459,7 +459,7 @@ module svc_rv #(
     // verilog_format: off
     `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_ld_ex,
                 mispredicted_ex, is_csr_ex, is_m_ex, btb_pred_taken, ras_pred_taken,
-                op_active_ex, redirect_pending_if});
+                op_active_ex, redir_pending_if});
     // verilog_format: on
   end else begin : g_no_hazard
     //
@@ -475,7 +475,7 @@ module svc_rv #(
     // verilog_format: off
     `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_ld_ex,
                 mispredicted_ex, is_csr_ex, is_m_ex, op_active_ex, btb_pred_taken,
-                redirect_pending_if, ras_pred_taken});
+                redir_pending_if, ras_pred_taken});
     // verilog_format: on
   end
 
@@ -507,29 +507,29 @@ module svc_rv #(
         .XLEN    (XLEN),
         .NENTRIES(BTB_ENTRIES)
     ) btb (
-        .clk             (clk),
-        .rst_n           (rst_n),
-        .lookup_pc       (pc),
-        .hit             (btb_hit),
-        .predicted_target(btb_target),
-        .predicted_taken (btb_taken),
-        .is_return       (btb_is_return),
-        .update_en       (btb_update_en),
-        .update_pc       (btb_update_pc),
-        .update_target   (btb_update_target),
-        .update_taken    (btb_update_taken),
-        .update_is_ret   (btb_update_is_ret),
-        .update_is_jal   (btb_update_is_jal)
+        .clk            (clk),
+        .rst_n          (rst_n),
+        .lookup_pc      (pc),
+        .hit            (btb_hit),
+        .predicted_tgt  (btb_tgt),
+        .predicted_taken(btb_taken),
+        .is_return      (btb_is_return),
+        .update_en      (btb_update_en),
+        .update_pc      (btb_update_pc),
+        .update_tgt     (btb_update_tgt),
+        .update_taken   (btb_update_taken),
+        .update_is_ret  (btb_update_is_ret),
+        .update_is_jal  (btb_update_is_jal)
     );
   end else begin : g_no_btb
     assign btb_hit       = 1'b0;
-    assign btb_target    = '0;
+    assign btb_tgt       = '0;
     assign btb_taken     = 1'b0;
     assign btb_is_return = 1'b0;
 
     // verilog_format: off
-    `SVC_UNUSED({pc, btb_hit, btb_target, btb_taken, btb_is_return,
-                 btb_update_en, btb_update_pc, btb_update_target, btb_update_taken,
+    `SVC_UNUSED({pc, btb_hit, btb_tgt, btb_taken, btb_is_return,
+                 btb_update_en, btb_update_pc, btb_update_tgt, btb_update_taken,
                  btb_update_is_ret, btb_update_is_jal});
     // verilog_format: on
   end
@@ -542,20 +542,20 @@ module svc_rv #(
         .XLEN (XLEN),
         .DEPTH(RAS_DEPTH)
     ) ras (
-        .clk       (clk),
-        .rst_n     (rst_n),
-        .ras_valid (ras_valid),
-        .ras_target(ras_target),
-        .push_en   (ras_push_en),
-        .push_addr (ras_push_addr),
-        .pop_en    (ras_pop_en)
+        .clk      (clk),
+        .rst_n    (rst_n),
+        .ras_valid(ras_valid),
+        .ras_tgt  (ras_tgt),
+        .push_en  (ras_push_en),
+        .push_addr(ras_push_addr),
+        .pop_en   (ras_pop_en)
     );
   end else begin : g_no_ras
-    assign ras_valid  = 1'b0;
-    assign ras_target = '0;
+    assign ras_valid = 1'b0;
+    assign ras_tgt   = '0;
 
     // verilog_format: off
-    `SVC_UNUSED({ras_valid, ras_target, ras_push_en, ras_push_addr, ras_pop_en});
+    `SVC_UNUSED({ras_valid, ras_tgt, ras_push_en, ras_push_addr, ras_pop_en});
     // verilog_format: on
   end
 
@@ -573,30 +573,30 @@ module svc_rv #(
       .PC_REG   (PC_REG),
       .RESET_PC (RESET_PC)
   ) stage_pc (
-      .clk                (clk),
-      .rst_n              (rst_n),
-      .pc_sel             (pc_sel),
-      .pc_redirect_target (pc_redirect_target),
-      .pred_target        (pred_target),
-      .btb_pred_taken     (btb_pred_taken),
-      .btb_hit_pc         (btb_hit_pc),
-      .btb_pred_taken_pc  (btb_pred_taken_pc),
-      .btb_target_pc      (btb_target_pc),
-      .btb_is_return_pc   (btb_is_return_pc),
-      .ras_valid_pc       (ras_valid_pc),
-      .ras_target_pc      (ras_target_pc),
-      .m_valid            (pc_m_valid),
-      .m_ready            (pc_m_ready),
-      .pc                 (pc),
-      .pc_if              (pc_if),
-      .pc_next_if         (pc_next_if),
-      .btb_hit_if         (btb_hit_if),
-      .btb_pred_taken_if  (btb_pred_taken_if),
-      .btb_target_if      (btb_target_if),
-      .btb_is_return_if   (btb_is_return_if),
-      .ras_valid_if       (ras_valid_if),
-      .ras_target_if      (ras_target_if),
-      .redirect_pending_if(redirect_pending_if)
+      .clk              (clk),
+      .rst_n            (rst_n),
+      .pc_sel           (pc_sel),
+      .pc_redir_tgt     (pc_redir_tgt),
+      .pred_tgt         (pred_tgt),
+      .btb_pred_taken   (btb_pred_taken),
+      .btb_hit_pc       (btb_hit_pc),
+      .btb_pred_taken_pc(btb_pred_taken_pc),
+      .btb_tgt_pc       (btb_tgt_pc),
+      .btb_is_return_pc (btb_is_return_pc),
+      .ras_valid_pc     (ras_valid_pc),
+      .ras_tgt_pc       (ras_tgt_pc),
+      .m_valid          (pc_m_valid),
+      .m_ready          (pc_m_ready),
+      .pc               (pc),
+      .pc_if            (pc_if),
+      .pc_next_if       (pc_next_if),
+      .btb_hit_if       (btb_hit_if),
+      .btb_pred_taken_if(btb_pred_taken_if),
+      .btb_tgt_if       (btb_tgt_if),
+      .btb_is_return_if (btb_is_return_if),
+      .ras_valid_if     (ras_valid_if),
+      .ras_tgt_if       (ras_tgt_if),
+      .redir_pending_if (redir_pending_if)
   );
 
   //
@@ -630,11 +630,11 @@ module svc_rv #(
       .EXT_ZMMUL  (EXT_ZMMUL),
       .EXT_M      (EXT_M)
   ) stage_id (
-      .s_valid    (if_m_valid),
-      .s_ready    (if_m_ready),
-      .pred_target(pred_target_id),
-      .m_valid    (id_m_valid),
-      .m_ready    (id_m_ready),
+      .s_valid (if_m_valid),
+      .s_ready (if_m_ready),
+      .pred_tgt(pred_tgt_id),
+      .m_valid (id_m_valid),
+      .m_ready (id_m_ready),
       .*
   );
 

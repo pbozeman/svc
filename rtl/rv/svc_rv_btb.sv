@@ -41,7 +41,7 @@ module svc_rv_btb #(
     //
     input  logic [XLEN-1:0] lookup_pc,
     output logic            hit,
-    output logic [XLEN-1:0] predicted_target,
+    output logic [XLEN-1:0] predicted_tgt,
     output logic            predicted_taken,
     output logic            is_return,
 
@@ -50,7 +50,7 @@ module svc_rv_btb #(
     //
     input logic            update_en,
     input logic [XLEN-1:0] update_pc,
-    input logic [XLEN-1:0] update_target,
+    input logic [XLEN-1:0] update_tgt,
     input logic            update_taken,
     input logic            update_is_ret,
     input logic            update_is_jal
@@ -69,7 +69,7 @@ module svc_rv_btb #(
   //
   logic [  NENTRIES-1:0] valid;
   logic [  TAG_BITS-1:0] tags            [NENTRIES];
-  logic [      XLEN-1:0] targets         [NENTRIES];
+  logic [      XLEN-1:0] tgts            [NENTRIES];
   logic [           1:0] counters        [NENTRIES];
   logic [  NENTRIES-1:0] is_return_flags;
 
@@ -102,7 +102,7 @@ module svc_rv_btb #(
   //
   // Only output valid predictions on a hit, otherwise output zeros
   //
-  assign predicted_target = hit ? targets[lookup_index] : '0;
+  assign predicted_tgt = hit ? tgts[lookup_index] : '0;
   assign predicted_taken = hit ? counters[lookup_index][1] : 1'b0;
   assign is_return = hit ? is_return_flags[lookup_index] : 1'b0;
 
@@ -165,7 +165,7 @@ module svc_rv_btb #(
     end else if (update_en) begin
       valid[update_index]           <= 1'b1;
       tags[update_index]            <= update_tag;
-      targets[update_index]         <= update_target;
+      tgts[update_index]            <= update_tgt;
       counters[update_index]        <= counter_next;
       is_return_flags[update_index] <= update_is_ret;
     end

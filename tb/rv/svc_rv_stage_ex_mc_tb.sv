@@ -31,7 +31,7 @@ module svc_rv_stage_ex_mc_tb;
   logic [     2:0] res_src_ex;
   logic            is_branch_ex;
   logic            is_jmp_ex;
-  logic            jb_target_src_ex;
+  logic            jb_tgt_src_ex;
   logic            is_jal_ex;
   logic            is_jalr_ex;
   logic            is_mc_ex;
@@ -52,7 +52,7 @@ module svc_rv_stage_ex_mc_tb;
   logic [XLEN-1:0] pc_ex;
   logic [XLEN-1:0] pc_plus4_ex;
   logic            bpred_taken_ex;
-  logic [XLEN-1:0] pred_target_ex;
+  logic [XLEN-1:0] pred_tgt_ex;
 
   logic            s_valid;
   logic            s_ready;
@@ -64,7 +64,7 @@ module svc_rv_stage_ex_mc_tb;
 
   // verilator lint_off UNUSEDSIGNAL
   logic [     1:0] pc_sel_ex_out;
-  logic [XLEN-1:0] pc_redirect_target_ex_out;
+  logic [XLEN-1:0] pc_redir_tgt_ex_out;
   logic            mispredicted_ex_out;
   // verilator lint_on UNUSEDSIGNAL
 
@@ -81,7 +81,7 @@ module svc_rv_stage_ex_mc_tb;
   logic [XLEN-1:0] rs1_data_mem;
   logic [XLEN-1:0] rs2_data_mem;
   logic [XLEN-1:0] pc_plus4_mem;
-  logic [XLEN-1:0] jb_target_mem;
+  logic [XLEN-1:0] jb_tgt_mem;
   logic [XLEN-1:0] csr_rdata_mem;
   logic [XLEN-1:0] m_result_mem;
   logic [XLEN-1:0] mul_ll_mem;
@@ -93,12 +93,12 @@ module svc_rv_stage_ex_mc_tb;
   logic            is_jmp_mem;
   logic            branch_taken_mem;
   logic            bpred_taken_mem;
-  logic [XLEN-1:0] pred_target_mem;
+  logic [XLEN-1:0] pred_tgt_mem;
   logic            trap_mem;
   logic [     1:0] trap_code_mem;
   logic            btb_update_en;
   logic [XLEN-1:0] btb_update_pc;
-  logic [XLEN-1:0] btb_update_target;
+  logic [XLEN-1:0] btb_update_tgt;
   logic            btb_update_taken;
   logic            btb_update_is_ret;
   logic            btb_update_is_jal;
@@ -123,128 +123,128 @@ module svc_rv_stage_ex_mc_tb;
       .EXT_ZMMUL (0),
       .EXT_M     (1)
   ) uut (
-      .clk                  (clk),
-      .rst_n                (rst_n),
-      .ex_mem_flush         (ex_mem_flush),
-      .reg_write_ex         (reg_write_ex),
-      .mem_read_ex          (mem_read_ex),
-      .mem_write_ex         (mem_write_ex),
-      .alu_a_src_ex         (alu_a_src_ex),
-      .alu_b_src_ex         (alu_b_src_ex),
-      .alu_instr_ex         (alu_instr_ex),
-      .res_src_ex           (res_src_ex),
-      .is_branch_ex         (is_branch_ex),
-      .is_jmp_ex            (is_jmp_ex),
-      .jb_target_src_ex     (jb_target_src_ex),
-      .is_jal_ex            (is_jal_ex),
-      .is_jalr_ex           (is_jalr_ex),
-      .is_mc_ex             (is_mc_ex),
-      .is_m_ex              (is_m_ex),
-      .is_csr_ex            (is_csr_ex),
-      .is_ebreak_ex         (is_ebreak_ex),
-      .trap_ex              (trap_ex),
-      .trap_code_ex         (trap_code_ex),
-      .instr_ex             (instr_ex),
-      .rd_ex                (rd_ex),
-      .rs1_ex               (rs1_ex),
-      .rs2_ex               (rs2_ex),
-      .funct3_ex            (funct3_ex),
-      .funct7_ex            (funct7_ex),
-      .rs1_data_ex          (rs1_data_ex),
-      .rs2_data_ex          (rs2_data_ex),
-      .imm_ex               (imm_ex),
-      .pc_ex                (pc_ex),
-      .pc_plus4_ex          (pc_plus4_ex),
-      .bpred_taken_ex       (bpred_taken_ex),
-      .pred_target_ex       (pred_target_ex),
-      .s_valid              (s_valid),
-      .s_ready              (s_ready),
-      .result_mem           (result_mem),
-      .ld_data_mem          (ld_data_mem),
-      .retired              (retired),
-      .pc_sel_ex            (pc_sel_ex_out),
-      .pc_redirect_target_ex(pc_redirect_target_ex_out),
-      .mispredicted_ex      (mispredicted_ex_out),
-      .reg_write_mem        (reg_write_mem),
-      .mem_read_mem         (mem_read_mem),
-      .mem_write_mem        (mem_write_mem),
-      .res_src_mem          (res_src_mem_out),
-      .instr_mem            (instr_mem),
-      .rd_mem               (rd_mem),
-      .rs2_mem              (rs2_mem),
-      .funct3_mem           (funct3_mem),
-      .alu_result_mem       (alu_result_mem),
-      .rs1_data_mem         (rs1_data_mem),
-      .rs2_data_mem         (rs2_data_mem),
-      .pc_plus4_mem         (pc_plus4_mem),
-      .jb_target_mem        (jb_target_mem),
-      .csr_rdata_mem        (csr_rdata_mem),
-      .m_result_mem         (m_result_mem),
-      .mul_ll_mem           (mul_ll_mem),
-      .mul_lh_mem           (mul_lh_mem),
-      .mul_hl_mem           (mul_hl_mem),
-      .mul_hh_mem           (mul_hh_mem),
-      .is_branch_mem        (is_branch_mem),
-      .is_jalr_mem          (is_jalr_mem),
-      .is_jmp_mem           (is_jmp_mem),
-      .branch_taken_mem     (branch_taken_mem),
-      .bpred_taken_mem      (bpred_taken_mem),
-      .pred_target_mem      (pred_target_mem),
-      .trap_mem             (trap_mem),
-      .trap_code_mem        (trap_code_mem),
-      .is_ebreak_mem        (is_ebreak_mem),
-      .m_valid              (m_valid),
-      .m_ready              (m_ready),
-      .op_active_ex         (op_active_ex),
-      .btb_update_en        (btb_update_en),
-      .btb_update_pc        (btb_update_pc),
-      .btb_update_target    (btb_update_target),
-      .btb_update_taken     (btb_update_taken),
-      .btb_update_is_ret    (btb_update_is_ret),
-      .btb_update_is_jal    (btb_update_is_jal)
+      .clk              (clk),
+      .rst_n            (rst_n),
+      .ex_mem_flush     (ex_mem_flush),
+      .reg_write_ex     (reg_write_ex),
+      .mem_read_ex      (mem_read_ex),
+      .mem_write_ex     (mem_write_ex),
+      .alu_a_src_ex     (alu_a_src_ex),
+      .alu_b_src_ex     (alu_b_src_ex),
+      .alu_instr_ex     (alu_instr_ex),
+      .res_src_ex       (res_src_ex),
+      .is_branch_ex     (is_branch_ex),
+      .is_jmp_ex        (is_jmp_ex),
+      .jb_tgt_src_ex    (jb_tgt_src_ex),
+      .is_jal_ex        (is_jal_ex),
+      .is_jalr_ex       (is_jalr_ex),
+      .is_mc_ex         (is_mc_ex),
+      .is_m_ex          (is_m_ex),
+      .is_csr_ex        (is_csr_ex),
+      .is_ebreak_ex     (is_ebreak_ex),
+      .trap_ex          (trap_ex),
+      .trap_code_ex     (trap_code_ex),
+      .instr_ex         (instr_ex),
+      .rd_ex            (rd_ex),
+      .rs1_ex           (rs1_ex),
+      .rs2_ex           (rs2_ex),
+      .funct3_ex        (funct3_ex),
+      .funct7_ex        (funct7_ex),
+      .rs1_data_ex      (rs1_data_ex),
+      .rs2_data_ex      (rs2_data_ex),
+      .imm_ex           (imm_ex),
+      .pc_ex            (pc_ex),
+      .pc_plus4_ex      (pc_plus4_ex),
+      .bpred_taken_ex   (bpred_taken_ex),
+      .pred_tgt_ex      (pred_tgt_ex),
+      .s_valid          (s_valid),
+      .s_ready          (s_ready),
+      .result_mem       (result_mem),
+      .ld_data_mem      (ld_data_mem),
+      .retired          (retired),
+      .pc_sel_ex        (pc_sel_ex_out),
+      .pc_redir_tgt_ex  (pc_redir_tgt_ex_out),
+      .mispredicted_ex  (mispredicted_ex_out),
+      .reg_write_mem    (reg_write_mem),
+      .mem_read_mem     (mem_read_mem),
+      .mem_write_mem    (mem_write_mem),
+      .res_src_mem      (res_src_mem_out),
+      .instr_mem        (instr_mem),
+      .rd_mem           (rd_mem),
+      .rs2_mem          (rs2_mem),
+      .funct3_mem       (funct3_mem),
+      .alu_result_mem   (alu_result_mem),
+      .rs1_data_mem     (rs1_data_mem),
+      .rs2_data_mem     (rs2_data_mem),
+      .pc_plus4_mem     (pc_plus4_mem),
+      .jb_tgt_mem       (jb_tgt_mem),
+      .csr_rdata_mem    (csr_rdata_mem),
+      .m_result_mem     (m_result_mem),
+      .mul_ll_mem       (mul_ll_mem),
+      .mul_lh_mem       (mul_lh_mem),
+      .mul_hl_mem       (mul_hl_mem),
+      .mul_hh_mem       (mul_hh_mem),
+      .is_branch_mem    (is_branch_mem),
+      .is_jalr_mem      (is_jalr_mem),
+      .is_jmp_mem       (is_jmp_mem),
+      .branch_taken_mem (branch_taken_mem),
+      .bpred_taken_mem  (bpred_taken_mem),
+      .pred_tgt_mem     (pred_tgt_mem),
+      .trap_mem         (trap_mem),
+      .trap_code_mem    (trap_code_mem),
+      .is_ebreak_mem    (is_ebreak_mem),
+      .m_valid          (m_valid),
+      .m_ready          (m_ready),
+      .op_active_ex     (op_active_ex),
+      .btb_update_en    (btb_update_en),
+      .btb_update_pc    (btb_update_pc),
+      .btb_update_tgt   (btb_update_tgt),
+      .btb_update_taken (btb_update_taken),
+      .btb_update_is_ret(btb_update_is_ret),
+      .btb_update_is_jal(btb_update_is_jal)
   );
 
   //
   // Helper task to initialize all inputs to idle state
   //
   task automatic init_inputs;
-    ex_mem_flush     = 1'b0;
-    reg_write_ex     = 1'b0;
-    mem_read_ex      = 1'b0;
-    mem_write_ex     = 1'b0;
-    alu_a_src_ex     = 2'b00;
-    alu_b_src_ex     = 1'b0;
-    alu_instr_ex     = 2'b00;
-    res_src_ex       = RES_ALU;
-    is_branch_ex     = 1'b0;
-    is_jmp_ex        = 1'b0;
-    jb_target_src_ex = 1'b0;
-    is_jal_ex        = 1'b0;
-    is_jalr_ex       = 1'b0;
-    is_mc_ex         = 1'b0;
-    is_m_ex          = 1'b0;
-    is_csr_ex        = 1'b0;
-    is_ebreak_ex     = 1'b0;
-    trap_ex          = 1'b0;
-    trap_code_ex     = TRAP_NONE;
-    instr_ex         = I_NOP;
-    rd_ex            = 5'd0;
-    rs1_ex           = 5'd0;
-    rs2_ex           = 5'd0;
-    funct3_ex        = 3'b000;
-    funct7_ex        = 7'b0000000;
-    rs1_data_ex      = 32'd0;
-    rs2_data_ex      = 32'd0;
-    imm_ex           = 32'd0;
-    pc_ex            = 32'd0;
-    pc_plus4_ex      = 32'd4;
-    bpred_taken_ex   = 1'b0;
-    pred_target_ex   = 32'd0;
-    s_valid          = 1'b0;
-    result_mem       = 32'd0;
-    ld_data_mem      = 32'd0;
-    retired          = 1'b0;
-    m_ready          = 1'b1;
+    ex_mem_flush   = 1'b0;
+    reg_write_ex   = 1'b0;
+    mem_read_ex    = 1'b0;
+    mem_write_ex   = 1'b0;
+    alu_a_src_ex   = 2'b00;
+    alu_b_src_ex   = 1'b0;
+    alu_instr_ex   = 2'b00;
+    res_src_ex     = RES_ALU;
+    is_branch_ex   = 1'b0;
+    is_jmp_ex      = 1'b0;
+    jb_tgt_src_ex  = 1'b0;
+    is_jal_ex      = 1'b0;
+    is_jalr_ex     = 1'b0;
+    is_mc_ex       = 1'b0;
+    is_m_ex        = 1'b0;
+    is_csr_ex      = 1'b0;
+    is_ebreak_ex   = 1'b0;
+    trap_ex        = 1'b0;
+    trap_code_ex   = TRAP_NONE;
+    instr_ex       = I_NOP;
+    rd_ex          = 5'd0;
+    rs1_ex         = 5'd0;
+    rs2_ex         = 5'd0;
+    funct3_ex      = 3'b000;
+    funct7_ex      = 7'b0000000;
+    rs1_data_ex    = 32'd0;
+    rs2_data_ex    = 32'd0;
+    imm_ex         = 32'd0;
+    pc_ex          = 32'd0;
+    pc_plus4_ex    = 32'd4;
+    bpred_taken_ex = 1'b0;
+    pred_tgt_ex    = 32'd0;
+    s_valid        = 1'b0;
+    result_mem     = 32'd0;
+    ld_data_mem    = 32'd0;
+    retired        = 1'b0;
+    m_ready        = 1'b1;
   endtask
 
   //

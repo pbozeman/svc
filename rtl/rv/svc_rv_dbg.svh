@@ -164,7 +164,7 @@ function automatic string fmt_if_debug();
       status_str = "N";
     end
 
-    btb_str = $sformatf(" BTB[%s%s:%08x]", hit_str, status_str, btb_target);
+    btb_str = $sformatf(" BTB[%s%s:%08x]", hit_str, status_str, btb_tgt);
   end else begin
     btb_str = "";
   end
@@ -194,7 +194,7 @@ function automatic string fmt_id_debug();
   if (BPRED != 0) begin
     if ((stage_id.is_branch_id || stage_id.is_jmp_id) &&
         (pc_sel_id == PC_SEL_PREDICTED)) begin
-      pred_str = $sformatf("-> %08x T", pred_target);
+      pred_str = $sformatf("-> %08x T", pred_tgt);
     end else if (stage_id.is_branch_id || stage_id.is_jmp_id) begin
       pred_str = $sformatf("-> %08x N", pc_id + 4);
     end else begin
@@ -401,7 +401,7 @@ always @(posedge clk) begin
             ),
             stage_ex.fwd_rs1_ex,
             stage_ex.fwd_rs2_ex,
-            stage_ex.jb_target_ex,
+            stage_ex.jb_tgt_ex,
             bpred_taken_ex ? "T" : "N",
             stage_ex.branch_taken_ex ? "T" : "N"
         );
@@ -416,9 +416,9 @@ always @(posedge clk) begin
             dasm_inst(
               instr_ex
             ),
-            jb_target_src_ex ? stage_ex.fwd_rs1_ex : pc_ex,
+            jb_tgt_src_ex ? stage_ex.fwd_rs1_ex : pc_ex,
             imm_ex,
-            stage_ex.jb_target_ex
+            stage_ex.jb_tgt_ex
         );
       end else if (res_src_ex == RES_M) begin
         //

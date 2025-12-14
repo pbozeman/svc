@@ -15,7 +15,7 @@ module svc_rv_soc_bram_btb_m_fwd_tb;
   // CPI expectations with BRAM memories, M extension, BTB, and forwarding
   //
   // Combines branch prediction (BTB) with multiply/divide support.
-  // Tests specifically target scenarios where misprediction recovery
+  // Tests specifically tgt scenarios where misprediction recovery
   // interacts with multicycle operations (MUL/DIV).
   //
   localparam real alu_indep_max_cpi = 1.17;

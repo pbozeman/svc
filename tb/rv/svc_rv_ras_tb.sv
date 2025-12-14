@@ -10,7 +10,7 @@ module svc_rv_ras_tb;
   `TEST_RST_N(clk, rst_n);
 
   logic            ras_valid;
-  logic [XLEN-1:0] ras_target;
+  logic [XLEN-1:0] ras_tgt;
   logic            push_en;
   logic [XLEN-1:0] push_addr;
   logic            pop_en;
@@ -19,13 +19,13 @@ module svc_rv_ras_tb;
       .XLEN (XLEN),
       .DEPTH(DEPTH)
   ) uut (
-      .clk       (clk),
-      .rst_n     (rst_n),
-      .ras_valid (ras_valid),
-      .ras_target(ras_target),
-      .push_en   (push_en),
-      .push_addr (push_addr),
-      .pop_en    (pop_en)
+      .clk      (clk),
+      .rst_n    (rst_n),
+      .ras_valid(ras_valid),
+      .ras_tgt  (ras_tgt),
+      .push_en  (push_en),
+      .push_addr(push_addr),
+      .pop_en   (pop_en)
   );
 
   //
@@ -33,7 +33,7 @@ module svc_rv_ras_tb;
   //
   task automatic test_reset;
     `CHECK_FALSE(ras_valid);
-    `CHECK_EQ(ras_target, 0);
+    `CHECK_EQ(ras_tgt, 0);
   endtask
 
   //
@@ -46,7 +46,7 @@ module svc_rv_ras_tb;
 
     `TICK(clk);
     `CHECK_TRUE(ras_valid);
-    `CHECK_EQ(ras_target, 32'h1000);
+    `CHECK_EQ(ras_tgt, 32'h1000);
 
     push_en = 1'b0;
     pop_en  = 1'b1;
@@ -70,28 +70,28 @@ module svc_rv_ras_tb;
     push_addr = 32'h1000;
     `TICK(clk);
     `CHECK_TRUE(ras_valid);
-    `CHECK_EQ(ras_target, 32'h1000);
+    `CHECK_EQ(ras_tgt, 32'h1000);
 
     push_addr = 32'h2000;
     `TICK(clk);
     `CHECK_TRUE(ras_valid);
-    `CHECK_EQ(ras_target, 32'h2000);
+    `CHECK_EQ(ras_tgt, 32'h2000);
 
     push_addr = 32'h3000;
     `TICK(clk);
     `CHECK_TRUE(ras_valid);
-    `CHECK_EQ(ras_target, 32'h3000);
+    `CHECK_EQ(ras_tgt, 32'h3000);
 
     push_en = 1'b0;
     pop_en  = 1'b1;
 
     `TICK(clk);
     `CHECK_TRUE(ras_valid);
-    `CHECK_EQ(ras_target, 32'h2000);
+    `CHECK_EQ(ras_tgt, 32'h2000);
 
     `TICK(clk);
     `CHECK_TRUE(ras_valid);
-    `CHECK_EQ(ras_target, 32'h1000);
+    `CHECK_EQ(ras_tgt, 32'h1000);
 
     `TICK(clk);
     `CHECK_FALSE(ras_valid);
@@ -161,7 +161,7 @@ module svc_rv_ras_tb;
 
     `TICK(clk);
     `CHECK_TRUE(ras_valid);
-    `CHECK_EQ(ras_target, 32'h1000);
+    `CHECK_EQ(ras_tgt, 32'h1000);
 
     push_en   = 1'b1;
     push_addr = 32'h2000;
@@ -169,7 +169,7 @@ module svc_rv_ras_tb;
 
     `TICK(clk);
     `CHECK_TRUE(ras_valid);
-    `CHECK_EQ(ras_target, 32'h2000);
+    `CHECK_EQ(ras_tgt, 32'h2000);
 
     push_en = 1'b0;
     pop_en  = 1'b0;

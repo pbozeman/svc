@@ -68,7 +68,7 @@ module svc_rv_hazard #(
     input logic [1:0] pc_sel,
 
     // Branch/JALR misprediction redirect (MEM stage)
-    input logic redirect_valid_mem,
+    input logic redir_valid_mem,
 
     //
     // Prediction indicators (IF stage, synchronous with PC mux)
@@ -86,7 +86,7 @@ module svc_rv_hazard #(
     //
     // Registered redirect pending (from stage_pc)
     //
-    input logic redirect_pending_if,
+    input logic redir_pending_if,
 
     // Hazard control outputs
     output logic data_hazard_id,
@@ -189,11 +189,11 @@ module svc_rv_hazard #(
   //
   // Control flow change detection (defined early for use in data_hazard_id gating)
   //
-  logic pc_redirect;
+  logic pc_redir;
   logic control_flush;
 
-  assign pc_redirect   = (pc_sel == PC_SEL_REDIRECT);
-  assign control_flush = pc_redirect || redirect_valid_mem;
+  assign pc_redir      = (pc_sel == PC_SEL_REDIRECT);
+  assign control_flush = pc_redir || redir_valid_mem;
 
   if (FWD != 0) begin : g_external_forwarding
     //
@@ -317,7 +317,7 @@ module svc_rv_hazard #(
   // Suppress prediction flush when stalling (data_hazard_id or op_active_ex),
   // since the predicted instruction in ID hasn't advanced yet.
   //
-  // id_ex_flush: Flush on control flow changes (redirects, mispredictions).
+  // id_ex_flush: Flush on control flow changes (redirs, mispredictions).
   // Data hazards no longer cause flush - ID stage gates m_valid instead.
   //
   logic pc_predicted;
@@ -350,10 +350,10 @@ module svc_rv_hazard #(
     //
     // When PC_REG=1, the redirect takes effect one cycle late.
     // The instruction fetched during the redirect cycle (wrong path) must
-    // be flushed when redirect_pending_if is asserted.
+    // be flushed when redir_pending_if is asserted.
     //
-    assign if_id_flush = control_flush || pred_flush || redirect_pending_if;
-    assign id_ex_flush = control_flush || redirect_pending_if;
+    assign if_id_flush = control_flush || pred_flush || redir_pending_if;
+    assign id_ex_flush = control_flush || redir_pending_if;
 
   end else begin : g_immediate_flush
     //
@@ -362,10 +362,10 @@ module svc_rv_hazard #(
     assign if_id_flush = control_flush || pred_flush;
     assign id_ex_flush = control_flush;
 
-    `SVC_UNUSED(redirect_pending_if);
+    `SVC_UNUSED(redir_pending_if);
   end
 
-  assign ex_mem_flush = redirect_valid_mem || op_active_ex;
+  assign ex_mem_flush = redir_valid_mem || op_active_ex;
 
 endmodule
 

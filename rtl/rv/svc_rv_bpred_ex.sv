@@ -28,8 +28,8 @@ module svc_rv_bpred_ex #(
     input logic            bpred_taken_ex,
     input logic            branch_taken_ex,
     input logic [XLEN-1:0] pc_ex,
-    input logic [XLEN-1:0] jb_target_ex,
-    input logic [XLEN-1:0] pred_target_ex,
+    input logic [XLEN-1:0] jb_tgt_ex,
+    input logic [XLEN-1:0] pred_tgt_ex,
 
     //
     // Misprediction detection output
@@ -41,7 +41,7 @@ module svc_rv_bpred_ex #(
     //
     output logic            btb_update_en,
     output logic [XLEN-1:0] btb_update_pc,
-    output logic [XLEN-1:0] btb_update_target,
+    output logic [XLEN-1:0] btb_update_tgt,
     output logic            btb_update_taken,
     output logic            btb_update_is_ret,
     output logic            btb_update_is_jal
@@ -62,7 +62,7 @@ module svc_rv_bpred_ex #(
   // This was moved to break the critical timing path from:
   // forwarding → ALU → JALR target → misprediction comparison → PC selection
   //
-  `SVC_UNUSED({BPRED, bpred_taken_ex, is_jalr_ex, pred_target_ex});
+  `SVC_UNUSED({BPRED, bpred_taken_ex, is_jalr_ex, pred_tgt_ex});
 
   //
   // BTB Update Logic
@@ -106,11 +106,11 @@ module svc_rv_bpred_ex #(
     // traps and should not be stored in BTB (they would corrupt subsequent
     // predictions).
     //
-    logic target_aligned;
-    assign target_aligned = !(|jb_target_ex[1:0]);
-    assign btb_update_en = en && is_predictable && target_aligned;
+    logic tgt_aligned;
+    assign tgt_aligned = !(|jb_tgt_ex[1:0]);
+    assign btb_update_en = en && is_predictable && tgt_aligned;
     assign btb_update_pc = pc_ex;
-    assign btb_update_target = jb_target_ex;
+    assign btb_update_tgt = jb_tgt_ex;
     assign btb_update_is_ret = is_return;
     assign btb_update_is_jal = is_jal_ex;
 
@@ -123,14 +123,14 @@ module svc_rv_bpred_ex #(
   end else begin : g_no_btb_update
     assign btb_update_en     = 1'b0;
     assign btb_update_pc     = '0;
-    assign btb_update_target = '0;
+    assign btb_update_tgt    = '0;
     assign btb_update_taken  = 1'b0;
     assign btb_update_is_ret = 1'b0;
     assign btb_update_is_jal = 1'b0;
 
     // verilog_format: off
     `SVC_UNUSED({en, is_branch_ex, is_jal_ex, is_jalr_ex, rd_ex, pc_ex,
-                 jb_target_ex, branch_taken_ex});
+                 jb_tgt_ex, branch_taken_ex});
     // verilog_format: on
   end
 
