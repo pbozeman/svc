@@ -342,7 +342,7 @@ module svc_rv #(
 
   // MEM -> EX (forwarding)
   logic [XLEN-1:0] result_mem;
-  logic [XLEN-1:0] load_data_mem;
+  logic [XLEN-1:0] ld_data_mem;
 
   // EX -> Hazard
   logic            is_csr_ex;
@@ -457,7 +457,7 @@ module svc_rv #(
     assign ex_mem_flush   = 1'b0;
 
     // verilog_format: off
-    `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_load_ex,
+    `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_ld_ex,
                 mispredicted_ex, is_csr_ex, is_m_ex, btb_pred_taken, ras_pred_taken,
                 op_active_ex, redirect_pending_if});
     // verilog_format: on
@@ -473,18 +473,18 @@ module svc_rv #(
     assign ex_mem_flush   = 1'b0;
 
     // verilog_format: off
-    `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_load_ex,
+    `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_ld_ex,
                 mispredicted_ex, is_csr_ex, is_m_ex, op_active_ex, btb_pred_taken,
                 redirect_pending_if, ras_pred_taken});
     // verilog_format: on
   end
 
   //
-  // Define is_load_ex for hazard unit
+  // Define is_ld_ex for hazard unit
   //
-  logic is_load_ex;
+  logic is_ld_ex;
 
-  assign is_load_ex = (res_src_ex == RES_MEM);
+  assign is_ld_ex = (res_src_ex == RES_MEM);
 
   //
   // PC Selection Arbiter
