@@ -1,5 +1,8 @@
 # SVC - SystemVerilog Core: Claude Coding Guide
 
+CRITICAL: when chatting with the user, use backticks for code samples to avoid
+weird off-and-on italicization of lines that have snake_case_signals in them.
+
 This file contains essential information for AI assistants (Claude) to
 effectively write and modify code in the SVC repository.
 
