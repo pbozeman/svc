@@ -421,6 +421,27 @@ module svc_rv #(
   assign retired = wb_m_valid && wb_m_ready;
 
   //
+  // Global stall signal (initially disabled)
+  //
+  logic stall_cpu;
+  assign stall_cpu = 1'b0;
+
+  //
+  // Per-stage stall signals
+  //
+  logic stall_pc;
+  logic stall_id;
+  logic stall_ex;
+  logic stall_mem;
+  logic stall_wb;
+
+  assign stall_pc  = stall_cpu;
+  assign stall_id  = stall_cpu;
+  assign stall_ex  = stall_cpu;
+  assign stall_mem = stall_cpu;
+  assign stall_wb  = stall_cpu;
+
+  //
   // Halt signals
   //
   logic halt;
@@ -587,6 +608,7 @@ module svc_rv #(
       .ras_tgt_pc       (ras_tgt_pc),
       .m_valid          (pc_m_valid),
       .m_ready          (pc_m_ready),
+      .stall_pc         (stall_pc),
       .pc               (pc),
       .pc_if            (pc_if),
       .pc_next_if       (pc_next_if),

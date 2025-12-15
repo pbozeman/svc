@@ -126,6 +126,7 @@ module svc_rv_stage_ex_mc_tb;
       .clk              (clk),
       .rst_n            (rst_n),
       .ex_mem_flush     (ex_mem_flush),
+      .stall_ex         (1'b0),
       .reg_write_ex     (reg_write_ex),
       .mem_read_ex      (mem_read_ex),
       .mem_write_ex     (mem_write_ex),

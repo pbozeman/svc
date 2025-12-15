@@ -43,6 +43,9 @@ module svc_rv_stage_id #(
     input logic data_hazard_id,
     input logic id_ex_flush,
 
+    // Stall
+    input logic stall_id,
+
     // From IF stage
     input  logic s_valid,
     output logic s_ready,
@@ -306,7 +309,7 @@ module svc_rv_stage_id #(
       .valid_i  (s_valid),
       .valid_o  (m_valid),
       .ready_i  (m_ready),
-      .stall_i  (1'b0),
+      .stall_i  (stall_id),
       .flush_i  (id_ex_flush),
       .bubble_i (data_hazard_id),
       .advance_o(advance),
