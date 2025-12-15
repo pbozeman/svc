@@ -12,6 +12,7 @@ module svc_rv_pipe_ctrl_tb;
   logic valid_i;
   logic valid_o;
   logic ready_i;
+  logic stall_i;
   logic flush_i;
   logic bubble_i;
   logic advance_o;
@@ -26,6 +27,7 @@ module svc_rv_pipe_ctrl_tb;
       .valid_i  (valid_i),
       .valid_o  (valid_o),
       .ready_i  (ready_i),
+      .stall_i  (stall_i),
       .flush_i  (flush_i),
       .bubble_i (bubble_i),
       .advance_o(advance_o),
@@ -49,6 +51,7 @@ module svc_rv_pipe_ctrl_tb;
       .valid_i  (valid_i),
       .valid_o  (valid_o_pt),
       .ready_i  (ready_i),
+      .stall_i  (stall_i),
       .flush_i  (flush_i),
       .bubble_i (bubble_i),
       .advance_o(advance_o_pt),
@@ -63,6 +66,7 @@ module svc_rv_pipe_ctrl_tb;
     if (~rst_n) begin
       valid_i  <= 1'b0;
       ready_i  <= 1'b1;
+      stall_i  <= 1'b0;
       flush_i  <= 1'b0;
       bubble_i <= 1'b0;
     end
@@ -355,6 +359,126 @@ module svc_rv_pipe_ctrl_tb;
   endtask
 
   //
+  // Test: Stall prevents advance
+  //
+  task automatic test_stall_prevents_advance();
+    valid_i = 1'b1;
+    ready_i = 1'b1;
+    stall_i = 1'b0;
+    `TICK(clk);
+    `CHECK_TRUE(valid_o);
+
+    //
+    // Enable stall - should prevent advance even with valid_i
+    //
+    stall_i = 1'b1;
+    `TICK(clk);
+
+    `CHECK_FALSE(advance_o);
+    `CHECK_FALSE(bubble_o);
+    `CHECK_TRUE(valid_o);
+
+    stall_i = 1'b0;
+  endtask
+
+  //
+  // Test: Stall holds valid_o stable
+  //
+  task automatic test_stall_holds_valid();
+    //
+    // First get valid_o=1
+    //
+    valid_i = 1'b1;
+    ready_i = 1'b1;
+    `TICK(clk);
+    `CHECK_TRUE(valid_o);
+
+    //
+    // Stall with valid_i=0 - valid_o should remain stable
+    //
+    stall_i = 1'b1;
+    valid_i = 1'b0;
+    repeat (3) begin
+      `TICK(clk);
+      `CHECK_TRUE(valid_o);
+    end
+
+    stall_i = 1'b0;
+  endtask
+
+  //
+  // Test: Stall prevents bubble
+  //
+  task automatic test_stall_prevents_bubble();
+    valid_i = 1'b1;
+    ready_i = 1'b1;
+    `TICK(clk);
+    `CHECK_TRUE(valid_o);
+
+    //
+    // Try to bubble while stalled - should be ignored
+    //
+    stall_i  = 1'b1;
+    bubble_i = 1'b1;
+    `TICK(clk);
+
+    `CHECK_FALSE(bubble_o);
+    `CHECK_TRUE(valid_o);
+
+    stall_i  = 1'b0;
+    bubble_i = 1'b0;
+  endtask
+
+  //
+  // Test: Flush overrides stall
+  //
+  task automatic test_flush_overrides_stall();
+    valid_i = 1'b1;
+    ready_i = 1'b1;
+    `TICK(clk);
+    `CHECK_TRUE(valid_o);
+
+    //
+    // Flush should work even when stalled
+    //
+    stall_i = 1'b1;
+    flush_i = 1'b1;
+    `TICK(clk);
+
+    `CHECK_TRUE(flush_o);
+    `CHECK_FALSE(valid_o);
+
+    stall_i = 1'b0;
+    flush_i = 1'b0;
+  endtask
+
+  //
+  // Test: Stall release allows normal operation
+  //
+  task automatic test_stall_release();
+    valid_i = 1'b1;
+    ready_i = 1'b1;
+    `TICK(clk);
+    `CHECK_TRUE(valid_o);
+
+    //
+    // Stall for several cycles
+    //
+    stall_i = 1'b1;
+    repeat (3) begin
+      `TICK(clk);
+      `CHECK_FALSE(advance_o);
+    end
+
+    //
+    // Release stall - should resume normal operation
+    //
+    stall_i = 1'b0;
+    `TICK(clk);
+    `CHECK_TRUE(advance_o);
+  endtask
+
+  //
   // Test suite execution
   //
   `TEST_SUITE_BEGIN(svc_rv_pipe_ctrl_tb);
@@ -371,6 +495,11 @@ module svc_rv_pipe_ctrl_tb;
   `TEST_CASE(test_hold_multiple_cycles);
   `TEST_CASE(test_back_to_back);
   `TEST_CASE(test_idle);
+  `TEST_CASE(test_stall_prevents_advance);
+  `TEST_CASE(test_stall_holds_valid);
+  `TEST_CASE(test_stall_prevents_bubble);
+  `TEST_CASE(test_flush_overrides_stall);
+  `TEST_CASE(test_stall_release);
 
   `TEST_SUITE_END();
 
