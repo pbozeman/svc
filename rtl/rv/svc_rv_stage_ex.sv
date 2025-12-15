@@ -48,6 +48,9 @@ module svc_rv_stage_ex #(
     // Hazard control
     input logic ex_mem_flush,
 
+    // Stall
+    input logic stall_ex,
+
     // Ready/valid interface from ID stage
     input  logic s_valid,
     output logic s_ready,
@@ -572,7 +575,7 @@ module svc_rv_stage_ex #(
       .valid_i  (pipe_valid_i),
       .valid_o  (m_valid),
       .ready_i  (m_ready),
-      .stall_i  (1'b0),
+      .stall_i  (stall_ex),
       .flush_i  (pipe_flush_i),
       .bubble_i (!pipe_valid_i),
       .advance_o(pipe_advance_o),

@@ -32,6 +32,11 @@ module svc_rv_stage_wb #(
     output logic s_ready,
 
     //
+    // Stall
+    //
+    input logic stall_wb,
+
+    //
     // From MEM stage
     //
     input logic [     2:0] res_src_wb,
@@ -171,7 +176,7 @@ module svc_rv_stage_wb #(
       .valid_i  (s_valid),
       .valid_o  (m_valid),
       .ready_i  (m_ready),
-      .stall_i  (1'b0),
+      .stall_i  (stall_wb),
       .flush_i  (1'b0),
       .bubble_i (1'b0),
       .advance_o(pipe_advance_o),

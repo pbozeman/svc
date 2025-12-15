@@ -38,6 +38,11 @@ module svc_rv_stage_mem #(
     output logic s_ready,
 
     //
+    // Stall
+    //
+    input logic stall_mem,
+
+    //
     // From EX stage
     //
     input logic            reg_write_mem,
@@ -382,7 +387,7 @@ module svc_rv_stage_mem #(
       .valid_i  (s_valid),
       .valid_o  (m_valid),
       .ready_i  (m_ready),
-      .stall_i  (1'b0),
+      .stall_i  (stall_mem),
       .flush_i  (1'b0),
       .bubble_i (!s_valid),
       .advance_o(pipe_advance_o),

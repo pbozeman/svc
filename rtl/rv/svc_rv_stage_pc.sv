@@ -60,6 +60,11 @@ module svc_rv_stage_pc #(
     input  logic m_ready,
 
     //
+    // Stall
+    //
+    input logic stall_pc,
+
+    //
     // PC output (directly from PC register, for BTB lookup)
     //
     output logic [XLEN-1:0] pc,
@@ -157,7 +162,7 @@ module svc_rv_stage_pc #(
       .valid_i  (1'b1),
       .valid_o  (m_valid),
       .ready_i  (m_ready),
-      .stall_i  (1'b0),
+      .stall_i  (stall_pc),
       .flush_i  (1'b0),
       .bubble_i (1'b0),
       .advance_o(pipe_advance),
