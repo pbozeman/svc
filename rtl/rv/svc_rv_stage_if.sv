@@ -466,39 +466,11 @@ module svc_rv_stage_if #(
   end
 
   //
-  // Require 2 cycles of reset at start to initialize all state
-  //
-  logic f_past_valid2 = 1'b0;
-
-  always @(posedge clk) begin
-    f_past_valid2 <= f_past_valid;
-  end
-
-  always_ff @(posedge clk) begin
-    if (!f_past_valid2) begin
-      assume (!rst_n);
-    end
-  end
-
-  //
   // Once reset deasserts, it must stay deasserted
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n)) begin
       assume (rst_n);
-    end
-  end
-
-  //
-  // During flush, upstream shouldn't send valid data. This simplifies the
-  // shadow queue tracking since we don't need to handle the atomic clear+write
-  // behavior in the formal model.
-  //
-  // TODO: when all passing, remove this and decide how to handle it
-  //
-  always_ff @(posedge clk) begin
-    if (rst_n && if_id_flush) begin
-      assume (!s_valid);
     end
   end
 
