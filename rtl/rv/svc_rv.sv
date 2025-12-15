@@ -263,7 +263,6 @@ module svc_rv #(
 
   // WB -> svc_rv
   logic            wb_m_valid;
-  logic            wb_m_ready;
   logic            reg_write_wb;
   logic [     2:0] res_src_wb;
   logic [    31:0] instr_wb;
@@ -416,15 +415,17 @@ module svc_rv #(
   logic            ras_pop_en;
 
   // Retired signal (for instruction counting)
-  // Computed from WB stage output handshake
+  // An instruction retires when WB has valid output and is not stalled
   logic retired;
-  assign retired = wb_m_valid && wb_m_ready;
+  assign retired = wb_m_valid && !stall_wb;
 
   //
-  // Global stall signal (initially disabled)
+  // Global stall signal
+  //
+  // Halt now stalls the entire CPU via global stall instead of backpressure
   //
   logic stall_cpu;
-  assign stall_cpu = 1'b0;
+  assign stall_cpu = halt;
 
   //
   // Per-stage stall signals
@@ -470,7 +471,7 @@ module svc_rv #(
     //
     // No data hazards in single-cycle mode. Multi-cycle ops (division)
     // are handled by EX stage's s_ready (gated by op_active_ex).
-    // Halt is handled by wb_m_ready = !halt.
+    // Halt is handled by stall_cpu.
     //
     assign data_hazard_id = 1'b0;
     assign if_id_flush    = 1'b0;
@@ -486,7 +487,7 @@ module svc_rv #(
     //
     // No hazards in single-cycle mode without multi-cycle operations
     //
-    // Halt is handled by wb_m_ready = !halt.
+    // Halt is handled by stall_cpu.
     //
     assign data_hazard_id = 1'b0;
     assign if_id_flush    = 1'b0;
@@ -707,7 +708,6 @@ module svc_rv #(
       .s_valid(wb_s_valid),
       .s_ready(wb_s_ready),
       .m_valid(wb_m_valid),
-      .m_ready(wb_m_ready),
       .*
   );
 
@@ -728,7 +728,6 @@ module svc_rv #(
   // Halt logic
   //
   assign halt_next   = (retired && (ebreak_ret || trap_ret)) || halt;
-  assign wb_m_ready  = !halt;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin

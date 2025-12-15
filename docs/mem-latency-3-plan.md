@@ -210,8 +210,8 @@ make format && make lint && make tb
 **Verify**:
 
 - `stage_pc` uses `stall_pc` via `pipe_ctrl`
-- `stage_if` has `s_ready = m_ready` (line 104) and `pc_stall = !m_ready` (line
-  112)
+- `stage_if` has `s_ready = m_ready` (line 104) and `pc_stall = !m_ready`
+  (line 112)
 
 **Potential simplification**: If ID's s_ready is `!data_hazard_id`, then IF's
 m_ready = `!data_hazard_id`, and `pc_stall = data_hazard_id`. This is correct -
@@ -263,14 +263,14 @@ After all steps:
 
 ## Files to Modify
 
-| Step | File                         | Change                                      |
-| ---- | ---------------------------- | ------------------------------------------- |
-| 1a   | `rtl/rv/svc_rv_stage_wb.sv`  | Remove m_ready port, `s_ready = 1'b1`       |
-| 1b   | `rtl/rv/svc_rv.sv`           | `stall_cpu = halt`, remove wb_m_ready       |
-| 2    | `rtl/rv/svc_rv_stage_mem.sv` | `s_ready = 1'b1`                            |
-| 3    | `rtl/rv/svc_rv_stage_ex.sv`  | Remove m_ready from s_ready, simplify FSM   |
-| 4    | `rtl/rv/svc_rv_stage_id.sv`  | Remove m_ready from s_ready                 |
-| 5    | (verify only)                | PC/IF already done                          |
+| Step | File                         | Change                                    |
+| ---- | ---------------------------- | ----------------------------------------- |
+| 1a   | `rtl/rv/svc_rv_stage_wb.sv`  | Remove m_ready port, `s_ready = 1'b1`     |
+| 1b   | `rtl/rv/svc_rv.sv`           | `stall_cpu = halt`, remove wb_m_ready     |
+| 2    | `rtl/rv/svc_rv_stage_mem.sv` | `s_ready = 1'b1`                          |
+| 3    | `rtl/rv/svc_rv_stage_ex.sv`  | Remove m_ready from s_ready, simplify FSM |
+| 4    | `rtl/rv/svc_rv_stage_id.sv`  | Remove m_ready from s_ready               |
+| 5    | (verify only)                | PC/IF already done                        |
 
 ---
 
