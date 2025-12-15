@@ -73,7 +73,6 @@ module svc_rv_stage_wb #(
     // Manager interface to svc_rv
     //
     output logic m_valid,
-    input  logic m_ready,
 
     //
     // Retired instruction outputs
@@ -175,7 +174,7 @@ module svc_rv_stage_wb #(
       .rst_n    (rst_n),
       .valid_i  (s_valid),
       .valid_o  (m_valid),
-      .ready_i  (m_ready),
+      .ready_i  (1'b1),
       .stall_i  (stall_wb),
       .flush_i  (1'b0),
       .bubble_i (1'b0),
@@ -184,7 +183,7 @@ module svc_rv_stage_wb #(
       .bubble_o (pipe_bubble_o)
   );
 
-  assign s_ready = !m_valid || m_ready;
+  assign s_ready = 1'b1;
 
   //
   // Pipeline data register
@@ -288,39 +287,24 @@ module svc_rv_stage_wb #(
 
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
+      //
       // res_src_wb must be valid (0-5 for 6-way mux)
+      //
       `FASSUME(a_res_src_valid, res_src_wb < 3'd6);
-
-      // When backpressured, raw inputs must be stable
-      if ($past(s_valid && !s_ready)) begin
-        `FASSUME(a_res_src_stable, res_src_wb == $past(res_src_wb));
-        `FASSUME(a_instr_stable, instr_wb == $past(instr_wb));
-        `FASSUME(a_alu_result_stable, alu_result_wb == $past(alu_result_wb));
-        `FASSUME(a_ld_data_stable, ld_data_wb == $past(ld_data_wb));
-        `FASSUME(a_pc_plus4_stable, pc_plus4_wb == $past(pc_plus4_wb));
-        `FASSUME(a_jb_tgt_stable, jb_tgt_wb == $past(jb_tgt_wb));
-        `FASSUME(a_csr_rdata_stable, csr_rdata_wb == $past(csr_rdata_wb));
-        `FASSUME(a_m_result_stable, m_result_wb == $past(m_result_wb));
-        `FASSUME(a_funct3_stable, funct3_wb == $past(funct3_wb));
-        `FASSUME(a_rs1_data_stable, rs1_data_wb == $past(rs1_data_wb));
-        `FASSUME(a_rs2_data_stable, rs2_data_wb == $past(rs2_data_wb));
-        `FASSUME(a_product_64_stable, product_64_wb == $past(product_64_wb));
-        `FASSUME(a_trap_stable, trap_wb == $past(trap_wb));
-        `FASSUME(a_trap_code_stable, trap_code_wb == $past(trap_code_wb));
-        `FASSUME(a_reg_write_stable, reg_write_wb == $past(reg_write_wb));
-        `FASSUME(a_is_ebreak_stable, is_ebreak_wb == $past(is_ebreak_wb));
-        `FASSUME(a_s_valid_stable, s_valid == $past(s_valid));
-      end
     end
   end
 
   // Cover properties
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      // Cover back-to-back valid transfers
-      `FCOVER(c_back_to_back, $past(m_valid && m_ready) && m_valid);
+      //
+      // Cover back-to-back valid outputs
+      //
+      `FCOVER(c_back_to_back, $past(m_valid) && m_valid);
 
+      //
       // Cover halt conditions in retiring instruction
+      //
       `FCOVER(c_ebreak_ret, ebreak_ret);
       `FCOVER(c_trap_ret, trap_ret);
     end
