@@ -106,8 +106,8 @@ module svc_rv_stage_ex_mc_tb;
   // verilator lint_on UNUSEDSIGNAL
 
   logic            m_valid;
-  logic            m_ready;
 
+  logic            stall_ex;
   logic            op_active_ex;
 
   //
@@ -126,7 +126,7 @@ module svc_rv_stage_ex_mc_tb;
       .clk              (clk),
       .rst_n            (rst_n),
       .ex_mem_flush     (ex_mem_flush),
-      .stall_ex         (1'b0),
+      .stall_ex         (stall_ex),
       .reg_write_ex     (reg_write_ex),
       .mem_read_ex      (mem_read_ex),
       .mem_write_ex     (mem_write_ex),
@@ -195,7 +195,6 @@ module svc_rv_stage_ex_mc_tb;
       .trap_code_mem    (trap_code_mem),
       .is_ebreak_mem    (is_ebreak_mem),
       .m_valid          (m_valid),
-      .m_ready          (m_ready),
       .op_active_ex     (op_active_ex),
       .btb_update_en    (btb_update_en),
       .btb_update_pc    (btb_update_pc),
@@ -245,7 +244,7 @@ module svc_rv_stage_ex_mc_tb;
     result_mem     = 32'd0;
     ld_data_mem    = 32'd0;
     retired        = 1'b0;
-    m_ready        = 1'b1;
+    stall_ex       = 1'b0;
   endtask
 
   //
@@ -296,7 +295,6 @@ module svc_rv_stage_ex_mc_tb;
     rs1_data_ex  = 32'd100;
     rs2_data_ex  = 32'd50;
     s_valid      = 1'b1;
-    m_ready      = 1'b1;
 
     `TICK(clk);
 
@@ -379,19 +377,18 @@ module svc_rv_stage_ex_mc_tb;
   endtask
 
   //
-  // Test DIV with downstream backpressure (m_ready=0)
+  // Test DIV result held during stall (stall_ex=1)
   //
-  task automatic test_div_with_backpressure;
+  task automatic test_div_with_stall;
     int cycle_count;
 
     init_inputs();
     `TICK(clk);
 
     //
-    // Start DIV with downstream not ready
+    // Start DIV (no stall yet)
     //
     setup_div(32'd20, 32'd4, 5'd15);
-    m_ready      = 1'b0;
 
     ex_mem_flush = 1'b1;
     `TICK(clk);
@@ -411,19 +408,27 @@ module svc_rv_stage_ex_mc_tb;
     end
 
     //
-    // m_valid should be asserted even with m_ready=0
+    // m_valid should be asserted with result ready
     //
     `CHECK_EQ(m_valid, 1'b1);
     `CHECK_EQ(m_result_mem, 32'd5);
 
     //
-    // Now assert m_ready and verify handshake completes
+    // Now assert stall and verify m_valid stays high
     //
-    m_ready = 1'b1;
+    stall_ex = 1'b1;
+    `TICK(clk);
+    `CHECK_EQ(m_valid, 1'b1);
+    `CHECK_EQ(m_result_mem, 32'd5);
+
+    //
+    // Release stall and verify pipeline can advance
+    //
+    stall_ex = 1'b0;
     `TICK(clk);
 
     //
-    // After handshake, s_ready should be back
+    // s_ready should be available
     //
     `CHECK_EQ(s_ready, 1'b1);
   endtask
@@ -552,12 +557,6 @@ module svc_rv_stage_ex_mc_tb;
     `CHECK_EQ(rd_mem, 5'd3);
 
     //
-    // Simulate downstream accepting the div result
-    //
-    m_ready = 1'b1;
-    `TICK(clk);
-
-    //
     // Now the next instruction (ADDI x4, x3, 100) should be able to enter
     // Present it as a simple ALU op (simulating that hazard is resolved)
     //
@@ -580,7 +579,7 @@ module svc_rv_stage_ex_mc_tb;
   `TEST_CASE(test_reset);
   `TEST_CASE(test_alu_passthrough);
   `TEST_CASE(test_div_completes_with_valid);
-  `TEST_CASE(test_div_with_backpressure);
+  `TEST_CASE(test_div_with_stall);
   `TEST_CASE(test_consecutive_divs);
   `TEST_CASE(test_div_by_zero);
   `TEST_CASE(test_div_then_dependent_instr);
