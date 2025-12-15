@@ -25,20 +25,11 @@ module svc_rv_stage_wb #(
     input logic clk,
     input logic rst_n,
 
-    //
-    // Ready/valid interface from MEM stage
-    //
-    input  logic s_valid,
-    output logic s_ready,
-
-    //
     // Stall
-    //
     input logic stall_wb,
 
-    //
     // From MEM stage
-    //
+    input logic            s_valid,
     input logic [     2:0] res_src_wb,
     input logic [    31:0] instr_wb,
     input logic [XLEN-1:0] alu_result_wb,
@@ -57,9 +48,6 @@ module svc_rv_stage_wb #(
     input logic            reg_write_wb,
 
 `ifdef RISCV_FORMAL
-    //
-    // RVFI memory signals from MEM stage
-    //
     input logic            f_mem_write_wb,
     input logic [XLEN-1:0] f_dmem_waddr_wb,
     input logic [XLEN-1:0] f_dmem_raddr_wb,
@@ -69,14 +57,10 @@ module svc_rv_stage_wb #(
     input logic [     3:0] f_dmem_rstrb_wb,
 `endif
 
-    //
     // Manager interface to svc_rv
-    //
     output logic m_valid,
 
-    //
     // Retired instruction outputs
-    //
     output logic [    31:0] instr_ret,
     output logic [XLEN-1:0] pc_ret,
     output logic [XLEN-1:0] rs1_data_ret,
@@ -88,9 +72,6 @@ module svc_rv_stage_wb #(
     output logic            ebreak_ret,
 
 `ifdef RISCV_FORMAL
-    //
-    // RVFI memory signals (registered on retirement)
-    //
     output logic            f_mem_write_ret,
     output logic [XLEN-1:0] f_dmem_waddr_ret,
     output logic [XLEN-1:0] f_dmem_raddr_ret,
@@ -100,9 +81,7 @@ module svc_rv_stage_wb #(
     output logic [     3:0] f_dmem_rstrb_ret,
 `endif
 
-    //
     // Output to register file in ID stage (combinational, for same-cycle write)
-    //
     output logic [XLEN-1:0] rd_data_wb
 );
   `include "svc_rv_defs.svh"
@@ -183,8 +162,6 @@ module svc_rv_stage_wb #(
       .bubble_o (pipe_bubble_o)
   );
 
-  assign s_ready = 1'b1;
-
   //
   // Pipeline data register
   //
@@ -200,7 +177,7 @@ module svc_rv_stage_wb #(
       .bubble(pipe_bubble_o),
 `ifdef FORMAL
       .s_valid(s_valid),
-      .s_ready(s_ready),
+      .s_ready(1'b1),
 `endif
       .data_i({
         instr_wb,
@@ -242,7 +219,7 @@ module svc_rv_stage_wb #(
       .bubble(pipe_bubble_o),
 `ifdef FORMAL
       .s_valid(s_valid),
-      .s_ready(s_ready),
+      .s_ready(1'b1),
 `endif
       .data_i({
         f_mem_write_wb,
@@ -287,9 +264,7 @@ module svc_rv_stage_wb #(
 
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      //
       // res_src_wb must be valid (0-5 for 6-way mux)
-      //
       `FASSUME(a_res_src_valid, res_src_wb < 3'd6);
     end
   end
@@ -297,14 +272,10 @@ module svc_rv_stage_wb #(
   // Cover properties
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      //
-      // Cover back-to-back valid outputs
-      //
+      // back-to-back valid outputs
       `FCOVER(c_back_to_back, $past(m_valid) && m_valid);
 
-      //
-      // Cover halt conditions in retiring instruction
-      //
+      // halt conditions in retiring instruction
       `FCOVER(c_ebreak_ret, ebreak_ret);
       `FCOVER(c_trap_ret, trap_ret);
     end

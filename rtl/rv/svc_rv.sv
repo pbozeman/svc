@@ -225,7 +225,6 @@ module svc_rv #(
 
   // EX -> MEM
   logic            ex_m_valid;
-  logic            ex_m_ready;
   logic            reg_write_mem;
   logic            mem_read_mem;
   logic            mem_write_mem;
@@ -257,9 +256,7 @@ module svc_rv #(
 
   // MEM -> WB
   logic            mem_m_valid;
-  logic            mem_m_ready;
   logic            wb_s_valid;
-  logic            wb_s_ready;
 
   // WB -> svc_rv
   logic            wb_m_valid;
@@ -678,7 +675,6 @@ module svc_rv #(
       .s_valid(id_m_valid),
       .s_ready(id_m_ready),
       .m_valid(ex_m_valid),
-      .m_ready(ex_m_ready),
       .*
   );
 
@@ -693,9 +689,8 @@ module svc_rv #(
       .RAS_ENABLE(RAS_ENABLE)
   ) stage_mem (
       .s_valid(ex_m_valid),
-      .s_ready(ex_m_ready),
+      .s_ready(),
       .m_valid(mem_m_valid),
-      .m_ready(mem_m_ready),
       .*
   );
 
@@ -706,7 +701,6 @@ module svc_rv #(
       .XLEN(XLEN)
   ) stage_wb (
       .s_valid(wb_s_valid),
-      .s_ready(wb_s_ready),
       .m_valid(wb_m_valid),
       .*
   );
@@ -719,15 +713,16 @@ module svc_rv #(
   // (Handled by explicit port connections above)
 
   //
-  // MEM -> WB ready/valid wiring (direct connection, no skidbuf yet)
+  // MEM -> WB wiring
   //
-  assign wb_s_valid  = mem_m_valid;
-  assign mem_m_ready = wb_s_ready;
+  // WB always accepts (s_ready removed), stall handles flow control
+  //
+  assign wb_s_valid = mem_m_valid;
 
   //
   // Halt logic
   //
-  assign halt_next   = (retired && (ebreak_ret || trap_ret)) || halt;
+  assign halt_next  = (retired && (ebreak_ret || trap_ret)) || halt;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin

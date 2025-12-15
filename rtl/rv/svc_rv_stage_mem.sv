@@ -88,7 +88,6 @@ module svc_rv_stage_mem #(
     // Ready/valid interface to WB stage
     //
     output logic m_valid,
-    input  logic m_ready,
 
     //
     // Outputs to WB stage
@@ -386,7 +385,7 @@ module svc_rv_stage_mem #(
       .rst_n    (rst_n),
       .valid_i  (s_valid),
       .valid_o  (m_valid),
-      .ready_i  (m_ready),
+      .ready_i  (1'b1),
       .stall_i  (stall_mem),
       .flush_i  (1'b0),
       .bubble_i (!s_valid),
@@ -500,9 +499,11 @@ module svc_rv_stage_mem #(
   );
 
   //===========================================================================
-  // Ready/valid interface
+  // Ready interface
+  //
+  // MEM always accepts (stall handles flow control)
   //===========================================================================
-  assign s_ready = !m_valid || m_ready;
+  assign s_ready = 1'b1;
 
 
   //===========================================================================
@@ -526,17 +527,15 @@ module svc_rv_stage_mem #(
         f_dmem_wstrb_wb <= dmem_wstrb;
       end else begin
         // Clear when store retires
-        if (m_valid && m_ready && f_mem_write_wb) begin
+        if (m_valid && f_mem_write_wb) begin
           f_mem_write_wb  <= 1'b0;
           f_dmem_wstrb_wb <= '0;
         end
 
         // Update address/data on pipeline advance (for loads)
-        if (!m_valid || m_ready) begin
-          f_dmem_waddr_wb <= dmem_waddr;
-          f_dmem_raddr_wb <= dmem_raddr;
-          f_dmem_wdata_wb <= dmem_wdata;
-        end
+        f_dmem_waddr_wb <= dmem_waddr;
+        f_dmem_raddr_wb <= dmem_raddr;
+        f_dmem_wdata_wb <= dmem_wdata;
       end
     end
   end else begin : g_rvfi_store_passthrough
@@ -628,35 +627,14 @@ module svc_rv_stage_mem #(
   end
 
   //
-  // m_valid/m_ready handshake assertions
+  // m_valid stability during stall
   //
-  // Once m_valid goes high, it must stay high until m_ready
-  // All output signals must remain stable while m_valid && !m_ready
+  // When stalled, m_valid must stay stable (unless flushed)
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      //
-      // Valid must stay high until ready
-      //
-      if ($past(m_valid && !m_ready)) begin
-        `FASSERT(a_m_valid_stable, m_valid);
-      end
-
-      //
-      // Output signals must be stable while valid && !ready
-      //
-      if ($past(m_valid && !m_ready)) begin
-        `FASSERT(a_reg_write_wb_stable, $stable(reg_write_wb));
-        `FASSERT(a_res_src_wb_stable, $stable(res_src_wb));
-        `FASSERT(a_instr_wb_stable, $stable(instr_wb));
-        `FASSERT(a_rd_wb_stable, $stable(rd_wb));
-        `FASSERT(a_funct3_wb_stable, $stable(funct3_wb));
-        `FASSERT(a_alu_result_wb_stable, $stable(alu_result_wb));
-        `FASSERT(a_pc_plus4_wb_stable, $stable(pc_plus4_wb));
-        `FASSERT(a_jb_tgt_wb_stable, $stable(jb_tgt_wb));
-        `FASSERT(a_trap_wb_stable, $stable(trap_wb));
-        `FASSERT(a_trap_code_wb_stable, $stable(trap_code_wb));
-        `FASSERT(a_is_ebreak_wb_stable, $stable(is_ebreak_wb));
+      if ($past(stall_mem && m_valid)) begin
+        `FASSERT(a_m_valid_stable_stall, m_valid);
       end
     end
   end
@@ -693,10 +671,10 @@ module svc_rv_stage_mem #(
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
       // back-to-back valid transfers
-      `FCOVER(c_back_to_back, $past(m_valid && m_ready) && m_valid);
+      `FCOVER(c_back_to_back, $past(m_valid) && m_valid);
 
-      // stalled transfer (valid high, ready low for a cycle)
-      `FCOVER(c_stalled, $past(m_valid && !m_ready) && m_valid && m_ready);
+      // stalled transfer (stall_mem active)
+      `FCOVER(c_stalled, $past(stall_mem && m_valid) && m_valid);
 
       // redirect with immediate acknowledgment
       `FCOVER(c_redir_immediate, redir_valid_mem && redir_ready_mem);

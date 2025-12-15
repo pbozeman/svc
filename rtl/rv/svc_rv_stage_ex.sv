@@ -102,7 +102,6 @@ module svc_rv_stage_ex #(
 
     // Outputs to MEM stage
     output logic m_valid,
-    input  logic m_ready,
 
     output logic            reg_write_mem,
     output logic            mem_read_mem,
@@ -193,22 +192,20 @@ module svc_rv_stage_ex #(
 
   always_comb begin
     state_next   = state;
-    m_valid_next = m_valid && !m_ready;
+    m_valid_next = 1'b0;
 
     op_active_ex = 1'b0;
     op_en_ex     = 1'b0;
 
     case (state)
       EX_IDLE: begin
-        if (!m_valid || m_ready) begin
-          if (s_valid) begin
-            if (!is_mc_ex) begin
-              m_valid_next = 1'b1;
-            end else begin
-              state_next   = EX_MC_EXEC;
-              op_en_ex     = 1'b1;
-              op_active_ex = 1'b1;
-            end
+        if (s_valid) begin
+          if (!is_mc_ex) begin
+            m_valid_next = 1'b1;
+          end else begin
+            state_next   = EX_MC_EXEC;
+            op_en_ex     = 1'b1;
+            op_active_ex = 1'b1;
           end
         end
       end
@@ -224,7 +221,7 @@ module svc_rv_stage_ex #(
       end
 
       EX_MC_DONE: begin
-        if (m_valid && m_ready) begin
+        if (m_valid) begin
           if (s_valid && is_mc_ex) begin
             state_next   = EX_MC_EXEC;
             op_en_ex     = 1'b1;
@@ -541,21 +538,24 @@ module svc_rv_stage_ex #(
   logic pipe_flush_o;
   logic pipe_bubble_o;
 
+  //
+  // EX always accepts when not in multi-cycle op (stall handles flow control)
+  //
+  assign s_ready = !op_active_ex;
+
   if (PIPELINED != 0) begin : g_registered
-    logic ex_mem_en;
     logic mc_active;
 
-    assign ex_mem_en    = !m_valid || m_ready;
-    assign s_ready      = ex_mem_en && !op_active_ex;
     assign mc_active    = op_active_ex || (state != EX_IDLE);
 
-    // the hazard unit might request a flush while we are mid
-    // mc op. by the time the op completes, it might lower the
-    // flush request, don't send it until mc is done.
+    //
+    // The hazard unit might request a flush while we are mid mc op.
+    // By the time the op completes, it might lower the flush request,
+    // don't send it until mc is done.
+    //
     assign pipe_flush_i = ex_mem_flush && !mc_active;
 
   end else begin : g_passthrough
-    assign s_ready      = m_ready && !op_active_ex;
     assign pipe_flush_i = 1'b0;
 
     `SVC_UNUSED({ex_mem_flush, m_valid_next});
@@ -574,7 +574,7 @@ module svc_rv_stage_ex #(
       .rst_n    (rst_n),
       .valid_i  (pipe_valid_i),
       .valid_o  (m_valid),
-      .ready_i  (m_ready),
+      .ready_i  (1'b1),
       .stall_i  (stall_ex),
       .flush_i  (pipe_flush_i),
       .bubble_i (!pipe_valid_i),
@@ -766,54 +766,13 @@ module svc_rv_stage_ex #(
   end
 
   //
-  // m_valid/m_ready handshake assertions (output interface)
-  //
-  // Once m_valid goes high, it must stay high until m_ready
-  // All output signals must remain stable while m_valid && !m_ready
+  // Multi-cycle operation assertions
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
       // No new request accepted while multi-cycle op is active
       if (op_active_ex) begin
         `FASSERT(a_no_accept_while_busy, !s_ready);
-      end
-
-      // Valid must stay high until ready (unless flushed)
-      if ($past(m_valid && !m_ready && !ex_mem_flush)) begin
-        `FASSERT(a_m_valid_stable, m_valid);
-      end
-
-      //
-      // Output signals must be stable while valid && !ready (unless flush)
-      //
-      if ($past(m_valid && !m_ready && !ex_mem_flush)) begin
-        `FASSERT(a_reg_write_mem_stable, $stable(reg_write_mem));
-        `FASSERT(a_mem_read_mem_stable, $stable(mem_read_mem));
-        `FASSERT(a_mem_write_mem_stable, $stable(mem_write_mem));
-        `FASSERT(a_res_src_mem_stable, $stable(res_src_mem));
-        `FASSERT(a_instr_mem_stable, $stable(instr_mem));
-        `FASSERT(a_rd_mem_stable, $stable(rd_mem));
-        `FASSERT(a_funct3_mem_stable, $stable(funct3_mem));
-        `FASSERT(a_alu_result_mem_stable, $stable(alu_result_mem));
-        `FASSERT(a_rs1_data_mem_stable, $stable(rs1_data_mem));
-        `FASSERT(a_rs2_data_mem_stable, $stable(rs2_data_mem));
-        `FASSERT(a_pc_plus4_mem_stable, $stable(pc_plus4_mem));
-        `FASSERT(a_jb_tgt_mem_stable, $stable(jb_tgt_mem));
-        `FASSERT(a_csr_rdata_mem_stable, $stable(csr_rdata_mem));
-        `FASSERT(a_m_result_mem_stable, $stable(m_result_mem));
-        `FASSERT(a_mul_ll_mem_stable, $stable(mul_ll_mem));
-        `FASSERT(a_mul_lh_mem_stable, $stable(mul_lh_mem));
-        `FASSERT(a_mul_hl_mem_stable, $stable(mul_hl_mem));
-        `FASSERT(a_mul_hh_mem_stable, $stable(mul_hh_mem));
-        `FASSERT(a_is_branch_mem_stable, $stable(is_branch_mem));
-        `FASSERT(a_is_jalr_mem_stable, $stable(is_jalr_mem));
-        `FASSERT(a_is_jmp_mem_stable, $stable(is_jmp_mem));
-        `FASSERT(a_branch_taken_mem_stable, $stable(branch_taken_mem));
-        `FASSERT(a_bpred_taken_mem_stable, $stable(bpred_taken_mem));
-        `FASSERT(a_pred_tgt_mem_stable, $stable(pred_tgt_mem));
-        `FASSERT(a_is_ebreak_mem_stable, $stable(is_ebreak_mem));
-        `FASSERT(a_trap_mem_stable, $stable(trap_mem));
-        `FASSERT(a_trap_code_mem_stable, $stable(trap_code_mem));
       end
     end
   end
@@ -823,11 +782,8 @@ module svc_rv_stage_ex #(
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      // Cover back-to-back valid transfers
-      `FCOVER(c_back_to_back, $past(m_valid && m_ready) && m_valid);
-
-      // Cover stalled transfer (valid high, ready low for a cycle)
-      `FCOVER(c_stalled, $past(m_valid && !m_ready) && m_valid && m_ready);
+      // Cover back-to-back valid outputs
+      `FCOVER(c_back_to_back, $past(m_valid) && m_valid);
     end
   end
 
@@ -838,10 +794,8 @@ module svc_rv_stage_ex #(
     always_ff @(posedge clk) begin
       if (f_past_valid && $past(rst_n) && rst_n) begin
         `FCOVER(c_mc_starts, $rose(op_active_ex) && is_mc_ex);
-        `FCOVER(c_mc_complete_immediate, $past(state == EX_MC_EXEC
-                ) && state == EX_MC_DONE && m_valid && m_ready);
-        `FCOVER(c_mc_complete_held, $past(state == EX_MC_EXEC
-                ) && state == EX_MC_DONE && m_valid && !m_ready);
+        `FCOVER(c_mc_complete, $past(state == EX_MC_EXEC
+                ) && state == EX_MC_DONE && m_valid);
         `FCOVER(c_mc_back_to_back, $past(state == EX_MC_DONE
                 ) && state == EX_MC_EXEC);
         `FCOVER(c_mc_then_normal, $past(state == EX_MC_DONE
