@@ -33,6 +33,7 @@ module svc_rv_pipe_ctrl #(
     output logic valid_o,
     input  logic ready_i,
 
+    input logic stall_i,
     input logic flush_i,
     input logic bubble_i,
 
@@ -43,7 +44,11 @@ module svc_rv_pipe_ctrl #(
 
   if (REG != 0) begin : g_registered
     logic can_accept;
-    assign can_accept = !valid_o || ready_i;
+
+    //
+    // Stall takes priority - when stalled, nothing advances
+    //
+    assign can_accept = !stall_i && (!valid_o || ready_i);
 
     always_comb begin
       flush_o   = flush_i;
@@ -67,7 +72,7 @@ module svc_rv_pipe_ctrl #(
     assign bubble_o  = 1'b0;
     assign advance_o = 1'b1;
 
-    `SVC_UNUSED({clk, rst_n, flush_i, bubble_i, ready_i});
+    `SVC_UNUSED({clk, rst_n, stall_i, flush_i, bubble_i, ready_i});
   end
 
 `ifdef FORMAL
@@ -101,11 +106,34 @@ module svc_rv_pipe_ctrl #(
     end
   end
 
+  //
   // Output assertions: valid_o stable while stalled (unless flush)
+  //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
       if ($past(valid_o && !ready_i && !flush_i)) begin
         `FASSERT(a_valid_o_stable, valid_o);
+      end
+    end
+  end
+
+  //
+  // Stall assertions: stall_i prevents advance_o
+  //
+  always_comb begin
+    if (stall_i) begin
+      `FASSERT(a_stall_prevents_advance, !advance_o);
+      `FASSERT(a_stall_prevents_bubble, !bubble_o);
+    end
+  end
+
+  //
+  // Stall holds valid_o stable (unless flush)
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      if ($past(stall_i && !flush_i)) begin
+        `FASSERT(a_stall_holds_valid, valid_o == $past(valid_o));
       end
     end
   end
@@ -117,12 +145,16 @@ module svc_rv_pipe_ctrl #(
     end
   end
 
+  //
   // Cover properties
+  //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
       `FCOVER(c_flush, flush_o);
       `FCOVER(c_bubble, bubble_o);
       `FCOVER(c_advance, advance_o);
+      `FCOVER(c_stall, stall_i);
+      `FCOVER(c_stall_with_valid, stall_i && valid_o);
     end
   end
 

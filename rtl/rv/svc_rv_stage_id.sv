@@ -306,6 +306,7 @@ module svc_rv_stage_id #(
       .valid_i  (s_valid),
       .valid_o  (m_valid),
       .ready_i  (m_ready),
+      .stall_i  (1'b0),
       .flush_i  (id_ex_flush),
       .bubble_i (data_hazard_id),
       .advance_o(advance),
