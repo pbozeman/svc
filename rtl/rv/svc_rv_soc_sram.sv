@@ -62,8 +62,6 @@ module svc_rv_soc_sram #(
   //
   logic [31:0] imem_araddr;
   logic [31:0] imem_rdata;
-  logic        imem_arvalid;
-  logic        imem_rvalid;
 
   logic [31:0] dmem_raddr;
   logic [31:0] dmem_rdata;
@@ -112,42 +110,10 @@ module svc_rv_soc_sram #(
   //
   // Instruction memory interface
   //
-  // For pipelined mode: Hold instruction data and register rvalid to present
-  // a 1-cycle latency interface matching BRAM behavior.
+  // SRAM has 0-cycle latency - combinational read.
+  // The IF stage handles buffering internally.
   //
-  // For single-cycle mode: Combinational passthrough.
-  //
-  // stage_if expects a minimum of 1 cycle. It would need to use
-  // zero latency fifos if were to do same cycle reads here.
-  //
-  if (PIPELINED != 0) begin : g_pipelined_imem
-    //
-    // Hold instruction data for 1-cycle latency
-    //
-    logic [31:0] imem_rdata_hold;
-
-    always_ff @(posedge clk) begin
-      if (imem_arvalid) begin
-        imem_rdata_hold <= imem_rdata_sram;
-      end
-    end
-
-    assign imem_rdata = imem_rdata_hold;
-
-    //
-    // Register rvalid to match data timing
-    //
-    always_ff @(posedge clk) begin
-      if (!rst_n) begin
-        imem_rvalid <= 1'b0;
-      end else begin
-        imem_rvalid <= imem_arvalid;
-      end
-    end
-  end else begin : g_single_cycle_imem
-    assign imem_rdata  = imem_rdata_sram;
-    assign imem_rvalid = imem_arvalid;
-  end
+  assign imem_rdata = imem_rdata_sram;
 
   //
   // RISC-V core
@@ -171,10 +137,10 @@ module svc_rv_soc_sram #(
       .clk  (clk),
       .rst_n(rst_n),
 
-      .imem_arvalid(imem_arvalid),
+      .imem_arvalid(),
       .imem_araddr (imem_araddr),
       .imem_rdata  (imem_rdata),
-      .imem_rvalid (imem_rvalid),
+      .imem_rvalid (),
 
       .dmem_ren  (),
       .dmem_raddr(dmem_raddr),

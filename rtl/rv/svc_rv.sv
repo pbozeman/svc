@@ -567,11 +567,11 @@ module svc_rv #(
   // PC Stage: Program Counter
   //
   svc_rv_stage_pc #(
-      .XLEN     (XLEN),
-      .PIPELINED(PIPELINED),
-      .BPRED    (BPRED),
-      .PC_REG   (PC_REG),
-      .RESET_PC (RESET_PC)
+      .XLEN    (XLEN),
+      .MEM_TYPE(MEM_TYPE),
+      .BPRED   (BPRED),
+      .PC_REG  (PC_REG),
+      .RESET_PC(RESET_PC)
   ) stage_pc (
       .clk              (clk),
       .rst_n            (rst_n),
@@ -605,6 +605,7 @@ module svc_rv #(
   svc_rv_stage_if #(
       .XLEN     (XLEN),
       .PIPELINED(PIPELINED),
+      .MEM_TYPE (MEM_TYPE),
       .BPRED    (BPRED)
   ) stage_if (
       .s_valid   (pc_m_valid),
@@ -723,10 +724,12 @@ module svc_rv #(
   // verilog_format: off
   `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, trap_code_wb,
                wb_m_valid, instr_ret, pc_ret, rs1_data_ret, rs2_data_ret,
-               rd_data_ret, trap_ret, trap_code_ret, reg_write_ret});
+               rd_data_ret, trap_ret, trap_code_ret, reg_write_ret,
+               imem_rvalid});
   // verilog_format: on
 `else
-  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, wb_m_valid});
+  `SVC_UNUSED(
+      {IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, wb_m_valid, imem_rvalid});
 `endif
 
   `include "svc_rv_dbg.svh"
