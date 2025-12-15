@@ -17,11 +17,11 @@
 // svc_rv_pc_sel.sv which produces the pc_sel and target inputs.
 //
 module svc_rv_stage_pc #(
-    parameter int          XLEN      = 32,
-    parameter int          PIPELINED = 1,
-    parameter int          BPRED     = 0,
-    parameter int          PC_REG    = 0,
-    parameter logic [31:0] RESET_PC  = 32'h0000_0000
+    parameter int          XLEN     = 32,
+    parameter int          MEM_TYPE = 0,
+    parameter int          BPRED    = 0,
+    parameter int          PC_REG   = 0,
+    parameter logic [31:0] RESET_PC = 32'h0000_0000
 ) (
     input logic clk,
     input logic rst_n,
@@ -91,11 +91,13 @@ module svc_rv_stage_pc #(
   //
   // PC initialization
   //
-  // For pipelined mode with BPRED, PC starts at RESET_PC-4 so that
-  // pc_next = RESET_PC on first cycle (early speculative fetch uses pc_next)
+  // For BRAM with BPRED, PC starts at RESET_PC-4 so that pc_next = RESET_PC
+  // on first cycle (BRAM speculative fetch uses pc_next_if).
   //
-  localparam logic [XLEN-1:0]
-      PC_INIT = ((PIPELINED != 0 && BPRED != 0) ? RESET_PC - 4 : RESET_PC);
+  // For SRAM with BPRED, PC starts at RESET_PC (SRAM fetches from pc_if).
+  //
+  localparam logic [XLEN-1:0] PC_INIT =
+      ((MEM_TYPE == MEM_TYPE_BRAM && BPRED != 0) ? RESET_PC - 4 : RESET_PC);
 
   //
   // Internal pc_next signal
