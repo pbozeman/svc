@@ -1,8 +1,8 @@
 `include "svc_unit.sv"
 
-`include "svc_rv_pipe_ctrl.sv"
+`include "svc_rv_pipe_ctrl_rv.sv"
 
-module svc_rv_pipe_ctrl_tb;
+module svc_rv_pipe_ctrl_rv_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
@@ -11,6 +11,7 @@ module svc_rv_pipe_ctrl_tb;
   //
   logic valid_i;
   logic valid_o;
+  logic ready_i;
   logic stall_i;
   logic flush_i;
   logic bubble_i;
@@ -18,13 +19,14 @@ module svc_rv_pipe_ctrl_tb;
   logic flush_o;
   logic bubble_o;
 
-  svc_rv_pipe_ctrl #(
+  svc_rv_pipe_ctrl_rv #(
       .REG(1)
   ) uut (
       .clk      (clk),
       .rst_n    (rst_n),
       .valid_i  (valid_i),
       .valid_o  (valid_o),
+      .ready_i  (ready_i),
       .stall_i  (stall_i),
       .flush_i  (flush_i),
       .bubble_i (bubble_i),
@@ -41,13 +43,14 @@ module svc_rv_pipe_ctrl_tb;
   logic flush_o_pt;
   logic bubble_o_pt;
 
-  svc_rv_pipe_ctrl #(
+  svc_rv_pipe_ctrl_rv #(
       .REG(0)
   ) uut_passthrough (
       .clk      (clk),
       .rst_n    (rst_n),
       .valid_i  (valid_i),
       .valid_o  (valid_o_pt),
+      .ready_i  (ready_i),
       .stall_i  (stall_i),
       .flush_i  (flush_i),
       .bubble_i (bubble_i),
@@ -62,6 +65,7 @@ module svc_rv_pipe_ctrl_tb;
   always_ff @(posedge clk) begin
     if (~rst_n) begin
       valid_i  <= 1'b0;
+      ready_i  <= 1'b1;
       stall_i  <= 1'b0;
       flush_i  <= 1'b0;
       bubble_i <= 1'b0;
@@ -80,6 +84,7 @@ module svc_rv_pipe_ctrl_tb;
   //
   task automatic test_advance();
     valid_i  = 1'b1;
+    ready_i  = 1'b1;
     stall_i  = 1'b0;
     flush_i  = 1'b0;
     bubble_i = 1'b0;
@@ -92,21 +97,21 @@ module svc_rv_pipe_ctrl_tb;
   endtask
 
   //
-  // Test: hold when stalled
+  // Test: hold when backpressured (valid_o && !ready_i)
   //
-  task automatic test_hold();
+  task automatic test_hold_backpressure();
     //
     // First advance some valid data
     //
     valid_i = 1'b1;
-    stall_i = 1'b0;
+    ready_i = 1'b1;
     `TICK(clk);
     `CHECK_TRUE(valid_o);
 
     //
-    // Now stall - should hold
+    // Now backpressure - should hold
     //
-    stall_i = 1'b1;
+    ready_i = 1'b0;
     `TICK(clk);
 
     `CHECK_FALSE(advance_o);
@@ -114,7 +119,7 @@ module svc_rv_pipe_ctrl_tb;
     `CHECK_FALSE(bubble_o);
     `CHECK_TRUE(valid_o);
 
-    stall_i = 1'b0;
+    ready_i = 1'b1;
   endtask
 
   //
@@ -125,7 +130,7 @@ module svc_rv_pipe_ctrl_tb;
     // First advance some valid data
     //
     valid_i = 1'b1;
-    stall_i = 1'b0;
+    ready_i = 1'b1;
     `TICK(clk);
     `CHECK_TRUE(valid_o);
 
@@ -151,12 +156,12 @@ module svc_rv_pipe_ctrl_tb;
     // First advance some valid data
     //
     valid_i = 1'b1;
-    stall_i = 1'b0;
+    ready_i = 1'b1;
     `TICK(clk);
     `CHECK_TRUE(valid_o);
 
     //
-    // Bubble (with can_accept since not stalled)
+    // Bubble (with can_accept since ready_i=1)
     //
     bubble_i = 1'b1;
     `TICK(clk);
@@ -170,26 +175,26 @@ module svc_rv_pipe_ctrl_tb;
   endtask
 
   //
-  // Test: Bubble requires can_accept (stall takes priority)
+  // Test: Bubble requires can_accept (hold takes priority when backpressured)
   //
   task automatic test_bubble_requires_can_accept();
     //
     // First advance some valid data
     //
     valid_i = 1'b1;
-    stall_i = 1'b0;
+    ready_i = 1'b1;
     `TICK(clk);
     `CHECK_TRUE(valid_o);
 
     //
-    // Bubble during stall
+    // Bubble during backpressure (ready_i=0, valid_o=1)
     //
-    stall_i  = 1'b1;
+    ready_i  = 1'b0;
     bubble_i = 1'b1;
     `TICK(clk);
 
     //
-    // Should hold since !can_accept (stalled)
+    // Should hold since !can_accept
     //
     `CHECK_FALSE(advance_o);
     `CHECK_FALSE(flush_o);
@@ -197,7 +202,7 @@ module svc_rv_pipe_ctrl_tb;
     `CHECK_TRUE(valid_o);
 
     bubble_i = 1'b0;
-    stall_i  = 1'b0;
+    ready_i  = 1'b1;
   endtask
 
   //
@@ -208,7 +213,7 @@ module svc_rv_pipe_ctrl_tb;
     // First advance some valid data
     //
     valid_i = 1'b1;
-    stall_i = 1'b0;
+    ready_i = 1'b1;
     `TICK(clk);
     `CHECK_TRUE(valid_o);
 
@@ -232,21 +237,21 @@ module svc_rv_pipe_ctrl_tb;
   endtask
 
   //
-  // Test: Flush works even when stalled
+  // Test: Flush works even when backpressured
   //
-  task automatic test_flush_when_stalled();
+  task automatic test_flush_when_backpressured();
     //
     // First advance some valid data
     //
     valid_i = 1'b1;
-    stall_i = 1'b0;
+    ready_i = 1'b1;
     `TICK(clk);
     `CHECK_TRUE(valid_o);
 
     //
-    // Stall, then flush
+    // Backpressure, then flush
     //
-    stall_i = 1'b1;
+    ready_i = 1'b0;
     flush_i = 1'b1;
     `TICK(clk);
 
@@ -259,7 +264,7 @@ module svc_rv_pipe_ctrl_tb;
     `CHECK_FALSE(valid_o);
 
     flush_i = 1'b0;
-    stall_i = 1'b0;
+    ready_i = 1'b1;
   endtask
 
   //
@@ -282,19 +287,19 @@ module svc_rv_pipe_ctrl_tb;
     `CHECK_TRUE(advance_o_pt);
 
     //
-    // flush_i, bubble_i, stall_i should have no effect in passthrough
+    // flush_i, bubble_i, ready_i should have no effect
     //
     valid_i  = 1'b1;
     flush_i  = 1'b1;
     bubble_i = 1'b1;
-    stall_i  = 1'b1;
+    ready_i  = 1'b0;
     `TICK(clk);
     `CHECK_TRUE(valid_o_pt);
     `CHECK_TRUE(advance_o_pt);
 
     flush_i  = 1'b0;
     bubble_i = 1'b0;
-    stall_i  = 1'b0;
+    ready_i  = 1'b1;
   endtask
 
   //
@@ -305,14 +310,14 @@ module svc_rv_pipe_ctrl_tb;
     // First advance some valid data
     //
     valid_i = 1'b1;
-    stall_i = 1'b0;
+    ready_i = 1'b1;
     `TICK(clk);
     `CHECK_TRUE(valid_o);
 
     //
-    // Hold for multiple cycles (stalled)
+    // Hold for multiple cycles (backpressure)
     //
-    stall_i = 1'b1;
+    ready_i = 1'b0;
     valid_i = 1'b0;
     repeat (3) begin
       `TICK(clk);
@@ -320,7 +325,7 @@ module svc_rv_pipe_ctrl_tb;
       `CHECK_TRUE(valid_o);
     end
 
-    stall_i = 1'b0;
+    ready_i = 1'b1;
   endtask
 
   //
@@ -328,7 +333,7 @@ module svc_rv_pipe_ctrl_tb;
   //
   task automatic test_back_to_back();
     valid_i = 1'b1;
-    stall_i = 1'b0;
+    ready_i = 1'b1;
 
     repeat (3) begin
       `TICK(clk);
@@ -345,7 +350,7 @@ module svc_rv_pipe_ctrl_tb;
     // With valid_i=0 and valid_o=0, nothing to do
     //
     valid_i = 1'b0;
-    stall_i = 1'b0;
+    ready_i = 1'b1;
     `TICK(clk);
 
     `CHECK_FALSE(advance_o);
@@ -359,6 +364,7 @@ module svc_rv_pipe_ctrl_tb;
   //
   task automatic test_stall_prevents_advance();
     valid_i = 1'b1;
+    ready_i = 1'b1;
     stall_i = 1'b0;
     `TICK(clk);
     `CHECK_TRUE(valid_o);
@@ -384,7 +390,7 @@ module svc_rv_pipe_ctrl_tb;
     // First get valid_o=1
     //
     valid_i = 1'b1;
-    stall_i = 1'b0;
+    ready_i = 1'b1;
     `TICK(clk);
     `CHECK_TRUE(valid_o);
 
@@ -406,7 +412,7 @@ module svc_rv_pipe_ctrl_tb;
   //
   task automatic test_stall_prevents_bubble();
     valid_i = 1'b1;
-    stall_i = 1'b0;
+    ready_i = 1'b1;
     `TICK(clk);
     `CHECK_TRUE(valid_o);
 
@@ -429,7 +435,7 @@ module svc_rv_pipe_ctrl_tb;
   //
   task automatic test_flush_overrides_stall();
     valid_i = 1'b1;
-    stall_i = 1'b0;
+    ready_i = 1'b1;
     `TICK(clk);
     `CHECK_TRUE(valid_o);
 
@@ -448,27 +454,61 @@ module svc_rv_pipe_ctrl_tb;
   endtask
 
   //
-  // Test: Stall release allows normal operation
+  // Test: Backpressure release allows normal operation
   //
-  task automatic test_stall_release();
+  task automatic test_backpressure_release();
     valid_i = 1'b1;
-    stall_i = 1'b0;
+    ready_i = 1'b1;
     `TICK(clk);
     `CHECK_TRUE(valid_o);
 
     //
-    // Stall for several cycles
+    // Backpressure for several cycles
     //
-    stall_i = 1'b1;
+    ready_i = 1'b0;
     repeat (3) begin
       `TICK(clk);
       `CHECK_FALSE(advance_o);
     end
 
     //
-    // Release stall - should resume normal operation
+    // Release backpressure - should resume normal operation
+    //
+    ready_i = 1'b1;
+    `TICK(clk);
+    `CHECK_TRUE(advance_o);
+  endtask
+
+  //
+  // Test: Backpressure combined with stall
+  //
+  task automatic test_backpressure_and_stall();
+    valid_i = 1'b1;
+    ready_i = 1'b1;
+    `TICK(clk);
+    `CHECK_TRUE(valid_o);
+
+    //
+    // Both backpressure and stall - should hold
+    //
+    ready_i = 1'b0;
+    stall_i = 1'b1;
+    `TICK(clk);
+    `CHECK_FALSE(advance_o);
+    `CHECK_TRUE(valid_o);
+
+    //
+    // Release stall but keep backpressure - still hold
     //
     stall_i = 1'b0;
+    `TICK(clk);
+    `CHECK_FALSE(advance_o);
+    `CHECK_TRUE(valid_o);
+
+    //
+    // Release backpressure - should advance
+    //
+    ready_i = 1'b1;
     `TICK(clk);
     `CHECK_TRUE(advance_o);
   endtask
@@ -476,16 +516,16 @@ module svc_rv_pipe_ctrl_tb;
   //
   // Test suite execution
   //
-  `TEST_SUITE_BEGIN(svc_rv_pipe_ctrl_tb);
+  `TEST_SUITE_BEGIN(svc_rv_pipe_ctrl_rv_tb);
 
   `TEST_CASE(test_reset);
   `TEST_CASE(test_advance);
-  `TEST_CASE(test_hold);
+  `TEST_CASE(test_hold_backpressure);
   `TEST_CASE(test_flush);
   `TEST_CASE(test_bubble);
   `TEST_CASE(test_bubble_requires_can_accept);
   `TEST_CASE(test_flush_overrides_bubble);
-  `TEST_CASE(test_flush_when_stalled);
+  `TEST_CASE(test_flush_when_backpressured);
   `TEST_CASE(test_passthrough);
   `TEST_CASE(test_hold_multiple_cycles);
   `TEST_CASE(test_back_to_back);
@@ -494,7 +534,8 @@ module svc_rv_pipe_ctrl_tb;
   `TEST_CASE(test_stall_holds_valid);
   `TEST_CASE(test_stall_prevents_bubble);
   `TEST_CASE(test_flush_overrides_stall);
-  `TEST_CASE(test_stall_release);
+  `TEST_CASE(test_backpressure_release);
+  `TEST_CASE(test_backpressure_and_stall);
 
   `TEST_SUITE_END();
 

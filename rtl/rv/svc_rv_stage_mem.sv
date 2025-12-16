@@ -356,7 +356,6 @@ module svc_rv_stage_mem #(
       .rst_n    (rst_n),
       .valid_i  (s_valid),
       .valid_o  (m_valid),
-      .ready_i  (1'b1),
       .stall_i  (stall_mem),
       .flush_i  (1'b0),
       .bubble_i (!s_valid),

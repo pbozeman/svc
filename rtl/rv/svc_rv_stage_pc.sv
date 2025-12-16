@@ -160,7 +160,6 @@ module svc_rv_stage_pc #(
       .rst_n    (rst_n),
       .valid_i  (!stall_pc),
       .valid_o  (m_valid),
-      .ready_i  (1'b1),
       .stall_i  (stall_pc),
       .flush_i  (1'b0),
       .bubble_i (1'b0),

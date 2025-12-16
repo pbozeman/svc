@@ -8,7 +8,7 @@
 `include "svc_rv_bpred_id.sv"
 `include "svc_rv_idec.sv"
 `include "svc_rv_fwd_id.sv"
-`include "svc_rv_pipe_ctrl.sv"
+`include "svc_rv_pipe_ctrl_rv.sv"
 `include "svc_rv_pipe_data.sv"
 `include "svc_rv_regfile.sv"
 
@@ -298,7 +298,7 @@ module svc_rv_stage_id #(
   logic flush;
   logic bubble;
 
-  svc_rv_pipe_ctrl #(
+  svc_rv_pipe_ctrl_rv #(
       .REG(PIPELINED)
   ) pipe_ctrl (
       .clk      (clk),

@@ -31,7 +31,6 @@ module svc_rv_pipe_ctrl #(
 
     input  logic valid_i,
     output logic valid_o,
-    input  logic ready_i,
 
     input logic stall_i,
     input logic flush_i,
@@ -48,7 +47,7 @@ module svc_rv_pipe_ctrl #(
     //
     // Stall takes priority - when stalled, nothing advances
     //
-    assign can_accept = !stall_i && (!valid_o || ready_i);
+    assign can_accept = !stall_i;
 
     always_comb begin
       flush_o   = flush_i;
@@ -72,7 +71,7 @@ module svc_rv_pipe_ctrl #(
     assign bubble_o  = 1'b0;
     assign advance_o = 1'b1;
 
-    `SVC_UNUSED({clk, rst_n, stall_i, flush_i, bubble_i, ready_i});
+    `SVC_UNUSED({clk, rst_n, stall_i, flush_i, bubble_i});
   end
 
 `ifdef FORMAL
@@ -90,31 +89,6 @@ module svc_rv_pipe_ctrl #(
 
   always @(posedge clk) begin
     f_past_valid <= 1'b1;
-  end
-
-  //
-  // Input assumptions: valid_i stable while stalled (unless flush/bubble)
-  // Only check when still stalled - if ready_i went high, handshake completed
-  //
-  always_ff @(posedge clk) begin
-    if (f_past_valid && $past(rst_n) && rst_n) begin
-      if ($past(
-              valid_i && valid_o && !ready_i && !flush_i && !bubble_i
-          ) && !ready_i) begin
-        `FASSUME(a_valid_i_stable, valid_i);
-      end
-    end
-  end
-
-  //
-  // Output assertions: valid_o stable while stalled (unless flush)
-  //
-  always_ff @(posedge clk) begin
-    if (f_past_valid && $past(rst_n) && rst_n) begin
-      if ($past(valid_o && !ready_i && !flush_i)) begin
-        `FASSERT(a_valid_o_stable, valid_o);
-      end
-    end
   end
 
   //
