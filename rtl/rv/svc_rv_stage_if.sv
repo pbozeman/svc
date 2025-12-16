@@ -32,10 +32,14 @@ module svc_rv_stage_if #(
     input logic if_id_flush,
 
     //
-    // Ready/valid interface from PC stage
+    // Valid from PC stage (ready removed, stall controls flow)
     //
-    input  logic s_valid,
-    output logic s_ready,
+    input logic s_valid,
+
+    //
+    // Stall input (replaces ready-based flow control)
+    //
+    input logic stall_i,
 
     //
     // PC inputs from stage_pc
@@ -65,10 +69,9 @@ module svc_rv_stage_if #(
     input  logic [31:0] imem_rdata,
 
     //
-    // Outputs to ID stage
+    // Outputs to ID stage (m_ready removed, stall controls flow)
     //
     output logic m_valid,
-    input  logic m_ready,
 
     output logic [    31:0] instr_id,
     output logic [XLEN-1:0] pc_id,
@@ -97,19 +100,20 @@ module svc_rv_stage_if #(
   logic            valid_to_if_id;
 
   //
-  // Ready signal to PC stage
+  // Internal m_ready for submodule compatibility
   //
-  // Backpressure from downstream.
+  // Derived from stall_i; submodules still use ready-based logic.
   //
-  assign s_ready = m_ready;
+  logic            m_ready;
+  assign m_ready = !stall_i;
 
   //
   // Stall signal for submodules
   //
-  // Submodules use pc_stall; derive from valid/ready handshake.
+  // pc_stall is same as stall_i.
   //
   logic pc_stall;
-  assign pc_stall = !m_ready;
+  assign pc_stall = stall_i;
 
   //
   // Memory-type specific fetch logic
@@ -263,16 +267,16 @@ module svc_rv_stage_if #(
   end
 
   //
-  // m_valid/m_ready handshake assertions (output interface)
+  // Stall behavior assertions (output interface)
   //
-  // Pipeline flush is allowed to drop m_valid even when m_ready is low.
+  // Pipeline flush is allowed to drop m_valid even when stalled.
   // This is intentional - flush creates bubbles.
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      if ($past(m_valid && !m_ready && !if_id_flush)) begin
+      if ($past(m_valid && stall_i && !if_id_flush)) begin
         //
-        // Valid must remain asserted until ready (unless flushed)
+        // Valid must remain asserted until not stalled (unless flushed)
         //
         `FASSERT(a_valid_stable, m_valid || if_id_flush);
 
@@ -295,11 +299,11 @@ module svc_rv_stage_if #(
   end
 
   //
-  // Input stability: data must be held when s_valid && !s_ready
+  // Input stability: data must be held when stalled
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      if ($past(s_valid && !s_ready)) begin
+      if ($past(stall_i)) begin
         `FASSUME(a_in_pc_stable, pc_if == $past(pc_if));
         `FASSUME(a_in_btb_hit_stable, btb_hit_if == $past(btb_hit_if));
         `FASSUME(a_in_btb_pred_taken_stable, btb_pred_taken_if == $past(
@@ -337,19 +341,19 @@ module svc_rv_stage_if #(
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
       //
-      // Cover back-to-back valid transfers
+      // Cover back-to-back valid transfers (not stalled)
       //
-      `FCOVER(c_back_to_back, $past(m_valid && m_ready) && m_valid);
+      `FCOVER(c_back_to_back, $past(m_valid && !stall_i) && m_valid);
 
       //
-      // Cover stalled transfer (valid high, ready low for a cycle)
+      // Cover stalled cycle followed by non-stalled cycle
       //
-      `FCOVER(c_stalled, $past(m_valid && !m_ready) && m_valid && m_ready);
+      `FCOVER(c_stalled, $past(m_valid && stall_i) && m_valid && !stall_i);
 
       //
-      // Cover input backpressure
+      // Cover stall condition
       //
-      `FCOVER(c_input_backpressure, $past(s_valid && !s_ready));
+      `FCOVER(c_stall, $past(stall_i));
     end
   end
 

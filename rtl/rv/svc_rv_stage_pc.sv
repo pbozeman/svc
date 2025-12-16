@@ -54,10 +54,9 @@ module svc_rv_stage_pc #(
     input logic [XLEN-1:0] ras_tgt_pc,
 
     //
-    // Ready/valid interface to IF stage
+    // Valid output to IF stage (ready removed, stall controls flow)
     //
     output logic m_valid,
-    input  logic m_ready,
 
     //
     // Stall
@@ -128,12 +127,12 @@ module svc_rv_stage_pc #(
   //
   // PC register
   //
-  // Advances when downstream stage accepts (m_ready)
+  // Advances when not stalled (stall_pc controls flow)
   //
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       pc <= PC_INIT;
-    end else if (m_ready) begin
+    end else if (!stall_pc) begin
       pc <= pc_next;
     end
   end
@@ -159,9 +158,9 @@ module svc_rv_stage_pc #(
   ) pipe_ctrl (
       .clk      (clk),
       .rst_n    (rst_n),
-      .valid_i  (1'b1),
+      .valid_i  (!stall_pc),
       .valid_o  (m_valid),
-      .ready_i  (m_ready),
+      .ready_i  (1'b1),
       .stall_i  (stall_pc),
       .flush_i  (1'b0),
       .bubble_i (1'b0),
@@ -210,7 +209,7 @@ module svc_rv_stage_pc #(
       .bubble (pipe_bubble),
 `ifdef FORMAL
       .s_valid(1'b1),
-      .s_ready(m_ready),
+      .s_ready(1'b1),
 `endif
       .data_i ({pc, pc_next}),
       .data_o ({pc_if, pc_next_if})
@@ -230,7 +229,7 @@ module svc_rv_stage_pc #(
       .bubble(pipe_bubble),
 `ifdef FORMAL
       .s_valid(1'b1),
-      .s_ready(m_ready),
+      .s_ready(1'b1),
 `endif
       .data_i({
         redir_pending_next,
@@ -262,7 +261,7 @@ module svc_rv_stage_pc #(
       .bubble (pipe_bubble),
 `ifdef FORMAL
       .s_valid(1'b1),
-      .s_ready(m_ready),
+      .s_ready(1'b1),
 `endif
       .data_i ({btb_tgt_pc, ras_tgt_pc}),
       .data_o ({btb_tgt_if, ras_tgt_if})
@@ -285,36 +284,47 @@ module svc_rv_stage_pc #(
     f_past_valid <= 1'b1;
   end
 
-  //
-  // m_valid/m_ready handshake assertions (output interface)
-  //
-  // PC stage has no flush - it always has a valid PC to issue.
-  // m_valid is constant 1, so stability is trivially satisfied.
-  //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      if ($past(m_valid && !m_ready)) begin
-        //
-        // Valid must remain asserted until ready
-        //
-        `FASSERT(a_valid_stable, m_valid);
-
-        //
-        // Payload signals must remain stable when stalled
-        //
-        `FASSERT(a_pc_stable, pc_if == $past(pc_if));
-
-        //
-        // Assume inputs are stable when stalled (upstream contract)
-        //
+      if ($past(stall_pc)) begin
+        // inputs are stable when stalled (upstream contract)
         `FASSUME(a_pc_sel_stable, pc_sel == $past(pc_sel));
         `FASSUME(a_redir_tgt_stable, pc_redir_tgt == $past(pc_redir_tgt));
         `FASSUME(a_pred_tgt_stable, pred_tgt == $past(pred_tgt));
+        `FASSUME(a_btb_pred_taken_stable, btb_pred_taken == $past(btb_pred_taken
+                 ));
+        `FASSUME(a_btb_hit_pc_stable, btb_hit_pc == $past(btb_hit_pc));
+        `FASSUME(a_btb_pred_taken_pc_stable, btb_pred_taken_pc == $past(
+                 btb_pred_taken_pc));
+        `FASSUME(a_btb_tgt_pc_stable, btb_tgt_pc == $past(btb_tgt_pc));
+        `FASSUME(a_btb_is_return_pc_stable, btb_is_return_pc == $past(
+                 btb_is_return_pc));
+        `FASSUME(a_ras_valid_pc_stable, ras_valid_pc == $past(ras_valid_pc));
+        `FASSUME(a_ras_tgt_pc_stable, ras_tgt_pc == $past(ras_tgt_pc));
+      end
+    end
+  end
 
-        //
-        // Assert output is stable (follows from above)
-        //
-        `FASSERT(a_pc_next_stable, pc_next_if == $past(pc_next_if));
+  //
+  // Stall behavior assertions (output interface) - registered mode only
+  //
+  // Flow control is done via stall_pc signal.
+  // When stalled, outputs must remain stable.
+  // In passthrough mode (PC_REG=0), outputs change combinationally.
+  //
+  if (PC_REG != 0) begin : g_stall_assertions
+    always_ff @(posedge clk) begin
+      if (f_past_valid && $past(rst_n) && rst_n) begin
+        if ($past(stall_pc)) begin
+          // Valid must remain stable when stalled
+          `FASSERT(a_valid_stable, m_valid == $past(m_valid));
+
+          // Payload signals must remain stable when stalled
+          `FASSERT(a_pc_stable, pc_if == $past(pc_if));
+
+          // output is stable (follows from above)
+          `FASSERT(a_pc_next_stable, pc_next_if == $past(pc_next_if));
+        end
       end
     end
   end
@@ -324,15 +334,11 @@ module svc_rv_stage_pc #(
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      //
-      // Cover back-to-back valid transfers
-      //
-      `FCOVER(c_back_to_back, $past(m_valid && m_ready) && m_valid);
+      // back-to-back valid transfers (not stalled)
+      `FCOVER(c_back_to_back, $past(!stall_pc) && !stall_pc);
 
-      //
-      // Cover stalled transfer (valid high, ready low for a cycle)
-      //
-      `FCOVER(c_stalled, $past(m_valid && !m_ready) && m_valid && m_ready);
+      // stalled cycle followed by non-stalled cycle
+      `FCOVER(c_stalled, $past(stall_pc) && !stall_pc);
     end
   end
 

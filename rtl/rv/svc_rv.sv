@@ -165,16 +165,17 @@ module svc_rv #(
   logic [XLEN-1:0] pc_if;
   logic [XLEN-1:0] pc_next_if;
 
-  // PC -> IF ready/valid interface
+  // PC -> IF valid interface (ready removed, stall controls flow)
   logic            pc_m_valid;
-  logic            pc_m_ready;
 
   //
   // Redirect valid/ready handshake with stage_mem
   //
+  // redir_ready_mem indicates PC can accept a redirect (not stalled)
+  //
   logic            redir_valid_mem;
   logic            redir_ready_mem;
-  assign redir_ready_mem = pc_m_ready;
+  assign redir_ready_mem = !stall_pc;
 
   // ID -> EX
   logic            reg_write_ex;
@@ -215,9 +216,8 @@ module svc_rv #(
   logic            rs1_used_id;
   logic            rs2_used_id;
 
-  // IF -> ID (ready/valid interface)
+  // IF -> ID (valid only, ready removed - stall controls flow)
   logic            if_m_valid;
-  logic            if_m_ready;
 
   // ID -> EX (ready/valid interface)
   logic            id_m_valid;
@@ -433,8 +433,14 @@ module svc_rv #(
   logic stall_mem;
   logic stall_wb;
 
-  assign stall_pc  = stall_cpu;
-  assign stall_id  = stall_cpu;
+  assign stall_pc  = stall_cpu || data_hazard_id || op_active_ex;
+
+  //
+  // ID stall does NOT include data_hazard_id because:
+  // - ID must advance to send bubble to EX during data hazards
+  // - data_hazard_id only stalls PC/IF (don't fetch new instructions)
+  //
+  assign stall_id  = stall_cpu || op_active_ex;
   assign stall_ex  = stall_cpu;
   assign stall_mem = stall_cpu;
   assign stall_wb  = stall_cpu;
@@ -605,7 +611,6 @@ module svc_rv #(
       .ras_valid_pc     (ras_valid_pc),
       .ras_tgt_pc       (ras_tgt_pc),
       .m_valid          (pc_m_valid),
-      .m_ready          (pc_m_ready),
       .stall_pc         (stall_pc),
       .pc               (pc),
       .pc_if            (pc_if),
@@ -629,11 +634,10 @@ module svc_rv #(
       .BPRED    (BPRED)
   ) stage_if (
       .s_valid   (pc_m_valid),
-      .s_ready   (pc_m_ready),
+      .stall_i   (stall_pc),
       .pc_if     (pc_if),
       .pc_next_if(pc_next_if),
       .m_valid   (if_m_valid),
-      .m_ready   (if_m_ready),
       .*
   );
 
@@ -652,7 +656,6 @@ module svc_rv #(
       .EXT_M      (EXT_M)
   ) stage_id (
       .s_valid (if_m_valid),
-      .s_ready (if_m_ready),
       .pred_tgt(pred_tgt_id),
       .m_valid (id_m_valid),
       .m_ready (id_m_ready),
