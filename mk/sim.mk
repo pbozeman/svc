@@ -189,15 +189,16 @@ $(RV_SRAM_SC_I_ZMMUL_SIMS): rv_%_sram_sc_i_zmmul_sim: $(SIM_BUILD_DIR)/rv_%_sram
 # Hex files are built by targeted sw builds (recursive make into sw/<module>)
 # The .hex.d files (included above) provide source dependencies for rebuild detection
 # Build only the specific program/arch needed rather than all software
+# Pass SVC_SIM=1 to enable simulation-specific settings (e.g., fewer iterations)
 define rv_hex_rules
 $(BUILD_DIR)/sw/rv32i/$(1)/$(1).hex:
-	@$$(MAKE) -C sw/$(1) RV_ARCH=rv32i
+	@$$(MAKE) -C sw/$(1) RV_ARCH=rv32i SVC_SIM=1
 
 $(BUILD_DIR)/sw/rv32im/$(1)/$(1).hex:
-	@$$(MAKE) -C sw/$(1) RV_ARCH=rv32im
+	@$$(MAKE) -C sw/$(1) RV_ARCH=rv32im SVC_SIM=1
 
 $(BUILD_DIR)/sw/rv32i_zmmul/$(1)/$(1).hex:
-	@$$(MAKE) -C sw/$(1) RV_ARCH=rv32i_zmmul
+	@$$(MAKE) -C sw/$(1) RV_ARCH=rv32i_zmmul SVC_SIM=1
 endef
 
 $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_hex_rules,$(mod))))
