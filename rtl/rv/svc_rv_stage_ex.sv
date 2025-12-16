@@ -247,7 +247,11 @@ module svc_rv_stage_ex #(
       state  <= EX_IDLE;
       mc_rs1 <= '0;
       mc_rs2 <= '0;
-    end else begin
+    end else if (!stall_ex) begin
+      //
+      // Only advance state when not stalled. This ensures division results
+      // are not lost if stall_ex is asserted when division completes.
+      //
       state <= state_next;
 
       //
@@ -776,6 +780,56 @@ module svc_rv_stage_ex #(
                 ) && state == EX_MC_EXEC);
         `FCOVER(c_mc_then_normal, $past(state == EX_MC_DONE
                 ) && state == EX_IDLE && s_valid);
+      end
+    end
+  end
+
+  //
+  // Stall during multi-cycle operation assertions
+  //
+  // When stall_ex is asserted during a multi-cycle operation:
+  // 1. State machine should pause (not advance)
+  // 2. Division result should not be lost
+  // 3. When stall releases, result should be correctly output
+  //
+  if (PIPELINED != 0) begin : g_mc_stall_asserts
+    always_ff @(posedge clk) begin
+      if (f_past_valid && $past(rst_n) && rst_n) begin
+        //
+        // State should not advance while stalled
+        //
+        if ($past(stall_ex)) begin
+          `FASSERT(a_stall_holds_state, state == $past(state));
+        end
+
+        //
+        // If division completes during stall, result must not be lost.
+        // When we're in EXEC and division completes (!m_busy_ex), if stalled,
+        // we must stay in EXEC (not advance to DONE).
+        //
+        if ($past(stall_ex && state == EX_MC_EXEC && !m_busy_ex)) begin
+          `FASSERT(a_stall_preserves_mc_result, state == EX_MC_EXEC);
+        end
+
+        //
+        // After stall releases following a completed division,
+        // m_valid must eventually assert
+        //
+        // (This is a liveness property - covered by the cover above)
+        //
+      end
+    end
+
+    //
+    // Cover: stall during MC execution
+    //
+    always_ff @(posedge clk) begin
+      if (f_past_valid && $past(rst_n) && rst_n) begin
+        `FCOVER(c_stall_during_mc_exec, state == EX_MC_EXEC && stall_ex);
+        `FCOVER(c_stall_when_div_completes, $past(
+                state == EX_MC_EXEC && stall_ex && !m_busy_ex));
+        `FCOVER(c_stall_release_after_div, $past(state == EX_MC_EXEC && stall_ex
+                ) && !stall_ex);
       end
     end
   end
