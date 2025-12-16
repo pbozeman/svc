@@ -1,0 +1,25 @@
+[tasks]
+bmc
+cover
+
+[options]
+bmc: mode bmc
+bmc: depth 20
+cover: mode cover
+cover: depth 30
+
+[engines]
+smtbmc boolector
+
+[script]
+read_verilog -formal -DFORMAL -DFORMAL_SVC_RV_DMEM_CACHE_IF -sv svc_rv_dmem_cache_if.sv
+prep -top svc_rv_dmem_cache_if
+
+[files]
+--pycode-begin--
+import glob
+files = "\n".join(glob.glob("rtl/**/*.sv", recursive=True))
+files += "\n"
+files += "\n".join(glob.glob("rtl/**/*.svh", recursive=True))
+output(files)
+--pycode-end--
