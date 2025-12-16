@@ -693,7 +693,6 @@ module svc_rv #(
       .RAS_ENABLE(RAS_ENABLE)
   ) stage_mem (
       .s_valid(ex_m_valid),
-      .s_ready(),
       .m_valid(mem_m_valid),
       .*
   );
