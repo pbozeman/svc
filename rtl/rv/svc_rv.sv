@@ -169,13 +169,12 @@ module svc_rv #(
   logic            pc_m_valid;
 
   //
-  // Redirect valid/ready handshake with stage_mem
+  // Redirect from MEM stage (misprediction)
   //
-  // redir_ready_mem indicates PC can accept a redirect (not stalled)
+  // Redirect is always accepted immediately - no handshake needed.
+  // On misprediction, younger instructions (causing stalls) will be flushed.
   //
   logic            redir_valid_mem;
-  logic            redir_ready_mem;
-  assign redir_ready_mem = !stall_pc;
 
   // ID -> EX
   logic            reg_write_ex;
@@ -433,17 +432,23 @@ module svc_rv #(
   logic stall_mem;
   logic stall_wb;
 
-  assign stall_pc  = stall_cpu || data_hazard_id || op_active_ex;
+  //
+  // stall_pc: redirect overrides stall because on misprediction,
+  // data_hazard_id and op_active_ex are caused by younger instructions
+  // that will be flushed anyway.
+  //
+  assign stall_pc = (stall_cpu || data_hazard_id || op_active_ex) &&
+      !redir_valid_mem;
 
   //
   // ID stall does NOT include data_hazard_id because:
   // - ID must advance to send bubble to EX during data hazards
   // - data_hazard_id only stalls PC/IF (don't fetch new instructions)
   //
-  assign stall_id  = stall_cpu || op_active_ex;
-  assign stall_ex  = stall_cpu;
+  assign stall_id = stall_cpu || op_active_ex;
+  assign stall_ex = stall_cpu;
   assign stall_mem = stall_cpu;
-  assign stall_wb  = stall_cpu;
+  assign stall_wb = stall_cpu;
 
   //
   // Halt signals
