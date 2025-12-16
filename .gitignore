@@ -1,11 +1,10 @@
 # private ip
 tb/formal/private
 
-# claude
-.claude
-
 # direnv
 .direnv
+
+.claude/settings.local.json
 
 # python
 __pycache__
