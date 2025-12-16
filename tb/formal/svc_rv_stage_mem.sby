@@ -1,19 +1,36 @@
 [tasks]
 bmc
 cover
+bmc_bpred
+cover_bpred
 
 [options]
 bmc: mode bmc
 bmc: depth 20
 cover: mode cover
 cover: depth 20
+bmc_bpred: mode bmc
+bmc_bpred: depth 20
+cover_bpred: mode cover
+cover_bpred: depth 20
 
 [engines]
 smtbmc boolector
 
 [script]
-read_verilog -formal -DFORMAL -DFORMAL_SVC_RV_STAGE_MEM -sv svc_rv_stage_mem.sv
-prep -top svc_rv_stage_mem
+bmc: read_verilog -formal -DFORMAL -DFORMAL_SVC_RV_STAGE_MEM -sv svc_rv_stage_mem.sv
+bmc: prep -top svc_rv_stage_mem
+
+cover: read_verilog -formal -DFORMAL -DFORMAL_SVC_RV_STAGE_MEM -sv svc_rv_stage_mem.sv
+cover: prep -top svc_rv_stage_mem
+
+bmc_bpred: read_verilog -formal -DFORMAL -DFORMAL_SVC_RV_STAGE_MEM -sv svc_rv_stage_mem.sv
+bmc_bpred: chparam -set BPRED 1 svc_rv_stage_mem
+bmc_bpred: prep -top svc_rv_stage_mem
+
+cover_bpred: read_verilog -formal -DFORMAL -DFORMAL_SVC_RV_STAGE_MEM -sv svc_rv_stage_mem.sv
+cover_bpred: chparam -set BPRED 1 svc_rv_stage_mem
+cover_bpred: prep -top svc_rv_stage_mem
 
 [files]
 --pycode-begin--
