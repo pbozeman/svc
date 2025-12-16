@@ -209,6 +209,8 @@ module svc_rv_soc_bram #(
       .dmem_wdata(dmem_wdata),
       .dmem_wstrb(dmem_wstrb),
 
+      .dmem_stall(1'b0),
+
 `ifdef RISCV_FORMAL
       .rvfi_valid    (rvfi_valid),
       .rvfi_order    (rvfi_order),

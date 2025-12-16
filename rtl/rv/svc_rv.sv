@@ -83,6 +83,11 @@ module svc_rv #(
     output logic [31:0] dmem_wdata,
     output logic [ 3:0] dmem_wstrb,
 
+    //
+    // Data memory stall (for cache miss)
+    //
+    input logic dmem_stall,
+
 `ifdef RISCV_FORMAL
     output logic        rvfi_valid,
     output logic [63:0] rvfi_order,
@@ -416,12 +421,10 @@ module svc_rv #(
   assign retired = wb_m_valid && !stall_wb;
 
   //
-  // Global stall signal
-  //
-  // Halt now stalls the entire CPU via global stall instead of backpressure
+  // Global stall
   //
   logic stall_cpu;
-  assign stall_cpu = halt;
+  assign stall_cpu = halt || dmem_stall;
 
   //
   // Per-stage stall signals
@@ -437,8 +440,8 @@ module svc_rv #(
   // data_hazard_id and op_active_ex are caused by younger instructions
   // that will be flushed anyway.
   //
-  assign stall_pc = (stall_cpu || data_hazard_id || op_active_ex) &&
-      !redir_valid_mem;
+  assign stall_pc = ((stall_cpu || data_hazard_id || op_active_ex) &&
+                     !redir_valid_mem);
 
   //
   // ID stall does NOT include data_hazard_id because:
