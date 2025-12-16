@@ -32,10 +32,9 @@ module svc_rv_stage_mem #(
     input logic rst_n,
 
     //
-    // Ready/valid interface from EX stage
+    // Valid interface from EX stage
     //
-    input  logic s_valid,
-    output logic s_ready,
+    input logic s_valid,
 
     //
     // Stall
@@ -141,9 +140,9 @@ module svc_rv_stage_mem #(
 
   `include "svc_rv_defs.svh"
 
-  // Handshake: instruction accepted into stage
+  // Instruction accepted into stage (MEM always accepts, stall handles flow)
   logic s_accept;
-  assign s_accept = s_valid && s_ready;
+  assign s_accept = s_valid;
 
   //===========================================================================
   // Store data formatting
@@ -498,12 +497,6 @@ module svc_rv_stage_mem #(
       .data_o (ld_data_wb)
   );
 
-  //===========================================================================
-  // Ready interface
-  //
-  // MEM always accepts (stall handles flow control)
-  //===========================================================================
-  assign s_ready = 1'b1;
 
 
   //===========================================================================
@@ -594,37 +587,11 @@ module svc_rv_stage_mem #(
   end
 
   //
-  // s_valid/s_ready handshake assumptions (input interface)
+  // s_valid assumptions (input interface)
   //
-  // When backpressured (s_valid && !s_ready), input signals must be stable.
-  // This is required for proper ready/valid semantics from upstream.
+  // MEM stage always accepts (no backpressure), so no stability assumptions
+  // needed. Stall handles flow control at the pipeline level.
   //
-  always_ff @(posedge clk) begin
-    if (f_past_valid && $past(rst_n) && rst_n) begin
-      if ($past(s_valid && !s_ready)) begin
-        `FASSUME(a_s_valid_stable, s_valid);
-        `FASSUME(a_reg_write_mem_stable, $stable(reg_write_mem));
-        `FASSUME(a_res_src_mem_stable, $stable(res_src_mem));
-        `FASSUME(a_instr_mem_stable, $stable(instr_mem));
-        `FASSUME(a_rd_mem_stable, $stable(rd_mem));
-        `FASSUME(a_funct3_mem_stable, $stable(funct3_mem));
-        `FASSUME(a_alu_result_mem_stable, $stable(alu_result_mem));
-        `FASSUME(a_rs1_data_mem_stable, $stable(rs1_data_mem));
-        `FASSUME(a_rs2_data_mem_stable, $stable(rs2_data_mem));
-        `FASSUME(a_pc_plus4_mem_stable, $stable(pc_plus4_mem));
-        `FASSUME(a_jb_tgt_mem_stable, $stable(jb_tgt_mem));
-        `FASSUME(a_csr_rdata_mem_stable, $stable(csr_rdata_mem));
-        `FASSUME(a_m_result_mem_stable, $stable(m_result_mem));
-        `FASSUME(a_mul_ll_mem_stable, $stable(mul_ll_mem));
-        `FASSUME(a_mul_lh_mem_stable, $stable(mul_lh_mem));
-        `FASSUME(a_mul_hl_mem_stable, $stable(mul_hl_mem));
-        `FASSUME(a_mul_hh_mem_stable, $stable(mul_hh_mem));
-        `FASSUME(a_trap_mem_stable, $stable(trap_mem));
-        `FASSUME(a_trap_code_mem_stable, $stable(trap_code_mem));
-        `FASSUME(a_is_ebreak_mem_stable, $stable(is_ebreak_mem));
-      end
-    end
-  end
 
   //
   // m_valid stability during stall
