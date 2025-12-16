@@ -32,8 +32,8 @@ module svc_cache_axi #(
     // Read interface
     //
     input  logic        rd_valid,
-    output logic        rd_ready,
     input  logic [31:0] rd_addr,
+    output logic        rd_ready,
 
     output logic [31:0] rd_data,
     output logic        rd_data_valid,
@@ -167,6 +167,16 @@ module svc_cache_axi #(
   logic fill_done;
   logic evict_way;
   logic [31:0] fill_data;
+
+  //
+  // Registered address for fill operations
+  //
+  // Captured on miss acceptance to ensure stable addressing throughout the
+  // fill, even if rd_addr changes after handshake.
+  //
+  logic [TAG_WIDTH-1:0] fill_addr_tag;
+  logic [SET_WIDTH-1:0] fill_addr_set;
+  logic [OFFSET_WIDTH-3:0] fill_addr_offset;
 
   //
   // AXI read channel
@@ -361,6 +371,22 @@ module svc_cache_axi #(
   end
 
   // ===========================================================================
+  // Fill address registration
+  // ===========================================================================
+  //
+  // Capture address fields when accepting a miss. This ensures the fill
+  // writes to the correct cache location even if rd_addr changes after
+  // the handshake.
+  //
+  always_ff @(posedge clk) begin
+    if (state == STATE_IDLE && rd_valid && !hit) begin
+      fill_addr_tag    <= addr_tag;
+      fill_addr_set    <= addr_set;
+      fill_addr_offset <= addr_offset;
+    end
+  end
+
+  // ===========================================================================
   // Cache update on write hit
   // ===========================================================================
 
@@ -396,7 +422,7 @@ module svc_cache_axi #(
   always_ff @(posedge clk) begin
     if (state == STATE_READ_BURST && m_axi_rvalid) begin
       for (int i = 0; i < WORDS_PER_BEAT; i++) begin
-        data_table[addr_set][fill_way][beat_word_idx+WORD_IDX_WIDTH'(i)] <=
+        data_table[fill_addr_set][fill_way][beat_word_idx+WORD_IDX_WIDTH'(i)] <=
             m_axi_rdata[i*32+:32];
       end
     end
@@ -413,7 +439,7 @@ module svc_cache_axi #(
         end
       end
     end else if (fill_done) begin
-      valid_table[addr_set][fill_way] <= 1'b1;
+      valid_table[fill_addr_set][fill_way] <= 1'b1;
     end
   end
 
@@ -422,7 +448,7 @@ module svc_cache_axi #(
   // ===========================================================================
   always_ff @(posedge clk) begin
     if (fill_done) begin
-      tag_table[addr_set][fill_way] <= addr_tag;
+      tag_table[fill_addr_set][fill_way] <= fill_addr_tag;
     end
   end
 
@@ -441,7 +467,7 @@ module svc_cache_axi #(
       end else if (wr_valid && wr_ready && wr_hit) begin
         lru_table[wr_addr_set] <= ~wr_way1_hit;
       end else if (fill_done) begin
-        lru_table[addr_set] <= ~fill_way;
+        lru_table[fill_addr_set] <= ~fill_way;
       end
     end
   end else begin : gen_lru_unused
@@ -543,9 +569,26 @@ module svc_cache_axi #(
   // ===========================================================================
   // Cache responses
   // ===========================================================================
-  assign fill_data          = data_table[addr_set][fill_way][addr_offset];
+  assign fill_data = data_table[fill_addr_set][fill_way][fill_addr_offset];
   assign rd_data_valid_next = (rd_valid && rd_ready && hit) || fill_done;
-  assign rd_data            = fill_done ? fill_data : hit_data;
+
+  //
+  // rd_data registration
+  //
+  // Register rd_data when rd_data_valid_next is high. This ensures rd_data
+  // is stable and correct when rd_data_valid goes high on the next cycle.
+  // Without this, fill responses would use hit_data (derived from current
+  // rd_addr) instead of the registered fill address.
+  //
+  logic [31:0] rd_data_reg;
+
+  always_ff @(posedge clk) begin
+    if (rd_data_valid_next) begin
+      rd_data_reg <= fill_done ? fill_data : hit_data;
+    end
+  end
+
+  assign rd_data = rd_data_reg;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
@@ -679,6 +722,54 @@ module svc_cache_axi #(
       if (rd_data_valid && !$past(rd_data_valid)) begin
         `FASSERT(a_rd_data_valid_after_handshake, $past(
                  rd_valid && rd_ready && hit) || $past(fill_done));
+      end
+    end
+  end
+
+  //
+  // Address stability during fill
+  //
+  // Track the address that was accepted on a miss. The cache must use this
+  // registered address (not the current rd_addr) for all fill operations.
+  //
+  logic [   TAG_WIDTH-1:0] f_req_tag;
+  logic [   SET_WIDTH-1:0] f_req_set;
+  logic [OFFSET_WIDTH-3:0] f_req_offset;
+  logic                    f_req_pending;
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      f_req_pending <= 1'b0;
+    end else begin
+      if (rd_valid && rd_ready && !hit) begin
+        // Capture address on miss acceptance
+        f_req_tag     <= addr_tag;
+        f_req_set     <= addr_set;
+        f_req_offset  <= addr_offset;
+        f_req_pending <= 1'b1;
+      end else if (fill_done) begin
+        f_req_pending <= 1'b0;
+      end
+    end
+  end
+
+  //
+  // During STATE_READ_BURST, the RTL's registered address fields must
+  // match the originally accepted request
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && rst_n && f_req_pending) begin
+      // The registered set used for data_table writes must be stable
+      if (state == STATE_READ_BURST) begin
+        `FASSERT(a_fill_set_stable, fill_addr_set == f_req_set);
+        `FASSERT(a_fill_tag_stable, fill_addr_tag == f_req_tag);
+      end
+
+      // On fill completion, verify we're updating the correct location
+      if (fill_done) begin
+        `FASSERT(a_fill_done_set, fill_addr_set == f_req_set);
+        `FASSERT(a_fill_done_tag, fill_addr_tag == f_req_tag);
+        `FASSERT(a_fill_done_offset, fill_addr_offset == f_req_offset);
       end
     end
   end

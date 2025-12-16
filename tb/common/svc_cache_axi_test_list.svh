@@ -14,3 +14,5 @@
 `TEST_CASE(test_read_after_write_miss);
 `TEST_CASE(test_read_during_write_diff_line);
 `TEST_CASE(test_read_during_write_same_line);
+`TEST_CASE(test_addr_registered_on_miss);
+`TEST_CASE(test_addr_registered_on_hit);
