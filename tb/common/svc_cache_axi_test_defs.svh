@@ -317,3 +317,62 @@ task automatic test_read_during_write_same_line;
   // Wait for write to complete
   `CHECK_WAIT_FOR(clk, uut.state == STATE_IDLE, 10);
 endtask
+
+//
+// Test: Address registered on miss
+//
+// Verifies cache registers the request address at handshake time. After
+// the handshake, rd_addr changes but the cache must return data for the
+// original accepted address.
+//
+task automatic test_addr_registered_on_miss;
+  // Issue read request
+  rd_addr     = 32'h200;
+  rd_valid_in = 1;
+
+  // Wait for request to be accepted
+  `TICK(clk);
+
+  // Drop valid AND change address (simulating CPU pipeline advancing to next
+  // instruction). This is the key part that catches the timing bug - if
+  // rd_data is computed from the current rd_addr instead of the registered
+  // request address, we'll get wrong data.
+  rd_valid_in = 0;
+  rd_addr     = 32'hFFF;  // Different address, not in cache
+
+  // Wait for data valid
+  `CHECK_WAIT_FOR(clk, rd_data_valid, 10);
+
+  // Verify data on the EXACT cycle rd_data_valid rises
+  // Must be DEADBEEF (from original 0x200 request), not garbage from 0xFFF
+  `CHECK_EQ(rd_data, 32'hDEADBEEF);
+endtask
+
+//
+// Test: Address registered on hit
+//
+// Verifies cache registers address on hits too. Tests back-to-back reads
+// where address changes between requests.
+//
+task automatic test_addr_registered_on_hit;
+  // First read - miss (using stress test data: mem[addr] = addr)
+  rd_addr     = 32'h00;
+  rd_valid_in = 1;
+  `TICK(clk);
+  rd_valid_in = 0;
+  `CHECK_WAIT_FOR(clk, rd_data_valid, 10);
+  `CHECK_EQ(rd_data, 32'h00);
+  `TICK(clk);
+
+  // Second read - different address in same cache line (cache hit)
+  rd_addr     = 32'h04;
+  rd_valid_in = 1;
+  `TICK(clk);
+  rd_valid_in = 0;
+
+  // Wait for hit response
+  `CHECK_WAIT_FOR(clk, rd_data_valid, 3);
+
+  // Verify we get the second address's data (mem[1] = 1), not the first
+  `CHECK_EQ(rd_data, 32'h01);
+endtask
