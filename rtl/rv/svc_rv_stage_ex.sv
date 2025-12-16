@@ -51,9 +51,8 @@ module svc_rv_stage_ex #(
     // Stall
     input logic stall_ex,
 
-    // Ready/valid interface from ID stage
-    input  logic s_valid,
-    output logic s_ready,
+    // Valid interface from ID stage
+    input logic s_valid,
 
     // From ID stage
     input logic            reg_write_ex,
@@ -445,7 +444,7 @@ module svc_rv_stage_ex #(
       .BPRED     (BPRED),
       .BTB_ENABLE(BTB_ENABLE)
   ) bpred (
-      .en(s_valid && s_ready),
+      .en(s_valid && !op_active_ex),
       .*
   );
 
@@ -538,10 +537,6 @@ module svc_rv_stage_ex #(
   logic pipe_flush_o;
   logic pipe_bubble_o;
 
-  //
-  // EX always accepts when not in multi-cycle op (stall handles flow control)
-  //
-  assign s_ready = !op_active_ex;
 
   if (PIPELINED != 0) begin : g_registered
     logic mc_active;
@@ -751,31 +746,12 @@ module svc_rv_stage_ex #(
   end
 
   //
-  // s_valid/s_ready handshake assumptions (input interface)
+  // s_valid assumptions (input interface)
   //
-  // Once s_valid goes high, it must stay high until s_ready
-  // All input signals must remain stable while s_valid && !s_ready
+  // s_valid stability is controlled by upstream (ID stage) based on
+  // op_active_ex. No handshake assumptions needed here since s_ready
+  // was removed.
   //
-  always_ff @(posedge clk) begin
-    if (f_past_valid && $past(rst_n) && rst_n) begin
-      // s_valid must stay high until s_ready
-      if ($past(s_valid && !s_ready)) begin
-        `FASSUME(a_s_valid_stable, s_valid);
-      end
-    end
-  end
-
-  //
-  // Multi-cycle operation assertions
-  //
-  always_ff @(posedge clk) begin
-    if (f_past_valid && $past(rst_n) && rst_n) begin
-      // No new request accepted while multi-cycle op is active
-      if (op_active_ex) begin
-        `FASSERT(a_no_accept_while_busy, !s_ready);
-      end
-    end
-  end
 
   //
   // Cover properties

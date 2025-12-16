@@ -55,7 +55,6 @@ module svc_rv_stage_ex_mc_tb;
   logic [XLEN-1:0] pred_tgt_ex;
 
   logic            s_valid;
-  logic            s_ready;
 
   logic [XLEN-1:0] result_mem;
   logic [XLEN-1:0] ld_data_mem;
@@ -159,7 +158,6 @@ module svc_rv_stage_ex_mc_tb;
       .bpred_taken_ex   (bpred_taken_ex),
       .pred_tgt_ex      (pred_tgt_ex),
       .s_valid          (s_valid),
-      .s_ready          (s_ready),
       .result_mem       (result_mem),
       .ld_data_mem      (ld_data_mem),
       .retired          (retired),
@@ -275,7 +273,6 @@ module svc_rv_stage_ex_mc_tb;
     `TICK(clk);
 
     `CHECK_EQ(m_valid, 1'b0);
-    `CHECK_EQ(s_ready, 1'b1);
     `CHECK_EQ(op_active_ex, 1'b0);
   endtask
 
@@ -302,7 +299,7 @@ module svc_rv_stage_ex_mc_tb;
     // Should be valid on the next cycle
     //
     `CHECK_EQ(m_valid, 1'b1);
-    `CHECK_EQ(s_ready, 1'b1);
+    `CHECK_EQ(op_active_ex, 1'b0);
     `CHECK_EQ(reg_write_mem, 1'b1);
     `CHECK_EQ(rd_mem, 5'd10);
   endtask
@@ -340,7 +337,6 @@ module svc_rv_stage_ex_mc_tb;
     // Verify op_active_ex is asserted
     //
     `CHECK_EQ(op_active_ex, 1'b1);
-    `CHECK_EQ(s_ready, 1'b0);
 
     //
     // Clear flush and wait for division to complete
@@ -428,9 +424,9 @@ module svc_rv_stage_ex_mc_tb;
     `TICK(clk);
 
     //
-    // s_ready should be available
+    // op_active_ex should be low (ready to accept new instruction)
     //
-    `CHECK_EQ(s_ready, 1'b1);
+    `CHECK_EQ(op_active_ex, 1'b0);
   endtask
 
   //
@@ -572,7 +568,7 @@ module svc_rv_stage_ex_mc_tb;
     //
     `CHECK_EQ(m_valid, 1'b1);
     `CHECK_EQ(rd_mem, 5'd4);
-    `CHECK_EQ(s_ready, 1'b1);
+    `CHECK_EQ(op_active_ex, 1'b0);
   endtask
 
   `TEST_SUITE_BEGIN(svc_rv_stage_ex_mc_tb);

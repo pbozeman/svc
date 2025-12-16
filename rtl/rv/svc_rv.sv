@@ -673,10 +673,14 @@ module svc_rv #(
       .EXT_M     (EXT_M)
   ) stage_ex (
       .s_valid(id_m_valid),
-      .s_ready(id_m_ready),
       .m_valid(ex_m_valid),
       .*
   );
+
+  //
+  // EX ready: accepts when not in multi-cycle op (stall handles flow control)
+  //
+  assign id_m_ready = !op_active_ex;
 
   //
   // MEM Stage: Memory Access
