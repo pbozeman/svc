@@ -118,30 +118,36 @@ module svc_rv_pipe_ctrl #(
   end
 
   //
-  // Stall assertions: stall_i prevents advance_o
+  // Stall assertions: stall_i prevents advance_o (registered mode only)
   //
-  always_comb begin
-    if (stall_i) begin
-      `FASSERT(a_stall_prevents_advance, !advance_o);
-      `FASSERT(a_stall_prevents_bubble, !bubble_o);
-    end
-  end
-
-  //
-  // Stall holds valid_o stable (unless flush)
-  //
-  always_ff @(posedge clk) begin
-    if (f_past_valid && $past(rst_n) && rst_n) begin
-      if ($past(stall_i && !flush_i)) begin
-        `FASSERT(a_stall_holds_valid, valid_o == $past(valid_o));
+  if (REG != 0) begin : g_stall_assertions
+    always_comb begin
+      if (stall_i) begin
+        `FASSERT(a_stall_prevents_advance, !advance_o);
+        `FASSERT(a_stall_prevents_bubble, !bubble_o);
       end
     end
   end
 
-  // Reset clears valid
-  always_ff @(posedge clk) begin
-    if (f_past_valid && !$past(rst_n)) begin
-      `FASSERT(a_reset_clears_valid, valid_o == 1'b0);
+  //
+  // Stall holds valid_o stable (unless flush) - registered mode only
+  //
+  if (REG != 0) begin : g_stall_valid_assertion
+    always_ff @(posedge clk) begin
+      if (f_past_valid && $past(rst_n) && rst_n) begin
+        if ($past(stall_i && !flush_i)) begin
+          `FASSERT(a_stall_holds_valid, valid_o == $past(valid_o));
+        end
+      end
+    end
+  end
+
+  // Reset clears valid - registered mode only
+  if (REG != 0) begin : g_reset_assertion
+    always_ff @(posedge clk) begin
+      if (f_past_valid && !$past(rst_n)) begin
+        `FASSERT(a_reset_clears_valid, valid_o == 1'b0);
+      end
     end
   end
 

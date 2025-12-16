@@ -46,9 +46,8 @@ module svc_rv_stage_id #(
     // Stall
     input logic stall_id,
 
-    // From IF stage
-    input  logic s_valid,
-    output logic s_ready,
+    // From IF stage (s_ready removed, stall controls upstream flow)
+    input logic s_valid,
 
     input logic [    31:0] instr_id,
     input logic [    31:0] pc_id,
@@ -288,8 +287,6 @@ module svc_rv_stage_id #(
       .bpred_taken_id   (bpred_taken_id)
   );
 
-  assign s_ready = m_ready && !data_hazard_id;
-
   // ==========================================================================
   // ID/EX Pipeline Register
   // ==========================================================================
@@ -331,7 +328,7 @@ module svc_rv_stage_id #(
       .bubble(bubble),
 `ifdef FORMAL
       .s_valid(s_valid),
-      .s_ready(s_ready),
+      .s_ready(!stall_id),
 `endif
       .data_i({
         reg_write_id,
@@ -372,7 +369,7 @@ module svc_rv_stage_id #(
       .bubble(bubble),
 `ifdef FORMAL
       .s_valid(s_valid),
-      .s_ready(s_ready),
+      .s_ready(!stall_id),
 `endif
       .data_i({
         alu_a_src_id,
@@ -461,7 +458,7 @@ module svc_rv_stage_id #(
       .bubble (bubble),
 `ifdef FORMAL
       .s_valid(s_valid),
-      .s_ready(s_ready),
+      .s_ready(!stall_id),
 `endif
       .data_i ({imm_id, pc_id, pc_plus4_id}),
       .data_o ({imm_ex, pc_ex, pc_plus4_ex})
@@ -482,7 +479,7 @@ module svc_rv_stage_id #(
       .bubble (bubble),
 `ifdef FORMAL
       .s_valid(s_valid),
-      .s_ready(s_ready),
+      .s_ready(!stall_id),
 `endif
       .data_i (instr_id),
       .data_o (instr_ex)
@@ -530,7 +527,7 @@ module svc_rv_stage_id #(
       .bubble (bubble),
 `ifdef FORMAL
       .s_valid(s_valid),
-      .s_ready(s_ready),
+      .s_ready(!stall_id),
 `endif
       .data_i (final_bpred_taken_id),
       .data_o (bpred_taken_ex)
@@ -548,7 +545,7 @@ module svc_rv_stage_id #(
       .bubble (bubble),
 `ifdef FORMAL
       .s_valid(s_valid),
-      .s_ready(s_ready),
+      .s_ready(!stall_id),
 `endif
       .data_i (final_pred_tgt_id),
       .data_o (pred_tgt_ex)
@@ -572,15 +569,31 @@ module svc_rv_stage_id #(
   end
 
   //
-  // Input stability assumptions (s_valid/s_ready interface from IF)
+  // Constraint: m_ready and stall_id relationship
   //
-  // When backpressured (s_valid && !s_ready), IF must hold its outputs stable.
-  // This is the standard valid/ready protocol contract.
+  // In real system: m_ready = !op_active_ex, stall_id = stall_cpu || op_active_ex
+  // So when m_ready=0 (op_active_ex=1), stall_id must be high.
+  // This constraint is: m_ready || stall_id (i.e., !m_ready implies stall_id)
+  //
+  always_comb begin
+    `FASSUME(a_m_ready_stall_constraint, m_ready || stall_id);
+  end
+
+  //
+  // Input stability assumptions (stall-based flow control from IF)
+  //
+  // IF holds outputs stable when stalled. IF stalls when stall_pc is high:
+  // stall_pc = stall_cpu || data_hazard_id || op_active_ex
+  //
+  // Since stall_id = stall_cpu || op_active_ex, we have:
+  // stall_pc = stall_id || data_hazard_id
+  //
+  // When stall_pc was high (IF stalled), all IF outputs must be stable.
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      if ($past(s_valid && !s_ready)) begin
-        `FASSUME(a_s_valid_stable, s_valid);
+      if ($past(stall_id || data_hazard_id)) begin
+        `FASSUME(a_s_valid_stable, s_valid == $past(s_valid));
         `FASSUME(a_instr_id_stable, instr_id == $past(instr_id));
         `FASSUME(a_pc_id_stable, pc_id == $past(pc_id));
         `FASSUME(a_pc_plus4_id_stable, pc_plus4_id == $past(pc_plus4_id));
