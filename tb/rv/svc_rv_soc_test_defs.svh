@@ -9,6 +9,20 @@
 // - load_program task
 //
 
+//
+// Data memory backdoor macros
+//
+// Default implementation for BRAM/SRAM testbenches. Override before including
+// this file for testbenches with different memory topologies (e.g., cache).
+//
+`ifndef DMEM_RD
+`define DMEM_RD(i) uut.dmem.mem[i]
+`endif
+
+`ifndef DMEM_WR
+`define DMEM_WR(i, val) uut.dmem.mem[i] = val
+`endif
+
 logic [31:0] MEM[1024];
 `include "svc_rv_asm.svh"
 
@@ -1644,9 +1658,9 @@ endtask
 // Tests basic LW and SW instructions with multiple memory locations.
 //
 task automatic test_lw_sw_basic;
-  uut.dmem.mem[0] = 32'hDEADBEEF;
-  uut.dmem.mem[1] = 32'h12345678;
-  uut.dmem.mem[2] = 32'hCAFEBABE;
+  `DMEM_WR(0, 32'hDEADBEEF);
+  `DMEM_WR(1, 32'h12345678);
+  `DMEM_WR(2, 32'hCAFEBABE);
 
   ADDI(x1, x0, 0);
   LW(x2, x1, 0);
@@ -1663,7 +1677,7 @@ task automatic test_lw_sw_basic;
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'h12345678);
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[4], 32'hCAFEBABE);
   `TICK(clk);
-  `CHECK_EQ(uut.dmem.mem[3], 32'hABCD1234);
+  `CHECK_EQ(`DMEM_RD(3), 32'hABCD1234);
 endtask
 
 //
@@ -1673,7 +1687,7 @@ endtask
 // Tests all four byte positions within a word.
 //
 task automatic test_lb_basic;
-  uut.dmem.mem[0] = 32'h89ABCDEF;
+  `DMEM_WR(0, 32'h89ABCDEF);
 
   ADDI(x1, x0, 0);
   LB(x2, x1, 0);
@@ -1697,7 +1711,7 @@ endtask
 // Tests LBU instruction which loads a byte and zero-extends to 32 bits.
 //
 task automatic test_lbu_basic;
-  uut.dmem.mem[0] = 32'h89ABCDEF;
+  `DMEM_WR(0, 32'h89ABCDEF);
 
   ADDI(x1, x0, 0);
   LBU(x2, x1, 0);
@@ -1721,7 +1735,7 @@ endtask
 // Tests LH instruction which loads a halfword and sign-extends to 32 bits.
 //
 task automatic test_lh_basic;
-  uut.dmem.mem[0] = 32'h8765CDEF;
+  `DMEM_WR(0, 32'h8765CDEF);
 
   ADDI(x1, x0, 0);
   LH(x2, x1, 0);
@@ -1741,7 +1755,7 @@ endtask
 // Tests LHU instruction which loads a halfword and zero-extends to 32 bits.
 //
 task automatic test_lhu_basic;
-  uut.dmem.mem[0] = 32'h8765CDEF;
+  `DMEM_WR(0, 32'h8765CDEF);
 
   ADDI(x1, x0, 0);
   LHU(x2, x1, 0);
@@ -1761,7 +1775,7 @@ endtask
 // Tests SB instruction which stores the low byte to all byte positions.
 //
 task automatic test_sb_basic;
-  uut.dmem.mem[0] = 32'h00000000;
+  `DMEM_WR(0, 32'h00000000);
 
   ADDI(x1, x0, 0);
   LI(x2, 32'h12345678);
@@ -1775,7 +1789,7 @@ task automatic test_sb_basic;
 
   `CHECK_WAIT_FOR_EBREAK(clk);
   `TICK(clk);
-  `CHECK_EQ(uut.dmem.mem[0], 32'h78787878);
+  `CHECK_EQ(`DMEM_RD(0), 32'h78787878);
 endtask
 
 //
@@ -1784,7 +1798,7 @@ endtask
 // Tests SH instruction which stores the low halfword to both positions.
 //
 task automatic test_sh_basic;
-  uut.dmem.mem[0] = 32'h00000000;
+  `DMEM_WR(0, 32'h00000000);
 
   ADDI(x1, x0, 0);
   LI(x2, 32'h12345678);
@@ -1796,7 +1810,7 @@ task automatic test_sh_basic;
 
   `CHECK_WAIT_FOR_EBREAK(clk);
   `TICK(clk);
-  `CHECK_EQ(uut.dmem.mem[0], 32'h56785678);
+  `CHECK_EQ(`DMEM_RD(0), 32'h56785678);
 endtask
 
 //
@@ -1805,7 +1819,7 @@ endtask
 // Tests that SB only modifies the tgt byte without affecting others.
 //
 task automatic test_sb_partial_word;
-  uut.dmem.mem[0] = 32'hDEADBEEF;
+  `DMEM_WR(0, 32'hDEADBEEF);
 
   ADDI(x1, x0, 0);
   LI(x2, 32'hFF);
@@ -1816,7 +1830,7 @@ task automatic test_sb_partial_word;
 
   `CHECK_WAIT_FOR_EBREAK(clk);
   `TICK(clk);
-  `CHECK_EQ(uut.dmem.mem[0], 32'hDEADFFEF);
+  `CHECK_EQ(`DMEM_RD(0), 32'hDEADFFEF);
 endtask
 
 //
@@ -1825,7 +1839,7 @@ endtask
 // Tests that SH only modifies the tgt halfword without affecting others.
 //
 task automatic test_sh_partial_word;
-  uut.dmem.mem[0] = 32'hDEADBEEF;
+  `DMEM_WR(0, 32'hDEADBEEF);
 
   ADDI(x1, x0, 0);
   LI(x2, 32'h1234);
@@ -1836,7 +1850,7 @@ task automatic test_sh_partial_word;
 
   `CHECK_WAIT_FOR_EBREAK(clk);
   `TICK(clk);
-  `CHECK_EQ(uut.dmem.mem[0], 32'h1234BEEF);
+  `CHECK_EQ(`DMEM_RD(0), 32'h1234BEEF);
 endtask
 
 //
@@ -1858,7 +1872,7 @@ task automatic test_sw_lw_forwarding;
   `CHECK_WAIT_FOR_EBREAK(clk);
   `TICK(clk);
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'h11223344);
-  `CHECK_EQ(uut.dmem.mem[0], 32'h11223344);
+  `CHECK_EQ(`DMEM_RD(0), 32'h11223344);
 endtask
 
 //
@@ -1883,7 +1897,7 @@ task automatic test_sw_lw_different_regs;
   `CHECK_WAIT_FOR_EBREAK(clk);
   `TICK(clk);
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[4], 32'hAABBCCDD);
-  `CHECK_EQ(uut.dmem.mem[0], 32'hAABBCCDD);
+  `CHECK_EQ(`DMEM_RD(0), 32'hAABBCCDD);
 endtask
 
 //
@@ -1894,8 +1908,8 @@ endtask
 // isn't available until the MEM stage.
 //
 task automatic test_load_use_hazard;
-  uut.dmem.mem[0] = 32'd42;
-  uut.dmem.mem[1] = 32'd100;
+  `DMEM_WR(0, 32'd42);
+  `DMEM_WR(1, 32'd100);
 
   ADDI(x1, x0, 0);
   LW(x2, x1, 0);
@@ -1917,9 +1931,9 @@ endtask
 // interaction between memory and ALU operations.
 //
 task automatic test_lw_sw_multiple;
-  uut.dmem.mem[0] = 32'd10;
-  uut.dmem.mem[1] = 32'd20;
-  uut.dmem.mem[2] = 32'd30;
+  `DMEM_WR(0, 32'd10);
+  `DMEM_WR(1, 32'd20);
+  `DMEM_WR(2, 32'd30);
 
   ADDI(x1, x0, 0);
   LW(x2, x1, 0);
@@ -1939,9 +1953,9 @@ task automatic test_lw_sw_multiple;
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[4], 32'd30);
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[5], 32'd30);
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[6], 32'd60);
-  `CHECK_EQ(uut.dmem.mem[3], 32'd30);
+  `CHECK_EQ(`DMEM_RD(3), 32'd30);
   `TICK(clk);
-  `CHECK_EQ(uut.dmem.mem[4], 32'd60);
+  `CHECK_EQ(`DMEM_RD(4), 32'd60);
 endtask
 
 //
@@ -1950,7 +1964,7 @@ endtask
 // Tests mixing SB, SH, SW, LB, LH, and LW on the same memory location.
 //
 task automatic test_mixed_byte_halfword_word;
-  uut.dmem.mem[0] = 32'h00000000;
+  `DMEM_WR(0, 32'h00000000);
 
   ADDI(x1, x0, 0);
   LI(x2, 32'h12);
@@ -1983,7 +1997,7 @@ endtask
 // - Expected byte strobe: 4'b1100 (upper halfword)
 //
 task automatic test_word_aligned_mem_addr;
-  uut.dmem.mem[0] = 32'h00000000;
+  `DMEM_WR(0, 32'h00000000);
 
   ADDI(x2, x0, -768);
   SH(x2, x0, -6);
@@ -2013,7 +2027,7 @@ endtask
 // misaligned for a 2-byte halfword access and must trap.
 //
 task automatic test_trap_misaligned_sh;
-  uut.dmem.mem[511] = 32'hDEADBEEF;
+  `DMEM_WR(511, 32'hDEADBEEF);
 
   SH(x0, x0, 2047);
   EBREAK();
@@ -2022,7 +2036,7 @@ task automatic test_trap_misaligned_sh;
 
   `CHECK_WAIT_FOR(clk, uut.cpu.trap, 128);
   `CHECK_TRUE(uut.cpu.trap);
-  `CHECK_EQ(uut.dmem.mem[511], 32'hDEADBEEF);
+  `CHECK_EQ(`DMEM_RD(511), 32'hDEADBEEF);
 endtask
 
 //
@@ -2340,7 +2354,7 @@ task automatic test_cpi_load_use;
   logic [31:0] cycles;
   logic [31:0] instrs;
 
-  uut.dmem.mem[0] = 32'd42;
+  `DMEM_WR(0, 32'd42);
 
   RDCYCLE(x20);
   RDINSTRET(x21);
@@ -2556,8 +2570,8 @@ endtask
 // are properly isolated and don't interfere with each other.
 //
 task automatic test_mmio_isolation;
-  uut.dmem.mem[0] = 32'hAAAAAAAA;
-  io_mem.mem[0]   = 32'hBBBBBBBB;
+  `DMEM_WR(0, 32'hAAAAAAAA);
+  io_mem.mem[0] = 32'hBBBBBBBB;
 
   LI(x1, 32'h00000000);
   LI(x2, 32'h80000000);
@@ -2575,7 +2589,7 @@ task automatic test_mmio_isolation;
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'hAAAAAAAA);
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[4], 32'hBBBBBBBB);
   `TICK(clk);
-  `CHECK_EQ(uut.dmem.mem[1], 32'hCCCCCCCC);
+  `CHECK_EQ(`DMEM_RD(1), 32'hCCCCCCCC);
   `CHECK_EQ(io_mem.mem[1], 32'hDDDDDDDD);
 endtask
 
@@ -2679,14 +2693,14 @@ task automatic test_bubble_sort;
   logic [31:0] cycles;
   logic [31:0] instrs;
 
-  uut.dmem.mem[0] = 32'd64;
-  uut.dmem.mem[1] = 32'd34;
-  uut.dmem.mem[2] = 32'd25;
-  uut.dmem.mem[3] = 32'd12;
-  uut.dmem.mem[4] = 32'd22;
-  uut.dmem.mem[5] = 32'd11;
-  uut.dmem.mem[6] = 32'd90;
-  uut.dmem.mem[7] = 32'd88;
+  `DMEM_WR(0, 32'd64);
+  `DMEM_WR(1, 32'd34);
+  `DMEM_WR(2, 32'd25);
+  `DMEM_WR(3, 32'd12);
+  `DMEM_WR(4, 32'd22);
+  `DMEM_WR(5, 32'd11);
+  `DMEM_WR(6, 32'd90);
+  `DMEM_WR(7, 32'd88);
 
   RDCYCLE(x28);
   RDINSTRET(x29);
@@ -2722,14 +2736,14 @@ task automatic test_bubble_sort;
   load_program();
 
   `CHECK_WAIT_FOR(clk, ebreak, 5000);
-  `CHECK_EQ(uut.dmem.mem[0], 32'd11);
-  `CHECK_EQ(uut.dmem.mem[1], 32'd12);
-  `CHECK_EQ(uut.dmem.mem[2], 32'd22);
-  `CHECK_EQ(uut.dmem.mem[3], 32'd25);
-  `CHECK_EQ(uut.dmem.mem[4], 32'd34);
-  `CHECK_EQ(uut.dmem.mem[5], 32'd64);
-  `CHECK_EQ(uut.dmem.mem[6], 32'd88);
-  `CHECK_EQ(uut.dmem.mem[7], 32'd90);
+  `CHECK_EQ(`DMEM_RD(0), 32'd11);
+  `CHECK_EQ(`DMEM_RD(1), 32'd12);
+  `CHECK_EQ(`DMEM_RD(2), 32'd22);
+  `CHECK_EQ(`DMEM_RD(3), 32'd25);
+  `CHECK_EQ(`DMEM_RD(4), 32'd34);
+  `CHECK_EQ(`DMEM_RD(5), 32'd64);
+  `CHECK_EQ(`DMEM_RD(6), 32'd88);
+  `CHECK_EQ(`DMEM_RD(7), 32'd90);
 
   cycles = uut.cpu.stage_id.regfile.regs[26];
   instrs = uut.cpu.stage_id.regfile.regs[27];
