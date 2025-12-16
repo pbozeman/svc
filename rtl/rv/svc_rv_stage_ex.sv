@@ -573,7 +573,6 @@ module svc_rv_stage_ex #(
       .rst_n    (rst_n),
       .valid_i  (pipe_valid_i),
       .valid_o  (m_valid),
-      .ready_i  (1'b1),
       .stall_i  (stall_ex),
       .flush_i  (pipe_flush_i),
       .bubble_i (!pipe_valid_i),
