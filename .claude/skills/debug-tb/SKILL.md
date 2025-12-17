@@ -30,6 +30,7 @@ gtkwave .build/<module>.vcd &
 ```
 
 Key information:
+
 - **File:line** - Location of failed assertion
 - **CHECK type** - EQ, TRUE, FALSE, WAIT_FOR, etc.
 - **Signal values** - Actual vs expected (hex format)
@@ -38,13 +39,13 @@ Key information:
 
 ## Assertion Types
 
-| Macro | Fails When |
-|-------|------------|
-| `CHECK_TRUE(a)` | `a !== 1` |
-| `CHECK_FALSE(a)` | `a !== 0` |
-| `CHECK_EQ(a, b)` | `a !== b` |
-| `CHECK_NEQ(a, b)` | `a === b` |
-| `CHECK_LT(a, b)` | `a >= b` or X/Z values |
+| Macro                           | Fails When                               |
+| ------------------------------- | ---------------------------------------- |
+| `CHECK_TRUE(a)`                 | `a !== 1`                                |
+| `CHECK_FALSE(a)`                | `a !== 0`                                |
+| `CHECK_EQ(a, b)`                | `a !== b`                                |
+| `CHECK_NEQ(a, b)`               | `a === b`                                |
+| `CHECK_LT(a, b)`                | `a >= b` or X/Z values                   |
 | `CHECK_WAIT_FOR(clk, sig, max)` | Signal never becomes 1 within max cycles |
 
 Note: `CHECK_EQ` uses `!==` (4-state), so X/Z mismatches fail.
@@ -54,12 +55,14 @@ Note: `CHECK_EQ` uses `!==` (4-state), so X/Z mismatches fail.
 ### Signal Never Asserts (CHECK_WAIT_FOR timeout)
 
 Causes:
+
 - Missing handshake (valid without ready, or vice versa)
 - Reset not properly released
 - Clock domain issue
 - Logic stuck waiting for upstream event
 
 Debug steps:
+
 1. Check reset sequence in test
 2. Verify all required inputs are driven
 3. Look for combinatorial loops or missing clock edges
@@ -67,12 +70,14 @@ Debug steps:
 ### Wrong Value (CHECK_EQ failure)
 
 Causes:
+
 - Off-by-one in counters or indices
 - Incorrect bit slicing or width mismatch
 - Endianness confusion
 - Combinatorial vs registered output timing
 
 Debug steps:
+
 1. Check data width consistency
 2. Verify timing (are you checking one cycle too early/late?)
 3. Trace data path through module
@@ -80,12 +85,14 @@ Debug steps:
 ### X or Z Values
 
 Causes:
+
 - Uninitialized signal
 - Missing reset initialization
 - Unconnected port
 - Multiple drivers
 
 Debug steps:
+
 1. Check all signals initialized in reset block
 2. Verify port connections in UUT instantiation
 3. Look for undriven module outputs
@@ -93,11 +100,13 @@ Debug steps:
 ### Watchdog Timeout
 
 Causes:
+
 - Deadlock in handshake protocol
 - Infinite loop in test logic
 - Test expects condition that never occurs
 
 Debug steps:
+
 1. Find where simulation is stuck (last passing assertion)
 2. Check for circular dependencies in ready/valid
 3. Verify test doesn't wait for impossible state
@@ -120,7 +129,9 @@ make tb
 
 ## Adding Debug Output
 
-When existing debug capabilities aren't sufficient, add `$display` statements directly in the testbench being debugged. Don't try to brute-force reason through signal values - actually look at what's happening.
+When existing debug capabilities aren't sufficient, add `$display` statements
+directly in the testbench being debugged. Don't try to brute-force reason
+through signal values - actually look at what's happening.
 
 ```systemverilog
 // Add ungated - just do it, remove later
@@ -128,6 +139,7 @@ $display("state=%0d valid=%b ready=%b data=%h", uut.state, out_valid, out_ready,
 ```
 
 Add an `always` block in the testbench to monitor UUT internals:
+
 ```systemverilog
 always @(posedge clk) begin
   if (uut.some_valid && uut.some_ready)
@@ -136,6 +148,7 @@ end
 ```
 
 Good things to display:
+
 - UUT internal state machines (`uut.state`)
 - Handshake completions (valid && ready)
 - Counter values
@@ -146,12 +159,14 @@ Remove debug statements after fixing the issue.
 ## Reading Waveforms
 
 Focus signals:
+
 1. `clk` and `rst_n` - Verify timing and reset
 2. `*_valid` / `*_ready` - Handshake signals
 3. Signals mentioned in failure message
 4. Internal state machines (if exposed)
 
 Look for:
+
 - Signals stuck at X/Z
 - Handshakes that never complete
 - Unexpected transitions
@@ -159,7 +174,8 @@ Look for:
 
 ## AXI Debugging
 
-For AXI/AXI-Lite protocol issues, see [references/axi_debug.md](references/axi_debug.md).
+For AXI/AXI-Lite protocol issues, see
+[references/axi_debug.md](references/axi_debug.md).
 
 ## Reference
 
