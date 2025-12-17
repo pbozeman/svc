@@ -510,8 +510,15 @@ module svc_rv_stage_ex #(
   end
 
   // Calculate PC selection mode
+  //
+  // Only signal redirect when EX is actually accepting the instruction.
+  // When stalled, the instruction at ID's output hasn't been captured yet,
+  // so the redirect decision must be deferred to avoid flushing the
+  // instruction before EX can accept it.
+  //
   always_comb begin
-    if (pc_sel_branch_or_jump || mispredicted_ex) begin
+    if ((pc_sel_branch_or_jump || mispredicted_ex) &&
+        (s_valid && !stall_ex)) begin
       pc_sel_ex = PC_SEL_REDIRECT;
     end else begin
       pc_sel_ex = PC_SEL_SEQUENTIAL;
