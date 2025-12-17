@@ -436,12 +436,19 @@ module svc_rv #(
   logic stall_wb;
 
   //
-  // stall_pc: redirect overrides stall because on misprediction,
+  // stall_pc: redirect overrides stall because on redirect,
   // data_hazard_id and op_active_ex are caused by younger instructions
   // that will be flushed anyway.
   //
+  // Both MEM redirects (redir_valid_mem) and EX redirects (pc_sel ==
+  // PC_SEL_REDIRECT) override stall. Without this, EX redirects during
+  // dmem_stall would not take effect until the stall releases, but by then
+  // the EX stage has advanced and the redirect target may be lost.
+  //
+  logic pc_redir;
+  assign pc_redir = (pc_sel == PC_SEL_REDIRECT);
   assign stall_pc = ((stall_cpu || data_hazard_id || op_active_ex) &&
-                     !redir_valid_mem);
+                     !redir_valid_mem && !pc_redir);
 
   //
   // ID stall does NOT include data_hazard_id because:
