@@ -88,6 +88,12 @@ module svc_rv_hazard #(
     //
     input logic redir_pending_if,
 
+    //
+    // Stall signals (for gating flushes when stalled)
+    //
+    input logic stall_ex,
+    input logic stall_mem,
+
     // Hazard control outputs
     output logic data_hazard_id,
     output logic if_id_flush,
@@ -352,20 +358,34 @@ module svc_rv_hazard #(
     // The instruction fetched during the redirect cycle (wrong path) must
     // be flushed when redir_pending_if is asserted.
     //
+    // id_ex_flush gates control_flush with !stall_ex: when stalled, the
+    // redirecting instruction at EX output can't advance to MEM, so flushing
+    // would lose it. When not stalled, the instruction advances at the same
+    // clock edge, so flush safely clears EX for the following cycle.
+    //
     assign if_id_flush = control_flush || pred_flush || redir_pending_if;
-    assign id_ex_flush = control_flush || redir_pending_if;
+    assign id_ex_flush = (control_flush && !stall_ex) || redir_pending_if;
 
   end else begin : g_immediate_flush
     //
-    // Current logic unchanged
+    // id_ex_flush gates control_flush with !stall_ex: when stalled, the
+    // redirecting instruction at EX output can't advance to MEM, so flushing
+    // would lose it. When not stalled, the instruction advances at the same
+    // clock edge, so flush safely clears EX for the following cycle.
     //
     assign if_id_flush = control_flush || pred_flush;
-    assign id_ex_flush = control_flush;
+    assign id_ex_flush = control_flush && !stall_ex;
 
     `SVC_UNUSED(redir_pending_if);
   end
 
-  assign ex_mem_flush = redir_valid_mem || op_active_ex;
+  //
+  // ex_mem_flush gates redir_valid_mem with !stall_mem: when stalled, older
+  // correct-path instructions in MEM can't advance to WB, so flushing would
+  // lose them. When not stalled, they advance at the same clock edge.
+  // op_active_ex bubbles EX output (multi-cycle ops not ready yet).
+  //
+  assign ex_mem_flush = (redir_valid_mem && !stall_mem) || op_active_ex;
 
 endmodule
 

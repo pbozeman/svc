@@ -57,6 +57,8 @@ module svc_rv_hazard_tb;
       .btb_pred_taken  (1'b0),
       .ras_pred_taken  (1'b0),
       .redir_pending_if(1'b0),
+      .stall_ex        (1'b0),
+      .stall_mem       (1'b0),
       .data_hazard_id  (data_hazard_id),
       .if_id_flush     (if_id_flush),
       .id_ex_flush     (id_ex_flush),
