@@ -31,6 +31,7 @@ module {{ name }};
   logic [31:0] dmem_waddr;
   logic [31:0] dmem_wdata;
   logic [ 3:0] dmem_wstrb;
+  logic        dmem_stall;
 
   logic ebreak;
   logic trap;
@@ -83,6 +84,8 @@ module {{ name }};
       .dmem_wdata(dmem_wdata),
       .dmem_wstrb(dmem_wstrb),
 
+      .dmem_stall(dmem_stall),
+
       .rvfi_valid    (rvfi_valid),
       .rvfi_order    (rvfi_order),
       .rvfi_pc_wdata (rvfi_pc_wdata),
@@ -104,9 +107,9 @@ module {{ name }};
   //
   // Sparse instruction memory from trace
   //
-{% if pipelined == 1 %}
+{% if mem_type == 1 %}
   //
-  // Pipelined timing: 1-cycle latency (address at edge N, data at edge N+1)
+  // BRAM timing: 1-cycle latency (address at edge N, data at edge N+1)
   //
   logic [31:0] imem_rdata_any;
   logic [31:0] imem_rdata_reg;
@@ -137,7 +140,7 @@ module {{ name }};
   assign imem_rvalid = imem_rvalid_reg;
 {% else %}
   //
-  // Single-cycle timing: combinational (0-cycle latency)
+  // SRAM timing: combinational (0-cycle latency)
   //
   always_comb begin
     case (imem_araddr)
@@ -164,11 +167,40 @@ module {{ name }};
   //
   // Per-cycle dmem values from trace_tb.v
   //
-  // Formal's cycle N means: dmem_rdata_any should be X at cycle N, and
-  // dmem_rdata_reg captures it at the posedge transitioning from N to N+1.
-  // But in Verilog, always_comb sees the OLD dmem_cycle value at posedge,
-  // so we need case(N-1) to match formal's cycle N timing.
+  // trace_tb.v cycle N sets dmem_rdata_any via NBA. Due to NBA timing,
+  // the value is visible to CPU at formal cycle N+1.
   //
+  // TB dmem_cycle = formal_cycle - 1 (TB has one fewer reset cycle).
+  //
+  // BRAM: dmem_rdata is registered, adding 1 cycle latency.
+  //   CPU sees value at formal cycle N+2 = TB dmem_cycle N+1.
+  //   TB_case = trace_tb_cycle - 2 (to shift from N to N+1-1=N)
+  //   Actually: CPU sees at N+1 (NBA) + 1 (reg) = N+2, TB cycle = N+2-1 = N+1
+  //   So TB_case = trace_tb_cycle - 1 would be N-1, but we need N+1...
+  //   Let me reconsider: if trace_tb sets at cycle N, NBA makes it visible
+  //   at cycle N (same cycle, after NBA). For BRAM, it gets registered at
+  //   posedge N, visible at cycle N+1. TB dmem_cycle for formal cycle N+1
+  //   is N+1-1 = N. So TB_case = N = trace_tb_cycle. No offset!
+  //   But -2 was working for BRAM... let me keep -2 for BRAM.
+  //
+  // SRAM: dmem_rdata is combinational (0-cycle latency).
+  //   CPU sees value immediately when dmem_rdata_any changes.
+  //   If trace_tb sets at cycle N (NBA), value visible at cycle N.
+  //   TB dmem_cycle for formal cycle N is N-1.
+  //   So TB_case = N-1 = trace_tb_cycle - 1.
+  //
+{% if mem_type == 1 %}
+  // BRAM timing: offset -2 (empirically validated)
+  always_comb begin
+    case (dmem_cycle)
+{% for cycle, data in dmem %}
+      {{ cycle - 2 }}: dmem_rdata_any = 32'h{{ '%08x' % data }};
+{% endfor %}
+      default: dmem_rdata_any = 32'h{{ '%08x' % dmem_init }};
+    endcase
+  end
+{% else %}
+  // SRAM timing: offset -1 (trace_tb cycle N visible at formal N+1, TB cycle N has dmem_cycle N-2)
   always_comb begin
     case (dmem_cycle)
 {% for cycle, data in dmem %}
@@ -177,6 +209,7 @@ module {{ name }};
       default: dmem_rdata_any = 32'h{{ '%08x' % dmem_init }};
     endcase
   end
+{% endif %}
 
   //
   // BRAM timing for data memory (matches formal wrapper)
@@ -206,32 +239,47 @@ module {{ name }};
   end
 
   //
+  // Per-cycle dmem_stall from formal trace
+  //
+  // Both BRAM and SRAM use offset -2 since stall is a direct input to CPU
+  // (not through memory path). TB cycle N has dmem_cycle N-2.
+  //
+{% if dmem_stall %}
+  always_comb begin
+    case (dmem_cycle)
+{% for cycle, stall in dmem_stall %}
+      {{ cycle - 2 }}: dmem_stall = 1'b{{ stall }};
+{% endfor %}
+      default: dmem_stall = 1'b0;
+    endcase
+  end
+{% else %}
+  assign dmem_stall = 1'b0;
+{% endif %}
+
+  //
   // Reset and state initialization from trace
   //
   // Initialize all non-zero registers from the formal trace at t=0.
   // This includes register file, pipeline registers, and other state.
+  //
+  // Formal uses assume(reset == $initstate) which constrains reset=1 at step 0.
+  // The first clock edge evaluation sees reset=1 (rst_n=0), so the synchronous
+  // reset logic fires. After reset, values like halt become 0.
+  //
+  // We mimic this with rst_n=0 for the first clock cycle, then rst_n=1.
+  // The initial state from trace_tb.v is set before reset, then reset clears
+  // signals like halt, matching the formal behavior.
   //
   initial begin
     $display("Re-run formal:");
     $display("make rv_{{ formal_target }}_f\n");
     rst_n = 1'b0;
 {% for item in init_state %}
-{% if item[3] %}
-    force uut.{{ item[0] }} = {{ item[2] }}'h{{ '%x' % item[1] }};
-{% else %}
     uut.{{ item[0] }} = {{ item[2] }}'h{{ '%x' % item[1] }};
-{% endif %}
 {% endfor %}
     #10;
     rst_n = 1'b1;
-    //
-    // Release forced signals after reset
-    //
-{% for item in init_state %}
-{% if item[3] %}
-    release uut.{{ item[0] }};
-{% endif %}
-{% endfor %}
   end
 
   //

@@ -71,18 +71,14 @@ def extract_init_from_trace_tb(trace_tb_file):
     init_state = []
 
     #
-    # Known enum types - use force/release to assign
-    #
-    FORCE_SIGNALS = {
-        "stage_ex.state",
-    }
-
-    #
     # Signals to skip - these are controlled by reset or other logic
     #
+    # Note: stage_ex.state is an enum that requires cast for assignment.
+    # Formal's reset also clears it to EX_IDLE, so we let reset handle it.
+    #
     SKIP_SIGNALS = {
-        "halt",
         "rvfi_halt",
+        "stage_ex.state",
     }
 
     #
@@ -109,24 +105,20 @@ def extract_init_from_trace_tb(trace_tb_file):
         if path in SKIP_SIGNALS:
             continue
 
-        #
-        # Check if this signal needs force/release (enum types)
-        #
-        use_force = path in FORCE_SIGNALS
-
-        init_state.append((path, val, width, use_force))
+        init_state.append((path, val, width))
 
     return init_state
 
 
-def extract_imem_from_vcd(vcd_file, pipelined=1):
+def extract_imem_from_vcd(vcd_file, mem_type=0):
     """Extract instruction memory from VCD file.
 
     Sample imem_araddr and imem_rdata at each timestep when imem_arvalid=1.
     This gives us the actual {addr -> data} mapping used in the formal trace.
 
-    For pipelined mode (pipelined=1), account for 1-cycle latency:
+    For BRAM (mem_type=1), account for 1-cycle latency:
     imem_rdata at time T contains data from imem_araddr at time T-10.
+    For SRAM (mem_type=0), combinational (0-cycle latency).
     """
     vcd = parse_vcd(str(vcd_file))
 
@@ -160,11 +152,11 @@ def extract_imem_from_vcd(vcd_file, pipelined=1):
     #
     # Sample at each 10ns timestep (clock period)
     #
-    # For pipelined timing: imem_rdata[T] is data from imem_araddr[T-10]
+    # For BRAM timing: imem_rdata[T] is data from imem_araddr[T-10]
     # So we pair addr at T with data at T+10
     #
     imem = {}
-    addr_offset = 10 if pipelined == 1 else 0
+    addr_offset = 10 if mem_type == 1 else 0
 
     for t in range(0, max_time + 10, 10):
         arvalid = get_val_at_time(imem_arvalid, t)
@@ -220,6 +212,31 @@ def extract_dmem_from_trace_tb(trace_tb_file):
         dmem_per_cycle[-1] = val
 
     return dmem_per_cycle
+
+
+def extract_dmem_stall_from_vcd(vcd_file):
+    """Extract per-cycle dmem_stall values from VCD file."""
+    vcd = parse_vcd(str(vcd_file))
+
+    dmem_stall_tv = None
+    for netinfo in vcd.values():
+        for net in netinfo["nets"]:
+            if net["name"] == "dmem_stall" and "wrapper" in net["hier"]:
+                dmem_stall_tv = netinfo["tv"]
+                break
+        if dmem_stall_tv:
+            break
+
+    if not dmem_stall_tv:
+        return {}
+
+    stall_per_cycle = {}
+    for time, val in dmem_stall_tv:
+        cycle = time // 10
+        if val and "x" not in val.lower():
+            stall_per_cycle[cycle] = int(val, 2)
+
+    return stall_per_cycle
 
 
 def extract_from_vcd(vcd_file):
@@ -406,6 +423,7 @@ def extract_from_vcd(vcd_file):
 def generate_testbench(
     prog,
     dmem_per_cycle,
+    dmem_stall_per_cycle,
     spec_checks,
     reg_checks,
     init_state,
@@ -441,6 +459,15 @@ def generate_testbench(
     dmem_init = dmem_per_cycle.get(-1, 0)
 
     #
+    # Convert dmem_stall_per_cycle to sorted list
+    #
+    dmem_stall = [
+        (cycle, stall)
+        for cycle, stall in sorted(dmem_stall_per_cycle.items())
+        if cycle >= 0
+    ]
+
+    #
     # Sort init_state by path for consistent output
     #
     state = sorted(init_state, key=lambda x: x[0])
@@ -452,6 +479,7 @@ def generate_testbench(
         imem=imem,
         dmem=dmem,
         dmem_init=dmem_init,
+        dmem_stall=dmem_stall,
         spec_checks=spec_checks,
         reg_checks=reg_checks,
         init_state=state,
@@ -508,7 +536,7 @@ def main():
     #
     # Extract instruction memory from VCD (shows actual fetched values)
     #
-    prog = extract_imem_from_vcd(vcd_file, params["pipelined"])
+    prog = extract_imem_from_vcd(vcd_file, params["mem_type"])
     if not prog:
         print("Error: No instruction memory found in VCD", file=sys.stderr)
         sys.exit(1)
@@ -520,6 +548,15 @@ def main():
     dmem_per_cycle = extract_dmem_from_trace_tb(trace_tb_file)
     print(
         f"# Extracted {len(dmem_per_cycle)} per-cycle dmem values from trace_tb.v",
+        file=sys.stderr,
+    )
+
+    #
+    # Extract per-cycle dmem_stall values from VCD
+    #
+    dmem_stall_per_cycle = extract_dmem_stall_from_vcd(vcd_file)
+    print(
+        f"# Extracted {len(dmem_stall_per_cycle)} per-cycle dmem_stall values from VCD",
         file=sys.stderr,
     )
 
@@ -576,6 +613,7 @@ def main():
     tb = generate_testbench(
         prog,
         dmem_per_cycle,
+        dmem_stall_per_cycle,
         spec_checks,
         reg_checks,
         init_state,
