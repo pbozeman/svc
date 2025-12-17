@@ -170,15 +170,23 @@ module svc_rv_stage_if_bram #(
     assign flush_extend = 1'b0;
 
   end else begin : g_flush_extend
-    // With BPRED and pc_next early fetch: Target is fetched immediately when
-    // prediction happens, so flush_extend would incorrectly flush the CORRECT
-    // target instruction. Must disable.
+    // Without BPRED: Sequential instruction is already fetched before redirect
+    // is detected, so we need flush_extend to discard the stale instruction.
+    //
+    // flush_extend stays active while stalled after a flush. This ensures
+    // we don't capture stale data when stalls delay the new fetch. It clears
+    // only when m_ready=1 (pipeline advancing), at which point a new fetch
+    // was issued and its data will arrive on the next cycle.
+    //
     always_ff @(posedge clk) begin
       if (!rst_n) begin
         flush_extend <= 1'b0;
-      end else begin
-        flush_extend <= if_id_flush;
+      end else if (if_id_flush) begin
+        flush_extend <= 1'b1;
+      end else if (m_ready) begin
+        flush_extend <= 1'b0;
       end
+      // During stall (m_ready=0), flush_extend holds its value
     end
   end
 
