@@ -148,13 +148,18 @@ module svc_rv_dmem_cache_if_tb;
     `TICK(clk);
 
     //
-    // Stall cleared, address was registered
+    // Data available, but stall held for cooldown cycle
     //
-    `CHECK_FALSE(dmem_stall);
+    `CHECK_TRUE(dmem_stall);
     `CHECK_EQ(dmem_rdata, 32'hCAFE_BABE);
 
     cache_rd_data_valid = 1'b0;
     `TICK(clk);
+
+    //
+    // Cooldown complete, stall released
+    //
+    `CHECK_FALSE(dmem_stall);
   endtask
 
   //
@@ -189,11 +194,19 @@ module svc_rv_dmem_cache_if_tb;
     cache_rd_data_valid = 1'b1;
     `TICK(clk);
 
-    `CHECK_FALSE(dmem_stall);
+    //
+    // Data available, but stall held for cooldown cycle
+    //
+    `CHECK_TRUE(dmem_stall);
     `CHECK_EQ(dmem_rdata, 32'hDEAD_BEEF);
 
     cache_rd_data_valid = 1'b0;
     `TICK(clk);
+
+    //
+    // Cooldown complete, stall released
+    //
+    `CHECK_FALSE(dmem_stall);
   endtask
 
   //
@@ -228,10 +241,18 @@ module svc_rv_dmem_cache_if_tb;
     cache_wr_ready = 1'b1;
     `TICK(clk);
 
-    `CHECK_FALSE(dmem_stall);
+    //
+    // Write complete, but stall held for cooldown cycle
+    //
+    `CHECK_TRUE(dmem_stall);
 
     cache_wr_ready = 1'b0;
     `TICK(clk);
+
+    //
+    // Cooldown complete, stall released
+    //
+    `CHECK_FALSE(dmem_stall);
   endtask
 
   //
