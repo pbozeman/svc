@@ -287,7 +287,8 @@ function automatic string fmt_rvfi_wb_debug();
   string result;
 
   if (rvfi_rd_addr != 5'b0) begin
-    result = $sformatf("RB %08x %08x -> x%02d", rvfi_pc_rdata, rvfi_rd_wdata, rvfi_rd_addr);
+    result = $sformatf("RB %08x %08x -> x%02d", rvfi_pc_rdata, rvfi_rd_wdata,
+                       rvfi_rd_addr);
   end else begin
     result = $sformatf("RB %08x", rvfi_pc_rdata);
   end
@@ -482,7 +483,7 @@ always @(posedge clk) begin
             stage_ex.alu_result_ex
         );
       end
-      line = {line, ex_str};
+      line     = {line, ex_str};
       ex_width = ex_str.len();
     end
 
@@ -500,36 +501,32 @@ always @(posedge clk) begin
       if (line != "") line = {line, " | "};
       if (MEM_TYPE == MEM_TYPE_SRAM) begin
         if (dmem_ren) begin
-          mem_str = $sformatf(
-              "M %s %08x r %08x ", stall_str, pc_plus4_mem - 4, dmem_raddr
-          );
+          mem_str = $sformatf("M %s %08x r %08x ", stall_str, pc_plus4_mem - 4,
+                              dmem_raddr);
           line = {line, mem_str};
           mem_width = mem_str.len();
         end else if (dmem_we) begin
-          mem_str = $sformatf(
-              "M %s %08x w %08x ", stall_str, pc_plus4_mem - 4, dmem_waddr
-          );
+          mem_str = $sformatf("M %s %08x w %08x ", stall_str, pc_plus4_mem - 4,
+                              dmem_waddr);
           line = {line, mem_str};
           mem_width = mem_str.len();
         end else begin
-          line = {line, {DBG_MEM_WIDTH{" "}}};
+          line      = {line, {DBG_MEM_WIDTH{" "}}};
           mem_width = DBG_MEM_WIDTH;
         end
       end else begin
         if (mem_read_mem) begin
-          mem_str = $sformatf(
-              "M %s %08x r %08x ", stall_str, pc_plus4_mem - 4, dmem_raddr
-          );
+          mem_str = $sformatf("M %s %08x r %08x ", stall_str, pc_plus4_mem - 4,
+                              dmem_raddr);
           line = {line, mem_str};
           mem_width = mem_str.len();
         end else if (mem_write_mem) begin
-          mem_str = $sformatf(
-              "M %s %08x w %08x ", stall_str, pc_plus4_mem - 4, dmem_waddr
-          );
+          mem_str = $sformatf("M %s %08x w %08x ", stall_str, pc_plus4_mem - 4,
+                              dmem_waddr);
           line = {line, mem_str};
           mem_width = mem_str.len();
         end else begin
-          line = {line, {DBG_MEM_WIDTH{" "}}};
+          line      = {line, {DBG_MEM_WIDTH{" "}}};
           mem_width = DBG_MEM_WIDTH;
         end
       end
@@ -551,7 +548,7 @@ always @(posedge clk) begin
           wb_str = {wb_str, " "};
         end
       end
-      line = {line, wb_str};
+      line     = {line, wb_str};
       wb_width = wb_str.len();
     end
 
@@ -608,8 +605,8 @@ always @(posedge clk) begin
           end
         end
 
-        haz_str = $sformatf("H %s %s %s", rs1_str, rs2_str, ctrl_str);
-        line = {line, haz_str};
+        haz_str   = $sformatf("H %s %s %s", rs1_str, rs2_str, ctrl_str);
+        line      = {line, haz_str};
         haz_width = haz_str.len();
       end
     end
