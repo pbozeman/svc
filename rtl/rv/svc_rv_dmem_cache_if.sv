@@ -56,10 +56,22 @@ module svc_rv_dmem_cache_if (
 );
 
   //
+  // State machine
+  //
+  typedef enum logic [1:0] {
+    STATE_IDLE,
+    STATE_READ,
+    STATE_WRITE
+  } state_t;
+
+  state_t state;
+  state_t state_next;
+
+  //
   // Address decode: bit 31 = 1 selects I/O
   //
-  logic io_sel_rd;
-  logic io_sel_wr;
+  logic   io_sel_rd;
+  logic   io_sel_wr;
 
   assign io_sel_rd = dmem_raddr[31];
   assign io_sel_wr = dmem_waddr[31];
@@ -67,24 +79,18 @@ module svc_rv_dmem_cache_if (
   //
   // I/O select tracking for read response mux
   //
+  // Only update when pipeline can advance (stall=0), otherwise we'd change
+  // the mux selector while an older load is still in WB waiting to commit.
+  //
   logic io_sel_rd_p1;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       io_sel_rd_p1 <= 1'b0;
-    end else if (dmem_ren) begin
+    end else if (dmem_ren && !dmem_stall) begin
       io_sel_rd_p1 <= io_sel_rd;
     end
   end
-
-  //
-  // Read pending state
-  //
-  // Set when we start a cache read, clear when data is valid.
-  // This tracks whether we're waiting for cache read data.
-  //
-  logic        rd_pending;
-  logic        rd_pending_next;
 
   //
   // Registered address for cache reads
@@ -95,12 +101,32 @@ module svc_rv_dmem_cache_if (
   logic [31:0] rd_addr_reg;
 
   //
-  // Write pending state
+  // Registered read data for CPU
   //
-  // Set when we start a cache write, clear when cache accepts it.
+  // The pipelined CPU may hold a load in WB while we start processing the next
+  // read. If we change dmem_rdata when the new read completes, the old load
+  // in WB would pick up the wrong value. So we capture the data when the read
+  // completes and hold it until the pipeline has advanced (stall=0).
   //
-  logic        wr_pending;
-  logic        wr_pending_next;
+  logic [31:0] rd_data_reg;
+  logic        rd_data_valid;
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      rd_data_reg   <= 32'h0;
+      rd_data_valid <= 1'b0;
+    end else begin
+      // Clear rd_data_valid when pipeline can advance (stall is low)
+      if (rd_data_valid && !dmem_stall) begin
+        rd_data_valid <= 1'b0;
+      end
+      // Capture new data when read completes (overrides clear)
+      if (state == STATE_READ && cache_rd_data_valid) begin
+        rd_data_reg   <= cache_rd_data;
+        rd_data_valid <= 1'b1;
+      end
+    end
+  end
 
   //
   // Registered write data for cache
@@ -110,65 +136,95 @@ module svc_rv_dmem_cache_if (
   logic [ 3:0] wr_strb_reg;
 
   //
-  // Read pending logic
+  // Cooldown after cache operation completes
   //
-  // Start pending on cache read request (not I/O), clear on data valid.
+  // When a cache operation completes, we need to stay in IDLE for one cycle
+  // before accepting a new request. This gives the pipelined CPU time to
+  // complete its write-back stage before a new stall is asserted.
   //
-  always_comb begin
-    rd_pending_next = rd_pending;
-
-    if (dmem_ren && !io_sel_rd && !rd_pending) begin
-      rd_pending_next = 1'b1;
-    end else if (cache_rd_data_valid) begin
-      rd_pending_next = 1'b0;
-    end
-  end
+  logic        completing;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      rd_pending <= 1'b0;
+      completing <= 1'b0;
     end else begin
-      rd_pending <= rd_pending_next;
+      completing <= (state == STATE_READ && cache_rd_data_valid) ||
+          (state == STATE_WRITE && cache_wr_ready);
     end
   end
 
   //
-  // Register read address on new request
+  // State machine next-state logic
+  //
+  always_comb begin
+    state_next = state;
+
+    case (state)
+      STATE_IDLE: begin
+        // Don't accept new cache requests during cooldown cycle after completing
+        // a previous request. This gives the CPU time to advance.
+        if (!completing) begin
+          if (dmem_ren && !io_sel_rd) begin
+            state_next = STATE_READ;
+          end else if (dmem_we && !io_sel_wr) begin
+            state_next = STATE_WRITE;
+          end
+        end
+      end
+
+      STATE_READ: begin
+        if (cache_rd_data_valid) begin
+          // Always go to IDLE when read completes. The CPU needs stall to
+          // drop so it can advance and capture the data. Back-to-back
+          // transitions don't work because the CPU holds dmem_ren high
+          // while stalled, making it impossible to distinguish "holding
+          // current request" from "issuing new request".
+          state_next = STATE_IDLE;
+        end
+      end
+
+      STATE_WRITE: begin
+        if (cache_wr_ready) begin
+          // Always go to IDLE when write completes.
+          state_next = STATE_IDLE;
+        end
+      end
+
+      default: begin
+        state_next = STATE_IDLE;
+      end
+    endcase
+  end
+
+  //
+  // State registration
   //
   always_ff @(posedge clk) begin
-    if (dmem_ren && !io_sel_rd && !rd_pending) begin
+    if (!rst_n) begin
+      state <= STATE_IDLE;
+    end else begin
+      state <= state_next;
+    end
+  end
+
+  //
+  // Register read address on state transition to READ
+  //
+  // Capture address when transitioning from IDLE to READ.
+  //
+  always_ff @(posedge clk) begin
+    if (state_next == STATE_READ && state == STATE_IDLE) begin
       rd_addr_reg <= dmem_raddr;
     end
   end
 
   //
-  // Write pending logic
+  // Register write data on state transition to WRITE
   //
-  // Start pending on cache write request (not I/O), clear on cache ready.
-  //
-  always_comb begin
-    wr_pending_next = wr_pending;
-
-    if (dmem_we && !io_sel_wr && !wr_pending) begin
-      wr_pending_next = 1'b1;
-    end else if (cache_wr_ready) begin
-      wr_pending_next = 1'b0;
-    end
-  end
-
-  always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      wr_pending <= 1'b0;
-    end else begin
-      wr_pending <= wr_pending_next;
-    end
-  end
-
-  //
-  // Register write data on new request
+  // Capture data when transitioning from IDLE to WRITE.
   //
   always_ff @(posedge clk) begin
-    if (dmem_we && !io_sel_wr && !wr_pending) begin
+    if (state_next == STATE_WRITE && state == STATE_IDLE) begin
       wr_addr_reg <= dmem_waddr;
       wr_data_reg <= dmem_wdata;
       wr_strb_reg <= dmem_wstrb;
@@ -178,17 +234,19 @@ module svc_rv_dmem_cache_if (
   //
   // Cache read interface
   //
-  // Valid when pending (held until ready)
+  // Valid only in READ state, and drop immediately when data arrives
+  // to prevent spurious second handshake.
   //
-  assign cache_rd_valid = rd_pending;
+  assign cache_rd_valid = (state == STATE_READ) && !cache_rd_data_valid;
   assign cache_rd_addr = rd_addr_reg;
 
   //
   // Cache write interface
   //
-  // Valid when pending (held until ready)
+  // Valid only in WRITE state. Unlike reads, we don't drop valid when ready
+  // arrives - the handshake requires valid && ready at clock edge.
   //
-  assign cache_wr_valid = wr_pending;
+  assign cache_wr_valid = (state == STATE_WRITE);
   assign cache_wr_addr = wr_addr_reg;
   assign cache_wr_data = wr_data_reg;
   assign cache_wr_strb = wr_strb_reg;
@@ -210,19 +268,23 @@ module svc_rv_dmem_cache_if (
   //
   // Read data mux
   //
-  // Select between I/O (BRAM timing) and cache data
+  // Select between I/O (BRAM timing) and cache data.
+  // Use registered cache data when valid to hold value through pipeline stalls.
   //
-  assign dmem_rdata = io_sel_rd_p1 ? io_rdata : cache_rd_data;
+  assign dmem_rdata = io_sel_rd_p1 ?
+      io_rdata : (rd_data_valid ? rd_data_reg : cache_rd_data);
 
   //
   // Stall generation
   //
-  // Stall CPU when:
-  // 1. Read pending and data not yet valid (cache miss in progress)
-  // 2. Write pending and cache not ready (write in progress)
+  // Stall CPU when a cache operation is pending. Use state_next so stall
+  // goes high immediately when a request is issued, preventing the CPU from
+  // advancing before the response arrives.
   //
-  assign dmem_stall = ((rd_pending && !cache_rd_data_valid) ||
-                       (wr_pending && !cache_wr_ready));
+  // Also stall during cooldown cycle to prevent CPU from advancing again
+  // before the new cache request can be accepted.
+  //
+  assign dmem_stall = (state_next != STATE_IDLE) || completing;
 
   `SVC_UNUSED(cache_rd_ready);
 
@@ -255,23 +317,8 @@ module svc_rv_dmem_cache_if (
     // CPU does not issue simultaneous read and write
     `FASSUME(a_no_simul_rd_wr, !(dmem_ren && dmem_we));
 
-    // CPU does not issue read while write pending, or vice versa
-    //
-    // This prevents both rd_pending and wr_pending from being set
-    // simultaneously, which would violate the mutual exclusion invariant.
-    //
-    `FASSUME(a_no_rd_while_wr_pending, !wr_pending || !dmem_ren);
-    `FASSUME(a_no_wr_while_rd_pending, !rd_pending || !dmem_we);
-
     // Cache does not assert both rd_data_valid and wr_ready simultaneously
     `FASSUME(a_cache_mutex, !(cache_rd_data_valid && cache_wr_ready));
-
-    // Cache only asserts rd_data_valid when we have a pending read
-    `FASSUME(a_rd_data_valid_requires_pending,
-             !cache_rd_data_valid || rd_pending);
-
-    // Cache only asserts wr_ready when we have a pending write
-    `FASSUME(a_wr_ready_requires_pending, !cache_wr_ready || wr_pending);
   end
 
   //
@@ -279,30 +326,18 @@ module svc_rv_dmem_cache_if (
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && rst_n) begin
-      //
-      // Stall logic correctness
-      //
-      `FASSERT(a_stall_on_rd_pending,
-               !(rd_pending && !cache_rd_data_valid) || dmem_stall);
-      `FASSERT(a_stall_on_wr_pending,
-               !(wr_pending && !cache_wr_ready) || dmem_stall);
-      `FASSERT(a_no_stall_when_idle,
-               !(!rd_pending && !wr_pending) || !dmem_stall);
+      // Stall logic correctness: stall when not idle or completing
+      `FASSERT(a_stall_eq_not_idle,
+               dmem_stall == ((state_next != STATE_IDLE) || completing));
 
-      //
-      // Mutual exclusion: rd_pending and wr_pending never both active
-      //
-      `FASSERT(a_pending_mutex, !(rd_pending && wr_pending));
+      // Cache valid tracks state
+      `FASSERT(
+          a_cache_rd_valid_eq_read,
+          cache_rd_valid == ((state == STATE_READ) && !cache_rd_data_valid));
+      `FASSERT(a_cache_wr_valid_eq_write,
+               cache_wr_valid == (state == STATE_WRITE));
 
-      //
-      // Cache valid tracks pending state
-      //
-      `FASSERT(a_cache_rd_valid_eq_pending, cache_rd_valid == rd_pending);
-      `FASSERT(a_cache_wr_valid_eq_pending, cache_wr_valid == wr_pending);
-
-      //
       // I/O interface is passthrough
-      //
       `FASSERT(a_io_ren_comb, io_ren == (dmem_ren && io_sel_rd));
       `FASSERT(a_io_wen_comb, io_wen == (dmem_we && io_sel_wr));
       `FASSERT(a_io_raddr_comb, io_raddr == dmem_raddr);
@@ -312,33 +347,32 @@ module svc_rv_dmem_cache_if (
     end
 
     //
-    // Reset clears pending states
+    // Reset clears state to IDLE
     //
     if (f_past_valid && !$past(rst_n)) begin
-      `FASSERT(a_reset_clears_rd_pending, !rd_pending);
-      `FASSERT(a_reset_clears_wr_pending, !wr_pending);
+      `FASSERT(a_reset_to_idle, state == STATE_IDLE);
     end
 
     //
-    // I/O bypass: I/O requests don't set pending
+    // I/O bypass: I/O requests don't change state from IDLE
     //
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      if ($past(dmem_ren && io_sel_rd && !rd_pending)) begin
-        `FASSERT(a_io_rd_no_pending, !rd_pending || $past(rd_pending));
+      if ($past(dmem_ren && io_sel_rd && state == STATE_IDLE)) begin
+        `FASSERT(a_io_rd_stays_idle, state == STATE_IDLE);
       end
-      if ($past(dmem_we && io_sel_wr && !wr_pending)) begin
-        `FASSERT(a_io_wr_no_pending, !wr_pending || $past(wr_pending));
+      if ($past(dmem_we && io_sel_wr && state == STATE_IDLE)) begin
+        `FASSERT(a_io_wr_stays_idle, state == STATE_IDLE);
       end
     end
 
     //
-    // Address stability: registered address stable while pending
+    // Address stability: registered address stable while in READ/WRITE state
     //
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      if ($past(rd_pending) && rd_pending) begin
+      if ($past(state == STATE_READ) && (state == STATE_READ)) begin
         `FASSERT(a_rd_addr_stable, cache_rd_addr == $past(cache_rd_addr));
       end
-      if ($past(wr_pending) && wr_pending) begin
+      if ($past(state == STATE_WRITE) && (state == STATE_WRITE)) begin
         `FASSERT(a_wr_addr_stable, cache_wr_addr == $past(cache_wr_addr));
         `FASSERT(a_wr_data_stable, cache_wr_data == $past(cache_wr_data));
         `FASSERT(a_wr_strb_stable, cache_wr_strb == $past(cache_wr_strb));
@@ -351,26 +385,28 @@ module svc_rv_dmem_cache_if (
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      // Read scenarios
-      `FCOVER(c_cache_read_start, $past(!rd_pending) && rd_pending);
-      `FCOVER(c_cache_read_complete, $past(rd_pending) && !rd_pending && $past(
-              cache_rd_data_valid));
-      `FCOVER(c_cache_read_multi_cycle, $past(rd_pending, 2) && $past(rd_pending
-              ) && !rd_pending);
+      // State transitions
+      `FCOVER(c_idle_to_read, $past(state == STATE_IDLE
+              ) && (state == STATE_READ));
+      `FCOVER(c_read_to_idle, $past(state == STATE_READ
+              ) && (state == STATE_IDLE));
+      `FCOVER(c_idle_to_write, $past(state == STATE_IDLE
+              ) && (state == STATE_WRITE));
+      `FCOVER(c_write_to_idle, $past(state == STATE_WRITE
+              ) && (state == STATE_IDLE));
 
-      // Write scenarios
-      `FCOVER(c_cache_write_start, $past(!wr_pending) && wr_pending);
-      `FCOVER(c_cache_write_complete, $past(wr_pending) && !wr_pending && $past(
-              cache_wr_ready));
+      // Multi-cycle operations
+      `FCOVER(c_multi_cycle_read, $past(state == STATE_READ, 2) && $past(
+              state == STATE_READ) && (state == STATE_IDLE));
 
       // I/O bypass scenarios
       `FCOVER(c_io_read, $past(io_ren));
       `FCOVER(c_io_write, $past(io_wen));
 
       // Stall scenarios
-      `FCOVER(c_stall_rd, dmem_stall && rd_pending);
-      `FCOVER(c_stall_wr, dmem_stall && wr_pending);
-      `FCOVER(c_no_stall, !dmem_stall && !rd_pending && !wr_pending);
+      `FCOVER(c_stall_read, dmem_stall && (state == STATE_READ));
+      `FCOVER(c_stall_write, dmem_stall && (state == STATE_WRITE));
+      `FCOVER(c_no_stall, !dmem_stall && (state == STATE_IDLE));
     end
   end
 
