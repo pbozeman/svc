@@ -472,34 +472,90 @@ module svc_rv_stage_mem #(
 
   //===========================================================================
   // RVFI mem addrs
+  //
+  // dmem_we fires for the INPUT instruction, but f_mem_write_wb must track
+  // the OUTPUT instruction (in sync with instr_wb). We use two-stage tracking:
+  // - pending_store: set when dmem_we fires (INPUT has actual store)
+  // - f_mem_write_wb: set from pending_store when pipeline advances (OUTPUT)
+  //
+  // This ensures stores that trap (dmem_we=0) are correctly reported as
+  // non-stores, while keeping f_mem_write_wb in sync with instr_wb.
   //===========================================================================
 `ifdef RISCV_FORMAL
   if (PIPELINED != 0) begin : g_rvfi_store_pipelined
+    // Pending registers to capture memory operation data when initiated,
+    // then transfer to output when the pipeline advances. This handles the
+    // case where a new memory op fires before the previous one retires.
+    logic            f_pending_store;
+    logic [XLEN-1:0] f_pending_waddr;
+    logic [XLEN-1:0] f_pending_wdata;
+    logic [     3:0] f_pending_wstrb;
+    logic            f_pending_load;
+    logic [XLEN-1:0] f_pending_raddr;
+
     always_ff @(posedge clk) begin
       if (!rst_n) begin
+        f_pending_store <= 1'b0;
+        f_pending_waddr <= '0;
+        f_pending_wdata <= '0;
+        f_pending_wstrb <= '0;
+        f_pending_load  <= 1'b0;
+        f_pending_raddr <= '0;
         f_mem_write_wb  <= 1'b0;
         f_dmem_waddr_wb <= '0;
         f_dmem_raddr_wb <= '0;
         f_dmem_wdata_wb <= '0;
         f_dmem_wstrb_wb <= '0;
-      end else if (dmem_we) begin
-        // Capture on dmem_we pulse (before stall clears mem_write_mem)
-        f_mem_write_wb  <= 1'b1;
-        f_dmem_waddr_wb <= dmem_waddr;
-        f_dmem_raddr_wb <= dmem_raddr;
-        f_dmem_wdata_wb <= dmem_wdata;
-        f_dmem_wstrb_wb <= dmem_wstrb;
+      end else if (pipe_flush_o) begin
+        f_pending_store <= 1'b0;
+        f_pending_load  <= 1'b0;
+        f_mem_write_wb  <= 1'b0;
+        f_dmem_wstrb_wb <= '0;
       end else begin
-        // Clear when store retires
-        if (m_valid && f_mem_write_wb) begin
-          f_mem_write_wb  <= 1'b0;
-          f_dmem_wstrb_wb <= '0;
+        // Track dmem_we for INPUT store instruction - capture to pending
+        if (dmem_we) begin
+          f_pending_store <= 1'b1;
+          f_pending_waddr <= dmem_waddr;
+          f_pending_wdata <= dmem_wdata;
+          f_pending_wstrb <= dmem_wstrb;
         end
 
-        // Update address/data on pipeline advance (for loads)
-        f_dmem_waddr_wb <= dmem_waddr;
-        f_dmem_raddr_wb <= dmem_raddr;
-        f_dmem_wdata_wb <= dmem_wdata;
+        // Track dmem_ren for INPUT load instruction - capture to pending
+        if (dmem_ren) begin
+          f_pending_load  <= 1'b1;
+          f_pending_raddr <= dmem_raddr;
+        end
+
+        // Transfer to OUTPUT when pipeline advances
+        if (pipe_advance_o) begin
+          // Transfer store: use current dmem signals if store is advancing
+          // in same cycle (no stall), otherwise use pending. This handles
+          // the race where dmem_we and pipe_advance_o fire simultaneously.
+          if (dmem_we) begin
+            f_mem_write_wb  <= 1'b1;
+            f_dmem_waddr_wb <= dmem_waddr;
+            f_dmem_wdata_wb <= dmem_wdata;
+            f_dmem_wstrb_wb <= dmem_wstrb;
+          end else if (f_pending_store) begin
+            f_mem_write_wb  <= 1'b1;
+            f_dmem_waddr_wb <= f_pending_waddr;
+            f_dmem_wdata_wb <= f_pending_wdata;
+            f_dmem_wstrb_wb <= f_pending_wstrb;
+          end else begin
+            f_mem_write_wb  <= 1'b0;
+            f_dmem_wstrb_wb <= '0;
+          end
+          f_pending_store <= 1'b0;
+
+          // Transfer load address: use current dmem_raddr if load is
+          // advancing in same cycle, otherwise use pending.
+          if (dmem_ren) begin
+            f_dmem_raddr_wb <= dmem_raddr;
+          end else if (f_pending_load) begin
+            f_dmem_raddr_wb <= f_pending_raddr;
+          end
+          f_pending_load <= 1'b0;
+        end
       end
     end
   end else begin : g_rvfi_store_passthrough
@@ -515,9 +571,21 @@ module svc_rv_stage_mem #(
   //
   // BRAM: passthrough (memory has 1-cycle latency)
   // SRAM: needs pipeline register (combinational memory)
+  //
+  // TODO: pass ld_rstrb as f_ signal from formatter instead of recomputing
   //===========================================================================
   localparam
       bit RVFI_RDATA_REG = (PIPELINED != 0) && (MEM_TYPE == MEM_TYPE_SRAM);
+
+  // Gate signal for rmask - must match timing of f_ld_fmt_rstrb
+  logic f_is_load_for_rstrb;
+  if (MEM_TYPE == MEM_TYPE_BRAM) begin : g_rstrb_gate_bram
+    // BRAM: f_ld_fmt_rstrb uses WB-stage signals, gate with WB timing
+    assign f_is_load_for_rstrb = (res_src_wb == RES_MEM);
+  end else begin : g_rstrb_gate_sram
+    // SRAM: f_ld_fmt_rstrb uses MEM-stage signals, gate with MEM timing
+    assign f_is_load_for_rstrb = mem_read_mem;
+  end
 
   svc_rv_pipe_data #(
       .WIDTH(XLEN + 4),
@@ -532,7 +600,7 @@ module svc_rv_stage_mem #(
       .s_valid(1'b0),
       .s_ready(1'b1),
 `endif
-      .data_i ({dmem_rdata, f_ld_fmt_rstrb}),
+      .data_i ({dmem_rdata, f_is_load_for_rstrb ? f_ld_fmt_rstrb : 4'b0}),
       .data_o ({f_dmem_rdata_wb, f_dmem_rstrb_wb})
   );
 `endif
