@@ -51,8 +51,8 @@ module svc_rv_stage_if_bram #(
     //
     // Instruction memory interface
     //
-    output logic        imem_arvalid,
-    output logic [31:0] imem_araddr,
+    output logic        imem_ren,
+    output logic [31:0] imem_raddr,
     input  logic [31:0] imem_rdata,
 
     //
@@ -100,18 +100,18 @@ module svc_rv_stage_if_bram #(
     //
     // Early fetch: Address with pc_next to fetch target in same cycle as prediction
     //
-    assign imem_araddr  = pc_next;
-    assign instr        = imem_rdata;
-    assign imem_arvalid = !rst_n || !pc_stall;
+    assign imem_raddr = pc_next;
+    assign instr      = imem_rdata;
+    assign imem_ren   = !rst_n || !pc_stall;
 
     `SVC_UNUSED({pc});
   end else begin : g_no_bpred_imem
     //
     // Normal fetch: Address with current PC
     //
-    assign imem_araddr  = pc;
-    assign instr        = imem_rdata;
-    assign imem_arvalid = !pc_stall;
+    assign imem_raddr = pc;
+    assign instr      = imem_rdata;
+    assign imem_ren   = !pc_stall;
 
     `SVC_UNUSED({pc_next})
   end
@@ -122,9 +122,9 @@ module svc_rv_stage_if_bram #(
   // BRAM has 1-cycle latency, so we buffer PC, BTB, and RAS predictions by one
   // cycle to align with the instruction coming out of memory.
   //
-  // We buffer imem_araddr (the actual fetch address):
-  // - With BPRED: imem_araddr = pc_next (early speculative fetch)
-  // - Without BPRED: imem_araddr = pc (normal fetch)
+  // We buffer imem_raddr (the actual fetch address):
+  // - With BPRED: imem_raddr = pc_next (early speculative fetch)
+  // - Without BPRED: imem_raddr = pc (normal fetch)
   //
   // This ensures the buffered PC always matches the instruction address,
   // even during stalls when pc might not have advanced to match pc_next.
@@ -154,8 +154,8 @@ module svc_rv_stage_if_bram #(
   //
   always_ff @(posedge clk) begin
     if (m_ready) begin
-      pc_buf       <= imem_araddr;
-      pc_plus4_buf <= imem_araddr + 4;
+      pc_buf       <= imem_raddr;
+      pc_plus4_buf <= imem_raddr + 4;
       btb_tgt_buf  <= btb_tgt_if;
       ras_tgt_buf  <= ras_tgt_if;
     end

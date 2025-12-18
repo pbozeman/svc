@@ -63,10 +63,9 @@ module svc_rv #(
     //
     // Instruction memory interface (read-only)
     //
-    output logic        imem_arvalid,
-    output logic [31:0] imem_araddr,
+    output logic        imem_ren,
+    output logic [31:0] imem_raddr,
     input  logic [31:0] imem_rdata,
-    input  logic        imem_rvalid,
 
     //
     // Data memory read interface
@@ -761,12 +760,10 @@ module svc_rv #(
   // verilog_format: off
   `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, trap_code_wb,
                wb_m_valid, instr_ret, pc_ret, rs1_data_ret, rs2_data_ret,
-               rd_data_ret, trap_ret, trap_code_ret, reg_write_ret,
-               imem_rvalid});
+               rd_data_ret, trap_ret, trap_code_ret, reg_write_ret});
   // verilog_format: on
 `else
-  `SVC_UNUSED(
-      {IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, wb_m_valid, imem_rvalid});
+  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, wb_m_valid});
 `endif
 
   `include "svc_rv_dbg.svh"

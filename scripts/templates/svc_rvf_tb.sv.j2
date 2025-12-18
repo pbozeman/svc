@@ -16,10 +16,9 @@ module {{ name }};
   //
   // Instruction memory signals
   //
-  logic        imem_arvalid;
-  logic [31:0] imem_araddr;
+  logic        imem_ren;
+  logic [31:0] imem_raddr;
   logic [31:0] imem_rdata;
-  logic        imem_rvalid;
 
   //
   // Data memory signals
@@ -70,10 +69,9 @@ module {{ name }};
       .clk  (clk),
       .rst_n(rst_n),
 
-      .imem_arvalid(imem_arvalid),
-      .imem_araddr (imem_araddr),
-      .imem_rdata  (imem_rdata),
-      .imem_rvalid (imem_rvalid),
+      .imem_ren  (imem_ren),
+      .imem_raddr(imem_raddr),
+      .imem_rdata(imem_rdata),
 
       .dmem_ren  (dmem_ren),
       .dmem_raddr(dmem_raddr),
@@ -113,10 +111,9 @@ module {{ name }};
   //
   logic [31:0] imem_rdata_any;
   logic [31:0] imem_rdata_reg;
-  logic        imem_rvalid_reg;
 
   always_comb begin
-    case (imem_araddr)
+    case (imem_raddr)
 {% for addr, insn in imem %}
       32'h{{ '%08x' % addr }}: imem_rdata_any = 32'h{{ '%08x' % insn }};
 {% endfor %}
@@ -126,32 +123,27 @@ module {{ name }};
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      imem_rdata_reg  <= 32'h00000013;
-      imem_rvalid_reg <= 1'b0;
+      imem_rdata_reg <= 32'h00000013;
     end else begin
-      imem_rvalid_reg <= imem_arvalid;
-      if (imem_arvalid) begin
+      if (imem_ren) begin
         imem_rdata_reg <= imem_rdata_any;
       end
     end
   end
 
-  assign imem_rdata  = imem_rdata_reg;
-  assign imem_rvalid = imem_rvalid_reg;
+  assign imem_rdata = imem_rdata_reg;
 {% else %}
   //
   // SRAM timing: combinational (0-cycle latency)
   //
   always_comb begin
-    case (imem_araddr)
+    case (imem_raddr)
 {% for addr, insn in imem %}
       32'h{{ '%08x' % addr }}: imem_rdata = 32'h{{ '%08x' % insn }};
 {% endfor %}
       default:      imem_rdata = 32'h00000013;
     endcase
   end
-
-  assign imem_rvalid = imem_arvalid;
 {% endif %}
 
   //
