@@ -400,6 +400,8 @@ module svc_rv_dmem_cache_if (
       // Multi-cycle operations
       `FCOVER(c_multi_cycle_read, $past(state == STATE_READ, 2) && $past(
               state == STATE_READ) && (state == STATE_IDLE));
+      `FCOVER(c_multi_cycle_write, $past(state == STATE_WRITE, 2) && $past(
+              state == STATE_WRITE) && (state == STATE_IDLE));
 
       // I/O bypass scenarios
       `FCOVER(c_io_read, $past(io_ren));
