@@ -373,6 +373,8 @@ module svc_rv_dmem_cache_if (
     if (f_past_valid && $past(rst_n) && rst_n) begin
       if ($past(state == STATE_READ) && (state == STATE_READ)) begin
         `FASSERT(a_rd_addr_stable, cache_rd_addr == $past(cache_rd_addr));
+        `FASSERT(a_io_sel_stable_during_read, io_sel_rd_p1 == $past(io_sel_rd_p1
+                 ));
       end
       if ($past(state == STATE_WRITE) && (state == STATE_WRITE)) begin
         `FASSERT(a_wr_addr_stable, cache_wr_addr == $past(cache_wr_addr));
