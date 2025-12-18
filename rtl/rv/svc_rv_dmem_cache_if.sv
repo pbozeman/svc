@@ -79,15 +79,17 @@ module svc_rv_dmem_cache_if (
   //
   // I/O select tracking for read response mux
   //
-  // Only update when pipeline can advance (stall=0), otherwise we'd change
-  // the mux selector while an older load is still in WB waiting to commit.
+  // Capture io_sel_rd when a read request is accepted (in IDLE, not during
+  // cooldown). This works for both IO reads (immediate) and cache reads
+  // (which transition to STATE_READ). We can't use dmem_stall because it
+  // goes high immediately when a cache read starts, before we can capture.
   //
   logic io_sel_rd_p1;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       io_sel_rd_p1 <= 1'b0;
-    end else if (dmem_ren && !dmem_stall) begin
+    end else if (state == STATE_IDLE && !completing && dmem_ren) begin
       io_sel_rd_p1 <= io_sel_rd;
     end
   end
