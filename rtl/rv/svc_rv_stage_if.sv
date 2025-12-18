@@ -64,8 +64,8 @@ module svc_rv_stage_if #(
     //
     // Instruction memory interface
     //
-    output logic        imem_arvalid,
-    output logic [31:0] imem_araddr,
+    output logic        imem_ren,
+    output logic [31:0] imem_raddr,
     input  logic [31:0] imem_rdata,
 
     //
@@ -136,8 +136,8 @@ module svc_rv_stage_if #(
         .btb_is_return_if       (btb_is_return_if),
         .ras_valid_if           (ras_valid_if),
         .ras_tgt_if             (ras_tgt_if),
-        .imem_arvalid           (imem_arvalid),
-        .imem_araddr            (imem_araddr),
+        .imem_ren               (imem_ren),
+        .imem_raddr             (imem_raddr),
         .imem_rdata             (imem_rdata),
         .instr_id               (instr_id),
         .pc_to_if_id            (pc_to_if_id),
@@ -169,8 +169,8 @@ module svc_rv_stage_if #(
         .btb_is_return_if       (btb_is_return_if),
         .ras_valid_if           (ras_valid_if),
         .ras_tgt_if             (ras_tgt_if),
-        .imem_arvalid           (imem_arvalid),
-        .imem_araddr            (imem_araddr),
+        .imem_ren               (imem_ren),
+        .imem_raddr             (imem_raddr),
         .imem_rdata             (imem_rdata),
         .instr_id               (instr_id),
         .pc_to_if_id            (pc_to_if_id),
@@ -318,18 +318,18 @@ module svc_rv_stage_if #(
   end
 
   //
-  // Verify imem_araddr matches expected value based on BPRED parameter
+  // Verify imem_raddr matches expected value based on BPRED parameter
   //
   // With BPRED: Use pc_next_if for speculative fetch (follow prediction)
   // Without BPRED: Use pc_if for normal fetch
   //
   if (PIPELINED != 0) begin : g_f_imem_check
     always_ff @(posedge clk) begin
-      if (f_past_valid && rst_n && imem_arvalid) begin
+      if (f_past_valid && rst_n && imem_ren) begin
         if (BPRED != 0) begin
-          `FASSERT(a_imem_addr_bpred, imem_araddr == pc_next_if);
+          `FASSERT(a_imem_addr_bpred, imem_raddr == pc_next_if);
         end else begin
-          `FASSERT(a_imem_addr_no_bpred, imem_araddr == pc_if);
+          `FASSERT(a_imem_addr_no_bpred, imem_raddr == pc_if);
         end
       end
     end
