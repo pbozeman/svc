@@ -342,13 +342,15 @@ module svc_rv_hazard #(
   // been fetched yet. But RAS predictions happen when JALR is in ID, after
   // the sequential instruction is already in the pipeline.
   //
-  // Only flush if pipeline is advancing (!data_hazard_id && !op_active_ex).
+  // Only flush if pipeline is advancing (!data_hazard_id && !op_active_ex &&
+  // !stall_ex). The stall_ex check prevents flushing during memory stalls
+  // (e.g., cache misses) which would corrupt pipeline state.
   //
   logic pred_flush;
 
   assign pc_predicted = (pc_sel == PC_SEL_PREDICTED);
   assign pred_flush = (pc_predicted && (!btb_pred_taken || ras_pred_taken) &&
-                       !data_hazard_id && !op_active_ex);
+                       !data_hazard_id && !op_active_ex && !stall_ex);
 
   if (PC_REG != 0) begin : g_registered_flush
     //
@@ -386,6 +388,26 @@ module svc_rv_hazard #(
   // op_active_ex bubbles EX output (multi-cycle ops not ready yet).
   //
   assign ex_mem_flush = (redir_valid_mem && !stall_mem) || op_active_ex;
+
+  // Gate on __ICARUS__ because svc_cur_tb (used for ad hoc instruction testing),
+  // runs under icarus, but also defines RISCV_FORMAL in order to view rvfi
+`ifndef __ICARUS__
+`ifdef FORMAL
+  `define SVC_HAZARD_ASSERT
+`else
+`ifdef RISCV_FORMAL
+  `define SVC_HAZARD_ASSERT
+`endif
+`endif
+`endif
+
+`ifdef SVC_HAZARD_ASSERT
+  // pred_flush should not fire during memory stalls
+  // (prediction redirect cannot proceed while pipeline is stalled)
+  always_comb begin
+    a_no_pred_flush_during_stall : assert (!(pred_flush && stall_ex));
+  end
+`endif
 
 endmodule
 
