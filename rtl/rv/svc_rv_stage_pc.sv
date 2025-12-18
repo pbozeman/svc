@@ -329,6 +329,40 @@ module svc_rv_stage_pc #(
   end
 
   //
+  // Redirect correctness assertions
+  //
+  // When redirect occurs and not stalled, PC should take redirect target
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      if ($past(!stall_pc) && $past(pc_sel == PC_SEL_REDIRECT)) begin
+        `FASSERT(a_redirect_target, pc == $past(pc_redir_tgt));
+      end
+    end
+  end
+
+  //
+  // Stall release assertions
+  //
+  // Check pc_next (not pc) because pc hasn't updated yet at the clock edge.
+  // Use current pc_sel/targets since stability assumptions guarantee they
+  // equal their $past values when $past(stall_pc) is true.
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      if ($past(stall_pc) && !stall_pc) begin
+        case (pc_sel)
+          PC_SEL_REDIRECT:
+          `FASSERT(a_stall_release_redirect, pc_next == pc_redir_tgt);
+          PC_SEL_PREDICTED:
+          `FASSERT(a_stall_release_predicted, pc_next == pred_tgt);
+          default: `FASSERT(a_stall_release_sequential, pc_next == pc + 4);
+        endcase
+      end
+    end
+  end
+
+  //
   // Cover properties
   //
   always_ff @(posedge clk) begin
@@ -338,6 +372,10 @@ module svc_rv_stage_pc #(
 
       // stalled cycle followed by non-stalled cycle
       `FCOVER(c_stalled, $past(stall_pc) && !stall_pc);
+
+      // redirect while stalled, then stall releases
+      `FCOVER(c_redirect_during_stall, $past(stall_pc, 2) && $past(
+              pc_sel == PC_SEL_REDIRECT) && $past(!stall_pc) && !stall_pc);
     end
   end
 
