@@ -20,6 +20,7 @@ endif
 F_BUILD_DIR := $(BUILD_DIR)/formal
 
 SBY := sby
+SBY_J ?=
 
 #
 # Skip SVC formal if the directory doesn't exist (e.g., in consumer projects)
@@ -98,6 +99,7 @@ $(foreach tb, $(F_MODULES), $(eval $(call lint_f_rule,$(tb))))
 F_RUN_FILES := $(addprefix $(F_BUILD_DIR)/,$(addsuffix _f/ran, $(F_MODULES)))
 
 .PHONY: svc_f
+svc_f: SBY_J := -j1
 svc_f: f_clean_logs $(F_RUN_FILES)
 	@if [ -s $(F_BUILD_DIR)/f_failure.log ] && [ -z "$(F_SILENT)" ]; then \
 	  echo "=============================="; \
@@ -130,7 +132,7 @@ $(F_TARGETS): %_f : $(F_BUILD_DIR)/%_f/ran ;
 
 define f_run_formal
 	@echo "$1" >> $(F_BUILD_DIR)/f_run.log
-	@$(SBY) --prefix $(F_BUILD_DIR)/$1_f -f $(PRJ_FORMAL_DIR)/$1.sby\
+	@$(SBY) $(SBY_J) --prefix $(F_BUILD_DIR)/$1_f -f $(PRJ_FORMAL_DIR)/$1.sby\
 		&& (echo "$1" >> $(F_BUILD_DIR)/f_success.log && touch $(F_BUILD_DIR)/$1_f/ran)\
 		|| (echo "make $1_f" >> $(F_BUILD_DIR)/f_failure.log && rm -f $(F_BUILD_DIR)/$1_f/ran)
 endef
@@ -148,6 +150,7 @@ $(F_BUILD_DIR)/%_f/ran.d: $(F_BUILD_DIR)/%_f/ran.dep
 # Run all test benches sequentially and show summary
 .PHONY: f_run
 f_run: SKIP_SLOW_TESTS := 1
+f_run: SBY_J := -j1
 f_run: lint_f f_clean_logs $(F_TARGETS)
 
 define f_full_report

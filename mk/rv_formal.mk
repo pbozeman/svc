@@ -102,6 +102,7 @@ rv_f: $(RV_F_GENCHECK_STAMP)
 
 # Separate target that runs after gencheck so RV_F_SBY_FILES is populated
 .PHONY: rv_f_run
+rv_f_run: SBY_J := -j1
 rv_f_run: $(RV_F_RUN_FILES)
 	@if [ -s $(RV_F_BUILD_DIR)/rv_f_failure.log ] && [ -z "$(RV_F_SILENT)" ]; then \
 	  echo "=============================="; \
@@ -152,7 +153,7 @@ define rv_f_run_check
 	@mkdir -p $(RV_F_BUILD_DIR)/$(RV_F_TGT)
 	@touch $(RV_F_BUILD_DIR)/rv_f_run.log $(RV_F_BUILD_DIR)/rv_f_success.log $(RV_F_BUILD_DIR)/rv_f_failure.log
 	@echo "$(RV_F_TGT)" >> $(RV_F_BUILD_DIR)/rv_f_run.log
-	@$(SBY) --prefix $(RV_F_BUILD_DIR)/$(RV_F_TGT) -f $(RV_F_DIR)/$(RV_F_CFG)/$(RV_F_CHK).sby \
+	@$(SBY) $(SBY_J) --prefix $(RV_F_BUILD_DIR)/$(RV_F_TGT) -f $(RV_F_DIR)/$(RV_F_CFG)/$(RV_F_CHK).sby \
 		&& echo "$(RV_F_TGT)" >> $(RV_F_BUILD_DIR)/rv_f_success.log \
 		|| echo "make rv_$(RV_F_TGT)_f" >> $(RV_F_BUILD_DIR)/rv_f_failure.log
 	@if [ -f $(RV_F_BUILD_DIR)/$(RV_F_TGT)/FAIL ]; then \
