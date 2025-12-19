@@ -1,18 +1,24 @@
 [tasks]
 bmc_direct
 bmc_twoway
+bmc_wide
 cover_direct
 cover_twoway
+cover_wide
 
 [options]
 bmc_direct: mode bmc
 bmc_direct: depth 7
 bmc_twoway: mode bmc
 bmc_twoway: depth 7
+bmc_wide: mode bmc
+bmc_wide: depth 8
 cover_direct: mode cover
 cover_direct: depth 7
 cover_twoway: mode cover
 cover_twoway: depth 7
+cover_wide: mode cover
+cover_wide: depth 8
 
 [engines]
 smtbmc boolector
@@ -42,17 +48,23 @@ for f in faxil_files:
 output(read_cmd)
 --pycode-end--
 
-bmc_direct: chparam -set TWO_WAY 0 svc_cache_axi
+bmc_direct: chparam -set TWO_WAY 0 -set AXI_DATA_WIDTH 32 -set CACHE_LINE_BYTES 8 svc_cache_axi
 bmc_direct: prep -top svc_cache_axi
 
-bmc_twoway: chparam -set TWO_WAY 1 svc_cache_axi
+bmc_twoway: chparam -set TWO_WAY 1 -set AXI_DATA_WIDTH 32 -set CACHE_LINE_BYTES 8 svc_cache_axi
 bmc_twoway: prep -top svc_cache_axi
 
-cover_direct: chparam -set TWO_WAY 0 svc_cache_axi
+bmc_wide: chparam -set TWO_WAY 0 -set AXI_DATA_WIDTH 64 -set CACHE_LINE_BYTES 16 svc_cache_axi
+bmc_wide: prep -top svc_cache_axi
+
+cover_direct: chparam -set TWO_WAY 0 -set AXI_DATA_WIDTH 32 -set CACHE_LINE_BYTES 8 svc_cache_axi
 cover_direct: prep -top svc_cache_axi
 
-cover_twoway: chparam -set TWO_WAY 1 svc_cache_axi
+cover_twoway: chparam -set TWO_WAY 1 -set AXI_DATA_WIDTH 32 -set CACHE_LINE_BYTES 8 svc_cache_axi
 cover_twoway: prep -top svc_cache_axi
+
+cover_wide: chparam -set TWO_WAY 0 -set AXI_DATA_WIDTH 64 -set CACHE_LINE_BYTES 16 svc_cache_axi
+cover_wide: prep -top svc_cache_axi
 
 [files]
 --pycode-begin--

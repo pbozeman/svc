@@ -20,6 +20,18 @@
 //   Trade-off: Extra combinational logic to track which beat contains the
 //   requested word and mux between current AXI data vs captured data.
 //
+// Partial Write Handling:
+//   Partial writes (wr_strb != 4'b1111) invalidate the cache line rather than
+//   updating it. This avoids read-modify-write which would require an extra
+//   read port.
+//
+//   Trade-off: Subsequent reads to that line will miss and refetch from memory.
+//   This only affects partial writes to already-cached lines.
+//
+//   Potential optimization: Pipeline the RMW by reading data_table on the
+//   cycle before the write, then merge and write on the next cycle. This
+//   would restore single-cycle hit latency for partial writes.
+//
 //   Potential optimizations:
 //   - If CACHE_LINE_BYTES <= AXI_DATA_WIDTH/8 (single beat), the beat
 //     tracking logic could be simplified
@@ -29,6 +41,9 @@
 // TODO: Future enhancements
 //   - Write-allocate: On write miss, fetch line first then update
 //   - Write-back: Track dirty bits, writeback on eviction
+//
+// TODO: the fill buffers are more vibe coded than the rest of the
+// microarchitecture. Needs deeper review.
 //
 module svc_cache_axi #(
     parameter int CACHE_SIZE_BYTES = 4096,
@@ -118,11 +133,18 @@ module svc_cache_axi #(
 
   localparam int WORD_IDX_WIDTH = $clog2(WORDS_PER_LINE);
 
+  // Flattened data table addressing
+  localparam int DATA_TABLE_DEPTH = NUM_SETS * NUM_WAYS * WORDS_PER_LINE;
+  localparam int DATA_TABLE_AW = $clog2(DATA_TABLE_DEPTH);
+
   localparam logic [AXI_ID_WIDTH-1:0] AXI_ID = 0;
   localparam int AXI_DATA_BYTES = AXI_DATA_WIDTH / 8;
   localparam int AXI_ARLEN = CACHE_LINE_BYTES / AXI_DATA_BYTES - 1;
   localparam int AXI_ARSIZE = $clog2(AXI_DATA_BYTES);
   localparam int WORDS_PER_BEAT = AXI_DATA_WIDTH / 32;
+
+  // Width for fill word counter - at least 1 bit even when WORDS_PER_BEAT=1
+  localparam int FILL_WORD_CNT_W = (WORDS_PER_BEAT > 1) ? $clog2(WORDS_PER_BEAT) : 1;
 
   // ===========================================================================
   // Signal declarations
@@ -154,8 +176,9 @@ module svc_cache_axi #(
   logic valid_table[NUM_SETS][NUM_WAYS];
   logic lru_table[NUM_SETS];
 
+  // Flattened 1D array for better BRAM inference on iCE40
   (* ram_style = "block" *)
-  logic [31:0] data_table[NUM_SETS][NUM_WAYS][WORDS_PER_LINE];
+  logic [31:0] data_table[DATA_TABLE_DEPTH];
 
   //
   // Cache lookup
@@ -247,18 +270,19 @@ module svc_cache_axi #(
   //
   assign way0_valid = valid_table[addr_set][0];
   assign way0_tag = tag_table[addr_set][0];
-  assign way0_data = data_table[addr_set][0][addr_offset];
   assign way0_hit = way0_valid && (way0_tag == addr_tag);
 
   //
   // Way 1 lookup (only for 2-way)
   //
   if (TWO_WAY) begin : gen_way1
+    assign way0_data  = data_table[{addr_set, 1'b0, addr_offset}];
     assign way1_valid = valid_table[addr_set][1];
     assign way1_tag   = tag_table[addr_set][1];
-    assign way1_data  = data_table[addr_set][1][addr_offset];
+    assign way1_data  = data_table[{addr_set, 1'b1, addr_offset}];
     assign way1_hit   = way1_valid && (way1_tag == addr_tag);
   end else begin : gen_no_way1
+    assign way0_data  = data_table[{addr_set, addr_offset}];
     assign way1_valid = 1'b0;
     assign way1_tag   = '0;
     assign way1_data  = '0;
@@ -342,8 +366,7 @@ module svc_cache_axi #(
       end
 
       STATE_READ_BURST: begin
-        // m_axi_rready is always true, so we accept data every cycle
-        if (m_axi_rvalid) begin
+        if (m_axi_rvalid && m_axi_rready) begin
           beat_word_idx_next = beat_word_idx + WORD_IDX_WIDTH'(WORDS_PER_BEAT);
           if (m_axi_rlast) begin
             state_next = STATE_IDLE;
@@ -421,9 +444,9 @@ module svc_cache_axi #(
        {1'b0, beat_word_idx} + (WORD_IDX_WIDTH + 1)'(WORDS_PER_BEAT));
   assign fill_word_pos = fill_addr_offset - beat_word_idx;
 
-  // Capture the requested word when its beat arrives
+  // Capture the requested word when its beat arrives (on actual handshake)
   always_ff @(posedge clk) begin
-    if (state == STATE_READ_BURST && m_axi_rvalid && fill_beat_hit) begin
+    if (m_axi_rvalid && m_axi_rready && fill_beat_hit) begin
       fill_data_reg <= m_axi_rdata[fill_word_pos*32+:32];
     end
   end
@@ -433,50 +456,134 @@ module svc_cache_axi #(
                       fill_data_reg);
 
   // ===========================================================================
-  // Cache update on write hit
+  // Data table write (single write port for bram compatibility)
   // ===========================================================================
+  //
+  // Merge fill and write-through paths into single always_ff to enable
+  // synthesis to simple dual-port RAM (1 read + 1 write).
+  //
+  // For WORDS_PER_BEAT > 1, fill writes are serialized across cycles.
+  // This increases fill latency but maintains single-port compatibility.
+  //
 
-  //
-  // Write-through: update cache when we accept the write (before STATE_WRITE)
-  //
-  always_ff @(posedge clk) begin
-    if ((state == STATE_IDLE) && wr_valid && wr_hit) begin
-      if (wr_strb[0])
-        data_table[wr_addr_set][wr_hit_way][wr_addr_offset][7:0] <=
-            wr_data[7:0];
-      if (wr_strb[1])
-        data_table[wr_addr_set][wr_hit_way][wr_addr_offset][15:8] <=
-            wr_data[15:8];
-      if (wr_strb[2])
-        data_table[wr_addr_set][wr_hit_way][wr_addr_offset][23:16] <=
-            wr_data[23:16];
-      if (wr_strb[3])
-        data_table[wr_addr_set][wr_hit_way][wr_addr_offset][31:24] <=
-            wr_data[31:24];
-    end
-  end
+  // Combinational write control signals
+  logic                      data_wr_en;
+  logic [    SET_WIDTH-1:0]  data_wr_set;
+  logic                      data_wr_way;
+  logic [WORD_IDX_WIDTH-1:0] data_wr_idx;
+  logic [             31:0]  data_wr_word;
+  logic [              3:0]  data_wr_strb;
 
-  // ===========================================================================
-  // Data table write on each AXI beat
-  // ===========================================================================
+  // Fill word counter for serializing multi-word beats
+  logic [FILL_WORD_CNT_W-1:0] fill_word_cnt;
+  logic [FILL_WORD_CNT_W-1:0] fill_word_cnt_next;
+  logic                              fill_beat_pending;
+  logic                              fill_beat_pending_next;
 
-  //
-  // With 128-bit AXI, this writes 4 words (128 bits) per cycle. This exceeds
-  // single BRAM write width (72 bits max on Xilinx), so synthesizer will
-  // bank multiple BRAMs in parallel. Prioritizes fill latency over BRAM count.
-  //
-  always_ff @(posedge clk) begin
-    if (state == STATE_READ_BURST && m_axi_rvalid) begin
-      for (int i = 0; i < WORDS_PER_BEAT; i++) begin
-        data_table[fill_addr_set][fill_way][beat_word_idx+WORD_IDX_WIDTH'(i)] <=
-            m_axi_rdata[i*32+:32];
+  // Latch AXI data and beat index when beat arrives (for multi-word serialization)
+  logic [  AXI_DATA_WIDTH-1:0] fill_beat_data;
+  logic [WORD_IDX_WIDTH-1:0]   fill_beat_word_idx;
+
+  always_comb begin
+    data_wr_en   = 1'b0;
+    data_wr_set  = '0;
+    data_wr_way  = '0;
+    data_wr_idx  = '0;
+    data_wr_word = '0;
+    data_wr_strb = 4'b1111;
+
+    fill_word_cnt_next     = fill_word_cnt;
+    fill_beat_pending_next = fill_beat_pending;
+
+    // Fill path (higher priority) - write one word per cycle
+    if (fill_beat_pending || (m_axi_rvalid && m_axi_rready)) begin
+      data_wr_en  = 1'b1;
+      data_wr_set = fill_addr_set;
+      data_wr_way = fill_way;
+
+      // Select word from current or latched beat data
+      if (!fill_beat_pending) begin
+        // First word of new beat - use current values
+        data_wr_idx  = beat_word_idx + WORD_IDX_WIDTH'(fill_word_cnt);
+        data_wr_word = m_axi_rdata[fill_word_cnt*32+:32];
+      end else begin
+        // Subsequent words - use latched values
+        data_wr_idx  = fill_beat_word_idx + WORD_IDX_WIDTH'(fill_word_cnt);
+        data_wr_word = fill_beat_data[fill_word_cnt*32+:32];
+      end
+
+      // Advance word counter
+      if (fill_word_cnt == FILL_WORD_CNT_W'(WORDS_PER_BEAT - 1)) begin
+        fill_word_cnt_next     = '0;
+        fill_beat_pending_next = 1'b0;
+      end else begin
+        fill_word_cnt_next     = fill_word_cnt + 1'b1;
+        fill_beat_pending_next = 1'b1;
       end
     end
+    // Write-through path (only when idle and not filling)
+    else if ((state == STATE_IDLE) && wr_valid && wr_hit) begin
+      data_wr_en   = 1'b1;
+      data_wr_set  = wr_addr_set;
+      data_wr_way  = wr_hit_way;
+      data_wr_idx  = wr_addr_offset;
+      data_wr_word = wr_data;
+      data_wr_strb = wr_strb;
+    end
+  end
+
+  // Fill serialization state
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      fill_word_cnt     <= '0;
+      fill_beat_pending <= 1'b0;
+    end else begin
+      fill_word_cnt     <= fill_word_cnt_next;
+      fill_beat_pending <= fill_beat_pending_next;
+    end
+  end
+
+  // Latch beat data and index for multi-word serialization
+  always_ff @(posedge clk) begin
+    if (m_axi_rvalid && m_axi_rready && !fill_beat_pending) begin
+      fill_beat_data     <= m_axi_rdata;
+      fill_beat_word_idx <= beat_word_idx;
+    end
+  end
+
+  // Single write port to data_table
+  //
+  // For partial writes (strb != 4'b1111), we skip the cache update since this
+  // is a write-through cache and memory has the correct data. The cache line
+  // will be refetched on the next miss. This avoids needing read-modify-write
+  // which would require an extra read port that iCE40 RAM4K doesn't support.
+  //
+  logic [DATA_TABLE_AW-1:0] data_wr_addr;
+
+  if (TWO_WAY) begin : gen_wr_addr_2way
+    assign data_wr_addr = {data_wr_set, data_wr_way, data_wr_idx};
+  end else begin : gen_wr_addr_direct
+    assign data_wr_addr = {data_wr_set, data_wr_idx};
+  end
+
+  always_ff @(posedge clk) begin
+    if (data_wr_en && (data_wr_strb == 4'b1111)) begin
+      data_table[data_wr_addr] <= data_wr_word;
+    end
   end
 
   // ===========================================================================
-  // Update valid on fill completion
+  // Update valid on fill completion or partial write invalidation
   // ===========================================================================
+  //
+  // Partial writes (strb != 4'b1111) invalidate the cache line since we can't
+  // do read-modify-write without an extra read port. The line will be refetched
+  // from memory on the next access.
+  //
+  logic partial_write_hit;
+  assign partial_write_hit = (state == STATE_IDLE) && wr_valid && wr_hit &&
+                             (wr_strb != 4'b1111);
+
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       for (int s = 0; s < NUM_SETS; s++) begin
@@ -484,6 +591,8 @@ module svc_cache_axi #(
           valid_table[s][w] <= 1'b0;
         end
       end
+    end else if (partial_write_hit) begin
+      valid_table[wr_addr_set][wr_hit_way] <= 1'b0;
     end else if (fill_done) begin
       valid_table[fill_addr_set][fill_way] <= 1'b1;
     end
@@ -533,7 +642,8 @@ module svc_cache_axi #(
   assign m_axi_arlen   = AXI_ARLEN[7:0];
   assign m_axi_arsize  = AXI_ARSIZE[2:0];
   assign m_axi_arburst = 2'b01;
-  assign m_axi_rready  = 1'b1;
+  // Stall AXI reads while serializing multi-word beats
+  assign m_axi_rready  = !fill_beat_pending;
 
   // ===========================================================================
   // AXI write address channel
@@ -665,7 +775,8 @@ module svc_cache_axi #(
   end
 
   if (TWO_WAY == 0) begin : gen_unused_direct
-    `SVC_UNUSED({way0_tag, way1_tag, way0_valid, way1_valid, lru_table});
+    `SVC_UNUSED({way0_tag, way1_tag, way0_valid, way1_valid, lru_table,
+                 data_wr_way});
   end
 
   // ===========================================================================
@@ -842,7 +953,7 @@ module svc_cache_axi #(
       f_beat_idx <= '0;
     end else if (state == STATE_IDLE && state_next == STATE_READ_BURST) begin
       f_beat_idx <= '0;
-    end else if (state == STATE_READ_BURST && m_axi_rvalid) begin
+    end else if (m_axi_rvalid && m_axi_rready) begin
       f_beat_data[f_beat_idx[$clog2(F_BEATS_PER_LINE)-1:0]] <= m_axi_rdata;
       f_beat_idx <= f_beat_idx + 1'b1;
     end
@@ -865,7 +976,15 @@ module svc_cache_axi #(
   // instead of the AXI data that was written to the table).
   //
   logic [31:0] f_stored_word;
-  assign f_stored_word = data_table[f_req_set][fill_way][f_req_offset];
+  logic [DATA_TABLE_AW-1:0] f_stored_addr;
+
+  if (TWO_WAY) begin : gen_f_addr_2way
+    assign f_stored_addr = {f_req_set, fill_way, f_req_offset};
+  end else begin : gen_f_addr_direct
+    assign f_stored_addr = {f_req_set, f_req_offset};
+  end
+
+  assign f_stored_word = data_table[f_stored_addr];
 
   always_ff @(posedge clk) begin
     if (f_past_valid && rst_n && $past(rst_n)) begin
@@ -895,7 +1014,17 @@ module svc_cache_axi #(
         `FCOVER(c_fill_word_in_first_beat, fill_done && f_target_beat == 0);
         // Word in last beat
         `FCOVER(c_fill_word_in_last_beat,
-                fill_done && f_target_beat == (F_BEATS_PER_LINE - 1));
+                fill_done &&
+                f_target_beat == $clog2(F_BEATS_PER_LINE)'(F_BEATS_PER_LINE - 1));
+      end
+
+      // Cover serialization path (WORDS_PER_BEAT > 1)
+      if (WORDS_PER_BEAT > 1) begin
+        // Serialization in progress (stalling AXI rready)
+        `FCOVER(c_fill_beat_pending, fill_beat_pending);
+        // Complete fill with serialization
+        `FCOVER(c_fill_done_after_serialization,
+                fill_done && $past(fill_beat_pending));
       end
     end
   end
