@@ -188,11 +188,11 @@ task automatic test_write_strobe;
   `TICK(clk);
   `CHECK_WAIT_FOR(clk, uut.state == STATE_IDLE, 10);
 
-  // Read back - should have only low byte changed
+  // Read back - cache line was invalidated, so this will be a miss
+  // Memory has correct merged data, wait for refetch
   rd_addr     = 32'h500;
   rd_valid_in = 1;
-  `TICK(clk);
-  `CHECK_TRUE(rd_data_valid);
+  `CHECK_WAIT_FOR(clk, rd_data_valid, 20);
   `CHECK_EQ(rd_data, 32'hABCDEFAA);
 endtask
 
