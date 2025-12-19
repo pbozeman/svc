@@ -6,13 +6,13 @@ cover_twoway
 
 [options]
 bmc_direct: mode bmc
-bmc_direct: depth 5
+bmc_direct: depth 7
 bmc_twoway: mode bmc
-bmc_twoway: depth 5
+bmc_twoway: depth 7
 cover_direct: mode cover
-cover_direct: depth 8
+cover_direct: depth 7
 cover_twoway: mode cover
-cover_twoway: depth 8
+cover_twoway: depth 7
 
 [engines]
 smtbmc boolector

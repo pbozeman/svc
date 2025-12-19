@@ -12,6 +12,20 @@
 //   - Write hit:  Update cache AND write to memory
 //   - Write miss: Write to memory only (no cache fill)
 //
+// Fill Buffer:
+//   On cache miss, data is captured directly from AXI as each beat arrives
+//   (fill_data_reg) rather than reading from data_table after the fill.
+//   This avoids the BRAM read-after-write hazard that would return stale data.
+//
+//   Trade-off: Extra combinational logic to track which beat contains the
+//   requested word and mux between current AXI data vs captured data.
+//
+//   Potential optimizations:
+//   - If CACHE_LINE_BYTES <= AXI_DATA_WIDTH/8 (single beat), the beat
+//     tracking logic could be simplified
+//   - Alternatively, (optionally) accept 1-cycle latency after fill_done
+//     and read from data_table (simpler logic, higher latency)
+//
 // TODO: Future enhancements
 //   - Write-allocate: On write miss, fetch line first then update
 //   - Write-back: Track dirty bits, writeback on eviction
@@ -166,7 +180,6 @@ module svc_cache_axi #(
   logic fill_way_next;
   logic fill_done;
   logic evict_way;
-  logic [31:0] fill_data;
 
   //
   // Registered address for fill operations
@@ -387,6 +400,39 @@ module svc_cache_axi #(
   end
 
   // ===========================================================================
+  // Extract fill data from AXI
+  // ===========================================================================
+  //
+  // Capture the requested word when its beat arrives during the fill.
+  // We can't wait until fill_done because by then m_axi_rdata may contain
+  // a different beat's data.
+  //
+  // Check if the current beat contains the requested word. A word is in
+  // the current beat if: beat_word_idx <= fill_addr_offset < beat_word_idx + WORDS_PER_BEAT
+  //
+  logic                      fill_beat_hit;
+  logic [WORD_IDX_WIDTH-1:0] fill_word_pos;
+  logic [              31:0] fill_data_reg;
+  logic [              31:0] fill_data;
+
+  // Use wider arithmetic to avoid overflow when checking beat range
+  assign fill_beat_hit = (fill_addr_offset >= beat_word_idx) &&
+      ({1'b0, fill_addr_offset} <
+       {1'b0, beat_word_idx} + (WORD_IDX_WIDTH + 1)'(WORDS_PER_BEAT));
+  assign fill_word_pos = fill_addr_offset - beat_word_idx;
+
+  // Capture the requested word when its beat arrives
+  always_ff @(posedge clk) begin
+    if (state == STATE_READ_BURST && m_axi_rvalid && fill_beat_hit) begin
+      fill_data_reg <= m_axi_rdata[fill_word_pos*32+:32];
+    end
+  end
+
+  // Use captured data, or extract from current beat if it just arrived
+  assign fill_data = (fill_beat_hit ? m_axi_rdata[fill_word_pos*32+:32] :
+                      fill_data_reg);
+
+  // ===========================================================================
   // Cache update on write hit
   // ===========================================================================
 
@@ -569,7 +615,9 @@ module svc_cache_axi #(
   // ===========================================================================
   // Cache responses
   // ===========================================================================
-  assign fill_data = data_table[fill_addr_set][fill_way][fill_addr_offset];
+  //
+  // Use captured data for fill responses (avoids read-after-write hazard)
+  //
   assign rd_data_valid_next = (rd_valid && rd_ready && hit) || fill_done;
 
   //
@@ -577,8 +625,10 @@ module svc_cache_axi #(
   //
   // Register rd_data when rd_data_valid_next is high. This ensures rd_data
   // is stable and correct when rd_data_valid goes high on the next cycle.
-  // Without this, fill responses would use hit_data (derived from current
-  // rd_addr) instead of the registered fill address.
+  //
+  // For fills, we use fill_data which is extracted directly
+  // from m_axi_rdata in the same cycle. This avoids the read-after-write
+  // hazard with data_table.
   //
   logic [31:0] rd_data_reg;
 
@@ -775,6 +825,60 @@ module svc_cache_axi #(
   end
 
   //
+  // Fill data correctness verification
+  //
+  // Track data from each AXI beat and verify the correct word is returned.
+  // This catches bugs where the wrong beat's data is used (e.g., due to
+  // arithmetic overflow in beat range calculations).
+  //
+  localparam int F_BEATS_PER_LINE = CACHE_LINE_BYTES / (AXI_DATA_WIDTH / 8);
+
+  // Capture data from each beat during fill
+  logic [        AXI_DATA_WIDTH-1:0] f_beat_data[F_BEATS_PER_LINE];
+  logic [$clog2(F_BEATS_PER_LINE):0] f_beat_idx;
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      f_beat_idx <= '0;
+    end else if (state == STATE_IDLE && state_next == STATE_READ_BURST) begin
+      f_beat_idx <= '0;
+    end else if (state == STATE_READ_BURST && m_axi_rvalid) begin
+      f_beat_data[f_beat_idx[$clog2(F_BEATS_PER_LINE)-1:0]] <= m_axi_rdata;
+      f_beat_idx <= f_beat_idx + 1'b1;
+    end
+  end
+
+  // Calculate which beat contains the requested word and its position
+  logic [$clog2(F_BEATS_PER_LINE)-1:0] f_target_beat;
+  logic [  $clog2(WORDS_PER_BEAT)-1:0] f_word_in_target_beat;
+  logic [                        31:0] f_expected_word;
+
+  assign f_target_beat = f_req_offset[WORD_IDX_WIDTH-1:$clog2(WORDS_PER_BEAT)];
+  assign f_word_in_target_beat = f_req_offset[$clog2(WORDS_PER_BEAT)-1:0];
+  assign f_expected_word =
+      f_beat_data[f_target_beat][f_word_in_target_beat*32+:32];
+
+  // When fill completes and rd_data_valid goes high, verify data correctness
+  //
+  // Check against what was actually stored in data_table. This catches bugs
+  // where rd_data comes from the wrong source (e.g., stale fill_data
+  // instead of the AXI data that was written to the table).
+  //
+  logic [31:0] f_stored_word;
+  assign f_stored_word = data_table[f_req_set][fill_way][f_req_offset];
+
+  always_ff @(posedge clk) begin
+    if (f_past_valid && rst_n && $past(rst_n)) begin
+      if (rd_data_valid && $past(fill_done)) begin
+        // rd_data must match what we stored in the cache
+        `FASSERT(a_fill_data_matches_table, rd_data == f_stored_word);
+        // And that should match what AXI delivered
+        `FASSERT(a_fill_data_correct, rd_data == f_expected_word);
+      end
+    end
+  end
+
+  //
   // Covers
   //
   always_ff @(posedge clk) begin
@@ -783,6 +887,16 @@ module svc_cache_axi #(
               ) == STATE_IDLE && state == STATE_READ_BURST);
       `FCOVER(c_fill_done, fill_done);
       `FCOVER(c_hit_after_fill, $past(fill_done) && rd_valid && hit);
+
+      // Cover fills where requested word is in different beats
+      // These catches bugs in beat range calculations
+      if (F_BEATS_PER_LINE > 1) begin
+        // Word in first beat (beat 0)
+        `FCOVER(c_fill_word_in_first_beat, fill_done && f_target_beat == 0);
+        // Word in last beat
+        `FCOVER(c_fill_word_in_last_beat,
+                fill_done && f_target_beat == (F_BEATS_PER_LINE - 1));
+      end
     end
   end
 
