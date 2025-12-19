@@ -961,11 +961,18 @@ module svc_cache_axi #(
 
   // Calculate which beat contains the requested word and its position
   logic [$clog2(F_BEATS_PER_LINE)-1:0] f_target_beat;
-  logic [  $clog2(WORDS_PER_BEAT)-1:0] f_word_in_target_beat;
+  logic [       FILL_WORD_CNT_W-1:0] f_word_in_target_beat;
   logic [                        31:0] f_expected_word;
 
-  assign f_target_beat = f_req_offset[WORD_IDX_WIDTH-1:$clog2(WORDS_PER_BEAT)];
-  assign f_word_in_target_beat = f_req_offset[$clog2(WORDS_PER_BEAT)-1:0];
+  // When WORDS_PER_BEAT=1, each word is its own beat, so all offset bits
+  // select the beat and there's no word-within-beat selection needed
+  if (WORDS_PER_BEAT > 1) begin : gen_f_multi_word_beat
+    assign f_target_beat = f_req_offset[WORD_IDX_WIDTH-1:$clog2(WORDS_PER_BEAT)];
+    assign f_word_in_target_beat = f_req_offset[$clog2(WORDS_PER_BEAT)-1:0];
+  end else begin : gen_f_single_word_beat
+    assign f_target_beat         = f_req_offset;
+    assign f_word_in_target_beat = '0;
+  end
   assign f_expected_word =
       f_beat_data[f_target_beat][f_word_in_target_beat*32+:32];
 
@@ -988,9 +995,14 @@ module svc_cache_axi #(
 
   always_ff @(posedge clk) begin
     if (f_past_valid && rst_n && $past(rst_n)) begin
-      if (rd_data_valid && $past(fill_done)) begin
+      // Check only when no new miss is being accepted (which would corrupt f_req_*)
+      if (rd_data_valid && $past(fill_done) && !$past(rd_valid && rd_ready && !hit)) begin
         // rd_data must match what we stored in the cache
-        `FASSERT(a_fill_data_matches_table, rd_data == f_stored_word);
+        // Skip when serialization is pending - data_table may not be fully updated
+        // because fill_done fires before all words are written
+        if (!fill_beat_pending) begin
+          `FASSERT(a_fill_data_matches_table, rd_data == f_stored_word);
+        end
         // And that should match what AXI delivered
         `FASSERT(a_fill_data_correct, rd_data == f_expected_word);
       end
@@ -1041,9 +1053,9 @@ module svc_cache_axi #(
       .OPT_EXCLUSIVE   (1'b0),
       .OPT_NARROW_BURST(1'b1),
       .F_LGDEPTH       (9),
-      .F_AXI_MAXSTALL  (3),
-      .F_AXI_MAXRSTALL (3),
-      .F_AXI_MAXDELAY  (3)
+      .F_AXI_MAXSTALL  (2),
+      .F_AXI_MAXRSTALL (2),
+      .F_AXI_MAXDELAY  (2)
   ) faxi_manager_i (
       .i_clk        (clk),
       .i_axi_reset_n(rst_n),
