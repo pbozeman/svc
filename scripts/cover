@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+
+"""
+Run formal cover tasks and report max depth reached.
+Usage: ./scripts/cover <module> <task1> [task2] ...
+Example: ./scripts/cover svc_cache_axi cover_direct cover_twoway cover_wide
+"""
+
+import subprocess
+import sys
+import re
+from collections import defaultdict
+
+
+def run_cover(module: str, task: str) -> dict:
+    """Run a single cover task and return results."""
+    target = f"{module}_f_{task}"
+    result = {
+        "target": target,
+        "reached": [],
+        "unreached": [],
+        "max_step": 0,
+    }
+
+    cmd = ["./scripts/formal", module, task]
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+    )
+
+    for line in proc.stdout:
+        print(line, end="", flush=True)
+
+        # "Reached cover statement in step 9 at ..."
+        m = re.search(r"Reached cover statement in step (\d+)", line)
+        if m:
+            step = int(m.group(1))
+            result["reached"].append(step)
+            if step > result["max_step"]:
+                result["max_step"] = step
+
+        # "Unreached cover statement at module: cover_name"
+        if "Unreached cover statement" in line:
+            m2 = re.search(r"Unreached cover statement at \S+: (\S+)", line)
+            name = m2.group(1) if m2 else "unknown"
+            result["unreached"].append(name)
+
+    proc.wait()
+    return result
+
+
+def main():
+    if len(sys.argv) < 3:
+        print("Usage: cover <module> <task1> [task2] ...")
+        print("Example: cover svc_cache_axi cover_direct cover_twoway")
+        sys.exit(1)
+
+    module = sys.argv[1]
+    tasks = sys.argv[2:]
+
+    results = []
+    for task in tasks:
+        print(f"\n{'='*60}")
+        print(f"Running: {module} {task}")
+        print("=" * 60)
+        r = run_cover(module, task)
+        results.append(r)
+
+    # Summary
+    print("\n" + "=" * 60)
+    print("SUMMARY")
+    print("=" * 60)
+
+    for r in results:
+        reached_cnt = len(r["reached"])
+        unreached_cnt = len(r["unreached"])
+        max_step = r["max_step"]
+
+        status = f"{r['target']}: [{reached_cnt} reached] MAX: {max_step}"
+        if unreached_cnt > 0:
+            status += f" \033[31m[{unreached_cnt} UNREACHED]\033[0m"
+        print(status)
+
+        # List unreached covers
+        for name in r["unreached"]:
+            print(f"  \033[31m- {name}\033[0m")
+
+
+if __name__ == "__main__":
+    main()
