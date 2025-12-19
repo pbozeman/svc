@@ -831,6 +831,128 @@ module svc_cache_axi #(
     `FASSUME(a_wr_addr_aligned, !wr_valid || wr_addr[1:0] == 2'b00);
   end
 
+  // ===========================================================================
+  // Golden model: shadow memory for end-to-end data verification
+  // ===========================================================================
+  //
+  // Track writes and constrain AXI to return coherent data. This verifies
+  // rd_data correctness for both hits and fills.
+  //
+  localparam int F_MEM_AW = 10;
+  localparam int F_MEM_DEPTH = 2 ** (F_MEM_AW - 2);
+
+  // Shadow memory - tracks write values for golden model verification
+  // Only tracks written addresses (f_written bitmap tracks validity)
+  logic [31:0] f_mem[F_MEM_DEPTH];
+
+  // Track which addresses have been written
+  logic [F_MEM_DEPTH-1:0] f_written;
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      f_written <= '0;
+    end else if (wr_valid && wr_ready) begin
+      f_written[wr_addr[F_MEM_AW-1:2]] <= 1'b1;
+    end
+  end
+
+  // Constrain addresses to shadow memory range
+  always_comb begin
+    `FASSUME(a_rd_addr_range, !rd_valid || rd_addr[31:F_MEM_AW] == '0);
+    `FASSUME(a_wr_addr_range, !wr_valid || wr_addr[31:F_MEM_AW] == '0);
+  end
+
+  // Track writes to shadow memory (with strobe support)
+  always_ff @(posedge clk) begin
+    if (wr_valid && wr_ready) begin
+      if (wr_strb[0]) f_mem[wr_addr[F_MEM_AW-1:2]][7:0]   <= wr_data[7:0];
+      if (wr_strb[1]) f_mem[wr_addr[F_MEM_AW-1:2]][15:8]  <= wr_data[15:8];
+      if (wr_strb[2]) f_mem[wr_addr[F_MEM_AW-1:2]][23:16] <= wr_data[23:16];
+      if (wr_strb[3]) f_mem[wr_addr[F_MEM_AW-1:2]][31:24] <= wr_data[31:24];
+    end
+  end
+
+  // FIFO to track read addresses (handles multiple outstanding reads)
+  // Depth 2 is sufficient since we can have at most 1 fill + 1 hit in flight
+  localparam int F_RD_FIFO_DEPTH = 2;
+
+  logic [F_MEM_AW-1:0] f_rd_fifo      [F_RD_FIFO_DEPTH];
+  logic [           0:0] f_rd_fifo_wptr;
+  logic [           0:0] f_rd_fifo_rptr;
+  logic [           1:0] f_rd_fifo_cnt;
+
+  // Current read address is at the head of the FIFO
+  logic [F_MEM_AW-1:0] f_rd_addr;
+  assign f_rd_addr = f_rd_fifo[f_rd_fifo_rptr];
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      f_rd_fifo_wptr <= '0;
+      f_rd_fifo_rptr <= '0;
+      f_rd_fifo_cnt  <= '0;
+    end else begin
+      // Push on read handshake
+      if (rd_valid && rd_ready) begin
+        f_rd_fifo[f_rd_fifo_wptr] <= rd_addr[F_MEM_AW-1:0];
+        f_rd_fifo_wptr            <= f_rd_fifo_wptr + 1'b1;
+      end
+
+      // Pop on read data valid
+      if (rd_data_valid) begin
+        f_rd_fifo_rptr <= f_rd_fifo_rptr + 1'b1;
+      end
+
+      // Update count
+      case ({rd_valid && rd_ready, rd_data_valid})
+        2'b10:   f_rd_fifo_cnt <= f_rd_fifo_cnt + 1'b1;
+        2'b01:   f_rd_fifo_cnt <= f_rd_fifo_cnt - 1'b1;
+        default: ;
+      endcase
+    end
+  end
+
+  // Constrain AXI read responses to return written values
+  // For addresses that have been written, AXI must return f_mem contents.
+  // This models a coherent backing store.
+  //
+  // Calculate word address being fetched based on current beat
+  logic [F_MEM_AW-1:0] f_line_base;
+  logic [F_MEM_AW-1:0] f_axi_word_addr;
+
+  assign f_line_base = {f_rd_addr[F_MEM_AW-1:OFFSET_WIDTH], {OFFSET_WIDTH{1'b0}}};
+  assign f_axi_word_addr = f_line_base + (F_MEM_AW'(beat_word_idx) << 2);
+
+  always_comb begin
+    if (m_axi_rvalid && f_rd_fifo_cnt > 0) begin
+      // Constrain low word if it was written
+      if (f_written[f_axi_word_addr[F_MEM_AW-1:2]]) begin
+        `FASSUME(a_axi_returns_written_lo,
+                 m_axi_rdata[31:0] == f_mem[f_axi_word_addr[F_MEM_AW-1:2]]);
+      end
+    end
+  end
+
+  if (AXI_DATA_WIDTH >= 64) begin : gen_f_axi_wide
+    always_comb begin
+      if (m_axi_rvalid && f_rd_fifo_cnt > 0) begin
+        // Constrain high word if it was written
+        if (f_written[f_axi_word_addr[F_MEM_AW-1:2] + 1]) begin
+          `FASSUME(a_axi_returns_written_hi,
+                   m_axi_rdata[63:32] == f_mem[f_axi_word_addr[F_MEM_AW-1:2] + 1]);
+        end
+      end
+    end
+  end
+
+  // Assert read data correctness for written addresses
+  // Only check when FIFO has entries and address was previously written
+  always_ff @(posedge clk) begin
+    if (f_past_valid && rst_n && rd_data_valid && f_rd_fifo_cnt > 0 &&
+        f_written[f_rd_addr[F_MEM_AW-1:2]]) begin
+      `FASSERT(a_rd_data_golden, rd_data == f_mem[f_rd_addr[F_MEM_AW-1:2]]);
+    end
+  end
+
   //
   // When backpressured, inputs must be stable
   //
@@ -1014,6 +1136,13 @@ module svc_cache_axi #(
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && rst_n) begin
+      // Golden model: cover read and write paths
+      `FCOVER(c_rd_data_valid, rd_data_valid);
+      `FCOVER(c_wr_accepted, wr_valid && wr_ready);
+      `FCOVER(c_read_written_addr,
+              rd_data_valid && f_rd_fifo_cnt > 0 &&
+              f_written[f_rd_addr[F_MEM_AW-1:2]]);
+
       `FCOVER(c_read_burst_start, $past(state
               ) == STATE_IDLE && state == STATE_READ_BURST);
       `FCOVER(c_fill_done, fill_done);
@@ -1108,6 +1237,11 @@ module svc_cache_axi #(
       .i_axi_rresp (m_axi_rresp)
   );
   // verilator lint_on PINMISSING
+
+  // Low bits unused since we word-address f_mem
+  if (1) begin : gen_f_unused
+    `SVC_UNUSED({f_rd_addr[1:0], f_axi_word_addr[1:0]});
+  end
 
   `undef FASSERT
   `undef FASSUME
