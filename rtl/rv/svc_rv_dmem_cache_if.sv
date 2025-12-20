@@ -28,7 +28,8 @@ module svc_rv_dmem_cache_if (
     input logic [31:0] dmem_wdata,
     input logic [ 3:0] dmem_wstrb,
 
-    output logic dmem_stall,
+    // max_fanout to reduce routing delay on timing-critical signal
+    (* max_fanout = 16 *)output logic dmem_stall,
 
     // Cache interface
     output logic        cache_rd_valid,
