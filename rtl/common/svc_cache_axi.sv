@@ -183,8 +183,9 @@ module svc_cache_axi #(
   //
   // Cache lookup
   //
-  logic hit;
-  logic way0_hit;
+  // max_fanout to reduce routing delay on timing-critical signals
+  (* max_fanout = 16 *)logic hit;
+  (* max_fanout = 16 *)logic way0_hit;
   logic way1_hit;
   logic [31:0] hit_data;
   logic way0_valid;
