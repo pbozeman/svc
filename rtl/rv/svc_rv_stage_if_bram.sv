@@ -52,9 +52,9 @@ module svc_rv_stage_if_bram #(
     // Instruction memory interface
     //
     // max_fanout to reduce routing delay on timing-critical signal
-    (* max_fanout = 16 *)output logic imem_ren,
-    output logic [31:0] imem_raddr,
-    input  logic [31:0] imem_rdata,
+    (* max_fanout = 16 *) output logic        imem_ren,
+                          output logic [31:0] imem_raddr,
+                          input  logic [31:0] imem_rdata,
 
     //
     // Outputs (instr_id drives module output directly, others to IF/ID register)
