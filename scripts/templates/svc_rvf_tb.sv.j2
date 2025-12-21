@@ -40,6 +40,7 @@ module {{ name }};
   //
   logic        rvfi_valid;
   logic [63:0] rvfi_order;
+  logic [31:0] rvfi_pc_rdata;
   logic [31:0] rvfi_pc_wdata;
   logic [ 4:0] rvfi_rd_addr;
   logic [31:0] rvfi_rd_wdata;
@@ -48,6 +49,7 @@ module {{ name }};
   logic [31:0] rvfi_rs1_rdata;
   logic [31:0] rvfi_rs2_rdata;
   logic        rvfi_trap;
+  logic        rvfi_intr;
   logic [31:0] rvfi_mem_addr;
   logic [ 3:0] rvfi_mem_rmask;
   logic [ 3:0] rvfi_mem_wmask;
@@ -64,7 +66,8 @@ module {{ name }};
       .BTB_ENABLE ({{ btb_enable }}),
       .RAS_ENABLE ({{ ras_enable }}),
       .EXT_M      ({{ ext_m }}),
-      .EXT_ZMMUL  ({{ ext_zmmul }})
+      .EXT_ZMMUL  ({{ ext_zmmul }}),
+      .PC_REG     ({{ pc_reg }})
   ) uut (
       .clk  (clk),
       .rst_n(rst_n),
@@ -86,6 +89,7 @@ module {{ name }};
 
       .rvfi_valid    (rvfi_valid),
       .rvfi_order    (rvfi_order),
+      .rvfi_pc_rdata (rvfi_pc_rdata),
       .rvfi_pc_wdata (rvfi_pc_wdata),
       .rvfi_rd_addr  (rvfi_rd_addr),
       .rvfi_rd_wdata (rvfi_rd_wdata),
@@ -94,6 +98,7 @@ module {{ name }};
       .rvfi_rs1_rdata(rvfi_rs1_rdata),
       .rvfi_rs2_rdata(rvfi_rs2_rdata),
       .rvfi_trap     (rvfi_trap),
+      .rvfi_intr     (rvfi_intr),
       .rvfi_mem_addr (rvfi_mem_addr),
       .rvfi_mem_rmask(rvfi_mem_rmask),
       .rvfi_mem_wmask(rvfi_mem_wmask),
@@ -275,15 +280,41 @@ module {{ name }};
   end
 
   //
+  // PC forward check: verify instruction N's pc_rdata == instruction N-1's pc_wdata
+  //
+  logic [31:0] prev_pc_wdata;
+  logic        prev_pc_valid;
+
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+      prev_pc_wdata <= 32'h0;
+      prev_pc_valid <= 1'b0;
+    end else if (rvfi_valid) begin
+      prev_pc_wdata <= rvfi_pc_wdata;
+      prev_pc_valid <= 1'b1;
+    end
+  end
+
+  //
   // Test: run trace and check spec assertions
   //
   task automatic test_trace();
 {% if liveness_insn_order is not none %}
     //
-    // Liveness check: verify instruction {{ liveness_insn_order + 1 }} eventually retires
-    // (following trigger on instruction {{ liveness_insn_order }})
+    // PC forward check: verify instruction {{ liveness_insn_order }}'s pc_rdata matches
+    // instruction {{ liveness_insn_order - 1 }}'s pc_wdata
     //
-    `CHECK_WAIT_FOR(clk, rvfi_valid && rvfi_order == {{ liveness_insn_order + 1 }}, {{ max_cycles }});
+    // Wait for instruction {{ liveness_insn_order - 1 }} to retire and capture its pc_wdata
+    `CHECK_WAIT_FOR(clk, rvfi_valid && rvfi_order == {{ liveness_insn_order - 1 }}, {{ max_cycles }});
+    @(posedge clk);
+
+    // Wait for instruction {{ liveness_insn_order }} to retire
+    `CHECK_WAIT_FOR(clk, rvfi_valid && rvfi_order == {{ liveness_insn_order }}, {{ max_cycles }});
+
+    // Check pc_fwd: current pc_rdata should match previous pc_wdata (unless interrupt)
+    if (!rvfi_intr) begin
+      `CHECK_EQ(rvfi_pc_rdata, prev_pc_wdata);
+    end
 {% else %}
 {% for check in spec_checks %}
     `CHECK_WAIT_FOR(clk, rvfi_valid && rvfi_order == {{ check.order }}, {{ max_cycles }});

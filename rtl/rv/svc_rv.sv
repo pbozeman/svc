@@ -288,6 +288,9 @@ module svc_rv #(
   logic [     3:0] f_dmem_wstrb_wb;
   logic [XLEN-1:0] f_dmem_rdata_wb;
   logic [     3:0] f_dmem_rstrb_wb;
+  logic            f_is_branch_wb;
+  logic            f_is_jmp_wb;
+  logic            f_branch_taken_wb;
 `endif
 
   // WB retired instruction outputs
@@ -308,6 +311,11 @@ module svc_rv #(
   logic [     3:0] f_dmem_wstrb_ret;
   logic [XLEN-1:0] f_dmem_rdata_ret;
   logic [     3:0] f_dmem_rstrb_ret;
+  logic            f_is_branch_ret;
+  logic            f_is_jmp_ret;
+  logic            f_branch_taken_ret;
+  logic [XLEN-1:0] f_jb_tgt_ret;
+  logic [XLEN-1:0] f_pc_plus4_ret;
 `endif
 
   // WB -> ID (register write-back, combinational for same-cycle write)
@@ -772,37 +780,14 @@ module svc_rv #(
   //
   // RISCV-FORMAL Interface (RVFI)
   //
-  // Uses 1-instruction lag buffer: emit instruction i's RVFI record when
-  // instruction i+1 retires, using i+1's PC as i's pc_wdata.
-  // This way we never compute branches/jumps - just observe actual PCs.
+  // Computes architectural next-PC directly from instruction properties,
+  // enabling immediate RVFI emission without lag buffer. This correctly
+  // reports what the instruction SHOULD do, allowing formal to catch bugs
+  // where the pipeline executes the wrong path.
   //
 
-  // ---------------------------------------------------------------------------
-  // Buffer for previous retired instruction
-  // ---------------------------------------------------------------------------
-
-  logic            f_prev_valid;
-  logic [    31:0] f_prev_insn;
-  logic [XLEN-1:0] f_prev_pc;
-  logic [     4:0] f_prev_rs1_addr;
-  logic [     4:0] f_prev_rs2_addr;
-  logic [     4:0] f_prev_rd_addr;
-  logic [XLEN-1:0] f_prev_rs1_rdata;
-  logic [XLEN-1:0] f_prev_rs2_rdata;
-  logic [XLEN-1:0] f_prev_rd_wdata;
-  logic            f_prev_trap;
-  logic            f_prev_halt;
-  logic            f_prev_intr;
-  logic            f_prev_mem_valid;
-  logic            f_prev_mem_instr;
-  logic [XLEN-1:0] f_prev_mem_addr;
-  logic [XLEN-1:0] f_prev_mem_rdata;
-  logic [XLEN-1:0] f_prev_mem_wdata;
-  logic [     3:0] f_prev_mem_rmask;
-  logic [     3:0] f_prev_mem_wmask;
-
   //
-  // Current commit signals (WB stage)
+  // Current commit signals
   //
   logic [XLEN-1:0] f_commit_pc;
   logic            f_commit_mem_valid;
@@ -818,18 +803,18 @@ module svc_rv #(
   // unnecessarily, but RVFI must accurately report which registers are
   // architecturally read. Instructions that don't read a register must report
   // addr=0 and rdata=0 per the RVFI specification.
-  logic [     6:0] f_opcode_wb;
-  logic            f_csr_imm_mode_wb;
-  logic            f_instr_valid_wb;
-  logic            f_instr_reads_rs1_wb;
-  logic            f_instr_reads_rs2_wb;
-  logic            f_rs1_used_wb;
-  logic            f_rs2_used_wb;
+  logic [     6:0] f_opcode_ret;
+  logic            f_csr_imm_mode_ret;
+  logic            f_instr_valid_ret;
+  logic            f_instr_reads_rs1_ret;
+  logic            f_instr_reads_rs2_ret;
+  logic            f_rs1_used_ret;
+  logic            f_rs2_used_ret;
 
-  assign f_opcode_wb       = instr_ret[6:0];
-  assign f_csr_imm_mode_wb = instr_ret[14];
+  assign f_opcode_ret       = instr_ret[6:0];
+  assign f_csr_imm_mode_ret = instr_ret[14];
 
-  assign f_instr_valid_wb  = (trap_code_ret != TRAP_INSTR_INVALID);
+  assign f_instr_valid_ret  = (trap_code_ret != TRAP_INSTR_INVALID);
 
   //
   // rs1/rs2 usage detection for RVFI
@@ -841,19 +826,19 @@ module svc_rv #(
     //
     // See note above as to why we are doing this decoding here.
     //
-    case (f_opcode_wb)
-      OP_LUI, OP_AUIPC, OP_JAL: f_instr_reads_rs1_wb = 1'b0;
-      OP_SYSTEM:                f_instr_reads_rs1_wb = !f_csr_imm_mode_wb;
-      default:                  f_instr_reads_rs1_wb = 1'b1;
+    case (f_opcode_ret)
+      OP_LUI, OP_AUIPC, OP_JAL: f_instr_reads_rs1_ret = 1'b0;
+      OP_SYSTEM:                f_instr_reads_rs1_ret = !f_csr_imm_mode_ret;
+      default:                  f_instr_reads_rs1_ret = 1'b1;
     endcase
 
-    case (f_opcode_wb)
-      OP_RTYPE, OP_BRANCH, OP_STORE: f_instr_reads_rs2_wb = 1'b1;
-      default:                       f_instr_reads_rs2_wb = 1'b0;
+    case (f_opcode_ret)
+      OP_RTYPE, OP_BRANCH, OP_STORE: f_instr_reads_rs2_ret = 1'b1;
+      default:                       f_instr_reads_rs2_ret = 1'b0;
     endcase
 
-    f_rs1_used_wb = f_instr_valid_wb && f_instr_reads_rs1_wb;
-    f_rs2_used_wb = f_instr_valid_wb && f_instr_reads_rs2_wb;
+    f_rs1_used_ret = f_instr_valid_ret && f_instr_reads_rs1_ret;
+    f_rs2_used_ret = f_instr_valid_ret && f_instr_reads_rs2_ret;
   end
 
   assign f_commit_pc = pc_ret;
@@ -886,12 +871,46 @@ module svc_rv #(
   end
 
   // ---------------------------------------------------------------------------
-  // Lag buffer logic
+  // Architectural next-PC computation
   // ---------------------------------------------------------------------------
-
   //
-  // For RVFI, emit all valid instructions (not reset bubbles or flushed)
-  // This includes real NOPs that actually executed
+  // Compute the architectural next-PC from the instruction's own properties,
+  // not from what the pipeline actually did. This is the key fix that allows
+  // formal verification to catch misprediction bugs.
+  //
+  // - Jumps (JAL/JALR): always go to jb_tgt
+  // - Branches: go to jb_tgt if taken, pc+4 if not taken
+  // - Traps: stay at current PC (trap handler will redirect)
+  // - Other: pc+4
+  //
+  logic [XLEN-1:0] f_arch_next_pc;
+  logic            f_halt;
+
+  assign f_halt = ebreak_ret || trap_ret;
+
+  always_comb begin
+    if (f_halt) begin
+      // On halt/trap, next PC is current PC per RVFI spec
+      f_arch_next_pc = f_commit_pc;
+    end else if (f_is_jmp_ret) begin
+      // JAL/JALR always jump to target
+      f_arch_next_pc = f_jb_tgt_ret;
+    end else if (f_is_branch_ret) begin
+      // Branch: target if taken, pc+4 if not taken
+      f_arch_next_pc = f_branch_taken_ret ? f_jb_tgt_ret : f_pc_plus4_ret;
+    end else begin
+      // All other instructions: sequential
+      f_arch_next_pc = f_pc_plus4_ret;
+    end
+  end
+
+  // ---------------------------------------------------------------------------
+  // Immediate RVFI emission (no lag buffer)
+  // ---------------------------------------------------------------------------
+  //
+  // Emit RVFI data immediately when instruction retires. The architectural
+  // next-PC is computed from the instruction itself, not observed from the
+  // next instruction.
   //
   (* keep *) logic rvfi_retire;
 
@@ -899,86 +918,47 @@ module svc_rv #(
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      f_prev_valid <= 1'b0;
-      f_prev_halt  <= 1'b0;
-      rvfi_valid   <= 1'b0;
-      rvfi_order   <= 64'd0;
+      rvfi_valid <= 1'b0;
+      rvfi_order <= 64'd0;
     end else begin
       rvfi_valid <= 1'b0;
 
-      //
-      // Emit buffered instruction on halt or when retiring.
-      //
-      // If we have a previous instruction buffered, emit it now
-      // using current PC as pc_wdata (next architectural PC)
-      //
-      if (f_prev_halt || (rvfi_retire && f_prev_valid)) begin
-        rvfi_valid     <= 1'b1;
-        rvfi_order     <= rvfi_order + 64'd1;
-
-        rvfi_insn      <= f_prev_insn;
-        rvfi_pc_rdata  <= f_prev_pc;
-        rvfi_pc_wdata  <= f_prev_halt ? f_prev_pc : f_commit_pc;
-
-        rvfi_rs1_addr  <= f_prev_rs1_addr;
-        rvfi_rs2_addr  <= f_prev_rs2_addr;
-        rvfi_rd_addr   <= f_prev_rd_addr;
-        rvfi_rs1_rdata <= f_prev_rs1_rdata;
-        rvfi_rs2_rdata <= f_prev_rs2_rdata;
-        rvfi_rd_wdata  <= f_prev_rd_wdata;
-
-        rvfi_trap      <= f_prev_trap;
-        rvfi_halt      <= f_prev_halt;
-        rvfi_intr      <= f_prev_intr;
-
-        rvfi_mem_valid <= f_prev_mem_valid;
-        rvfi_mem_instr <= f_prev_mem_instr;
-        rvfi_mem_addr  <= f_prev_mem_addr;
-        rvfi_mem_rmask <= f_prev_mem_rmask;
-        rvfi_mem_wmask <= f_prev_mem_wmask;
-        rvfi_mem_rdata <= f_prev_mem_rdata;
-        rvfi_mem_wdata <= f_prev_mem_wdata;
-      end
-
       if (rvfi_retire) begin
-        //
-        // Buffer current retiring instruction as "previous"
-        //
-        f_prev_valid <= 1'b1;
-        f_prev_insn <= instr_ret;
-        f_prev_pc <= f_commit_pc;
+        rvfi_valid <= 1'b1;
+        rvfi_order <= rvfi_order + 64'd1;
+
+        rvfi_insn <= instr_ret;
+        rvfi_pc_rdata <= f_commit_pc;
+        rvfi_pc_wdata <= f_arch_next_pc;
 
         //
         // Override rs1/rs2 addr/rdata to 0 when not architecturally read.
         // Per RVFI spec, instructions that don't read a register must report
         // addr=0 and rdata=0 (e.g., LUI, JAL, CSR immediate instructions).
         //
-        f_prev_rs1_addr <= f_rs1_used_wb ? instr_ret[19:15] : 5'b0;
-        f_prev_rs2_addr <= f_rs2_used_wb ? instr_ret[24:20] : 5'b0;
+        rvfi_rs1_addr <= f_rs1_used_ret ? instr_ret[19:15] : 5'b0;
+        rvfi_rs2_addr <= f_rs2_used_ret ? instr_ret[24:20] : 5'b0;
+        rvfi_rs1_rdata <= f_rs1_used_ret ? rs1_data_ret : '0;
+        rvfi_rs2_rdata <= f_rs2_used_ret ? rs2_data_ret : '0;
 
         //
-        // Override rd_addr to 0 when not writing. Normally we won't want to be
-        // doing math or overrides in the formal in order not hide a real bug,
-        // but, in this case, we know that reg_write_ret is gating writes to the
-        // regfile. If we really care, we could add an assert.
+        // Override rd_addr to 0 when not writing.
         //
-        f_prev_rd_addr <= reg_write_ret ? instr_ret[11:7] : 5'b0;
-        f_prev_rd_wdata <= (reg_write_ret && instr_ret[11:7] != 5'b0) ?
+        rvfi_rd_addr <= reg_write_ret ? instr_ret[11:7] : 5'b0;
+        rvfi_rd_wdata <= (reg_write_ret && instr_ret[11:7] != 5'b0) ?
             rd_data_ret : '0;
 
-        f_prev_rs1_rdata <= f_rs1_used_wb ? rs1_data_ret : '0;
-        f_prev_rs2_rdata <= f_rs2_used_wb ? rs2_data_ret : '0;
-        f_prev_trap <= trap_ret;
-        f_prev_halt <= ebreak_ret || trap_ret;
-        f_prev_intr <= 1'b0;
-        f_prev_mem_valid <= f_commit_mem_valid;
-        f_prev_mem_instr <= 1'b0;
-        f_prev_mem_addr <=
-            (f_mem_write_ret ? f_dmem_waddr_ret : f_dmem_raddr_ret);
-        f_prev_mem_rmask <= f_commit_mem_rmask;
-        f_prev_mem_wmask <= f_commit_mem_wmask;
-        f_prev_mem_rdata <= f_commit_mem_rdata;
-        f_prev_mem_wdata <= f_commit_mem_wdata;
+        rvfi_trap <= trap_ret;
+        rvfi_halt <= f_halt;
+        rvfi_intr <= 1'b0;
+
+        rvfi_mem_valid <= f_commit_mem_valid;
+        rvfi_mem_instr <= 1'b0;
+        rvfi_mem_addr <= f_mem_write_ret ? f_dmem_waddr_ret : f_dmem_raddr_ret;
+        rvfi_mem_rmask <= f_commit_mem_rmask;
+        rvfi_mem_wmask <= f_commit_mem_wmask;
+        rvfi_mem_rdata <= f_commit_mem_rdata;
+        rvfi_mem_wdata <= f_commit_mem_wdata;
       end
     end
   end

@@ -55,6 +55,9 @@ module svc_rv_stage_wb #(
     input logic [     3:0] f_dmem_wstrb_wb,
     input logic [XLEN-1:0] f_dmem_rdata_wb,
     input logic [     3:0] f_dmem_rstrb_wb,
+    input logic            f_is_branch_wb,
+    input logic            f_is_jmp_wb,
+    input logic            f_branch_taken_wb,
 `endif
 
     // Manager interface to svc_rv
@@ -79,6 +82,11 @@ module svc_rv_stage_wb #(
     output logic [     3:0] f_dmem_wstrb_ret,
     output logic [XLEN-1:0] f_dmem_rdata_ret,
     output logic [     3:0] f_dmem_rstrb_ret,
+    output logic            f_is_branch_ret,
+    output logic            f_is_jmp_ret,
+    output logic            f_branch_taken_ret,
+    output logic [XLEN-1:0] f_jb_tgt_ret,
+    output logic [XLEN-1:0] f_pc_plus4_ret,
 `endif
 
     // Output to register file in ID stage (combinational, for same-cycle write)
@@ -206,7 +214,7 @@ module svc_rv_stage_wb #(
   // RVFI interface
   //
 `ifdef RISCV_FORMAL
-  localparam int RVFI_WIDTH = 1 + 4 * XLEN + 4 + 4;
+  localparam int RVFI_WIDTH = 1 + 4 * XLEN + 4 + 4 + 3 + 2 * XLEN;
 
   svc_rv_pipe_data #(
       .WIDTH(RVFI_WIDTH)
@@ -227,7 +235,12 @@ module svc_rv_stage_wb #(
         f_dmem_wdata_wb,
         f_dmem_wstrb_wb,
         f_dmem_rdata_wb,
-        f_dmem_rstrb_wb
+        f_dmem_rstrb_wb,
+        f_is_branch_wb,
+        f_is_jmp_wb,
+        f_branch_taken_wb,
+        jb_tgt_wb,
+        pc_plus4_wb
       }),
       .data_o({
         f_mem_write_ret,
@@ -236,7 +249,12 @@ module svc_rv_stage_wb #(
         f_dmem_wdata_ret,
         f_dmem_wstrb_ret,
         f_dmem_rdata_ret,
-        f_dmem_rstrb_ret
+        f_dmem_rstrb_ret,
+        f_is_branch_ret,
+        f_is_jmp_ret,
+        f_branch_taken_ret,
+        f_jb_tgt_ret,
+        f_pc_plus4_ret
       })
   );
 `endif

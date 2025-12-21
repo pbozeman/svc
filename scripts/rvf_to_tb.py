@@ -43,6 +43,8 @@ DEFAULT_PARAMS = {
     "ras_enable": 0,
     "ext_m": 0,
     "ext_zmmul": 0,
+    "pc_reg": 0,
+    "stall": 0,
 }
 
 
@@ -137,34 +139,34 @@ def extract_imem_from_vcd(vcd_file, mem_type=0):
                 break
         return result
 
-    imem_arvalid = wrapper_signals.get("imem_arvalid", [])
-    imem_araddr = wrapper_signals.get("imem_araddr", [])
+    imem_ren = wrapper_signals.get("imem_ren", [])
+    imem_raddr = wrapper_signals.get("imem_raddr", [])
     imem_rdata = wrapper_signals.get("imem_rdata", [])
 
     #
     # Find max time in VCD
     #
     max_time = 0
-    for tv in [imem_arvalid, imem_araddr, imem_rdata]:
+    for tv in [imem_ren, imem_raddr, imem_rdata]:
         if tv:
             max_time = max(max_time, tv[-1][0])
 
     #
     # Sample at each 10ns timestep (clock period)
     #
-    # For BRAM timing: imem_rdata[T] is data from imem_araddr[T-10]
+    # For BRAM timing: imem_rdata[T] is data from imem_raddr[T-10]
     # So we pair addr at T with data at T+10
     #
     imem = {}
     addr_offset = 10 if mem_type == 1 else 0
 
     for t in range(0, max_time + 10, 10):
-        arvalid = get_val_at_time(imem_arvalid, t)
-        addr = get_val_at_time(imem_araddr, t)
+        ren = get_val_at_time(imem_ren, t)
+        addr = get_val_at_time(imem_raddr, t)
         data = get_val_at_time(imem_rdata, t + addr_offset)
 
         if (
-            arvalid == "1"
+            ren == "1"
             and addr
             and data
             and "x" not in addr.lower()
@@ -259,18 +261,18 @@ def extract_from_vcd(vcd_file):
     #
     # Extract instruction memory
     #
-    imem_arvalid = wrapper_signals.get("imem_arvalid")
-    imem_araddr = wrapper_signals.get("imem_araddr")
+    imem_ren = wrapper_signals.get("imem_ren")
+    imem_raddr = wrapper_signals.get("imem_raddr")
     imem_rdata = wrapper_signals.get("imem_rdata")
 
-    assert imem_arvalid is not None, "imem_arvalid not found in VCD"
-    assert imem_araddr is not None, "imem_araddr not found in VCD"
+    assert imem_ren is not None, "imem_ren not found in VCD"
+    assert imem_raddr is not None, "imem_raddr not found in VCD"
     assert imem_rdata is not None, "imem_rdata not found in VCD"
 
     prog = dict()
-    for tv_arvalid, tv_addr, tv_data in zip(imem_arvalid, imem_araddr, imem_rdata):
+    for tv_ren, tv_addr, tv_data in zip(imem_ren, imem_raddr, imem_rdata):
         if (
-            tv_arvalid[1] == "1"
+            tv_ren[1] == "1"
             and "x" not in tv_addr[1].lower()
             and "x" not in tv_data[1].lower()
         ):
