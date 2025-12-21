@@ -117,6 +117,9 @@ module svc_rv_stage_mem #(
     output logic [     3:0] f_dmem_wstrb_wb,
     output logic [XLEN-1:0] f_dmem_rdata_wb,
     output logic [     3:0] f_dmem_rstrb_wb,
+    output logic            f_is_branch_wb,
+    output logic            f_is_jmp_wb,
+    output logic            f_branch_taken_wb,
 `endif
 
     //
@@ -602,6 +605,26 @@ module svc_rv_stage_mem #(
 `endif
       .data_i ({dmem_rdata, f_is_load_for_rstrb ? f_ld_fmt_rstrb : 4'b0}),
       .data_o ({f_dmem_rdata_wb, f_dmem_rstrb_wb})
+  );
+
+  //===========================================================================
+  // RVFI branch/jump signals for arch_next_pc computation
+  //===========================================================================
+  svc_rv_pipe_data #(
+      .WIDTH(3),
+      .REG  (PIPELINED)
+  ) pipe_rvfi_branch (
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .advance(pipe_advance_o),
+      .flush  (pipe_flush_o),
+      .bubble (pipe_bubble_o),
+`ifdef FORMAL
+      .s_valid(1'b0),
+      .s_ready(1'b1),
+`endif
+      .data_i ({is_branch_mem, is_jmp_mem, branch_taken_mem}),
+      .data_o ({f_is_branch_wb, f_is_jmp_wb, f_branch_taken_wb})
   );
 `endif
 
