@@ -77,7 +77,7 @@ module svc_axi_mem #(
   localparam WORD_WIDTH = STRBW;
   localparam WORD_SIZE = DW / WORD_WIDTH;
 
-  logic [AXI_DATA_WIDTH-1:0] mem         [(1 << MEM_ADDR_WIDTH)-1:0];
+  logic [AXI_DATA_WIDTH-1:0] mem[(1 << MEM_ADDR_WIDTH)-1:0];
 
   //
   // Initialize memory from hex file
@@ -445,7 +445,11 @@ module svc_axi_mem #(
 
   assign s_axi_rresp = 2'b00;
 
+`ifdef FORMAL
+  `SVC_UNUSED({INIT_FILE, s_axi_awlen});
+`else
   `SVC_UNUSED(s_axi_awlen);
+`endif
 
 `ifdef FORMAL
   // This uses faxi_* files in tb/formal/private.
