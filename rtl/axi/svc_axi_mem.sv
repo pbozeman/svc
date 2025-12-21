@@ -5,6 +5,10 @@
 `include "svc_skidbuf.sv"
 `include "svc_unused.sv"
 
+`ifndef FORMAL
+`include "svc_readmemh.sv"
+`endif
+
 //
 // AXI backed by internal memory, primarily intended for testing.
 //
@@ -12,11 +16,18 @@
 // the memory interface so that the instantiating module can ensure that
 // vendor specific BRAM IP gets inferred/synthesized correctly.
 //
+// The optional INIT_FILE parameter specifies a hex file for memory
+// initialization. The file should have one hex value per line matching
+// the AXI_DATA_WIDTH (e.g., 32 hex chars per line for 128-bit data).
+//
 module svc_axi_mem #(
     parameter AXI_ADDR_WIDTH = 8,
     parameter AXI_DATA_WIDTH = 16,
     parameter AXI_STRB_WIDTH = AXI_DATA_WIDTH / 8,
-    parameter AXI_ID_WIDTH   = 4
+    parameter AXI_ID_WIDTH   = 4,
+
+    // verilog_lint: waive explicit-parameter-storage-type
+    parameter INIT_FILE = ""
 ) (
     input logic clk,
     input logic rst_n,
@@ -67,6 +78,35 @@ module svc_axi_mem #(
   localparam WORD_SIZE = DW / WORD_WIDTH;
 
   logic [AXI_DATA_WIDTH-1:0] mem         [(1 << MEM_ADDR_WIDTH)-1:0];
+
+  //
+  // Initialize memory from hex file
+  //
+`ifndef FORMAL
+  initial begin : init_block
+`ifndef SYNTHESIS
+    int word_count;
+    int last_index;
+
+    for (int i = 0; i < (1 << MEM_ADDR_WIDTH); i = i + 1) begin
+      mem[i] = {DW{1'b0}};
+    end
+
+    if (INIT_FILE != "") begin
+      word_count = svc_readmemh_count(INIT_FILE);
+      if (word_count > 0) begin
+        last_index = (word_count > (1 << MEM_ADDR_WIDTH)) ?
+            (1 << MEM_ADDR_WIDTH) - 1 : word_count - 1;
+        $readmemh(INIT_FILE, mem, 0, last_index);
+      end
+    end
+`else
+    if (INIT_FILE != "") begin
+      $readmemh(INIT_FILE, mem);
+    end
+`endif
+  end
+`endif
 
   logic                      mem_wr_en;
   logic [MEM_ADDR_WIDTH-1:0] mem_wr_addr;
