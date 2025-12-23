@@ -59,7 +59,7 @@ module svc_rv_stage_pc #(
     output logic m_valid,
 
     //
-    // Stall
+    // Stall signal
     //
     input logic stall_pc,
 
@@ -102,6 +102,9 @@ module svc_rv_stage_pc #(
   //
   localparam logic [XLEN-1:0] PC_INIT =
       ((MEM_TYPE == MEM_TYPE_BRAM && BPRED != 0) ? RESET_PC - 4 : RESET_PC);
+
+  localparam logic [2*XLEN-1:0]
+      PC_INIT_2X = (((2 * XLEN)'(PC_INIT) << XLEN) | (2 * XLEN)'(PC_INIT));
 
   //
   // Internal pc_next signal
@@ -147,11 +150,43 @@ module svc_rv_stage_pc #(
   //
   // Pipeline control
   //
-  // PC stage is always valid (source stage) - no flush or bubble needed.
-  //
   logic pipe_advance;
   logic pipe_flush;
   logic pipe_bubble;
+
+  //
+  // Pipeline stale bubble (PC_REG only)
+  //
+  // With PC_REG=1, pc_if is stale for one cycle in two scenarios:
+  // 1. Stall release: After any stall releases, the registered pc_if still
+  //    has the old value for one cycle before updating.
+  // 2. Reset release: After reset, pc_if has reset garbage for one cycle
+  //    before the first valid PC is registered.
+  //
+  // We bubble these cycles to prevent duplicate instructions.
+  //
+  // Must use stall_pc (not just stall_cpu) because data hazard stalls also
+  // cause pc_if to become stale when the pipeline register delays updates.
+  //
+  // See docs/pc-regstall-fix.md for details.
+  //
+  logic pipe_stale;
+
+  if (PC_REG != 0) begin : g_pipe_stale
+    logic was_stalled_or_reset;
+
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        was_stalled_or_reset <= 1'b1;
+      end else begin
+        was_stalled_or_reset <= stall_pc;
+      end
+    end
+
+    assign pipe_stale = was_stalled_or_reset && !stall_pc;
+  end else begin : g_no_pipe_stale
+    assign pipe_stale = 1'b0;
+  end
 
   svc_rv_pipe_ctrl #(
       .REG(PC_REG)
@@ -167,6 +202,8 @@ module svc_rv_stage_pc #(
       .flush_o  (pipe_flush),
       .bubble_o (pipe_bubble)
   );
+
+  `SVC_UNUSED({pipe_stale})
 
   //
   // Extended flush for registered PC changes
@@ -184,8 +221,9 @@ module svc_rv_stage_pc #(
   logic redir_pending_next;
 
   if (PC_REG != 0) begin : g_redir_pending
-    assign redir_pending_next = (pc_sel == PC_SEL_REDIRECT) ||
-        (pc_sel == PC_SEL_PREDICTED && !btb_pred_taken);
+    assign
+        redir_pending_next = ((pc_sel == PC_SEL_REDIRECT) ||
+                              (pc_sel == PC_SEL_PREDICTED && !btb_pred_taken));
   end else begin : g_no_redir_pending
     assign redir_pending_next = 1'b0;
     `SVC_UNUSED({btb_pred_taken})
@@ -194,12 +232,19 @@ module svc_rv_stage_pc #(
   //
   // PC values to IF stage
   //
-  // Note: Reset value defaults to '0. After reset, the first advance loads
-  // the correct PC values from the pc register which is initialized to PC_INIT.
+  // With s_valid gating in IF stage, we don't fetch during bubbles (reset
+  // release, stall release). So BUBBLE_REG=0 lets the data advance while
+  // the bubble suppresses m_valid. This ensures pc_next_if is correct when
+  // we start fetching.
+  //
+  // RESET_VAL is set to PC_INIT_2X so formal verification sees consistent
+  // values during reset.
   //
   svc_rv_pipe_data #(
-      .WIDTH(2 * XLEN),
-      .REG  (PC_REG)
+      .WIDTH     (2 * XLEN),
+      .REG       (PC_REG),
+      .BUBBLE_REG(0),
+      .RESET_VAL (PC_INIT_2X)
   ) pipe_pc (
       .clk    (clk),
       .rst_n  (rst_n),
@@ -218,8 +263,9 @@ module svc_rv_stage_pc #(
   // Control signals to IF stage (need proper reset values)
   //
   svc_rv_pipe_data #(
-      .WIDTH(5),
-      .REG  (PC_REG)
+      .WIDTH     (5),
+      .REG       (PC_REG),
+      .BUBBLE_REG(1)
   ) pipe_ctrl_signals (
       .clk(clk),
       .rst_n(rst_n),
@@ -250,8 +296,9 @@ module svc_rv_stage_pc #(
   // Payload signals to IF stage (tgts, no reset needed)
   //
   svc_rv_pipe_data #(
-      .WIDTH(2 * XLEN),
-      .REG  (PC_REG)
+      .WIDTH     (2 * XLEN),
+      .REG       (PC_REG),
+      .BUBBLE_REG(1)
   ) pipe_payload (
       .clk    (clk),
       .rst_n  (rst_n),

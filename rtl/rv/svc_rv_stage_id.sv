@@ -580,6 +580,18 @@ module svc_rv_stage_id #(
   end
 
   //
+  // Constraint: id_ex_flush must not fire when EX has valid non-advancing data
+  //
+  // The hazard module (svc_rv_hazard.sv) guarantees this - it excludes
+  // redir_pending_if from id_ex_flush because when redir_pending_if fires,
+  // ID has a bubble (from prior if_id_flush), so there's nothing to flush.
+  // Flushing would corrupt bpred_taken_ex for the valid instruction in EX.
+  //
+  always_comb begin
+    `FASSUME(a_no_flush_when_stalled, !(m_valid && !m_ready && id_ex_flush));
+  end
+
+  //
   // Input stability assumptions (stall-based flow control from IF)
   //
   // IF holds outputs stable when stalled. IF stalls when stall_pc is high:
@@ -674,8 +686,25 @@ module svc_rv_stage_id #(
         `FASSERT(a_imm_stable, imm_ex == $past(imm_ex));
         `FASSERT(a_pc_stable, pc_ex == $past(pc_ex));
         `FASSERT(a_pc_plus4_stable, pc_plus4_ex == $past(pc_plus4_ex));
-        `FASSERT(a_bpred_taken_stable, bpred_taken_ex == $past(bpred_taken_ex));
         `FASSERT(a_pred_tgt_stable, pred_tgt_ex == $past(pred_tgt_ex));
+      end
+    end
+  end
+
+  //
+  // Critical: bpred_taken_ex must remain stable when stalled with valid data.
+  //
+  // When downstream is stalled (!m_ready) and we have a valid instruction in
+  // EX, bpred_taken_ex must not change. The assumption a_no_flush_when_stalled
+  // constrains id_ex_flush to not fire in this scenario.
+  //
+  // This catches bugs where id_ex_flush (e.g., from redir_pending_if with
+  // PC_REG=1) corrupts the prediction via FLUSH_REG=1 on pipe_bpred_taken.
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      if ($past(m_valid && !m_ready)) begin
+        `FASSERT(a_bpred_taken_stable, bpred_taken_ex == $past(bpred_taken_ex));
       end
     end
   end
@@ -690,6 +719,11 @@ module svc_rv_stage_id #(
 
       // Cover stalled transfer (valid high, ready low for a cycle)
       `FCOVER(c_stalled, $past(m_valid && !m_ready) && m_valid && m_ready);
+
+      // Cover stalled with taken branch prediction - the scenario that
+      // could corrupt bpred_taken_ex if id_ex_flush fired incorrectly
+      `FCOVER(c_stall_bpred_taken, $past(m_valid && !m_ready && bpred_taken_ex
+              ));
     end
   end
 
