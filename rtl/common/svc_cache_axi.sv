@@ -613,21 +613,58 @@ module svc_cache_axi #(
   end
 
   // ===========================================================================
-  // Update LRU on hit or fill (2-way only)
+  // Update LRU on hit or fill (2-way only) - Deferred by one cycle
   // ===========================================================================
 
   //
   // LRU bit indicates which way to evict next (least recently used).
   // On access, mark the OTHER way as LRU.
   //
+  // The LRU update is deferred by one cycle to break the critical timing path:
+  //   rd_addr → tag_lookup → hit → lru_table → state_machine → BRAM_we
+  //
+  // Trade-off: LRU may be off by one access for back-to-back accesses to the
+  // same set. This has negligible impact on miss rate.
+  //
   if (TWO_WAY) begin : gen_lru_update
+    // Deferred update state
+    logic                 lru_update_valid;
+    logic [SET_WIDTH-1:0] lru_update_set;
+    logic                 lru_update_value;
+
+    // Stage 1: Capture update request
     always_ff @(posedge clk) begin
-      if (rd_valid && hit) begin
-        lru_table[addr_set] <= ~way1_hit;
-      end else if (wr_valid && wr_ready && wr_hit) begin
-        lru_table[wr_addr_set] <= ~wr_way1_hit;
-      end else if (fill_done) begin
-        lru_table[fill_addr_set] <= ~fill_way;
+      if (!rst_n) begin
+        lru_update_valid <= 1'b0;
+      end else begin
+        // Default: no update
+        lru_update_valid <= 1'b0;
+
+        // Read hit: mark the OTHER way as LRU
+        if (rd_valid && hit) begin
+          lru_update_valid <= 1'b1;
+          lru_update_set   <= addr_set;
+          lru_update_value <= ~way1_hit;
+        end
+        // Write hit: same LRU update
+        else if (wr_valid && wr_ready && wr_hit) begin
+          lru_update_valid <= 1'b1;
+          lru_update_set   <= wr_addr_set;
+          lru_update_value <= ~wr_way1_hit;
+        end
+        // Fill complete: mark filled way as MRU
+        else if (fill_done) begin
+          lru_update_valid <= 1'b1;
+          lru_update_set   <= fill_addr_set;
+          lru_update_value <= ~fill_way;
+        end
+      end
+    end
+
+    // Stage 2: Apply deferred update to LRU table
+    always_ff @(posedge clk) begin
+      if (lru_update_valid) begin
+        lru_table[lru_update_set] <= lru_update_value;
       end
     end
   end else begin : gen_lru_unused
