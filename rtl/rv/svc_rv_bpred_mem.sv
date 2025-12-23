@@ -66,11 +66,13 @@ module svc_rv_bpred_mem #(
 
   end else if (BPRED != 0) begin : g_jalr_no_ras
     //
-    // Without RAS, always redirect on JALR (not predicted)
+    // Without RAS, JALR was already redirected in EX stage (unpredicted JALR).
+    // No need to redirect again from MEM - that causes double-flush of the
+    // target instruction, especially problematic with variable-latency cache.
     //
-    assign jalr_mispredicted_mem = is_jalr_mem;
+    assign jalr_mispredicted_mem = 1'b0;
 
-    `SVC_UNUSED({bpred_taken_mem, jb_tgt_mem, pred_tgt_mem});
+    `SVC_UNUSED({is_jalr_mem, bpred_taken_mem, jb_tgt_mem, pred_tgt_mem});
 
   end else begin : g_no_jalr_mispred
     //

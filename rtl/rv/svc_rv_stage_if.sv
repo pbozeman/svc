@@ -3,7 +3,6 @@
 
 `include "svc.sv"
 `include "svc_unused.sv"
-`include "svc_rv_bpred_if.sv"
 `include "svc_rv_stage_if_sram.sv"
 `include "svc_rv_stage_if_bram.sv"
 
@@ -12,9 +11,9 @@
 //
 // Wrapper that handles shared logic:
 // - Instantiation of memory-type-specific fetch logic (BRAM or SRAM)
-// - IF/ID pipeline registers
-// - BTB/RAS signal buffering via svc_rv_bpred_if
+// - IF/ID pipeline registers for PC
 //
+// BTB/RAS buffering is handled by the memory-type-specific submodules.
 // PC logic is handled by svc_rv_stage_pc.
 //
 module svc_rv_stage_if #(
@@ -87,33 +86,17 @@ module svc_rv_stage_if #(
   `include "svc_rv_defs.svh"
 
   //
-  // Internal signals from submodules to IF/ID register
+  // Internal signals from RAM submodule
   //
-  logic [XLEN-1:0] pc_to_if_id;
-  logic [XLEN-1:0] pc_plus4_to_if_id;
-  logic            btb_hit_to_if_id;
-  logic            btb_pred_taken_to_if_id;
-  logic [XLEN-1:0] btb_tgt_to_if_id;
-  logic            btb_is_return_to_if_id;
-  logic            ras_valid_to_if_id;
-  logic [XLEN-1:0] ras_tgt_to_if_id;
-  logic            valid_to_if_id;
+  logic [XLEN-1:0] pc_ram;
+  logic [XLEN-1:0] pc_plus4_ram;
+  logic            valid_ram;
 
   //
-  // Internal m_ready for submodule compatibility
+  // Pipeline advance signal
   //
-  // Derived from stall_i; submodules still use ready-based logic.
-  //
-  logic            m_ready;
-  assign m_ready = !stall_i;
-
-  //
-  // Stall signal for submodules
-  //
-  // pc_stall is same as stall_i.
-  //
-  logic pc_stall;
-  assign pc_stall = stall_i;
+  logic            advance;
+  assign advance = !stall_i;
 
   //
   // Memory-type specific fetch logic
@@ -123,68 +106,67 @@ module svc_rv_stage_if #(
         .XLEN (XLEN),
         .BPRED(BPRED)
     ) stage (
-        .clk                    (clk),
-        .rst_n                  (rst_n),
-        .pc                     (pc_if),
-        .pc_next                (pc_next_if),
-        .pc_stall               (pc_stall),
-        .if_id_flush            (if_id_flush),
-        .m_ready                (m_ready),
-        .btb_hit_if             (btb_hit_if),
-        .btb_pred_taken_if      (btb_pred_taken_if),
-        .btb_tgt_if             (btb_tgt_if),
-        .btb_is_return_if       (btb_is_return_if),
-        .ras_valid_if           (ras_valid_if),
-        .ras_tgt_if             (ras_tgt_if),
-        .imem_ren               (imem_ren),
-        .imem_raddr             (imem_raddr),
-        .imem_rdata             (imem_rdata),
-        .instr_id               (instr_id),
-        .pc_to_if_id            (pc_to_if_id),
-        .pc_plus4_to_if_id      (pc_plus4_to_if_id),
-        .btb_hit_to_if_id       (btb_hit_to_if_id),
-        .btb_pred_taken_to_if_id(btb_pred_taken_to_if_id),
-        .btb_tgt_to_if_id       (btb_tgt_to_if_id),
-        .btb_is_return_to_if_id (btb_is_return_to_if_id),
-        .ras_valid_to_if_id     (ras_valid_to_if_id),
-        .ras_tgt_to_if_id       (ras_tgt_to_if_id),
-        .valid_to_if_id         (valid_to_if_id)
+        .clk              (clk),
+        .rst_n            (rst_n),
+        .valid_if         (s_valid),
+        .pc               (pc_if),
+        .pc_next          (pc_next_if),
+        .if_id_flush      (if_id_flush),
+        .advance          (advance),
+        .btb_hit_if       (btb_hit_if),
+        .btb_pred_taken_if(btb_pred_taken_if),
+        .btb_tgt_if       (btb_tgt_if),
+        .btb_is_return_if (btb_is_return_if),
+        .ras_valid_if     (ras_valid_if),
+        .ras_tgt_if       (ras_tgt_if),
+        .imem_ren         (imem_ren),
+        .imem_raddr       (imem_raddr),
+        .imem_rdata       (imem_rdata),
+        .instr_id         (instr_id),
+        .pc_ram           (pc_ram),
+        .pc_plus4_ram     (pc_plus4_ram),
+        .btb_hit_id       (btb_hit_id),
+        .btb_pred_taken_id(btb_pred_taken_id),
+        .btb_tgt_id       (btb_tgt_id),
+        .btb_is_return_id (btb_is_return_id),
+        .ras_valid_id     (ras_valid_id),
+        .ras_tgt_id       (ras_tgt_id),
+        .valid_ram        (valid_ram)
     );
-
-    `SVC_UNUSED({s_valid})
 
   end else begin : g_sram
     svc_rv_stage_if_sram #(
         .XLEN     (XLEN),
         .PIPELINED(PIPELINED)
     ) stage (
-        .clk                    (clk),
-        .rst_n                  (rst_n),
-        .pc                     (pc_if),
-        .if_id_flush            (if_id_flush),
-        .m_ready                (m_ready),
-        .btb_hit_if             (btb_hit_if),
-        .btb_pred_taken_if      (btb_pred_taken_if),
-        .btb_tgt_if             (btb_tgt_if),
-        .btb_is_return_if       (btb_is_return_if),
-        .ras_valid_if           (ras_valid_if),
-        .ras_tgt_if             (ras_tgt_if),
-        .imem_ren               (imem_ren),
-        .imem_raddr             (imem_raddr),
-        .imem_rdata             (imem_rdata),
-        .instr_id               (instr_id),
-        .pc_to_if_id            (pc_to_if_id),
-        .pc_plus4_to_if_id      (pc_plus4_to_if_id),
-        .btb_hit_to_if_id       (btb_hit_to_if_id),
-        .btb_pred_taken_to_if_id(btb_pred_taken_to_if_id),
-        .btb_tgt_to_if_id       (btb_tgt_to_if_id),
-        .btb_is_return_to_if_id (btb_is_return_to_if_id),
-        .ras_valid_to_if_id     (ras_valid_to_if_id),
-        .ras_tgt_to_if_id       (ras_tgt_to_if_id),
-        .valid_to_if_id         (valid_to_if_id)
+        .clk              (clk),
+        .rst_n            (rst_n),
+        .valid_if         (s_valid),
+        .pc               (pc_if),
+        .if_id_flush      (if_id_flush),
+        .advance          (advance),
+        .btb_hit_if       (btb_hit_if),
+        .btb_pred_taken_if(btb_pred_taken_if),
+        .btb_tgt_if       (btb_tgt_if),
+        .btb_is_return_if (btb_is_return_if),
+        .ras_valid_if     (ras_valid_if),
+        .ras_tgt_if       (ras_tgt_if),
+        .imem_ren         (imem_ren),
+        .imem_raddr       (imem_raddr),
+        .imem_rdata       (imem_rdata),
+        .instr_id         (instr_id),
+        .pc_ram           (pc_ram),
+        .pc_plus4_ram     (pc_plus4_ram),
+        .btb_hit_id       (btb_hit_id),
+        .btb_pred_taken_id(btb_pred_taken_id),
+        .btb_tgt_id       (btb_tgt_id),
+        .btb_is_return_id (btb_is_return_id),
+        .ras_valid_id     (ras_valid_id),
+        .ras_tgt_id       (ras_tgt_id),
+        .valid_ram        (valid_ram)
     );
 
-    `SVC_UNUSED({s_valid, pc_stall, pc_next_if})
+    `SVC_UNUSED({pc_next_if})
   end
 
   //
@@ -195,9 +177,12 @@ module svc_rv_stage_if #(
     logic [XLEN-1:0] pc_plus4_id_buf;
 
     always_ff @(posedge clk) begin
-      if (m_ready) begin
-        pc_id_buf       <= pc_to_if_id;
-        pc_plus4_id_buf <= pc_plus4_to_if_id;
+      if (!rst_n) begin
+        pc_id_buf       <= '0;
+        pc_plus4_id_buf <= '0;
+      end else if (advance) begin
+        pc_id_buf       <= pc_ram;
+        pc_plus4_id_buf <= pc_plus4_ram;
       end
     end
 
@@ -205,40 +190,14 @@ module svc_rv_stage_if #(
     assign pc_plus4_id = pc_plus4_id_buf;
 
   end else begin : g_passthrough
-    assign pc_id       = pc_to_if_id;
-    assign pc_plus4_id = pc_plus4_to_if_id;
+    assign pc_id       = pc_ram;
+    assign pc_plus4_id = pc_plus4_ram;
   end
 
   //
-  // BTB and RAS signal buffering
+  // Valid output
   //
-  svc_rv_bpred_if #(
-      .XLEN     (XLEN),
-      .PIPELINED(PIPELINED),
-      .MEM_TYPE (MEM_TYPE)
-  ) bpred (
-      .clk                    (clk),
-      .rst_n                  (rst_n),
-      .if_id_flush            (if_id_flush),
-      .m_ready                (m_ready),
-      .btb_hit_to_if_id       (btb_hit_to_if_id),
-      .btb_pred_taken_to_if_id(btb_pred_taken_to_if_id),
-      .btb_tgt_to_if_id       (btb_tgt_to_if_id),
-      .btb_is_return_to_if_id (btb_is_return_to_if_id),
-      .ras_valid_to_if_id     (ras_valid_to_if_id),
-      .ras_tgt_to_if_id       (ras_tgt_to_if_id),
-      .btb_hit_id             (btb_hit_id),
-      .btb_pred_taken_id      (btb_pred_taken_id),
-      .btb_tgt_id             (btb_tgt_id),
-      .btb_is_return_id       (btb_is_return_id),
-      .ras_valid_id           (ras_valid_id),
-      .ras_tgt_id             (ras_tgt_id)
-  );
-
-  //
-  // Ready/valid output
-  //
-  assign m_valid = valid_to_if_id;
+  assign m_valid = valid_ram;
 
 `ifdef FORMAL
 `ifdef FORMAL_SVC_RV_STAGE_IF

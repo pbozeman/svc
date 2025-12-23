@@ -618,6 +618,20 @@ always @(posedge clk) begin
       $display("[%12t] %s", $time, line);
     end
 
+    //
+    // Debug output for misprediction tracking
+    //
+    if (is_branch_mem || redir_valid_mem || dmem_stall) begin
+      $display("             DBG: is_branch_mem=%0d branch_taken_mem=%0d bpred_taken_mem=%0d s_valid=%0d redir_valid_mem=%0d dmem_stall=%0d stall_ex=%0d",
+               is_branch_mem,
+               branch_taken_mem,
+               bpred_taken_mem,
+               ex_m_valid,
+               redir_valid_mem,
+               dmem_stall,
+               stall_ex);
+    end
+
 `ifdef RISCV_FORMAL
     //
     // RVFI output on second line when enabled and valid

@@ -296,6 +296,21 @@ module {{ name }};
   end
 
   //
+  // Debug: display RVFI signals on each retire
+  //
+  always @(posedge clk) begin
+    if (rvfi_valid) begin
+      $display("[%0t] RVFI order=%0d pc_rdata=%h pc_wdata=%h trap=%b intr=%b",
+               $time, rvfi_order, rvfi_pc_rdata, rvfi_pc_wdata, rvfi_trap, rvfi_intr);
+      if (prev_pc_valid && !rvfi_intr) begin
+        $display("       pc_fwd check: pc_rdata=%h == prev_pc_wdata=%h ? %s",
+                 rvfi_pc_rdata, prev_pc_wdata,
+                 (rvfi_pc_rdata == prev_pc_wdata) ? "OK" : "MISMATCH");
+      end
+    end
+  end
+
+  //
   // Test: run trace and check spec assertions
   //
   task automatic test_trace();

@@ -18,6 +18,11 @@ module svc_rv_stage_if_bram #(
     input logic rst_n,
 
     //
+    // Valid from PC stage
+    //
+    input logic valid_if,
+
+    //
     // PC input (from wrapper)
     //
     input logic [XLEN-1:0] pc,
@@ -26,13 +31,12 @@ module svc_rv_stage_if_bram #(
     //
     // Hazard control
     //
-    input logic pc_stall,
     input logic if_id_flush,
 
     //
-    // Ready/valid interface
+    // Pipeline advance signal
     //
-    input logic m_ready,
+    input logic advance,
 
     //
     // BTB prediction signals
@@ -57,22 +61,22 @@ module svc_rv_stage_if_bram #(
                           input  logic [31:0] imem_rdata,
 
     //
-    // Outputs (instr_id drives module output directly, others to IF/ID register)
+    // Outputs to ID stage
     //
     output logic [    31:0] instr_id,
-    output logic [XLEN-1:0] pc_to_if_id,
-    output logic [XLEN-1:0] pc_plus4_to_if_id,
-    output logic            btb_hit_to_if_id,
-    output logic            btb_pred_taken_to_if_id,
-    output logic [XLEN-1:0] btb_tgt_to_if_id,
-    output logic            btb_is_return_to_if_id,
-    output logic            ras_valid_to_if_id,
-    output logic [XLEN-1:0] ras_tgt_to_if_id,
+    output logic [XLEN-1:0] pc_ram,
+    output logic [XLEN-1:0] pc_plus4_ram,
+    output logic            btb_hit_id,
+    output logic            btb_pred_taken_id,
+    output logic [XLEN-1:0] btb_tgt_id,
+    output logic            btb_is_return_id,
+    output logic            ras_valid_id,
+    output logic [XLEN-1:0] ras_tgt_id,
 
     //
     // Instruction validity
     //
-    output logic valid_to_if_id
+    output logic valid_ram
 );
 
   `include "svc_rv_defs.svh"
@@ -103,7 +107,7 @@ module svc_rv_stage_if_bram #(
     //
     assign imem_raddr = pc_next;
     assign instr      = imem_rdata;
-    assign imem_ren   = !rst_n || !pc_stall;
+    assign imem_ren   = valid_if && advance;
 
     `SVC_UNUSED({pc});
   end else begin : g_no_bpred_imem
@@ -112,7 +116,7 @@ module svc_rv_stage_if_bram #(
     //
     assign imem_raddr = pc;
     assign instr      = imem_rdata;
-    assign imem_ren   = !pc_stall;
+    assign imem_ren   = valid_if && advance;
 
     `SVC_UNUSED({pc_next})
   end
@@ -142,7 +146,7 @@ module svc_rv_stage_if_bram #(
       btb_pred_taken_buf <= 1'b0;
       btb_is_return_buf  <= 1'b0;
       ras_valid_buf      <= 1'b0;
-    end else if (m_ready) begin
+    end else if (advance) begin
       btb_hit_buf        <= btb_hit_if;
       btb_pred_taken_buf <= btb_pred_taken_if;
       btb_is_return_buf  <= btb_is_return_if;
@@ -154,7 +158,7 @@ module svc_rv_stage_if_bram #(
   // Datapath registers: no reset needed (don't care until valid_buf becomes 1)
   //
   always_ff @(posedge clk) begin
-    if (m_ready) begin
+    if (advance) begin
       pc_buf       <= imem_raddr;
       pc_plus4_buf <= imem_raddr + 4;
       btb_tgt_buf  <= btb_tgt_if;
@@ -176,7 +180,7 @@ module svc_rv_stage_if_bram #(
     //
     // flush_extend stays active while stalled after a flush. This ensures
     // we don't capture stale data when stalls delay the new fetch. It clears
-    // only when m_ready=1 (pipeline advancing), at which point a new fetch
+    // only when advance=1 (pipeline advancing), at which point a new fetch
     // was issued and its data will arrive on the next cycle.
     //
     always_ff @(posedge clk) begin
@@ -184,10 +188,10 @@ module svc_rv_stage_if_bram #(
         flush_extend <= 1'b0;
       end else if (if_id_flush) begin
         flush_extend <= 1'b1;
-      end else if (m_ready) begin
+      end else if (advance) begin
         flush_extend <= 1'b0;
       end
-      // During stall (m_ready=0), flush_extend holds its value
+      // During stall (advance=0), flush_extend holds its value
     end
   end
 
@@ -197,7 +201,7 @@ module svc_rv_stage_if_bram #(
   always_ff @(posedge clk) begin
     if (!rst_n || if_id_flush || flush_extend) begin
       instr_buf <= I_NOP;
-    end else if (m_ready) begin
+    end else if (advance) begin
       instr_buf <= instr;
     end
   end
@@ -205,40 +209,42 @@ module svc_rv_stage_if_bram #(
   //
   // Instruction validity tracking
   //
-  // Tracks when pipeline slot contains a real instruction.
-  // Starts at 0 during reset, becomes 1 when first non-flushed instruction
-  // arrives (one cycle after reset due to BRAM latency).
+  // Tracks when first valid fetch has been issued. With s_valid gating
+  // imem_ren, we only fetch when PC stage has valid data. The fetch_started
+  // flag accounts for BRAM latency - valid_buf stays 0 for one cycle after
+  // the first fetch because the instruction hasn't arrived yet.
   //
-  // The started flag ensures we wait one extra cycle after reset before
-  // marking instructions as valid. This accounts for BRAM latency - the
-  // first cycle after reset, valid_buf stays 0 even though the pipeline
-  // is running, because the BRAM hasn't output the first real instruction yet.
-  //
-  logic started;
+  logic fetch_started;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      started   <= 1'b0;
+      fetch_started <= 1'b0;
+    end else if (imem_ren && advance) begin
+      fetch_started <= 1'b1;
+    end
+  end
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
       valid_buf <= 1'b0;
-    end else if (m_ready) begin
-      started   <= 1'b1;
-      valid_buf <= started && !if_id_flush && !flush_extend;
+    end else if (advance) begin
+      valid_buf <= fetch_started && !if_id_flush && !flush_extend;
     end
   end
 
   //
   // Outputs (buffered to align with BRAM latency)
   //
-  assign instr_id                = instr_buf;
-  assign pc_to_if_id             = pc_buf;
-  assign pc_plus4_to_if_id       = pc_plus4_buf;
-  assign btb_hit_to_if_id        = btb_hit_buf;
-  assign btb_pred_taken_to_if_id = btb_pred_taken_buf;
-  assign btb_tgt_to_if_id        = btb_tgt_buf;
-  assign btb_is_return_to_if_id  = btb_is_return_buf;
-  assign ras_valid_to_if_id      = ras_valid_buf;
-  assign ras_tgt_to_if_id        = ras_tgt_buf;
-  assign valid_to_if_id          = valid_buf;
+  assign instr_id          = instr_buf;
+  assign pc_ram            = pc_buf;
+  assign pc_plus4_ram      = pc_plus4_buf;
+  assign btb_hit_id        = btb_hit_buf;
+  assign btb_pred_taken_id = btb_pred_taken_buf;
+  assign btb_tgt_id        = btb_tgt_buf;
+  assign btb_is_return_id  = btb_is_return_buf;
+  assign ras_valid_id      = ras_valid_buf;
+  assign ras_tgt_id        = ras_tgt_buf;
+  assign valid_ram         = valid_buf;
 
 endmodule
 

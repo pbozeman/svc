@@ -99,15 +99,25 @@ module svc_rv_bpred_id #(
       // stage, ID must NOT issue another redirect or it will flush the wrong PC
       // (the instruction after the target, not the target itself).
       //
+      logic [XLEN-1:0] static_pred_tgt;
+      logic            static_tgt_aligned;
+
+      assign static_pred_tgt    = pc_id + imm_id;
+      assign static_tgt_aligned = (static_pred_tgt[1:0] == 2'b00);
+
       always_comb begin
         if (!is_predictable || (ras_pred_taken || btb_pred_valid)) begin
           // No redirect from ID - either already predicted in IF or not predictable
           pred_taken_id = 1'b0;
           pred_tgt      = '0;
+        end else if (!static_tgt_aligned) begin
+          // Target misaligned - don't predict, let EX stage generate trap
+          pred_taken_id = 1'b0;
+          pred_tgt      = '0;
         end else begin
           // RAS/BTB missed - use static BTFNT prediction
           pred_taken_id = static_taken;
-          pred_tgt      = pc_id + imm_id;
+          pred_tgt      = static_pred_tgt;
         end
       end
 
@@ -137,8 +147,17 @@ module svc_rv_bpred_id #(
       //
       // Static BTFNT only (no RAS or BTB)
       //
-      assign pred_taken_id  = ((is_branch_id && imm_id[XLEN-1]) || is_jal_id);
-      assign pred_tgt       = pc_id + imm_id;
+      logic [XLEN-1:0] static_pred_tgt;
+      logic            static_tgt_aligned;
+      logic            static_taken;
+
+      assign static_pred_tgt = pc_id + imm_id;
+      assign static_tgt_aligned = (static_pred_tgt[1:0] == 2'b00);
+      assign static_taken = ((is_branch_id && imm_id[XLEN-1]) || is_jal_id);
+
+      // Don't predict if target is misaligned - let EX stage generate trap
+      assign pred_taken_id = static_taken && static_tgt_aligned;
+      assign pred_tgt = static_tgt_aligned ? static_pred_tgt : '0;
       assign bpred_taken_id = pred_taken_id;
 
       // verilog_format: off

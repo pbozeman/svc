@@ -360,23 +360,39 @@ module svc_rv_hazard #(
     // The instruction fetched during the redirect cycle (wrong path) must
     // be flushed when redir_pending_if is asserted.
     //
-    // id_ex_flush gates control_flush with !stall_ex: when stalled, the
-    // redirecting instruction at EX output can't advance to MEM, so flushing
-    // would lose it. When not stalled, the instruction advances at the same
-    // clock edge, so flush safely clears EX for the following cycle.
+    // id_ex_flush: Flush ID/EX register on control flow changes.
+    //
+    // EX redirects (pc_redir): Gate by !stall_ex to protect the redirecting
+    // instruction (e.g., JALR) which can't advance to MEM while stalled.
+    //
+    // MEM redirects (redir_valid_mem): Always flush - the instruction in EX
+    // is wrong-path (younger than mispredicted branch) and must be discarded
+    // regardless of stall state.
     //
     assign if_id_flush = control_flush || pred_flush || redir_pending_if;
-    assign id_ex_flush = (control_flush && !stall_ex) || redir_pending_if;
+    //
+    // Note: redir_pending_if is NOT included in id_ex_flush because:
+    // 1. When redir_pending_if fires, ID already has a bubble (from the previous
+    //    cycle's if_id_flush = pred_flush), so there's nothing valid to flush.
+    // 2. Including it would corrupt bpred_taken_ex for the branch in EX, because
+    //    pipe_bpred_taken uses FLUSH_REG=1 to preserve predictions across stalls,
+    //    but this also means flush loads from data_i (the bubble's prediction = 0).
+    //
+    assign id_ex_flush = (pc_redir && !stall_ex) || redir_valid_mem;
 
   end else begin : g_immediate_flush
     //
-    // id_ex_flush gates control_flush with !stall_ex: when stalled, the
-    // redirecting instruction at EX output can't advance to MEM, so flushing
-    // would lose it. When not stalled, the instruction advances at the same
-    // clock edge, so flush safely clears EX for the following cycle.
+    // id_ex_flush: Flush ID/EX register on control flow changes.
+    //
+    // EX redirects (pc_redir): Gate by !stall_ex to protect the redirecting
+    // instruction (e.g., JALR) which can't advance to MEM while stalled.
+    //
+    // MEM redirects (redir_valid_mem): Always flush - the instruction in EX
+    // is wrong-path (younger than mispredicted branch) and must be discarded
+    // regardless of stall state.
     //
     assign if_id_flush = control_flush || pred_flush;
-    assign id_ex_flush = control_flush && !stall_ex;
+    assign id_ex_flush = (pc_redir && !stall_ex) || redir_valid_mem;
 
     `SVC_UNUSED(redir_pending_if);
   end
