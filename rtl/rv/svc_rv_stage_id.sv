@@ -415,7 +415,7 @@ module svc_rv_stage_id #(
   //
   localparam int FWD_DATA_W = 2 * XLEN;
 
-  logic [FWD_DATA_W-1:0] fwd_data_id;
+  (* max_fanout = 32 *) logic [FWD_DATA_W-1:0] fwd_data_id;
 
   if (PIPELINED != 0) begin : g_fwd
     assign fwd_data_id = {fwd_rs1_id, fwd_rs2_id};

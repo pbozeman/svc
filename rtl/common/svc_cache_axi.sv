@@ -204,7 +204,7 @@ module svc_cache_axi #(
   logic fill_way;
   logic fill_way_next;
   logic fill_done;
-  logic evict_way;
+  logic fill_evict_way;
 
   //
   // Registered address for fill operations
@@ -296,22 +296,25 @@ module svc_cache_axi #(
   assign hit_data = way1_hit ? way1_data : way0_data;
 
   //
-  // Select way for eviction:
+  // Select way for fill eviction (computed from registered fill_addr_set):
   // - Direct-mapped: always way 0
   // - 2-way: pick invalid way if available, else use LRU
   //
-  if (TWO_WAY) begin : gen_evict_2way
+  // This is computed in STATE_READ_SETUP to break the timing path:
+  //   rd_addr → hit → evict_way → state_next
+  //
+  if (TWO_WAY) begin : gen_fill_evict_2way
     always_comb begin
-      if (!way0_valid) begin
-        evict_way = 1'b0;
-      end else if (!way1_valid) begin
-        evict_way = 1'b1;
+      if (!valid_table[fill_addr_set][0]) begin
+        fill_evict_way = 1'b0;
+      end else if (!valid_table[fill_addr_set][1]) begin
+        fill_evict_way = 1'b1;
       end else begin
-        evict_way = lru_table[addr_set];
+        fill_evict_way = lru_table[fill_addr_set];
       end
     end
-  end else begin : gen_evict_direct
-    assign evict_way = 1'b0;
+  end else begin : gen_fill_evict_direct
+    assign fill_evict_way = 1'b0;
   end
 
   // ===========================================================================
@@ -356,7 +359,6 @@ module svc_cache_axi #(
         if (rd_valid && !hit) begin
           state_next         = STATE_READ_SETUP;
           beat_word_idx_next = '0;
-          fill_way_next      = evict_way;
         end else if (wr_valid) begin
           state_next         = STATE_WRITE;
           m_axi_awvalid_next = 1'b1;
@@ -368,6 +370,7 @@ module svc_cache_axi #(
         state_next         = STATE_READ_BURST;
         m_axi_arvalid_next = 1'b1;
         m_axi_araddr_next  = fill_addr_line_aligned;
+        fill_way_next      = fill_evict_way;
       end
 
       STATE_READ_BURST: begin
@@ -770,7 +773,12 @@ module svc_cache_axi #(
   //
   // Use captured data for fill responses (avoids read-after-write hazard)
   //
-  assign rd_data_valid_next = (rd_valid && rd_ready && hit) || fill_done;
+  // hit_complete is explicitly (state == STATE_IDLE) rather than rd_ready
+  // to make the timing path clear to the synthesizer.
+  //
+  logic hit_complete;
+  assign hit_complete = (state == STATE_IDLE) && rd_valid && hit;
+  assign rd_data_valid_next = hit_complete || fill_done;
 
   //
   // rd_data registration
@@ -803,8 +811,7 @@ module svc_cache_axi #(
   // ===========================================================================
   // Cache ready signals
   // ===========================================================================
-  assign rd_ready = (state == STATE_IDLE) ||
-                    (state != STATE_READ_BURST && state != STATE_READ_SETUP && hit);
+  assign rd_ready = (state == STATE_IDLE);
   assign wr_ready = (state == STATE_WRITE) && (state_next == STATE_IDLE);
 
   // ===========================================================================

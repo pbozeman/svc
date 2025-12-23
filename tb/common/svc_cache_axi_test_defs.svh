@@ -251,7 +251,10 @@ task automatic test_read_after_write_miss;
 endtask
 
 //
-// Test: Read during write - read different cache line
+// Test: Read after write - read different cache line
+//
+// Note: rd_ready is only asserted in STATE_IDLE for timing optimization.
+// Reads must wait for writes to complete.
 //
 task automatic test_read_during_write_diff_line;
   // Pre-fill cache line at 0xC00
@@ -270,24 +273,27 @@ task automatic test_read_during_write_diff_line;
   `TICK(clk);
   `CHECK_EQ(uut.state, STATE_WRITE);
 
-  // Read from pre-filled cache line while write in progress
-  rd_addr     = 32'hC00;
-  rd_valid_in = 1;
-
-  // Read hit should be accepted during write
-  `CHECK_TRUE(rd_ready);
-
-  // Data should be available next cycle
-  `TICK(clk);
-  `CHECK_TRUE(rd_data_valid);
-  `CHECK_EQ(rd_data, 32'hAABBCCDD);
+  // rd_ready is only high in IDLE state (timing optimization)
+  `CHECK_FALSE(rd_ready);
 
   // Wait for write to complete
   `CHECK_WAIT_FOR(clk, uut.state == STATE_IDLE, 10);
+
+  // Now read from pre-filled cache line
+  rd_addr     = 32'hC00;
+  rd_valid_in = 1;
+  `CHECK_TRUE(rd_ready);
+
+  `TICK(clk);
+  `CHECK_TRUE(rd_data_valid);
+  `CHECK_EQ(rd_data, 32'hAABBCCDD);
 endtask
 
 //
-// Test: Read during write - read same cache line being written
+// Test: Read after write - read same cache line that was written
+//
+// Note: rd_ready is only asserted in STATE_IDLE for timing optimization.
+// Reads must wait for writes to complete.
 //
 task automatic test_read_during_write_same_line;
   // Pre-fill cache line at 0xC00
@@ -306,20 +312,21 @@ task automatic test_read_during_write_same_line;
   `TICK(clk);
   `CHECK_EQ(uut.state, STATE_WRITE);
 
-  // Read from same cache line while write in progress
+  // rd_ready is only high in IDLE state (timing optimization)
+  `CHECK_FALSE(rd_ready);
+
+  // Wait for write to complete
+  `CHECK_WAIT_FOR(clk, uut.state == STATE_IDLE, 10);
+
+  // Now read from the written cache line
   rd_addr     = 32'hC00;
   rd_valid_in = 1;
-
-  // Read hit should be accepted during write
   `CHECK_TRUE(rd_ready);
 
   // Data should be the NEW written value
   `TICK(clk);
   `CHECK_TRUE(rd_data_valid);
   `CHECK_EQ(rd_data, 32'h99887766);
-
-  // Wait for write to complete
-  `CHECK_WAIT_FOR(clk, uut.state == STATE_IDLE, 10);
 endtask
 
 //
