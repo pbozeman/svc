@@ -403,7 +403,7 @@ module svc_rv_stage_mem #(
       .clk(clk),
       .rst_n(rst_n),
       .advance(pipe_advance_o),
-      .flush(pipe_flush_o),
+      .flush(1'b0),
       .bubble(1'b0),
 `ifdef FORMAL
       .s_valid(1'b0),
