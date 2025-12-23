@@ -459,7 +459,7 @@ module svc_rv_stage_mem #(
       .clk    (clk),
       .rst_n  (rst_n),
       .advance(pipe_advance_o),
-      .flush  (pipe_flush_o),
+      .flush  (1'b0),
       .bubble (pipe_bubble_o),
 `ifdef FORMAL
       // Note: No s_valid/s_ready for formal - ld_fmt_out comes from dmem_rdata
