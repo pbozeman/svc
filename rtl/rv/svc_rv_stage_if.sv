@@ -95,7 +95,7 @@ module svc_rv_stage_if #(
   //
   // Pipeline advance signal
   //
-  logic            advance;
+  (* max_fanout = 32 *)logic            advance;
   assign advance = !stall_i;
 
   //

@@ -7,6 +7,7 @@
 //
 typedef enum {
   STATE_IDLE,
+  STATE_READ_SETUP,
   STATE_READ_BURST,
   STATE_WRITE,
   STATE_WRITE_RESP
@@ -63,11 +64,14 @@ task automatic test_reset;
 endtask
 
 //
-// Test: Read miss transitions to STATE_READ_BURST
+// Test: Read miss transitions through STATE_READ_SETUP to STATE_READ_BURST
 //
 task automatic test_read_miss;
   rd_addr     = 32'h100;
   rd_valid_in = 1;
+
+  `TICK(clk);
+  `CHECK_EQ(uut.state, STATE_READ_SETUP);
 
   `TICK(clk);
   `CHECK_EQ(uut.state, STATE_READ_BURST);

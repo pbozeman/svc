@@ -155,6 +155,7 @@ module svc_cache_axi #(
   //
   typedef enum {
     STATE_IDLE,
+    STATE_READ_SETUP,
     STATE_READ_BURST,
     STATE_WRITE
   } state_t;
@@ -220,7 +221,7 @@ module svc_cache_axi #(
   //
   logic m_axi_arvalid_next;
   logic [AXI_ADDR_WIDTH-1:0] m_axi_araddr_next;
-  logic [AXI_ADDR_WIDTH-1:0] addr_line_aligned;
+  logic [AXI_ADDR_WIDTH-1:0] fill_addr_line_aligned;
 
   //
   // Write address fields
@@ -258,9 +259,10 @@ module svc_cache_axi #(
   assign addr_set = rd_addr[OFFSET_WIDTH+SET_WIDTH-1:OFFSET_WIDTH];
   assign addr_offset = rd_addr[OFFSET_WIDTH-1:2];
 
-  assign addr_line_aligned = {
-    rd_addr[AXI_ADDR_WIDTH-1:OFFSET_WIDTH], {OFFSET_WIDTH{1'b0}}
-  };
+  // Line-aligned address from registered fill address (for STATE_READ_SETUP)
+  // Truncate to AXI_ADDR_WIDTH (tag+set+offset may exceed AXI address width)
+  assign fill_addr_line_aligned =
+      AXI_ADDR_WIDTH'({fill_addr_tag, fill_addr_set, {OFFSET_WIDTH{1'b0}}});
 
   // ===========================================================================
   // Cache lookup
@@ -352,11 +354,7 @@ module svc_cache_axi #(
     case (state)
       STATE_IDLE: begin
         if (rd_valid && !hit) begin
-          state_next         = STATE_READ_BURST;
-          m_axi_arvalid_next = 1'b1;
-
-          // Align read to cache line and capture fill target
-          m_axi_araddr_next  = addr_line_aligned;
+          state_next         = STATE_READ_SETUP;
           beat_word_idx_next = '0;
           fill_way_next      = evict_way;
         end else if (wr_valid) begin
@@ -364,6 +362,12 @@ module svc_cache_axi #(
           m_axi_awvalid_next = 1'b1;
           m_axi_wvalid_next  = 1'b1;
         end
+      end
+
+      STATE_READ_SETUP: begin
+        state_next         = STATE_READ_BURST;
+        m_axi_arvalid_next = 1'b1;
+        m_axi_araddr_next  = fill_addr_line_aligned;
       end
 
       STATE_READ_BURST: begin
@@ -762,7 +766,8 @@ module svc_cache_axi #(
   // ===========================================================================
   // Cache ready signals
   // ===========================================================================
-  assign rd_ready = (state == STATE_IDLE) || (state != STATE_READ_BURST && hit);
+  assign rd_ready = (state == STATE_IDLE) ||
+                    (state != STATE_READ_BURST && state != STATE_READ_SETUP && hit);
   assign wr_ready = (state == STATE_WRITE) && (state_next == STATE_IDLE);
 
   // ===========================================================================
@@ -1145,7 +1150,7 @@ module svc_cache_axi #(
               f_written[f_rd_addr[F_MEM_AW-1:2]]);
 
       `FCOVER(c_read_burst_start, $past(state
-              ) == STATE_IDLE && state == STATE_READ_BURST);
+              ) == STATE_READ_SETUP && state == STATE_READ_BURST);
       `FCOVER(c_fill_done, fill_done);
       `FCOVER(c_hit_after_fill, $past(fill_done) && rd_valid && hit);
 
