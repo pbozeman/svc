@@ -242,6 +242,15 @@ $(BUILD_DIR)/sw/rv32im/$(1)/$(1).hex:
 
 $(BUILD_DIR)/sw/rv32i_zmmul/$(1)/$(1).hex:
 	@$$(MAKE) -C sw/$(1) RV_ARCH=rv32i_zmmul SVC_SIM=1
+
+$(BUILD_DIR)/sw/rv32i/$(1)/$(1)_128.hex: $(BUILD_DIR)/sw/rv32i/$(1)/$(1).hex
+	@$$(MAKE) -C sw/$(1) RV_ARCH=rv32i ../../.build/sw/rv32i/$(1)/$(1)_128.hex
+
+$(BUILD_DIR)/sw/rv32im/$(1)/$(1)_128.hex: $(BUILD_DIR)/sw/rv32im/$(1)/$(1).hex
+	@$$(MAKE) -C sw/$(1) RV_ARCH=rv32im ../../.build/sw/rv32im/$(1)/$(1)_128.hex
+
+$(BUILD_DIR)/sw/rv32i_zmmul/$(1)/$(1)_128.hex: $(BUILD_DIR)/sw/rv32i_zmmul/$(1)/$(1).hex
+	@$$(MAKE) -C sw/$(1) RV_ARCH=rv32i_zmmul ../../.build/sw/rv32i_zmmul/$(1)/$(1)_128.hex
 endef
 
 $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_hex_rules,$(mod))))
