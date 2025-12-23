@@ -431,7 +431,7 @@ module svc_rv_stage_id #(
       .clk    (clk),
       .rst_n  (rst_n),
       .advance(advance),
-      .flush  (flush),
+      .flush  (1'b0),
       .bubble (bubble),
 `ifdef FORMAL
       // see note above
