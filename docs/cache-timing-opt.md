@@ -159,27 +159,29 @@ STATE_READ_SETUP: begin
 end
 ```
 
-#### 3c: Guard fill writes with state check
+#### 3c: Guard fill writes with state check - SKIPPED
 
-Ensure fill write logic only fires in STATE_READ_BURST (defensive against weird
-AXI timing, also helps timing cones):
+~~Ensure fill write logic only fires in STATE_READ_BURST (defensive against
+weird AXI timing, also helps timing cones).~~
 
-**Modify data write control (line 504):**
+**Status: NOT IMPLEMENTED** - This step breaks functionality when
+`WORDS_PER_BEAT > 1`.
 
-```systemverilog
-// Before:
-if (fill_beat_pending || (m_axi_rvalid && m_axi_rready)) begin
+**Issue:** When `AXI_DATA_WIDTH > 32` (e.g., 128-bit = 4 words/beat), the beat
+serialization logic writes one word per cycle. On the last AXI beat, `fill_done`
+triggers the state transition to IDLE, but `fill_beat_pending` remains high to
+write the remaining words in that beat. The state guard
+`(state == STATE_READ_BURST)` blocks those writes, corrupting the cache fill.
 
-// After:
-if ((state == STATE_READ_BURST) &&
-    (fill_beat_pending || (m_axi_rvalid && m_axi_rready))) begin
-```
+**Impact on timing:** Minimal. The fill write signals (`data_wr_*`) are only
+active during actual AXI handshakes or pending serialization, so they don't
+pollute the hit timing path. The main timing improvement comes from 3a/3b
+(eviction way deferral).
 
-**Rationale:** The miss path becomes `rd_addr → !hit → state_next=READ_SETUP`.
-Eviction selection happens one cycle later using the registered `fill_addr_set`.
-This removes `lru_table[addr_set]` and the eviction mux from the hit/miss
-decision timing. The state guard on fill writes prevents any fill bookkeeping
-from being "live" during IDLE/hit.
+**Rationale for 3a/3b:** The miss path becomes
+`rd_addr → !hit → state_next=READ_SETUP`. Eviction selection happens one cycle
+later using the registered `fill_addr_set`. This removes `lru_table[addr_set]`
+and the eviction mux from the hit/miss decision timing.
 
 **Risk:** Medium - changes when `fill_way` is sampled.
 
@@ -282,14 +284,18 @@ of LRU latency (2 cycles total from access to table update).
 
 After all stages, these signals must NOT be in the `dmem_stall`/PC fanin:
 
-| Signal                                 | Removed by |
-| -------------------------------------- | ---------- |
-| `evict_way` (from `addr_set`)          | Stage 3a   |
-| `lru_table[addr_set]`                  | Stage 3a   |
-| `way0_valid`/`way1_valid` for eviction | Stage 3a   |
-| `fill_addr_set` (when state==IDLE)     | Stage 3c   |
-| `fill_way`, `fill_beat_pending`        | Stage 3c   |
-| `lru_update_value` mux                 | Stage 4    |
+| Signal                                 | Removed by       |
+| -------------------------------------- | ---------------- |
+| `evict_way` (from `addr_set`)          | Stage 3a         |
+| `lru_table[addr_set]`                  | Stage 3a/3b      |
+| `way0_valid`/`way1_valid` for eviction | Stage 3a/3b      |
+| `fill_addr_set` (when state==IDLE)     | N/A (3c skipped) |
+| `fill_way`, `fill_beat_pending`        | N/A (3c skipped) |
+| `lru_update_value` mux                 | Stage 4          |
+
+Note: 3c was skipped due to breaking beat serialization when
+`WORDS_PER_BEAT > 1`. The fill signals are not in the hit timing path anyway
+since they're only active during actual fills.
 
 Signals expected in hit path (unavoidable):
 
@@ -306,12 +312,15 @@ Signals expected in hit path (unavoidable):
 Pause after each stage for user to run tests and Vivado timing analysis.
 
 1. **Stage 1+2** - Low risk cleanup
+
    - User runs: `make svc_cache_axi_tb` + Vivado timing
    - Confirm no regressions, check if timing path moves
 
-2. **Stage 3 (3a+3b+3c together)** - Main timing fix
+2. **Stage 3 (3a+3b only, 3c skipped)** - Main timing fix
+
    - User runs: `make svc_cache_axi_f` + full dcache SOC testbenches + Vivado
    - Measure timing improvement
+   - Note: 3c breaks beat serialization when `WORDS_PER_BEAT > 1`
 
 3. **Stage 4** - Optional, implement only if Stage 3 insufficient
    - User runs: same as Stage 3
