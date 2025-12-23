@@ -465,17 +465,16 @@ module svc_rv_stage_id #(
   );
 
   //
-  // Instruction register: flush to NOP
+  // Instruction register: garbage OK when invalid
   //
   svc_rv_pipe_data #(
-      .WIDTH    (32),
-      .REG      (PIPELINED),
-      .FLUSH_VAL(I_NOP)
+      .WIDTH(32),
+      .REG  (PIPELINED)
   ) pipe_instr (
       .clk    (clk),
       .rst_n  (rst_n),
       .advance(advance),
-      .flush  (flush),
+      .flush  (1'b0),
       .bubble (bubble),
 `ifdef FORMAL
       .s_valid(s_valid),
