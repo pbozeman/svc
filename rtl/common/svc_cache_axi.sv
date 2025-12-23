@@ -133,9 +133,9 @@ module svc_cache_axi #(
 
   localparam int WORD_IDX_WIDTH = $clog2(WORDS_PER_LINE);
 
-  // Flattened data table addressing
-  localparam int DATA_TABLE_DEPTH = NUM_SETS * NUM_WAYS * WORDS_PER_LINE;
-  localparam int DATA_TABLE_AW = $clog2(DATA_TABLE_DEPTH);
+  // Per-way data RAM dimensions (no way bit in address for BRAM inference)
+  localparam int DATA_WAY_DEPTH = NUM_SETS * WORDS_PER_LINE;
+  localparam int DATA_WAY_AW = $clog2(DATA_WAY_DEPTH);
 
   localparam logic [AXI_ID_WIDTH-1:0] AXI_ID = 0;
   localparam int AXI_DATA_BYTES = AXI_DATA_WIDTH / 8;
@@ -177,24 +177,31 @@ module svc_cache_axi #(
   logic valid_table[NUM_SETS][NUM_WAYS];
   logic lru_table[NUM_SETS];
 
-  // Flattened 1D array for better BRAM inference on iCE40
-  (* ram_style = "block" *)
-  logic [31:0] data_table[DATA_TABLE_DEPTH];
+  // Banked data RAMs - sync read enables BRAM inference
+  // Indexed by {set, word_offset} - no way bit in address
+  // verilog_format: off
+  (* ram_style = "block" *) logic [31:0] data_way0[DATA_WAY_DEPTH];
+  (* ram_style = "block" *) logic [31:0] data_way1[DATA_WAY_DEPTH];
+  // verilog_format: on
 
   //
   // Cache lookup
   //
-  // max_fanout to reduce routing delay on timing-critical signals
   (* max_fanout = 16 *)logic hit;
   (* max_fanout = 16 *)logic way0_hit;
   logic way1_hit;
   logic [31:0] hit_data;
   logic way0_valid;
   logic [TAG_WIDTH-1:0] way0_tag;
-  logic [31:0] way0_data;
   logic way1_valid;
   logic [TAG_WIDTH-1:0] way1_tag;
-  logic [31:0] way1_data;
+
+  // Registered BRAM read outputs (sync read for BRAM inference)
+  logic [31:0] way0_data_r;
+  logic [31:0] way1_data_r;
+
+  // Registered hit metadata to align with BRAM output timing
+  logic way1_hit_r;
 
   //
   // Fill tracking
@@ -279,21 +286,37 @@ module svc_cache_axi #(
   // Way 1 lookup (only for 2-way)
   //
   if (TWO_WAY) begin : gen_way1
-    assign way0_data  = data_table[{addr_set, 1'b0, addr_offset}];
     assign way1_valid = valid_table[addr_set][1];
     assign way1_tag   = tag_table[addr_set][1];
-    assign way1_data  = data_table[{addr_set, 1'b1, addr_offset}];
     assign way1_hit   = way1_valid && (way1_tag == addr_tag);
   end else begin : gen_no_way1
-    assign way0_data  = data_table[{addr_set, addr_offset}];
     assign way1_valid = 1'b0;
     assign way1_tag   = '0;
-    assign way1_data  = '0;
     assign way1_hit   = 1'b0;
   end
 
-  assign hit      = way0_hit || way1_hit;
-  assign hit_data = way1_hit ? way1_data : way0_data;
+  // Combinational hit for state machine (same cycle as rd_valid)
+  assign hit = way0_hit || way1_hit;
+
+  //
+  // Synchronous BRAM reads - output available next cycle
+  // This enables BRAM inference instead of LUTRAM
+  //
+  logic [DATA_WAY_AW-1:0] data_rd_addr;
+  assign data_rd_addr = {addr_set, addr_offset};
+
+  always_ff @(posedge clk) begin
+    way0_data_r <= data_way0[data_rd_addr];
+    way1_data_r <= data_way1[data_rd_addr];
+  end
+
+  // Register hit metadata to align with BRAM output timing
+  always_ff @(posedge clk) begin
+    way1_hit_r <= way1_hit;
+  end
+
+  // Hit data mux uses registered signals (available cycle N+1)
+  assign hit_data = way1_hit_r ? way1_data_r : way0_data_r;
 
   //
   // Select way for fill eviction (computed from registered fill_addr_set):
@@ -559,24 +582,25 @@ module svc_cache_axi #(
     end
   end
 
-  // Single write port to data_table
+  // Write to banked data RAMs
   //
   // For partial writes (strb != 4'b1111), we skip the cache update since this
   // is a write-through cache and memory has the correct data. The cache line
   // will be refetched on the next miss. This avoids needing read-modify-write
   // which would require an extra read port that iCE40 RAM4K doesn't support.
   //
-  logic [DATA_TABLE_AW-1:0] data_wr_addr;
+  // Write address without way bit (for banked writes)
+  logic [DATA_WAY_AW-1:0] data_wr_way_addr;
+  assign data_wr_way_addr = {data_wr_set, data_wr_idx};
 
-  if (TWO_WAY) begin : gen_wr_addr_2way
-    assign data_wr_addr = {data_wr_set, data_wr_way, data_wr_idx};
-  end else begin : gen_wr_addr_direct
-    assign data_wr_addr = {data_wr_set, data_wr_idx};
-  end
-
+  // Write to banked RAMs - way select determines which bank
   always_ff @(posedge clk) begin
     if (data_wr_en && (data_wr_strb == 4'b1111)) begin
-      data_table[data_wr_addr] <= data_wr_word;
+      if (!data_wr_way) begin
+        data_way0[data_wr_way_addr] <= data_wr_word;
+      end else begin
+        data_way1[data_wr_way_addr] <= data_wr_word;
+      end
     end
   end
 
@@ -781,24 +805,34 @@ module svc_cache_axi #(
   assign rd_data_valid_next = hit_complete || fill_done;
 
   //
-  // rd_data registration
+  // rd_data generation
   //
-  // Register rd_data when rd_data_valid_next is high. This ensures rd_data
-  // is stable and correct when rd_data_valid goes high on the next cycle.
+  // For hits: hit_data is derived from registered BRAM outputs (way*_data_r).
+  // These are valid on the same cycle that rd_data_valid goes high, so no
+  // additional register is needed.
   //
-  // For fills, we use fill_data which is extracted directly
-  // from m_axi_rdata in the same cycle. This avoids the read-after-write
-  // hazard with data_table.
+  // For fills: fill_data may be combinational from current AXI beat, so we
+  // capture it when fill_done fires.
   //
-  logic [31:0] rd_data_reg;
+  logic [31:0] fill_data_captured;
+  logic        use_fill_data;
 
   always_ff @(posedge clk) begin
-    if (rd_data_valid_next) begin
-      rd_data_reg <= fill_done ? fill_data : hit_data;
+    if (fill_done) begin
+      fill_data_captured <= fill_data;
     end
   end
 
-  assign rd_data = rd_data_reg;
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      use_fill_data <= 1'b0;
+    end else begin
+      use_fill_data <= fill_done;
+    end
+  end
+
+  // hit_data uses registered BRAM outputs, fill_data_captured is registered
+  assign rd_data = use_fill_data ? fill_data_captured : hit_data;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
@@ -826,7 +860,7 @@ module svc_cache_axi #(
 
   if (TWO_WAY == 0) begin : gen_unused_direct
     `SVC_UNUSED({way0_tag, way1_tag, way0_valid, way1_valid, lru_table,
-                 data_wr_way});
+                 data_wr_way, way1_data_r, way1_hit_r, data_way1});
   end
 
   // ===========================================================================
@@ -1150,20 +1184,20 @@ module svc_cache_axi #(
 
   // When fill completes and rd_data_valid goes high, verify data correctness
   //
-  // Check against what was actually stored in data_table. This catches bugs
+  // Check against what was actually stored in data RAMs. This catches bugs
   // where rd_data comes from the wrong source (e.g., stale fill_data
   // instead of the AXI data that was written to the table).
   //
   logic [31:0] f_stored_word;
-  logic [DATA_TABLE_AW-1:0] f_stored_addr;
+  logic [DATA_WAY_AW-1:0] f_stored_way_addr;
+  assign f_stored_way_addr = {f_req_set, f_req_offset};
 
-  if (TWO_WAY) begin : gen_f_addr_2way
-    assign f_stored_addr = {f_req_set, fill_way, f_req_offset};
-  end else begin : gen_f_addr_direct
-    assign f_stored_addr = {f_req_set, f_req_offset};
+  if (TWO_WAY) begin : gen_f_stored_2way
+    assign f_stored_word = fill_way ? data_way1[f_stored_way_addr]
+                                    : data_way0[f_stored_way_addr];
+  end else begin : gen_f_stored_direct
+    assign f_stored_word = data_way0[f_stored_way_addr];
   end
-
-  assign f_stored_word = data_table[f_stored_addr];
 
   always_ff @(posedge clk) begin
     if (f_past_valid && rst_n && $past(rst_n)) begin
