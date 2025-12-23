@@ -294,7 +294,7 @@ module svc_rv_stage_id #(
   //
   // Pipeline control
   //
-  logic advance;
+  (* max_fanout = 32 *)logic advance;
   logic flush;
   logic bubble;
 

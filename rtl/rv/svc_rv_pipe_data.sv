@@ -35,8 +35,8 @@ module svc_rv_pipe_data #(
     input logic s_ready,
 `endif
 
-    input  logic [WIDTH-1:0] data_i,
-    output logic [WIDTH-1:0] data_o
+                          input  logic [WIDTH-1:0] data_i,
+    (* max_fanout = 32 *) output logic [WIDTH-1:0] data_o
 );
 
   if (REG != 0) begin : g_registered
