@@ -303,7 +303,7 @@ module svc_rv_stage_pc #(
       .clk    (clk),
       .rst_n  (rst_n),
       .advance(pipe_advance),
-      .flush  (pipe_flush),
+      .flush  (1'b0),
       .bubble (pipe_bubble),
 `ifdef FORMAL
       .s_valid(1'b1),
