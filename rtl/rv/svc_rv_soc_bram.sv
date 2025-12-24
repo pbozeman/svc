@@ -35,11 +35,8 @@ module svc_rv_soc_bram #(
 
     parameter logic [31:0] RESET_PC = 0,
 
-    // verilog_lint: waive explicit-parameter-storage-type
-    parameter IMEM_INIT = "",
-
-    // verilog_lint: waive explicit-parameter-storage-type
-    parameter DMEM_INIT = ""
+    parameter string IMEM_INIT = "",
+    parameter string DMEM_INIT = ""
 ) (
     input logic clk,
     input logic rst_n,

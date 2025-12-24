@@ -25,8 +25,7 @@ module svc_mem_bram #(
     parameter integer DW    = 32,
     parameter integer DEPTH = 1024,
 
-    // verilog_lint: waive explicit-parameter-storage-type
-    parameter INIT_FILE   = "",
+    parameter string INIT_FILE = "",
     parameter RESET_VALUE = {DW{1'b0}}
 ) (
     input logic clk,
@@ -65,18 +64,24 @@ module svc_mem_bram #(
     int word_count;
     int last_index;
 
+    $display("svc_mem_bram: INIT_FILE=%s DEPTH=%0d", INIT_FILE, DEPTH);
+    $fflush();
+
     for (int i = 0; i < DEPTH; i = i + 1) begin
       mem[i] = {DW{1'b0}};
     end
 
     if (INIT_FILE != "") begin
       word_count = svc_readmemh_count(INIT_FILE);
+      $display("svc_mem_bram: word_count=%0d", word_count);
+      $fflush();
       if (word_count > 0) begin
         last_index = (word_count > DEPTH) ? DEPTH - 1 : word_count - 1;
         $readmemh(INIT_FILE, mem, 0, last_index);
       end
     end
 `else
+    $display("svc_mem_bram: SYNTHESIS mode - direct readmemh");
     if (INIT_FILE != "") begin
       $readmemh(INIT_FILE, mem);
     end

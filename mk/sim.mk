@@ -4,6 +4,14 @@ SIM_MK := 1
 include mk/dirs.mk
 include mk/format.mk
 
+# Verilator simulation command
+VERILATOR_SIM_FLAGS := --cc --exe --build --timing
+VERILATOR_SIM_FLAGS += -Wall -Wno-PINCONNECTEMPTY -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM
+VERILATOR_SIM_FLAGS += -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND
+VERILATOR_SIM_FLAGS += -O3
+VERILATOR_SIM_FLAGS += $(I_RTL) -I$(PRJ_TB_DIR)
+VERILATOR_SIM := verilator $(VERILATOR_SIM_FLAGS)
+
 # Standalone simulation sources and modules
 # Only find *_sim.sv files in subdirectories (not top-level rtl/)
 # to exclude infrastructure like svc_soc_sim.sv
@@ -16,6 +24,9 @@ vpath %_sim.sv $(SIM_SUBDIRS)
 
 # Sim output directory
 SIM_BUILD_DIR := $(BUILD_DIR)/sim
+
+# C++ wrapper for Verilator sims
+SIM_MAIN_CPP := $(SVC_DIR)/tb/cpp/sim_main.cpp
 
 ##############################################################################
 #
@@ -36,7 +47,7 @@ ifneq ($(RV_SIM_MODULES),)
 # Base RV simulation targets (rv_*_sim without arch suffix) default to rv32i
 # This adds hex file dependency to the generic compilation rule
 define rv_base_sim_dep
-$(SIM_BUILD_DIR)/rv_$(1)_sim: $(BUILD_DIR)/sw/rv32i/$(1)/$(1).hex
+$(SIM_BUILD_DIR)/rv_$(1)_sim/Vrv_$(1)_sim: $(BUILD_DIR)/sw/rv32i/$(1)/$(1).hex
 endef
 
 $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_base_sim_dep,$(mod))))
@@ -47,41 +58,41 @@ $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_base_sim_dep,$(mod))))
 
 # Architecture-specific simulation pattern rules
 # Pattern: rv_<module>_<arch>_sim depends on corresponding hex file
-# Examples: rv_hello_i_sim, rv_hello_im_sim, rv_hello_i_zmmul_sim
-$(SIM_BUILD_DIR)/rv_%_i_sim: $(BUILD_DIR)/sw/rv32i/%/%.hex
-$(SIM_BUILD_DIR)/rv_%_im_sim: $(BUILD_DIR)/sw/rv32im/%/%.hex
-$(SIM_BUILD_DIR)/rv_%_i_zmmul_sim: $(BUILD_DIR)/sw/rv32i_zmmul/%/%.hex
+$(SIM_BUILD_DIR)/rv_%_i_sim/Vrv_%_sim: $(BUILD_DIR)/sw/rv32i/%/%.hex
+$(SIM_BUILD_DIR)/rv_%_im_sim/Vrv_%_sim: $(BUILD_DIR)/sw/rv32im/%/%.hex
+$(SIM_BUILD_DIR)/rv_%_i_zmmul_sim/Vrv_%_sim: $(BUILD_DIR)/sw/rv32i_zmmul/%/%.hex
 
 # SRAM pipelined simulation pattern rules
-$(SIM_BUILD_DIR)/rv_%_sram_i_sim: $(BUILD_DIR)/sw/rv32i/%/%.hex
-$(SIM_BUILD_DIR)/rv_%_sram_im_sim: $(BUILD_DIR)/sw/rv32im/%/%.hex
-$(SIM_BUILD_DIR)/rv_%_sram_i_zmmul_sim: $(BUILD_DIR)/sw/rv32i_zmmul/%/%.hex
+$(SIM_BUILD_DIR)/rv_%_sram_i_sim/Vrv_%_sim: $(BUILD_DIR)/sw/rv32i/%/%.hex
+$(SIM_BUILD_DIR)/rv_%_sram_im_sim/Vrv_%_sim: $(BUILD_DIR)/sw/rv32im/%/%.hex
+$(SIM_BUILD_DIR)/rv_%_sram_i_zmmul_sim/Vrv_%_sim: $(BUILD_DIR)/sw/rv32i_zmmul/%/%.hex
 
 # SRAM single-cycle simulation pattern rules
-$(SIM_BUILD_DIR)/rv_%_sram_sc_i_sim: $(BUILD_DIR)/sw/rv32i/%/%.hex
-$(SIM_BUILD_DIR)/rv_%_sram_sc_im_sim: $(BUILD_DIR)/sw/rv32im/%/%.hex
-$(SIM_BUILD_DIR)/rv_%_sram_sc_i_zmmul_sim: $(BUILD_DIR)/sw/rv32i_zmmul/%/%.hex
+$(SIM_BUILD_DIR)/rv_%_sram_sc_i_sim/Vrv_%_sim: $(BUILD_DIR)/sw/rv32i/%/%.hex
+$(SIM_BUILD_DIR)/rv_%_sram_sc_im_sim/Vrv_%_sim: $(BUILD_DIR)/sw/rv32im/%/%.hex
+$(SIM_BUILD_DIR)/rv_%_sram_sc_i_zmmul_sim/Vrv_%_sim: $(BUILD_DIR)/sw/rv32i_zmmul/%/%.hex
 
 # BRAM cache simulation pattern rules (depend on both 32-bit and 128-bit hex)
-$(SIM_BUILD_DIR)/rv_%_cache_i_sim: $(BUILD_DIR)/sw/rv32i/%/%.hex $(BUILD_DIR)/sw/rv32i/%/%_128.hex
-$(SIM_BUILD_DIR)/rv_%_cache_im_sim: $(BUILD_DIR)/sw/rv32im/%/%.hex $(BUILD_DIR)/sw/rv32im/%/%_128.hex
-$(SIM_BUILD_DIR)/rv_%_cache_i_zmmul_sim: $(BUILD_DIR)/sw/rv32i_zmmul/%/%.hex $(BUILD_DIR)/sw/rv32i_zmmul/%/%_128.hex
+$(SIM_BUILD_DIR)/rv_%_cache_i_sim/Vrv_%_sim: $(BUILD_DIR)/sw/rv32i/%/%.hex $(BUILD_DIR)/sw/rv32i/%/%_128.hex
+$(SIM_BUILD_DIR)/rv_%_cache_im_sim/Vrv_%_sim: $(BUILD_DIR)/sw/rv32im/%/%.hex $(BUILD_DIR)/sw/rv32im/%/%_128.hex
+$(SIM_BUILD_DIR)/rv_%_cache_i_zmmul_sim/Vrv_%_sim: $(BUILD_DIR)/sw/rv32i_zmmul/%/%.hex $(BUILD_DIR)/sw/rv32i_zmmul/%/%_128.hex
 
-# Architecture-specific simulation build rules with defines
+# Verilator build rule for architecture-specific simulations
 # Generate rules for each RV module and architecture combination
 define rv_arch_sim_rule
-.PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_$(2)_sim
-$(SIM_BUILD_DIR)/rv_$(1)_$(2)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv Makefile | $(SIM_BUILD_DIR)
-	@$$(IVERILOG) -M $$(@).dep \
+.PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_$(2)_sim/Vrv_$(1)_sim
+$(SIM_BUILD_DIR)/rv_$(1)_$(2)_sim/Vrv_$(1)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv $(SIM_MAIN_CPP) Makefile | $(SIM_BUILD_DIR)
+	@$$(VERILATOR_SIM) \
 		-DRV_IMEM_DEPTH=$$(or $$($(1)_RV_IMEM_DEPTH),$$(RV_IMEM_DEPTH)) \
 		-DRV_DMEM_DEPTH=$$(or $$($(1)_RV_DMEM_DEPTH),$$(RV_DMEM_DEPTH)) \
 		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
 		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
 		$(if $(filter im,$(2)),-DRV_ARCH_M) \
-		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
-		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
-		exit $$$${PIPESTATUS[0]}
-	@echo "$$@: $$$$(tr '\n' ' ' < $$(@).dep)" > $$(@).d
+		-I$$(PRJ_RTL_DIR)/rv_$(1) \
+		--Mdir $(SIM_BUILD_DIR)/rv_$(1)_$(2)_sim \
+		--top-module rv_$(1)_sim \
+		-CFLAGS '-DSIM_HEADER=\"Vrv_$(1)_sim.h\" -DSIM_TOP=Vrv_$(1)_sim -DSIM_NAME=\"rv_$(1)_$(2)_sim\"' \
+		$$(word 2,$$^) $(SIM_MAIN_CPP)
 endef
 
 # Generate rules for each module x architecture
@@ -91,19 +102,20 @@ $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_arch_sim_rule,$(mod),i_zmmul,$(
 
 # SRAM pipelined simulation build rules
 define rv_sram_sim_rule
-.PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_sram_$(2)_sim
-$(SIM_BUILD_DIR)/rv_$(1)_sram_$(2)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv Makefile | $(SIM_BUILD_DIR)
-	@$$(IVERILOG) -M $$(@).dep \
+.PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_sram_$(2)_sim/Vrv_$(1)_sim
+$(SIM_BUILD_DIR)/rv_$(1)_sram_$(2)_sim/Vrv_$(1)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv $(SIM_MAIN_CPP) Makefile | $(SIM_BUILD_DIR)
+	@$$(VERILATOR_SIM) \
 		-DSVC_MEM_SRAM \
 		-DRV_IMEM_DEPTH=$$(or $$($(1)_RV_IMEM_DEPTH),$$(RV_IMEM_DEPTH)) \
 		-DRV_DMEM_DEPTH=$$(or $$($(1)_RV_DMEM_DEPTH),$$(RV_DMEM_DEPTH)) \
 		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
 		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
 		$(if $(filter im,$(2)),-DRV_ARCH_M) \
-		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
-		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
-		exit $$$${PIPESTATUS[0]}
-	@echo "$$@: $$$$(tr '\n' ' ' < $$(@).dep)" > $$(@).d
+		-I$$(PRJ_RTL_DIR)/rv_$(1) \
+		--Mdir $(SIM_BUILD_DIR)/rv_$(1)_sram_$(2)_sim \
+		--top-module rv_$(1)_sim \
+		-CFLAGS '-DSIM_HEADER=\"Vrv_$(1)_sim.h\" -DSIM_TOP=Vrv_$(1)_sim -DSIM_NAME=\"rv_$(1)_sram_$(2)_sim\"' \
+		$$(word 2,$$^) $(SIM_MAIN_CPP)
 endef
 
 # Generate SRAM pipelined rules for each module x architecture
@@ -113,9 +125,9 @@ $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_sram_sim_rule,$(mod),i_zmmul,$(
 
 # SRAM single-cycle simulation build rules
 define rv_sram_sc_sim_rule
-.PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_sram_sc_$(2)_sim
-$(SIM_BUILD_DIR)/rv_$(1)_sram_sc_$(2)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv Makefile | $(SIM_BUILD_DIR)
-	@$$(IVERILOG) -M $$(@).dep \
+.PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_sram_sc_$(2)_sim/Vrv_$(1)_sim
+$(SIM_BUILD_DIR)/rv_$(1)_sram_sc_$(2)_sim/Vrv_$(1)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv $(SIM_MAIN_CPP) Makefile | $(SIM_BUILD_DIR)
+	@$$(VERILATOR_SIM) \
 		-DSVC_MEM_SRAM \
 		-DSVC_CPU_SINGLE_CYCLE \
 		-DRV_IMEM_DEPTH=$$(or $$($(1)_RV_IMEM_DEPTH),$$(RV_IMEM_DEPTH)) \
@@ -123,10 +135,11 @@ $(SIM_BUILD_DIR)/rv_$(1)_sram_sc_$(2)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_
 		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
 		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
 		$(if $(filter im,$(2)),-DRV_ARCH_M) \
-		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
-		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
-		exit $$$${PIPESTATUS[0]}
-	@echo "$$@: $$$$(tr '\n' ' ' < $$(@).dep)" > $$(@).d
+		-I$$(PRJ_RTL_DIR)/rv_$(1) \
+		--Mdir $(SIM_BUILD_DIR)/rv_$(1)_sram_sc_$(2)_sim \
+		--top-module rv_$(1)_sim \
+		-CFLAGS '-DSIM_HEADER=\"Vrv_$(1)_sim.h\" -DSIM_TOP=Vrv_$(1)_sim -DSIM_NAME=\"rv_$(1)_sram_sc_$(2)_sim\"' \
+		$$(word 2,$$^) $(SIM_MAIN_CPP)
 endef
 
 # Generate SRAM single-cycle rules for each module x architecture
@@ -136,9 +149,9 @@ $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_sram_sc_sim_rule,$(mod),i_zmmul
 
 # BRAM cache simulation build rules
 define rv_cache_sim_rule
-.PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_sim
-$(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_sim: $(3)/$(1)/$(1).hex $(3)/$(1)/$(1)_128.hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv Makefile | $(SIM_BUILD_DIR)
-	@$$(IVERILOG) -M $$(@).dep \
+.PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_sim/Vrv_$(1)_sim
+$(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_sim/Vrv_$(1)_sim: $(3)/$(1)/$(1).hex $(3)/$(1)/$(1)_128.hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv $(SIM_MAIN_CPP) Makefile | $(SIM_BUILD_DIR)
+	@$$(VERILATOR_SIM) \
 		-DSVC_MEM_BRAM_CACHE \
 		-DRV_IMEM_DEPTH=$$(or $$($(1)_RV_IMEM_DEPTH),$$(RV_IMEM_DEPTH)) \
 		-DRV_DMEM_DEPTH=$$(or $$($(1)_RV_DMEM_DEPTH),$$(RV_DMEM_DEPTH)) \
@@ -146,10 +159,11 @@ $(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_sim: $(3)/$(1)/$(1).hex $(3)/$(1)/$(1)_128.h
 		-DRV_SIM_HEX_128='"$(3)/$(1)/$(1)_128.hex"' \
 		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
 		$(if $(filter im,$(2)),-DRV_ARCH_M) \
-		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 3,$$^) 2>&1 | \
-		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
-		exit $$$${PIPESTATUS[0]}
-	@echo "$$@: $$$$(tr '\n' ' ' < $$(@).dep)" > $$(@).d
+		-I$$(PRJ_RTL_DIR)/rv_$(1) \
+		--Mdir $(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_sim \
+		--top-module rv_$(1)_sim \
+		-CFLAGS '-DSIM_HEADER=\"Vrv_$(1)_sim.h\" -DSIM_TOP=Vrv_$(1)_sim -DSIM_NAME=\"rv_$(1)_cache_$(2)_sim\"' \
+		$$(word 3,$$^) $(SIM_MAIN_CPP)
 endef
 
 # Generate BRAM cache rules for each module x architecture
@@ -177,8 +191,8 @@ RV_CACHE_I_SIMS := $(addprefix rv_,$(addsuffix _cache_i_sim,$(RV_SIM_MODULES)))
 RV_CACHE_IM_SIMS := $(addprefix rv_,$(addsuffix _cache_im_sim,$(RV_SIM_MODULES)))
 RV_CACHE_I_ZMMUL_SIMS := $(addprefix rv_,$(addsuffix _cache_i_zmmul_sim,$(RV_SIM_MODULES)))
 
-# VVP debug flags for all sim targets
-VVP_DBG_FLAGS := \
+# Debug flags passed as plusargs to the simulation
+SIM_DBG_FLAGS := \
 	$(if $(SVC_RV_DBG_CPU),+SVC_RV_DBG_CPU=$(SVC_RV_DBG_CPU)) \
 	$(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) \
 	$(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) \
@@ -190,47 +204,61 @@ VVP_DBG_FLAGS := \
 
 .PHONY: $(RV_I_SIMS) $(RV_IM_SIMS) $(RV_I_ZMMUL_SIMS) $(RV_SRAM_I_SIMS) $(RV_SRAM_IM_SIMS) $(RV_SRAM_I_ZMMUL_SIMS) $(RV_SRAM_SC_I_SIMS) $(RV_SRAM_SC_IM_SIMS) $(RV_SRAM_SC_I_ZMMUL_SIMS) $(RV_CACHE_I_SIMS) $(RV_CACHE_IM_SIMS) $(RV_CACHE_I_ZMMUL_SIMS)
 
-$(RV_I_SIMS): rv_%_i_sim: $(SIM_BUILD_DIR)/rv_%_i_sim
-	@$(VVP) $< $(VVP_DBG_FLAGS)
+# Execution targets - run the Verilator binary
+# Use explicit path construction because GNU make has issues with multiple % in prerequisites
+$(RV_I_SIMS): rv_%_i_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_i_sim/Vrv_$*_sim
+	@$(SIM_BUILD_DIR)/rv_$*_i_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
 
-$(RV_IM_SIMS): rv_%_im_sim: $(SIM_BUILD_DIR)/rv_%_im_sim
-	@$(VVP) $< $(VVP_DBG_FLAGS)
+$(RV_IM_SIMS): rv_%_im_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_im_sim/Vrv_$*_sim
+	@$(SIM_BUILD_DIR)/rv_$*_im_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
 
-$(RV_I_ZMMUL_SIMS): rv_%_i_zmmul_sim: $(SIM_BUILD_DIR)/rv_%_i_zmmul_sim
-	@$(VVP) $< $(VVP_DBG_FLAGS)
+$(RV_I_ZMMUL_SIMS): rv_%_i_zmmul_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_i_zmmul_sim/Vrv_$*_sim
+	@$(SIM_BUILD_DIR)/rv_$*_i_zmmul_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
 
 # SRAM pipelined execution targets
-$(RV_SRAM_I_SIMS): rv_%_sram_i_sim: $(SIM_BUILD_DIR)/rv_%_sram_i_sim
-	@$(VVP) $< $(VVP_DBG_FLAGS)
+$(RV_SRAM_I_SIMS): rv_%_sram_i_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_sram_i_sim/Vrv_$*_sim
+	@$(SIM_BUILD_DIR)/rv_$*_sram_i_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
 
-$(RV_SRAM_IM_SIMS): rv_%_sram_im_sim: $(SIM_BUILD_DIR)/rv_%_sram_im_sim
-	@$(VVP) $< $(VVP_DBG_FLAGS)
+$(RV_SRAM_IM_SIMS): rv_%_sram_im_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_sram_im_sim/Vrv_$*_sim
+	@$(SIM_BUILD_DIR)/rv_$*_sram_im_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
 
-$(RV_SRAM_I_ZMMUL_SIMS): rv_%_sram_i_zmmul_sim: $(SIM_BUILD_DIR)/rv_%_sram_i_zmmul_sim
-	@$(VVP) $< $(VVP_DBG_FLAGS)
+$(RV_SRAM_I_ZMMUL_SIMS): rv_%_sram_i_zmmul_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_sram_i_zmmul_sim/Vrv_$*_sim
+	@$(SIM_BUILD_DIR)/rv_$*_sram_i_zmmul_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
 
 # SRAM single-cycle execution targets
-$(RV_SRAM_SC_I_SIMS): rv_%_sram_sc_i_sim: $(SIM_BUILD_DIR)/rv_%_sram_sc_i_sim
-	@$(VVP) $< $(VVP_DBG_FLAGS)
+$(RV_SRAM_SC_I_SIMS): rv_%_sram_sc_i_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_sram_sc_i_sim/Vrv_$*_sim
+	@$(SIM_BUILD_DIR)/rv_$*_sram_sc_i_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
 
-$(RV_SRAM_SC_IM_SIMS): rv_%_sram_sc_im_sim: $(SIM_BUILD_DIR)/rv_%_sram_sc_im_sim
-	@$(VVP) $< $(VVP_DBG_FLAGS)
+$(RV_SRAM_SC_IM_SIMS): rv_%_sram_sc_im_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_sram_sc_im_sim/Vrv_$*_sim
+	@$(SIM_BUILD_DIR)/rv_$*_sram_sc_im_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
 
-$(RV_SRAM_SC_I_ZMMUL_SIMS): rv_%_sram_sc_i_zmmul_sim: $(SIM_BUILD_DIR)/rv_%_sram_sc_i_zmmul_sim
-	@$(VVP) $< $(VVP_DBG_FLAGS)
+$(RV_SRAM_SC_I_ZMMUL_SIMS): rv_%_sram_sc_i_zmmul_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_sram_sc_i_zmmul_sim/Vrv_$*_sim
+	@$(SIM_BUILD_DIR)/rv_$*_sram_sc_i_zmmul_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
 
 # BRAM cache execution targets
-$(RV_CACHE_I_SIMS): rv_%_cache_i_sim: $(SIM_BUILD_DIR)/rv_%_cache_i_sim
-	@$(VVP) $< $(VVP_DBG_FLAGS)
+$(RV_CACHE_I_SIMS): rv_%_cache_i_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_cache_i_sim/Vrv_$*_sim
+	@$(SIM_BUILD_DIR)/rv_$*_cache_i_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
 
-$(RV_CACHE_IM_SIMS): rv_%_cache_im_sim: $(SIM_BUILD_DIR)/rv_%_cache_im_sim
-	@$(VVP) $< $(VVP_DBG_FLAGS)
+$(RV_CACHE_IM_SIMS): rv_%_cache_im_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_cache_im_sim/Vrv_$*_sim
+	@$(SIM_BUILD_DIR)/rv_$*_cache_im_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
 
-$(RV_CACHE_I_ZMMUL_SIMS): rv_%_cache_i_zmmul_sim: $(SIM_BUILD_DIR)/rv_%_cache_i_zmmul_sim
-	@$(VVP) $< $(VVP_DBG_FLAGS)
+$(RV_CACHE_I_ZMMUL_SIMS): rv_%_cache_i_zmmul_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_cache_i_zmmul_sim/Vrv_$*_sim
+	@$(SIM_BUILD_DIR)/rv_$*_cache_i_zmmul_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
 
 # Hex files are built by targeted sw builds (recursive make into sw/<module>)
-# The .hex.d files (included above) provide source dependencies for rebuild detection
+# The .d files (included above) provide source dependencies for rebuild detection
 # Build only the specific program/arch needed rather than all software
 # Pass SVC_SIM=1 to enable simulation-specific settings (e.g., fewer iterations)
 define rv_hex_rules
@@ -292,24 +320,25 @@ $(foreach sim, $(SIM_MODULES), $(eval $(call lint_sim_rule,$(sim))))
 
 # Pattern rule to build and run a standalone sim
 .PHONY: $(SIM_MODULES)
-$(SIM_MODULES): % : $(SIM_BUILD_DIR)/%
-	@$(VVP) $< $(VVP_DBG_FLAGS)
+$(SIM_MODULES): %: $(SIM_BUILD_DIR)/%/V%
+	@$(SIM_BUILD_DIR)/$*/V$* $(SIM_DBG_FLAGS)
 
 # Determine the source subdirectory for each sim
 SIM_PRJ_INC = $(PRJ_RTL_DIR)/$(patsubst %_sim,%, $(notdir $(*)))
 
-# Pattern rule to compile a sim
-.PRECIOUS: $(SIM_BUILD_DIR)/%
-$(SIM_BUILD_DIR)/%: %.sv Makefile | $(SIM_BUILD_DIR)
-	@$(IVERILOG) -M $(@).dep \
+# Pattern rule to compile a sim with Verilator
+.PRECIOUS: $(SIM_BUILD_DIR)/%/V%
+$(SIM_BUILD_DIR)/%/V%: %.sv $(SIM_MAIN_CPP) Makefile | $(SIM_BUILD_DIR)
+	@$(VERILATOR_SIM) \
 		$(if $(filter rv_%,$(notdir $*)),\
 			-DRV_IMEM_DEPTH=$(or $($(patsubst rv_%_sim,%,$(notdir $*))_RV_IMEM_DEPTH),$(RV_IMEM_DEPTH)) \
 			-DRV_DMEM_DEPTH=$(or $($(patsubst rv_%_sim,%,$(notdir $*))_RV_DMEM_DEPTH),$(RV_DMEM_DEPTH)) \
 			-DRV_SIM_HEX='"$(BUILD_DIR)/sw/rv32i/$(patsubst rv_%_sim,%,$(notdir $*))/$(patsubst rv_%_sim,%,$(notdir $*)).hex"') \
-		$(I_RTL) -I$(PRJ_TB_DIR) -I$(SIM_PRJ_INC) -o $@ $< 2>&1 | \
-		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
-		exit $${PIPESTATUS[0]}
-	@echo "$@: $$(tr '\n' ' ' < $(@).dep)" > $(@).d
+		-I$(SIM_PRJ_INC) \
+		--Mdir $(SIM_BUILD_DIR)/$(notdir $*) \
+		--top-module $(notdir $*) \
+		-CFLAGS '-DSIM_HEADER=\"V$(notdir $*).h\" -DSIM_TOP=V$(notdir $*) -DSIM_NAME=\"$(notdir $*)\"' \
+		$< $(SIM_MAIN_CPP)
 
 ##############################################################################
 #
