@@ -28,7 +28,8 @@ function automatic int svc_readmemh_count(input string filename);
 
   fd = $fopen(filename, "r");
   if (fd == 0) begin
-    $error("svc_readmemh_count: could not open file '%s'", filename);
+    $display("svc_readmemh_count: could not open file '%s'", filename);
+    $fflush();
     return 0;
   end
 
@@ -59,6 +60,8 @@ function automatic int svc_readmemh_count(input string filename);
   end
   $fclose(fd);
 
+  $display("svc_readmemh_count: '%s' word_count=%0d", filename, count);
+  $fflush();
   return count;
 endfunction
 
