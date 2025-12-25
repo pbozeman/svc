@@ -223,60 +223,84 @@ SIM_DBG_FLAGS := \
 # Use explicit path construction because GNU make has issues with multiple % in prerequisites
 
 # Base RV sims (rv_*_sim) - defaults to rv32i
+# Note: $($*_SIM_FLAGS) allows per-module flags like echo_SIM_FLAGS
+# When UART_STDIN is in flags and stdin is a tty, use raw mode for proper terminal I/O
 $(RV_BASE_SIMS): rv_%_sim:
 	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_sim/Vrv_$*_sim
-	@$(SIM_BUILD_DIR)/rv_$*_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
+	@if echo "$($*_SIM_FLAGS)" | grep -q UART_STDIN && [ -t 0 ]; then \
+		old_stty=$$(stty -g); \
+		stty -icanon -echo; \
+		$(SIM_BUILD_DIR)/rv_$*_sim/Vrv_$*_sim $(SIM_DBG_FLAGS) $($*_SIM_FLAGS); \
+		stty $$old_stty; \
+	else \
+		$(SIM_BUILD_DIR)/rv_$*_sim/Vrv_$*_sim $(SIM_DBG_FLAGS) $($*_SIM_FLAGS); \
+	fi
+
+# Helper for running sim with optional raw terminal mode for UART_STDIN
+# Usage: $(call run_sim,binary_path,module_name)
+# When UART_STDIN is in flags and stdin is a tty, use raw mode for proper terminal I/O
+# Use -icanon -echo to disable line buffering and local echo while keeping output processing
+define run_sim
+@if echo "$($(2)_SIM_FLAGS)" | grep -q UART_STDIN && [ -t 0 ]; then \
+	old_stty=$$(stty -g); \
+	stty -icanon -echo; \
+	$(1) $(SIM_DBG_FLAGS) $($(2)_SIM_FLAGS); \
+	stty $$old_stty; \
+else \
+	$(1) $(SIM_DBG_FLAGS) $($(2)_SIM_FLAGS); \
+fi
+endef
 
 $(RV_I_SIMS): rv_%_i_sim:
 	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_i_sim/Vrv_$*_sim
-	@$(SIM_BUILD_DIR)/rv_$*_i_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_i_sim/Vrv_$*_sim,$*)
 
 $(RV_IM_SIMS): rv_%_im_sim:
 	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_im_sim/Vrv_$*_sim
-	@$(SIM_BUILD_DIR)/rv_$*_im_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_im_sim/Vrv_$*_sim,$*)
 
 $(RV_I_ZMMUL_SIMS): rv_%_i_zmmul_sim:
 	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_i_zmmul_sim/Vrv_$*_sim
-	@$(SIM_BUILD_DIR)/rv_$*_i_zmmul_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_i_zmmul_sim/Vrv_$*_sim,$*)
 
 # SRAM pipelined execution targets
 $(RV_SRAM_I_SIMS): rv_%_sram_i_sim:
 	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_sram_i_sim/Vrv_$*_sim
-	@$(SIM_BUILD_DIR)/rv_$*_sram_i_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_sram_i_sim/Vrv_$*_sim,$*)
 
 $(RV_SRAM_IM_SIMS): rv_%_sram_im_sim:
 	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_sram_im_sim/Vrv_$*_sim
-	@$(SIM_BUILD_DIR)/rv_$*_sram_im_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_sram_im_sim/Vrv_$*_sim,$*)
 
 $(RV_SRAM_I_ZMMUL_SIMS): rv_%_sram_i_zmmul_sim:
 	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_sram_i_zmmul_sim/Vrv_$*_sim
-	@$(SIM_BUILD_DIR)/rv_$*_sram_i_zmmul_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_sram_i_zmmul_sim/Vrv_$*_sim,$*)
 
 # SRAM single-cycle execution targets
 $(RV_SRAM_SC_I_SIMS): rv_%_sram_sc_i_sim:
 	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_sram_sc_i_sim/Vrv_$*_sim
-	@$(SIM_BUILD_DIR)/rv_$*_sram_sc_i_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_sram_sc_i_sim/Vrv_$*_sim,$*)
 
 $(RV_SRAM_SC_IM_SIMS): rv_%_sram_sc_im_sim:
 	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_sram_sc_im_sim/Vrv_$*_sim
-	@$(SIM_BUILD_DIR)/rv_$*_sram_sc_im_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_sram_sc_im_sim/Vrv_$*_sim,$*)
 
 $(RV_SRAM_SC_I_ZMMUL_SIMS): rv_%_sram_sc_i_zmmul_sim:
 	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_sram_sc_i_zmmul_sim/Vrv_$*_sim
-	@$(SIM_BUILD_DIR)/rv_$*_sram_sc_i_zmmul_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_sram_sc_i_zmmul_sim/Vrv_$*_sim,$*)
 
 # BRAM cache execution targets
 $(RV_CACHE_I_SIMS): rv_%_cache_i_sim:
 	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_cache_i_sim/Vrv_$*_sim
-	@$(SIM_BUILD_DIR)/rv_$*_cache_i_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_cache_i_sim/Vrv_$*_sim,$*)
 
 $(RV_CACHE_IM_SIMS): rv_%_cache_im_sim:
 	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_cache_im_sim/Vrv_$*_sim
-	@$(SIM_BUILD_DIR)/rv_$*_cache_im_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_cache_im_sim/Vrv_$*_sim,$*)
 
 $(RV_CACHE_I_ZMMUL_SIMS): rv_%_cache_i_zmmul_sim:
 	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_cache_i_zmmul_sim/Vrv_$*_sim
-	@$(SIM_BUILD_DIR)/rv_$*_cache_i_zmmul_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_cache_i_zmmul_sim/Vrv_$*_sim,$*)
 
 # Hex files are built by targeted sw builds (recursive make into sw/<module>)
 # The .d files (included above) provide source dependencies for rebuild detection
@@ -436,55 +460,55 @@ $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_simi_rule,$(mod),i_zmmul,
 # Icarus execution targets - run with VVP
 $(RV_BASE_SIMIS): rv_%_simi:
 	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_simi
-	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_simi $(SIM_DBG_FLAGS)
+	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
 
 $(RV_I_SIMIS): rv_%_i_simi:
 	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_i_simi
-	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_i_simi $(SIM_DBG_FLAGS)
+	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_i_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
 
 $(RV_IM_SIMIS): rv_%_im_simi:
 	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_im_simi
-	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_im_simi $(SIM_DBG_FLAGS)
+	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_im_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
 
 $(RV_I_ZMMUL_SIMIS): rv_%_i_zmmul_simi:
 	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_i_zmmul_simi
-	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_i_zmmul_simi $(SIM_DBG_FLAGS)
+	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_i_zmmul_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
 
 $(RV_SRAM_I_SIMIS): rv_%_sram_i_simi:
 	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_sram_i_simi
-	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_sram_i_simi $(SIM_DBG_FLAGS)
+	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_sram_i_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
 
 $(RV_SRAM_IM_SIMIS): rv_%_sram_im_simi:
 	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_sram_im_simi
-	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_sram_im_simi $(SIM_DBG_FLAGS)
+	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_sram_im_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
 
 $(RV_SRAM_I_ZMMUL_SIMIS): rv_%_sram_i_zmmul_simi:
 	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_sram_i_zmmul_simi
-	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_sram_i_zmmul_simi $(SIM_DBG_FLAGS)
+	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_sram_i_zmmul_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
 
 $(RV_SRAM_SC_I_SIMIS): rv_%_sram_sc_i_simi:
 	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_sram_sc_i_simi
-	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_sram_sc_i_simi $(SIM_DBG_FLAGS)
+	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_sram_sc_i_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
 
 $(RV_SRAM_SC_IM_SIMIS): rv_%_sram_sc_im_simi:
 	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_sram_sc_im_simi
-	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_sram_sc_im_simi $(SIM_DBG_FLAGS)
+	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_sram_sc_im_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
 
 $(RV_SRAM_SC_I_ZMMUL_SIMIS): rv_%_sram_sc_i_zmmul_simi:
 	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_sram_sc_i_zmmul_simi
-	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_sram_sc_i_zmmul_simi $(SIM_DBG_FLAGS)
+	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_sram_sc_i_zmmul_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
 
 $(RV_CACHE_I_SIMIS): rv_%_cache_i_simi:
 	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_cache_i_simi
-	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_cache_i_simi $(SIM_DBG_FLAGS)
+	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_cache_i_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
 
 $(RV_CACHE_IM_SIMIS): rv_%_cache_im_simi:
 	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_cache_im_simi
-	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_cache_im_simi $(SIM_DBG_FLAGS)
+	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_cache_im_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
 
 $(RV_CACHE_I_ZMMUL_SIMIS): rv_%_cache_i_zmmul_simi:
 	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_cache_i_zmmul_simi
-	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_cache_i_zmmul_simi $(SIM_DBG_FLAGS)
+	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_cache_i_zmmul_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
 
 endif # RV_SIM_MODULES
 
