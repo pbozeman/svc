@@ -22,6 +22,7 @@ module svc_cache_axi_direct_tb;
   logic [              31:0] rd_addr;
   logic [              31:0] rd_data;
   logic                      rd_data_valid;
+  logic                      rd_hit;
   logic                      wr_valid_in;
   logic                      wr_ready;
   logic [              31:0] wr_addr;
@@ -85,6 +86,7 @@ module svc_cache_axi_direct_tb;
       .rd_addr      (rd_addr),
       .rd_data      (rd_data),
       .rd_data_valid(rd_data_valid),
+      .rd_hit       (rd_hit),
       .wr_valid     (wr_valid_in),
       .wr_ready     (wr_ready),
       .wr_addr      (wr_addr),
