@@ -105,12 +105,12 @@ module svc_axi_mem #(
           localparam int WORDS_PER_ENTRY = DW / 32;
 
           $readmemh(INIT_FILE, temp_mem, 0, word_count - 1);
-          for (int i = 0; i < word_count / WORDS_PER_ENTRY; i++) begin
-            for (int w = 0; w < WORDS_PER_ENTRY; w++) begin
-              // verilator lint_off SELRANGE
-              mem[i][w*32+:32] = temp_mem[i*WORDS_PER_ENTRY+w];
-              // verilator lint_on SELRANGE
-            end
+          // Copy all words, including remainder when word_count is not
+          // a multiple of WORDS_PER_ENTRY
+          for (int i = 0; i < word_count; i++) begin
+            // verilator lint_off SELRANGE
+            mem[i/WORDS_PER_ENTRY][(i%WORDS_PER_ENTRY)*32+:32] = temp_mem[i];
+            // verilator lint_on SELRANGE
           end
         end
       end else begin
