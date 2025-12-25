@@ -25,7 +25,7 @@ module svc_mem_bram #(
     parameter integer DW    = 32,
     parameter integer DEPTH = 1024,
 
-    parameter string INIT_FILE = "",
+    parameter INIT_FILE = "",
     parameter RESET_VALUE = {DW{1'b0}}
 ) (
     input logic clk,
