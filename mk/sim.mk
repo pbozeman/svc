@@ -52,6 +52,9 @@ ifneq ($(RV_SIM_MODULES),)
 define rv_base_sim_rule
 .PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_sim/Vrv_$(1)_sim
 $(SIM_BUILD_DIR)/rv_$(1)_sim/Vrv_$(1)_sim: $(BUILD_DIR)/sw/rv32i/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv $(SIM_MAIN_CPP) Makefile | $(SIM_BUILD_DIR)
+	@$$(IVERILOG) -M $(SIM_BUILD_DIR)/rv_$(1)_sim.dep -o /dev/null \
+		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) $$(word 2,$$^) 2>/dev/null || true
+	@echo "$$@: $$$$(tr '\n' ' ' < $(SIM_BUILD_DIR)/rv_$(1)_sim.dep)" > $(SIM_BUILD_DIR)/rv_$(1)_sim.d
 	@$$(VERILATOR_SIM) \
 		-DRV_IMEM_DEPTH=$$(or $$($(1)_RV_IMEM_DEPTH),$$(RV_IMEM_DEPTH)) \
 		-DRV_DMEM_DEPTH=$$(or $$($(1)_RV_DMEM_DEPTH),$$(RV_DMEM_DEPTH)) \
@@ -95,6 +98,9 @@ $(SIM_BUILD_DIR)/rv_%_cache_i_zmmul_sim/Vrv_%_sim: $(BUILD_DIR)/sw/rv32i_zmmul/%
 define rv_arch_sim_rule
 .PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_$(2)_sim/Vrv_$(1)_sim
 $(SIM_BUILD_DIR)/rv_$(1)_$(2)_sim/Vrv_$(1)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv $(SIM_MAIN_CPP) Makefile | $(SIM_BUILD_DIR)
+	@$$(IVERILOG) -M $(SIM_BUILD_DIR)/rv_$(1)_$(2)_sim.dep -o /dev/null \
+		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) $$(word 2,$$^) 2>/dev/null || true
+	@echo "$$@: $$$$(tr '\n' ' ' < $(SIM_BUILD_DIR)/rv_$(1)_$(2)_sim.dep)" > $(SIM_BUILD_DIR)/rv_$(1)_$(2)_sim.d
 	@$$(VERILATOR_SIM) \
 		-DRV_IMEM_DEPTH=$$(or $$($(1)_RV_IMEM_DEPTH),$$(RV_IMEM_DEPTH)) \
 		-DRV_DMEM_DEPTH=$$(or $$($(1)_RV_DMEM_DEPTH),$$(RV_DMEM_DEPTH)) \
@@ -117,6 +123,9 @@ $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_arch_sim_rule,$(mod),i_zmmul,$(
 define rv_sram_sim_rule
 .PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_sram_$(2)_sim/Vrv_$(1)_sim
 $(SIM_BUILD_DIR)/rv_$(1)_sram_$(2)_sim/Vrv_$(1)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv $(SIM_MAIN_CPP) Makefile | $(SIM_BUILD_DIR)
+	@$$(IVERILOG) -M $(SIM_BUILD_DIR)/rv_$(1)_sram_$(2)_sim.dep -o /dev/null \
+		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) $$(word 2,$$^) 2>/dev/null || true
+	@echo "$$@: $$$$(tr '\n' ' ' < $(SIM_BUILD_DIR)/rv_$(1)_sram_$(2)_sim.dep)" > $(SIM_BUILD_DIR)/rv_$(1)_sram_$(2)_sim.d
 	@$$(VERILATOR_SIM) \
 		-DSVC_MEM_SRAM \
 		-DRV_IMEM_DEPTH=$$(or $$($(1)_RV_IMEM_DEPTH),$$(RV_IMEM_DEPTH)) \
@@ -140,6 +149,9 @@ $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_sram_sim_rule,$(mod),i_zmmul,$(
 define rv_sram_sc_sim_rule
 .PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_sram_sc_$(2)_sim/Vrv_$(1)_sim
 $(SIM_BUILD_DIR)/rv_$(1)_sram_sc_$(2)_sim/Vrv_$(1)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv $(SIM_MAIN_CPP) Makefile | $(SIM_BUILD_DIR)
+	@$$(IVERILOG) -M $(SIM_BUILD_DIR)/rv_$(1)_sram_sc_$(2)_sim.dep -o /dev/null \
+		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) $$(word 2,$$^) 2>/dev/null || true
+	@echo "$$@: $$$$(tr '\n' ' ' < $(SIM_BUILD_DIR)/rv_$(1)_sram_sc_$(2)_sim.dep)" > $(SIM_BUILD_DIR)/rv_$(1)_sram_sc_$(2)_sim.d
 	@$$(VERILATOR_SIM) \
 		-DSVC_MEM_SRAM \
 		-DSVC_CPU_SINGLE_CYCLE \
@@ -164,6 +176,9 @@ $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_sram_sc_sim_rule,$(mod),i_zmmul
 define rv_cache_sim_rule
 .PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_sim/Vrv_$(1)_sim
 $(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_sim/Vrv_$(1)_sim: $(3)/$(1)/$(1).hex $(3)/$(1)/$(1)_128.hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv $(SIM_MAIN_CPP) Makefile | $(SIM_BUILD_DIR)
+	@$$(IVERILOG) -M $(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_sim.dep -o /dev/null \
+		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) $$(word 3,$$^) 2>/dev/null || true
+	@echo "$$@: $$$$(tr '\n' ' ' < $(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_sim.dep)" > $(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_sim.d
 	@$$(VERILATOR_SIM) \
 		-DSVC_MEM_BRAM_CACHE \
 		-DRV_IMEM_DEPTH=$$(or $$($(1)_RV_IMEM_DEPTH),$$(RV_IMEM_DEPTH)) \
@@ -558,6 +573,9 @@ SIM_PRJ_INC = $(PRJ_RTL_DIR)/$(patsubst %_sim,%, $(notdir $(*)))
 # Pattern rule to compile a sim with Verilator
 .PRECIOUS: $(SIM_BUILD_DIR)/%/V%
 $(SIM_BUILD_DIR)/%/V%: %.sv $(SIM_MAIN_CPP) Makefile | $(SIM_BUILD_DIR)
+	@$(IVERILOG) -M $(SIM_BUILD_DIR)/$(notdir $*).dep -o /dev/null \
+		$(I_RTL) -I$(PRJ_TB_DIR) -I$(SIM_PRJ_INC) $< 2>/dev/null || true
+	@echo "$@: $$(tr '\n' ' ' < $(SIM_BUILD_DIR)/$(notdir $*).dep)" > $(SIM_BUILD_DIR)/$(notdir $*).d
 	@$(VERILATOR_SIM) \
 		$(if $(filter rv_%,$(notdir $*)),\
 			-DRV_IMEM_DEPTH=$(or $($(patsubst rv_%_sim,%,$(notdir $*))_RV_IMEM_DEPTH),$(RV_IMEM_DEPTH)) \
