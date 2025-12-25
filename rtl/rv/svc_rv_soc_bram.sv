@@ -35,8 +35,8 @@ module svc_rv_soc_bram #(
 
     parameter logic [31:0] RESET_PC = 0,
 
-    parameter string IMEM_INIT = "",
-    parameter string DMEM_INIT = ""
+    parameter IMEM_INIT = "",
+    parameter DMEM_INIT = ""
 ) (
     input logic clk,
     input logic rst_n,
