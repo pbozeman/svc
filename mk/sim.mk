@@ -47,12 +47,23 @@ RV_SIM_MODULES := $(patsubst rv_%_sim,%,$(filter rv_%_sim,$(SIM_MODULES)))
 ifneq ($(RV_SIM_MODULES),)
 
 # Base RV simulation targets (rv_*_sim without arch suffix) default to rv32i
-# This adds hex file dependency to the generic compilation rule
-define rv_base_sim_dep
-$(SIM_BUILD_DIR)/rv_$(1)_sim/Vrv_$(1)_sim: $(BUILD_DIR)/sw/rv32i/$(1)/$(1).hex
+# This creates a complete rule with hex dependency and Verilator build recipe
+# (prerequisite-only rules don't merge correctly with pattern rules in Make)
+define rv_base_sim_rule
+.PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_sim/Vrv_$(1)_sim
+$(SIM_BUILD_DIR)/rv_$(1)_sim/Vrv_$(1)_sim: $(BUILD_DIR)/sw/rv32i/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv $(SIM_MAIN_CPP) Makefile | $(SIM_BUILD_DIR)
+	@$$(VERILATOR_SIM) \
+		-DRV_IMEM_DEPTH=$$(or $$($(1)_RV_IMEM_DEPTH),$$(RV_IMEM_DEPTH)) \
+		-DRV_DMEM_DEPTH=$$(or $$($(1)_RV_DMEM_DEPTH),$$(RV_DMEM_DEPTH)) \
+		-DRV_SIM_HEX='"$(BUILD_DIR)/sw/rv32i/$(1)/$(1).hex"' \
+		-I$$(PRJ_RTL_DIR)/rv_$(1) \
+		--Mdir $(SIM_BUILD_DIR)/rv_$(1)_sim \
+		--top-module rv_$(1)_sim \
+		-CFLAGS '-DSIM_HEADER=\"Vrv_$(1)_sim.h\" -DSIM_TOP=Vrv_$(1)_sim -DSIM_NAME=\"rv_$(1)_sim\"' \
+		$$(word 2,$$^) $(SIM_MAIN_CPP)
 endef
 
-$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_base_sim_dep,$(mod))))
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_base_sim_rule,$(mod))))
 
 # Include generated dependency files for software
 # These .d files add source dependencies (e.g., main.c, crt0.S) to hex targets
@@ -174,6 +185,8 @@ $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_sim_rule,$(mod),im,$(BUIL
 $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_sim_rule,$(mod),i_zmmul,$(BUILD_DIR)/sw/rv32i_zmmul)))
 
 # Phony targets for convenience
+# Base RV sims (rv_*_sim without arch suffix) - defaults to rv32i
+RV_BASE_SIMS := $(addprefix rv_,$(addsuffix _sim,$(RV_SIM_MODULES)))
 RV_I_SIMS := $(addprefix rv_,$(addsuffix _i_sim,$(RV_SIM_MODULES)))
 RV_IM_SIMS := $(addprefix rv_,$(addsuffix _im_sim,$(RV_SIM_MODULES)))
 RV_I_ZMMUL_SIMS := $(addprefix rv_,$(addsuffix _i_zmmul_sim,$(RV_SIM_MODULES)))
@@ -204,10 +217,16 @@ SIM_DBG_FLAGS := \
 	$(if $(SVC_RV_DBG_HAZ),+SVC_RV_DBG_HAZ=$(SVC_RV_DBG_HAZ)) \
 	$(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
 
-.PHONY: $(RV_I_SIMS) $(RV_IM_SIMS) $(RV_I_ZMMUL_SIMS) $(RV_SRAM_I_SIMS) $(RV_SRAM_IM_SIMS) $(RV_SRAM_I_ZMMUL_SIMS) $(RV_SRAM_SC_I_SIMS) $(RV_SRAM_SC_IM_SIMS) $(RV_SRAM_SC_I_ZMMUL_SIMS) $(RV_CACHE_I_SIMS) $(RV_CACHE_IM_SIMS) $(RV_CACHE_I_ZMMUL_SIMS)
+.PHONY: $(RV_BASE_SIMS) $(RV_I_SIMS) $(RV_IM_SIMS) $(RV_I_ZMMUL_SIMS) $(RV_SRAM_I_SIMS) $(RV_SRAM_IM_SIMS) $(RV_SRAM_I_ZMMUL_SIMS) $(RV_SRAM_SC_I_SIMS) $(RV_SRAM_SC_IM_SIMS) $(RV_SRAM_SC_I_ZMMUL_SIMS) $(RV_CACHE_I_SIMS) $(RV_CACHE_IM_SIMS) $(RV_CACHE_I_ZMMUL_SIMS)
 
 # Execution targets - run the Verilator binary
 # Use explicit path construction because GNU make has issues with multiple % in prerequisites
+
+# Base RV sims (rv_*_sim) - defaults to rv32i
+$(RV_BASE_SIMS): rv_%_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_sim/Vrv_$*_sim
+	@$(SIM_BUILD_DIR)/rv_$*_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
+
 $(RV_I_SIMS): rv_%_i_sim:
 	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_i_sim/Vrv_$*_sim
 	@$(SIM_BUILD_DIR)/rv_$*_i_sim/Vrv_$*_sim $(SIM_DBG_FLAGS)
@@ -503,8 +522,10 @@ $(foreach sim, $(SIM_MODULES), $(eval $(call lint_sim_rule,$(sim))))
 ##############################################################################
 
 # Pattern rule to build and run a standalone sim
-.PHONY: $(SIM_MODULES)
-$(SIM_MODULES): %: $(SIM_BUILD_DIR)/%/V%
+# Note: RV base sims (rv_*_sim) are handled separately above with explicit rules
+SIM_MODULES_NON_RV_BASE := $(filter-out $(RV_BASE_SIMS),$(SIM_MODULES))
+.PHONY: $(SIM_MODULES_NON_RV_BASE)
+$(SIM_MODULES_NON_RV_BASE): %: $(SIM_BUILD_DIR)/%/V%
 	@$(SIM_BUILD_DIR)/$*/V$* $(SIM_DBG_FLAGS)
 
 # Determine the source subdirectory for each sim
