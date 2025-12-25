@@ -166,25 +166,48 @@ module svc_rv_dmem_cache_if_tb;
   // Test: Cache read miss (stalls for multiple cycles)
   //
   task automatic test_cache_read_miss;
-    dmem_ren   = 1'b1;
-    dmem_raddr = 32'h0000_2000;
+    // Cache not ready initially (busy)
+    cache_rd_ready = 1'b0;
+
+    dmem_ren       = 1'b1;
+    dmem_raddr     = 32'h0000_2000;
     `TICK(clk);
 
     dmem_ren = 1'b0;
 
     //
-    // Stalls while waiting for data
+    // Stalls while waiting for handshake
     //
     `CHECK_TRUE(cache_rd_valid);
     `CHECK_TRUE(dmem_stall);
 
     //
-    // Simulate multiple cycles of cache miss
+    // Simulate multiple cycles waiting for ready (cache busy)
     //
-    repeat (5) begin
+    repeat (3) begin
       `TICK(clk);
       `CHECK_TRUE(dmem_stall);
       `CHECK_TRUE(cache_rd_valid);
+    end
+
+    //
+    // Cache accepts request (handshake completes)
+    //
+    cache_rd_ready = 1'b1;
+    `TICK(clk);
+
+    //
+    // Valid drops after handshake, but stall continues waiting for data
+    //
+    `CHECK_FALSE(cache_rd_valid);
+    `CHECK_TRUE(dmem_stall);
+
+    //
+    // More cycles waiting for data
+    //
+    repeat (2) begin
+      `TICK(clk);
+      `CHECK_TRUE(dmem_stall);
     end
 
     //
@@ -201,6 +224,7 @@ module svc_rv_dmem_cache_if_tb;
     `CHECK_EQ(dmem_rdata, 32'hDEAD_BEEF);
 
     cache_rd_data_valid = 1'b0;
+    cache_rd_ready      = 1'b1;
     `TICK(clk);
 
     //
@@ -231,20 +255,25 @@ module svc_rv_dmem_cache_if_tb;
     `CHECK_TRUE(dmem_stall);
 
     //
-    // Simulate cache accepting write after some cycles
+    // Simulate cache busy for multiple cycles - valid must stay high (AXI protocol)
     //
     repeat (3) begin
       `TICK(clk);
       `CHECK_TRUE(dmem_stall);
+      `CHECK_TRUE(cache_wr_valid);
     end
 
+    //
+    // Cache accepts write (handshake completes)
+    //
     cache_wr_ready = 1'b1;
     `TICK(clk);
 
     //
-    // Write complete, but stall held for cooldown cycle
+    // Write complete, stall held for cooldown cycle (STATE_WRITE_COMPLETE)
     //
     `CHECK_TRUE(dmem_stall);
+    `CHECK_FALSE(cache_wr_valid);
 
     cache_wr_ready = 1'b0;
     `TICK(clk);
