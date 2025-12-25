@@ -37,6 +37,7 @@ module svc_rv_dmem_cache_if (
 
     input logic [31:0] cache_rd_data,
     input logic        cache_rd_data_valid,
+    input logic        cache_rd_hit,
 
     output logic        cache_wr_valid,
     output logic [31:0] cache_wr_addr,
@@ -140,7 +141,7 @@ module svc_rv_dmem_cache_if (
   //
   // Starting flags for immediate stall when initiating operations
   //
-  logic        rd_starting;
+  logic        rd_starting_miss;
   logic        wr_starting;
 
   //
@@ -152,11 +153,13 @@ module svc_rv_dmem_cache_if (
 
     case (state)
       STATE_IDLE: begin
-        // Wait for pending handshake to complete before accepting new requests
-        if (!cache_rd_valid) begin
+        if (!cache_rd_valid || cache_rd_ready) begin
           if (dmem_ren && !io_sel_rd) begin
-            state_next          = STATE_READING;
             cache_rd_valid_next = 1'b1;
+            // On hit, stay in IDLE.
+            if (!cache_rd_hit) begin
+              state_next = STATE_READING;
+            end
           end else if (dmem_we && !io_sel_wr) begin
             state_next = STATE_WRITE;
           end
@@ -211,12 +214,14 @@ module svc_rv_dmem_cache_if (
   end
 
   //
-  // Register read address on state transition to READ
+  // Register read address when starting any cache read (hit or miss)
   //
-  // Capture address when transitioning from IDLE to READ.
-  //
+  logic capture_rd_addr;
+  assign capture_rd_addr = ((state == STATE_IDLE) && dmem_ren && !io_sel_rd &&
+                            (!cache_rd_valid || cache_rd_ready));
+
   always_ff @(posedge clk) begin
-    if (state_next == STATE_READING && state == STATE_IDLE) begin
+    if (capture_rd_addr) begin
       rd_addr_reg <= dmem_raddr;
     end
   end
@@ -237,7 +242,10 @@ module svc_rv_dmem_cache_if (
   //
   // Cache read interface
   //
-  assign cache_rd_addr  = rd_addr_reg;
+  // Use rd_addr_reg only during active transaction (valid && !ready).
+  // Use dmem_raddr otherwise to enable hit detection for new requests.
+  assign cache_rd_addr = ((cache_rd_valid && !cache_rd_ready) ? rd_addr_reg :
+                          dmem_raddr);
 
   //
   // Cache write interface
@@ -246,23 +254,23 @@ module svc_rv_dmem_cache_if (
   // arrives - the handshake requires valid && ready at clock edge.
   //
   assign cache_wr_valid = (state == STATE_WRITE);
-  assign cache_wr_addr  = wr_addr_reg;
-  assign cache_wr_data  = wr_data_reg;
-  assign cache_wr_strb  = wr_strb_reg;
+  assign cache_wr_addr = wr_addr_reg;
+  assign cache_wr_data = wr_data_reg;
+  assign cache_wr_strb = wr_strb_reg;
 
   //
   // I/O read interface
   //
-  assign io_ren         = dmem_ren && io_sel_rd;
-  assign io_raddr       = dmem_raddr;
+  assign io_ren = dmem_ren && io_sel_rd;
+  assign io_raddr = dmem_raddr;
 
   //
   // I/O write interface
   //
-  assign io_wen         = dmem_we && io_sel_wr;
-  assign io_waddr       = dmem_waddr;
-  assign io_wdata       = dmem_wdata;
-  assign io_wstrb       = dmem_wstrb;
+  assign io_wen = dmem_we && io_sel_wr;
+  assign io_waddr = dmem_waddr;
+  assign io_wdata = dmem_wdata;
+  assign io_wstrb = dmem_wstrb;
 
   //
   // Read data mux
@@ -283,10 +291,12 @@ module svc_rv_dmem_cache_if (
   //
   // Stall generation
   //
-  assign rd_starting = (state == STATE_IDLE) && dmem_ren && !io_sel_rd;
+  // Only stall on MISS, not all reads
+  assign rd_starting_miss = ((state == STATE_IDLE) && dmem_ren && !io_sel_rd &&
+                             !cache_rd_hit);
   assign wr_starting = (state == STATE_IDLE) && dmem_we && !io_sel_wr;
 
-  assign dmem_stall = rd_starting || wr_starting ||
+  assign dmem_stall = rd_starting_miss || wr_starting ||
       (state == STATE_READING && !cache_rd_data_valid) ||
       (state == STATE_READ_STALLED && !cache_rd_data_valid) ||
       (state == STATE_READ_COMPLETE) || (state == STATE_WRITE && !cache_wr_ready
@@ -325,6 +335,11 @@ module svc_rv_dmem_cache_if (
   always_ff @(posedge clk) begin
     `FASSUME(a_no_simul_rd_wr, !(dmem_ren && dmem_we));
     `FASSUME(a_cache_mutex, !(cache_rd_data_valid && cache_wr_ready));
+
+    // cache_rd_hit implies cache_rd_data_valid next cycle
+    if (f_past_valid && $past(rst_n) && rst_n && $past(cache_rd_hit)) begin
+      `FASSUME(a_hit_implies_data_valid, cache_rd_data_valid);
+    end
   end
 
   //
@@ -358,6 +373,20 @@ module svc_rv_dmem_cache_if (
               dmem_we && io_sel_wr && state == STATE_IDLE && !completing
           )) begin
         `FASSERT(a_io_wr_stays_idle, state == STATE_IDLE);
+      end
+
+      // Cache hit: stays in IDLE (speculative path)
+      if ($past(
+              dmem_ren && !io_sel_rd && cache_rd_hit && state == STATE_IDLE &&
+                  !completing && !cache_rd_valid
+          )) begin
+        `FASSERT(a_cache_hit_stays_idle, state == STATE_IDLE);
+      end
+
+      // Cache hit: no stall
+      if ($past(cache_rd_hit && state == STATE_IDLE)) begin
+        `FASSERT(a_cache_hit_no_stall, !$past(dmem_stall) || $past(wr_starting
+                 ));
       end
 
       // Valid/ready protocol for reads: valid and addr stable until ready
@@ -419,10 +448,16 @@ module svc_rv_dmem_cache_if (
       `FCOVER(c_io_write, $past(io_wen));
 
       // Stall scenarios
-      `FCOVER(c_stall_on_rd_start, dmem_stall && rd_starting);
+      `FCOVER(c_stall_on_rd_start, dmem_stall && rd_starting_miss);
       `FCOVER(c_stall_on_wr_start, dmem_stall && wr_starting);
       `FCOVER(c_stall_in_stalled, dmem_stall && state == STATE_READ_STALLED);
       `FCOVER(c_no_stall_idle, !dmem_stall && state == STATE_IDLE);
+
+      // Zero-stall cache hit path
+      `FCOVER(c_cache_hit_no_stall, $past(
+              dmem_ren && !io_sel_rd && cache_rd_hit && state == STATE_IDLE
+              ) && state == STATE_IDLE && !dmem_stall);
+      `FCOVER(c_back_to_back_hits, $past(cache_rd_hit) && cache_rd_hit);
     end
   end
 

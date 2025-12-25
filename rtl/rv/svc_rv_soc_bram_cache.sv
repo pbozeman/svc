@@ -170,6 +170,7 @@ module svc_rv_soc_bram_cache #(
   logic [31:0] cache_rd_addr;
   logic [31:0] cache_rd_data;
   logic        cache_rd_data_valid;
+  logic        cache_rd_hit;
 
   logic        cache_wr_valid;
   logic        cache_wr_ready;
@@ -297,6 +298,7 @@ module svc_rv_soc_bram_cache #(
       .cache_rd_addr      (cache_rd_addr),
       .cache_rd_data      (cache_rd_data),
       .cache_rd_data_valid(cache_rd_data_valid),
+      .cache_rd_hit       (cache_rd_hit),
 
       .cache_wr_valid(cache_wr_valid),
       .cache_wr_ready(cache_wr_ready),
@@ -334,7 +336,7 @@ module svc_rv_soc_bram_cache #(
       .rd_addr      (cache_rd_addr),
       .rd_data      (cache_rd_data),
       .rd_data_valid(cache_rd_data_valid),
-      .rd_hit       (),
+      .rd_hit       (cache_rd_hit),
 
       .wr_valid(cache_wr_valid),
       .wr_ready(cache_wr_ready),
