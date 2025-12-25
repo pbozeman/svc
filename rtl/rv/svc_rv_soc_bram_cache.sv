@@ -334,6 +334,7 @@ module svc_rv_soc_bram_cache #(
       .rd_addr      (cache_rd_addr),
       .rd_data      (cache_rd_data),
       .rd_data_valid(cache_rd_data_valid),
+      .rd_hit       (),
 
       .wr_valid(cache_wr_valid),
       .wr_ready(cache_wr_ready),

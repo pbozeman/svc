@@ -16,3 +16,7 @@
 `TEST_CASE(test_read_during_write_same_line);
 `TEST_CASE(test_addr_registered_on_miss);
 `TEST_CASE(test_addr_registered_on_hit);
+`TEST_CASE(test_rd_hit_on_miss);
+`TEST_CASE(test_rd_hit_on_hit);
+`TEST_CASE(test_rd_hit_timing);
+`TEST_CASE(test_rd_hit_non_idle);

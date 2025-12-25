@@ -387,3 +387,101 @@ task automatic test_addr_registered_on_hit;
   // Verify we get the second address's data (mem[1] = 1), not the first
   `CHECK_EQ(rd_data, 32'h01);
 endtask
+
+//
+// Test: rd_hit is low on cache miss
+//
+task automatic test_rd_hit_on_miss;
+  // Read uncached address - should be a miss
+  rd_addr     = 32'h200;
+  rd_valid_in = 1;
+
+  // rd_hit should be low on same cycle as request (combinational)
+  `CHECK_FALSE(rd_hit);
+
+  `TICK(clk);
+  `CHECK_EQ(uut.state, STATE_READ_SETUP);
+
+  // rd_hit stays low during miss handling
+  `CHECK_FALSE(rd_hit);
+endtask
+
+//
+// Test: rd_hit is high on cache hit
+//
+task automatic test_rd_hit_on_hit;
+  // First read - cache miss to fill line
+  rd_addr     = 32'h300;
+  rd_valid_in = 1;
+
+  `CHECK_FALSE(rd_hit);
+  `CHECK_WAIT_FOR(clk, rd_data_valid, 8);
+  `CHECK_EQ(rd_data, 32'hCAC4ED00);
+  `TICK(clk);
+
+  // Second read - should hit cache
+  rd_addr     = 32'h300;
+  rd_valid_in = 1;
+
+  // rd_hit should be high on same cycle (combinational)
+  `CHECK_TRUE(rd_hit);
+  `CHECK_TRUE(rd_ready);
+
+  `TICK(clk);
+  `CHECK_TRUE(rd_data_valid);
+  `CHECK_EQ(rd_data, 32'hCAC4ED00);
+endtask
+
+//
+// Test: rd_hit timing - combinational on address (speculative)
+//
+// rd_hit is purely address-based for speculative hit detection.
+// It indicates "this address would hit" regardless of rd_valid.
+// The consumer gates it with their read enable signal.
+//
+task automatic test_rd_hit_timing;
+  // Fill cache line first
+  rd_addr     = 32'h00;
+  rd_valid_in = 1;
+  `CHECK_WAIT_FOR(clk, rd_data_valid, 10);
+  `TICK(clk);
+
+  // rd_hit is high for cached address even when rd_valid is low (speculative)
+  rd_valid_in = 0;
+  rd_addr     = 32'h00;
+  `CHECK_TRUE(rd_hit);
+
+  // rd_hit stays high when rd_valid goes high
+  rd_valid_in = 1;
+  `CHECK_TRUE(rd_hit);
+
+  // rd_hit goes low for uncached address
+  rd_addr = 32'h1000;
+  `CHECK_FALSE(rd_hit);
+
+  `TICK(clk);
+  rd_valid_in = 0;
+endtask
+
+//
+// Test: rd_hit is low during non-IDLE states
+//
+task automatic test_rd_hit_non_idle;
+  // Start a read miss
+  rd_addr     = 32'h400;
+  rd_valid_in = 1;
+
+  `TICK(clk);
+  `CHECK_EQ(uut.state, STATE_READ_SETUP);
+
+  // Even with rd_valid high, rd_hit should be low (not in IDLE)
+  rd_valid_in = 1;
+  `CHECK_FALSE(rd_hit);
+
+  `TICK(clk);
+  `CHECK_EQ(uut.state, STATE_READ_BURST);
+  `CHECK_FALSE(rd_hit);
+
+  // Wait for completion
+  `CHECK_WAIT_FOR(clk, rd_data_valid, 10);
+endtask

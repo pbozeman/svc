@@ -67,6 +67,10 @@ module svc_cache_axi #(
     output logic [31:0] rd_data,
     output logic        rd_data_valid,
 
+    // Read is a hit and rd_data_valid will go high next cycle if rd_valid
+    // is raised. Note: this is speculative and only depends on rd_addr.
+    output logic rd_hit,
+
     //
     // Write interface
     //
@@ -846,6 +850,7 @@ module svc_cache_axi #(
   // Cache ready signals
   // ===========================================================================
   assign rd_ready = (state == STATE_IDLE);
+  assign rd_hit   = (state == STATE_IDLE) && hit;
   assign wr_ready = (state == STATE_WRITE) && (state_next == STATE_IDLE);
 
   // ===========================================================================
@@ -1089,6 +1094,11 @@ module svc_cache_axi #(
       if (rd_data_valid && !$past(rd_data_valid)) begin
         `FASSERT(a_rd_data_valid_after_handshake, $past(
                  rd_valid && rd_ready && hit) || $past(fill_done));
+      end
+
+      // rd_hit implies rd_data_valid next cycle
+      if ($past(rst_n) && $past(rd_hit)) begin
+        `FASSERT(a_rd_hit_implies_rd_data_valid, rd_data_valid);
       end
     end
   end
