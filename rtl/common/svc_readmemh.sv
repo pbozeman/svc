@@ -38,21 +38,12 @@ function automatic int svc_readmemh_count(input string filename);
   while (scan_result == 1) begin
     if (tok.len() > 0) begin
       if (tok[0] == "@") begin
-        //
-        // Address directive: skip
-        //
       end else if (tok[0] == "/") begin
-        //
-        // Line comment: skip rest of line
-        //
         c = $fgetc(fd);
         while (c >= 0 && c != "\n") begin
           c = $fgetc(fd);
         end
       end else begin
-        //
-        // Data word
-        //
         count++;
       end
     end
@@ -60,8 +51,6 @@ function automatic int svc_readmemh_count(input string filename);
   end
   $fclose(fd);
 
-  $display("svc_readmemh_count: '%s' word_count=%0d", filename, count);
-  $fflush();
   return count;
 endfunction
 

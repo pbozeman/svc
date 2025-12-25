@@ -86,22 +86,41 @@ module svc_axi_mem #(
   initial begin : init_block
 `ifndef SYNTHESIS
     int word_count;
-    int last_index;
 
+    // Zero initialize
     for (int i = 0; i < (1 << MEM_ADDR_WIDTH); i = i + 1) begin
       mem[i] = {DW{1'b0}};
     end
 
     if (INIT_FILE != "") begin
-      word_count = svc_readmemh_count(INIT_FILE);
-      if (word_count > 0) begin
-        last_index = (word_count > (1 << MEM_ADDR_WIDTH)) ?
-            (1 << MEM_ADDR_WIDTH) - 1 : word_count - 1;
-        $readmemh(INIT_FILE, mem, 0, last_index);
+      if (DW >= 32) begin
+        // Hex file contains 32-bit words, pack into AXI_DATA_WIDTH entries.
+        // temp_mem holds (AXI_DATA_WIDTH/32) times as many 32-bit words.
+        // Use max(DW/32, 1) to avoid zero-size array when DW < 32
+        // (declaration elaborates regardless of runtime condition).
+        logic [31:0] temp_mem[(1<<MEM_ADDR_WIDTH)*((DW >= 32) ? (DW/32) : 1)];
+
+        word_count = svc_readmemh_count(INIT_FILE);
+        if (word_count > 0) begin
+          localparam int WORDS_PER_ENTRY = DW / 32;
+
+          $readmemh(INIT_FILE, temp_mem, 0, word_count - 1);
+          for (int i = 0; i < word_count / WORDS_PER_ENTRY; i++) begin
+            for (int w = 0; w < WORDS_PER_ENTRY; w++) begin
+              // verilator lint_off SELRANGE
+              mem[i][w*32+:32] = temp_mem[i*WORDS_PER_ENTRY+w];
+              // verilator lint_on SELRANGE
+            end
+          end
+        end
+      end else begin
+        // For narrow memories (< 32 bits), use direct $readmemh
+        $readmemh(INIT_FILE, mem);
       end
     end
 `else
     if (INIT_FILE != "") begin
+      // Synthesis: use direct $readmemh (expects matching data width)
       $readmemh(INIT_FILE, mem);
     end
 `endif
