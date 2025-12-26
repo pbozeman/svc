@@ -2594,6 +2594,36 @@ task automatic test_mmio_isolation;
 endtask
 
 //
+// Test: Cache miss followed by store
+//
+// Tests dmem_rdata stability during cache miss stalls. This covers the
+// bug where dmem_rdata would flicker during miss stalls when a store
+// immediately followed a load.
+//
+// Scenario:
+// 1. Load from address (cache miss on cold cache)
+// 2. Immediately followed by store
+// 3. Verify load returned correct data
+//
+task automatic test_cache_miss_store_interleave;
+  // Pre-populate data memory with known value
+  `DMEM_WR(0, 32'hDEADBEEF);
+
+  // Load from address 0 (cache miss), then store the value back
+  LI(x1, 32'h00000000);
+  LW(x2, x1, 0);      // Cache miss - should load 0xDEADBEEF
+  SW(x2, x1, 4);      // Store immediately after (causes overlapping stall)
+  LW(x3, x1, 4);      // Read back to verify store worked
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[2], 32'hDEADBEEF);
+  `CHECK_EQ(uut.cpu.stage_id.regfile.regs[3], 32'hDEADBEEF);
+endtask
+
+//
 //--------------------------------------------------------------------
 // Smoke tests
 //--------------------------------------------------------------------

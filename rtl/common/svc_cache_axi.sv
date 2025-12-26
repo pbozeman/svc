@@ -377,9 +377,10 @@ module svc_cache_axi #(
     m_axi_awvalid_next = m_axi_awvalid & ~m_axi_awready;
     m_axi_wvalid_next  = m_axi_wvalid & ~m_axi_wready;
 
-    beat_word_idx_next = beat_word_idx;
-    fill_way_next      = fill_way;
-    fill_done          = 1'b0;
+    beat_word_idx_next  = beat_word_idx;
+    fill_way_next       = fill_way;
+    fill_done           = 1'b0;
+    last_beat_rcvd_next = last_beat_rcvd;
 
     case (state)
       STATE_IDLE: begin
@@ -394,19 +395,33 @@ module svc_cache_axi #(
       end
 
       STATE_READ_SETUP: begin
-        state_next         = STATE_READ_BURST;
-        m_axi_arvalid_next = 1'b1;
-        m_axi_araddr_next  = fill_addr_line_aligned;
-        fill_way_next      = fill_evict_way;
+        state_next          = STATE_READ_BURST;
+        m_axi_arvalid_next  = 1'b1;
+        m_axi_araddr_next   = fill_addr_line_aligned;
+        fill_way_next       = fill_evict_way;
+        last_beat_rcvd_next = 1'b0;
       end
 
       STATE_READ_BURST: begin
         if (m_axi_rvalid && m_axi_rready) begin
           beat_word_idx_next = beat_word_idx + WORD_IDX_WIDTH'(WORDS_PER_BEAT);
           if (m_axi_rlast) begin
-            state_next = STATE_IDLE;
-            fill_done  = 1'b1;
+            // Check if serialization is needed for this last beat
+            if (!fill_beat_pending_next) begin
+              // No serialization - done immediately (WORDS_PER_BEAT == 1)
+              state_next = STATE_IDLE;
+              fill_done  = 1'b1;
+            end else begin
+              // Serialization pending - wait for it to complete
+              last_beat_rcvd_next = 1'b1;
+            end
           end
+        end
+        // Check if serialization just completed for the last beat
+        if (last_beat_rcvd && !fill_beat_pending_next) begin
+          state_next          = STATE_IDLE;
+          fill_done           = 1'b1;
+          last_beat_rcvd_next = 1'b0;
         end
       end
 
@@ -486,9 +501,13 @@ module svc_cache_axi #(
     end
   end
 
-  // Use captured data, or extract from current beat if it just arrived
-  assign fill_data = (fill_beat_hit ? m_axi_rdata[fill_word_pos*32+:32] :
-                      fill_data_reg);
+  // Use captured data, or extract from current beat if it just arrived.
+  // Only use live m_axi_rdata when a beat is actually arriving (handshake).
+  // After serialization completes, beat_word_idx wraps to 0 which would
+  // cause fill_beat_hit to incorrectly match - using fill_data_reg avoids this.
+  assign fill_data = ((m_axi_rvalid && m_axi_rready && fill_beat_hit)
+                      ? m_axi_rdata[fill_word_pos*32+:32]
+                      : fill_data_reg);
 
   // ===========================================================================
   // Data table write (single write port for bram compatibility)
@@ -514,6 +533,10 @@ module svc_cache_axi #(
   logic [FILL_WORD_CNT_W-1:0] fill_word_cnt_next;
   logic                              fill_beat_pending;
   logic                              fill_beat_pending_next;
+
+  // Track when last AXI beat received but serialization still pending
+  logic last_beat_rcvd;
+  logic last_beat_rcvd_next;
 
   // Latch AXI data and beat index when beat arrives (for multi-word serialization)
   logic [  AXI_DATA_WIDTH-1:0] fill_beat_data;
@@ -572,9 +595,11 @@ module svc_cache_axi #(
     if (!rst_n) begin
       fill_word_cnt     <= '0;
       fill_beat_pending <= 1'b0;
+      last_beat_rcvd    <= 1'b0;
     end else begin
       fill_word_cnt     <= fill_word_cnt_next;
       fill_beat_pending <= fill_beat_pending_next;
+      last_beat_rcvd    <= last_beat_rcvd_next;
     end
   end
 
@@ -852,7 +877,6 @@ module svc_cache_axi #(
   assign rd_ready = (state == STATE_IDLE);
   assign rd_hit   = (state == STATE_IDLE) && hit;
   assign wr_ready = (state == STATE_WRITE) && (state_next == STATE_IDLE);
-
   // ===========================================================================
   // Unused signals
   // ===========================================================================
@@ -1096,8 +1120,8 @@ module svc_cache_axi #(
                  rd_valid && rd_ready && hit) || $past(fill_done));
       end
 
-      // rd_hit implies rd_data_valid next cycle
-      if ($past(rst_n) && $past(rd_hit)) begin
+      // rd_valid && rd_hit implies rd_data_valid next cycle
+      if ($past(rst_n) && $past(rd_valid && rd_hit)) begin
         `FASSERT(a_rd_hit_implies_rd_data_valid, rd_data_valid);
       end
     end
@@ -1258,8 +1282,10 @@ module svc_cache_axi #(
         // Serialization in progress (stalling AXI rready)
         `FCOVER(c_fill_beat_pending, fill_beat_pending);
         // Complete fill with serialization
+        // fill_beat_pending is still high on the cycle fill_done fires
+        // because we're finishing the last serialized word
         `FCOVER(c_fill_done_after_serialization,
-                fill_done && $past(fill_beat_pending));
+                fill_done && fill_beat_pending);
       end
     end
   end

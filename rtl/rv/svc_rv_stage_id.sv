@@ -45,6 +45,7 @@ module svc_rv_stage_id #(
 
     // Stall
     input logic stall_id,
+    input logic dmem_stall,
 
     // From IF stage (s_ready removed, stall controls upstream flow)
     input logic s_valid,
@@ -231,7 +232,7 @@ module svc_rv_stage_id #(
       .rs1_data(rs1_data_id),
       .rs2_addr(rs2_id),
       .rs2_data(rs2_data_id),
-      .rd_en   (reg_write_wb),
+      .rd_en   (reg_write_wb && !dmem_stall),
       .rd_addr (rd_wb),
       .rd_data (rd_data_wb)
   );

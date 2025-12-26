@@ -5,6 +5,11 @@
 //
 // Testbench for RISC-V dmem to cache interface bridge
 //
+// Tests the new simplified design:
+// - cache_rd_valid is combinational (same cycle as dmem_ren)
+// - Hits don't stall (no cooldown cycle)
+// - miss_inflight / store_inflight flags instead of FSM
+//
 
 module svc_rv_dmem_cache_if_tb;
   `TEST_CLK_NS(clk, 10);
@@ -123,167 +128,137 @@ module svc_rv_dmem_cache_if_tb;
   endtask
 
   //
-  // Test: Cache read with immediate hit (data valid next cycle)
+  // Test: Cache read hit (zero stall)
+  //
+  // New design: cache_rd_valid is combinational, so it appears
+  // in the same cycle as dmem_ren. Hits don't stall.
   //
   task automatic test_cache_read_hit;
-    dmem_ren   = 1'b1;
-    dmem_raddr = 32'h0000_1000;
-    `TICK(clk);
+    dmem_ren     = 1'b1;
+    dmem_raddr   = 32'h0000_1000;
+    cache_rd_hit = 1'b1;
 
-    //
-    // Read request captured, pending starts
-    //
+    // Combinational: cache_rd_valid appears immediately
     `CHECK_TRUE(cache_rd_valid);
     `CHECK_EQ(cache_rd_addr, 32'h0000_1000);
-    `CHECK_TRUE(dmem_stall);
 
-    //
-    // CPU may change address while pending
-    //
+    // Hits don't stall
+    `CHECK_FALSE(dmem_stall);
+
+    `TICK(clk);
+
+    // Data arrives from cache (cache_rd_data_valid next cycle after hit)
     dmem_ren            = 1'b0;
-    dmem_raddr          = 32'hDEAD_BEEF;
-
-    //
-    // Simulate cache hit - data valid next cycle
-    //
+    cache_rd_hit        = 1'b0;
     cache_rd_data       = 32'hCAFE_BABE;
     cache_rd_data_valid = 1'b1;
-    `TICK(clk);
 
-    //
-    // Data available, but stall held for cooldown cycle
-    //
-    `CHECK_TRUE(dmem_stall);
+    // Still no stall for hits
+    `CHECK_FALSE(dmem_stall);
+
+    // dmem_rdata is combinational passthrough - check while data_valid is high
     `CHECK_EQ(dmem_rdata, 32'hCAFE_BABE);
 
-    cache_rd_data_valid = 1'b0;
     `TICK(clk);
 
-    //
-    // Cooldown complete, stall released
-    //
+    cache_rd_data_valid = 1'b0;
     `CHECK_FALSE(dmem_stall);
   endtask
 
   //
-  // Test: Cache read miss (stalls for multiple cycles)
+  // Test: Cache read miss (stalls while miss_inflight)
   //
   task automatic test_cache_read_miss;
-    // Cache not ready initially (busy)
+    dmem_ren     = 1'b1;
+    dmem_raddr   = 32'h0000_2000;
+    cache_rd_hit = 1'b0;
+
+    // Miss: combinational cache_rd_valid, stall comes the following cycle
+    `CHECK_TRUE(cache_rd_valid);
+    `CHECK_EQ(cache_rd_addr, 32'h0000_2000);
+    `CHECK_FALSE(dmem_stall);
+
+    `TICK(clk);
+
+    // miss_start_d1/miss_inflight are now set, cache is no longer idle
+    dmem_ren       = 1'b0;
     cache_rd_ready = 1'b0;
 
-    dmem_ren       = 1'b1;
-    dmem_raddr     = 32'h0000_2000;
-    `TICK(clk);
-
-    dmem_ren = 1'b0;
-
-    //
-    // Stalls while waiting for handshake
-    //
-    `CHECK_TRUE(cache_rd_valid);
-    `CHECK_TRUE(dmem_stall);
-
-    //
-    // Simulate multiple cycles waiting for ready (cache busy)
-    //
-    repeat (3) begin
-      `TICK(clk);
-      `CHECK_TRUE(dmem_stall);
-      `CHECK_TRUE(cache_rd_valid);
-    end
-
-    //
-    // Cache accepts request (handshake completes)
-    //
-    cache_rd_ready = 1'b1;
-    `TICK(clk);
-
-    //
-    // Valid drops after handshake, but stall continues waiting for data
-    //
     `CHECK_FALSE(cache_rd_valid);
     `CHECK_TRUE(dmem_stall);
 
-    //
-    // More cycles waiting for data
-    //
-    repeat (2) begin
+    // Simulate multiple cycles waiting for fill
+    repeat (3) begin
       `TICK(clk);
       `CHECK_TRUE(dmem_stall);
     end
 
-    //
-    // Finally data arrives
-    //
+    // Data arrives from cache fill
     cache_rd_data       = 32'hDEAD_BEEF;
     cache_rd_data_valid = 1'b1;
-    `TICK(clk);
+    cache_rd_ready      = 1'b1;
 
-    //
-    // Data available, but stall held for cooldown cycle
-    //
-    `CHECK_TRUE(dmem_stall);
+    // dmem_rdata is combinational passthrough - check while data_valid is high
     `CHECK_EQ(dmem_rdata, 32'hDEAD_BEEF);
 
-    cache_rd_data_valid = 1'b0;
-    cache_rd_ready      = 1'b1;
+    // Still stalled - miss_returning will be set next cycle
+    `CHECK_TRUE(dmem_stall);
+
     `TICK(clk);
 
-    //
-    // Cooldown complete, stall released
-    //
+    // miss_returning is now set, stall held for one extra cycle
+    cache_rd_data_valid = 1'b0;
+    `CHECK_TRUE(dmem_stall);
+
+    `TICK(clk);
+
+    // miss_returning clears, stall finally drops
     `CHECK_FALSE(dmem_stall);
   endtask
 
   //
   // Test: Cache write
   //
+  // start_store doesn't stall - data is captured immediately.
+  // store_inflight stalls subsequent ops until AXI completes.
+  //
   task automatic test_cache_write;
     dmem_we    = 1'b1;
     dmem_waddr = 32'h0000_3000;
     dmem_wdata = 32'h1234_5678;
     dmem_wstrb = 4'hF;
+
+    // Store starts: cache_wr_valid with direct CPU values, no stall yet
+    `CHECK_TRUE(cache_wr_valid);
+    `CHECK_EQ(cache_wr_addr, 32'h0000_3000);
+    `CHECK_EQ(cache_wr_data, 32'h1234_5678);
+    `CHECK_EQ(cache_wr_strb, 4'hF);
+    `CHECK_FALSE(dmem_stall);
+
     `TICK(clk);
 
     dmem_we = 1'b0;
 
-    //
-    // Write pending, stalls until cache ready
-    //
+    // store_inflight is now set, stall blocks subsequent ops
     `CHECK_TRUE(cache_wr_valid);
     `CHECK_EQ(cache_wr_addr, 32'h0000_3000);
     `CHECK_EQ(cache_wr_data, 32'h1234_5678);
     `CHECK_EQ(cache_wr_strb, 4'hF);
     `CHECK_TRUE(dmem_stall);
 
-    //
-    // Simulate cache busy for multiple cycles - valid must stay high (AXI protocol)
-    //
-    repeat (3) begin
+    // Simulate cache busy
+    repeat (2) begin
       `TICK(clk);
       `CHECK_TRUE(dmem_stall);
       `CHECK_TRUE(cache_wr_valid);
     end
 
-    //
-    // Cache accepts write (handshake completes)
-    //
+    // Cache completes write
     cache_wr_ready = 1'b1;
     `TICK(clk);
 
-    //
-    // Write complete, stall held for cooldown cycle (STATE_WRITE_COMPLETE)
-    //
-    `CHECK_TRUE(dmem_stall);
-    `CHECK_FALSE(cache_wr_valid);
-
     cache_wr_ready = 1'b0;
-    `TICK(clk);
-
-    //
-    // Cooldown complete, stall released
-    //
+    `CHECK_FALSE(cache_wr_valid);
     `CHECK_FALSE(dmem_stall);
   endtask
 
@@ -295,23 +270,24 @@ module svc_rv_dmem_cache_if_tb;
     dmem_raddr = 32'h8000_0100;
     io_rdata   = 32'h1010_DA7A;
 
-    //
     // Should not go to cache
-    //
     `CHECK_TRUE(io_ren);
     `CHECK_EQ(io_raddr, 32'h8000_0100);
     `CHECK_FALSE(cache_rd_valid);
 
-    `TICK(clk);
-
-    //
-    // I/O has 1-cycle latency, no stall
-    //
+    // No stall for I/O
     `CHECK_FALSE(dmem_stall);
-    `CHECK_EQ(dmem_rdata, 32'h1010_DA7A);
 
-    dmem_ren = 1'b0;
     `TICK(clk);
+
+    // I/O has 1-cycle latency
+    dmem_ren = 1'b0;
+    `CHECK_FALSE(dmem_stall);
+
+    `TICK(clk);
+
+    // Data captured after 1 cycle
+    `CHECK_EQ(dmem_rdata, 32'h1010_DA7A);
   endtask
 
   //
@@ -323,90 +299,94 @@ module svc_rv_dmem_cache_if_tb;
     dmem_wdata = 32'hFEED_FACE;
     dmem_wstrb = 4'hF;
 
-    //
     // Should not go to cache
-    //
     `CHECK_TRUE(io_wen);
     `CHECK_EQ(io_waddr, 32'h8000_0200);
     `CHECK_EQ(io_wdata, 32'hFEED_FACE);
     `CHECK_EQ(io_wstrb, 4'hF);
     `CHECK_FALSE(cache_wr_valid);
 
-    `TICK(clk);
-
-    //
-    // I/O write is immediate, no stall
-    //
+    // No stall for I/O writes
     `CHECK_FALSE(dmem_stall);
 
-    dmem_we = 1'b0;
     `TICK(clk);
+
+    dmem_we = 1'b0;
+    `CHECK_FALSE(dmem_stall);
   endtask
 
   //
-  // Test: cache_rd_addr uses mux for protocol compliance
+  // Test: cache_rd_addr is always dmem_raddr (no mux)
   //
-  // Before transaction starts (cache_rd_valid=0): combinational for hit lookup
-  // During active transaction (valid && !ready): stable from registered address
-  // When transaction completes (valid && ready): combinational for new request
+  // Test address stability during handshake (proper valid/ready protocol)
   //
-  task automatic test_address_registration;
-    dmem_ren       = 1'b1;
-    dmem_raddr     = 32'h0000_4000;
-    cache_rd_ready = 1'b0;
+  // For immediate handshakes (ready high), address is combinational passthrough.
+  // For delayed handshakes, address is registered to maintain stability.
+  //
+  task automatic test_address_passthrough;
+    dmem_ren     = 1'b1;
+    dmem_raddr   = 32'h0000_4000;
+    cache_rd_hit = 1'b0;
 
-    // Before TICK: cache_rd_valid=0, so cache_rd_addr = dmem_raddr (combinational)
+    // Combinational passthrough on start
     `CHECK_EQ(cache_rd_addr, 32'h0000_4000);
 
     `TICK(clk);
 
-    // After TICK: cache_rd_valid=1, cache_rd_ready=0 (no data yet)
-    // Address is stable during active transaction
-    dmem_raddr = 32'h0000_5000;
-    `CHECK_EQ(cache_rd_addr, 32'h0000_4000);
+    // miss_inflight set, cache_rd_valid goes low
+    cache_rd_ready = 1'b0;
+    dmem_ren       = 1'b0;
 
-    // Complete the request - ready goes high
-    cache_rd_ready      = 1'b1;
+    // Address is registered - maintains original request address for stability
+    // (proper valid/ready protocol requires stable address during handshake)
+    dmem_raddr     = 32'h0000_5000;
+    `CHECK_EQ(cache_rd_addr, 32'h0000_4000);  // still original address
+
+    // Complete the miss
     cache_rd_data       = 32'hAAAA_BBBB;
     cache_rd_data_valid = 1'b1;
-
-    // Now valid && ready, so mux switches to dmem_raddr for new request
-    `CHECK_EQ(cache_rd_addr, 32'h0000_5000);
-
+    cache_rd_ready      = 1'b1;
     `TICK(clk);
 
-    dmem_ren            = 1'b0;
+    // miss_returning holds stall for one extra cycle
     cache_rd_data_valid = 1'b0;
+    `CHECK_TRUE(dmem_stall);
     `TICK(clk);
+
+    `CHECK_FALSE(dmem_stall);
   endtask
 
   //
   // Test: Speculative cache hit (zero-stall path)
   //
+  // This is the key improvement: cache_rd_valid is combinational,
+  // so hit detection uses the same address as the rd_valid.
+  //
   task automatic test_speculative_hit;
-    // Simulate cache hit signal
     dmem_ren     = 1'b1;
     dmem_raddr   = 32'h0000_1000;
     cache_rd_hit = 1'b1;
 
-    // No stall on hit (combinational)
+    // Combinational: valid and hit use same address
+    `CHECK_TRUE(cache_rd_valid);
+    `CHECK_EQ(cache_rd_addr, 32'h0000_1000);
     `CHECK_FALSE(dmem_stall);
 
     `TICK(clk);
 
-    // cache_rd_valid now high (registered), cache returns data
-    `CHECK_TRUE(cache_rd_valid);
+    // Cache returns data
     dmem_ren            = 1'b0;
     cache_rd_hit        = 1'b0;
     cache_rd_data       = 32'hDEAD_BEEF;
     cache_rd_data_valid = 1'b1;
 
-    // Still no stall, data available
     `CHECK_FALSE(dmem_stall);
+    // dmem_rdata is combinational passthrough - check while data_valid is high
     `CHECK_EQ(dmem_rdata, 32'hDEAD_BEEF);
 
-    cache_rd_data_valid = 1'b0;
     `TICK(clk);
+
+    cache_rd_data_valid = 1'b0;
   endtask
 
   //
@@ -418,7 +398,9 @@ module svc_rv_dmem_cache_if_tb;
     dmem_raddr   = 32'h0000_1000;
     cache_rd_hit = 1'b1;
 
+    `CHECK_TRUE(cache_rd_valid);
     `CHECK_FALSE(dmem_stall);
+
     `TICK(clk);
 
     // Second hit while first data arrives
@@ -427,7 +409,9 @@ module svc_rv_dmem_cache_if_tb;
     cache_rd_data_valid = 1'b1;
     cache_rd_hit        = 1'b1;
 
+    `CHECK_TRUE(cache_rd_valid);
     `CHECK_FALSE(dmem_stall);
+    // dmem_rdata is combinational - first data visible now
     `CHECK_EQ(dmem_rdata, 32'h1111_1111);
 
     `TICK(clk);
@@ -437,7 +421,9 @@ module svc_rv_dmem_cache_if_tb;
     cache_rd_data = 32'h2222_2222;
     cache_rd_hit  = 1'b1;
 
+    `CHECK_TRUE(cache_rd_valid);
     `CHECK_FALSE(dmem_stall);
+    // dmem_rdata is combinational - second data visible now
     `CHECK_EQ(dmem_rdata, 32'h2222_2222);
 
     `TICK(clk);
@@ -448,10 +434,12 @@ module svc_rv_dmem_cache_if_tb;
     cache_rd_data       = 32'h3333_3333;
     cache_rd_data_valid = 1'b1;
 
+    // dmem_rdata is combinational - third data visible now
     `CHECK_EQ(dmem_rdata, 32'h3333_3333);
 
-    cache_rd_data_valid = 1'b0;
     `TICK(clk);
+
+    cache_rd_data_valid = 1'b0;
   endtask
 
   //
@@ -467,31 +455,39 @@ module svc_rv_dmem_cache_if_tb;
     `TICK(clk);
 
     // Second: miss (cache_rd_hit goes low)
+    // First hit's data arrives same cycle
     dmem_raddr          = 32'h0000_2000;
     cache_rd_hit        = 1'b0;
     cache_rd_data       = 32'hAAAA_AAAA;
     cache_rd_data_valid = 1'b1;
 
-    // Now we stall on the miss
-    `CHECK_TRUE(dmem_stall);
+    // Hit data valid suppresses stall to allow WB write
+    // (miss_inflight not set yet - happens on posedge)
+    `CHECK_FALSE(dmem_stall);
+    // dmem_rdata is combinational - first hit's data visible now
     `CHECK_EQ(dmem_rdata, 32'hAAAA_AAAA);
 
-    cache_rd_data_valid = 1'b0;
     `TICK(clk);
 
-    // In READING state, waiting for data
-    dmem_ren = 1'b0;
+    // miss_inflight now set, stall asserted
+    dmem_ren            = 1'b0;
+    cache_rd_ready      = 1'b0;
+    cache_rd_data_valid = 1'b0;
     `CHECK_TRUE(dmem_stall);
 
     // Miss data arrives
     cache_rd_data       = 32'hBBBB_BBBB;
     cache_rd_data_valid = 1'b1;
-    `TICK(clk);
+    cache_rd_ready      = 1'b1;
 
-    `CHECK_TRUE(dmem_stall);
+    // dmem_rdata is combinational - miss data visible now
     `CHECK_EQ(dmem_rdata, 32'hBBBB_BBBB);
 
+    `TICK(clk);
+
+    // miss_returning holds stall for one extra cycle
     cache_rd_data_valid = 1'b0;
+    `CHECK_TRUE(dmem_stall);
     `TICK(clk);
 
     `CHECK_FALSE(dmem_stall);
@@ -506,20 +502,26 @@ module svc_rv_dmem_cache_if_tb;
     dmem_raddr   = 32'h0000_1000;
     cache_rd_hit = 1'b0;
 
-    `CHECK_TRUE(dmem_stall);
+    `CHECK_FALSE(dmem_stall);
     `TICK(clk);
 
-    dmem_ren = 1'b0;
+    dmem_ren       = 1'b0;
+    cache_rd_ready = 1'b0;
     `CHECK_TRUE(dmem_stall);
 
     // Miss data arrives
     cache_rd_data       = 32'hCCCC_CCCC;
     cache_rd_data_valid = 1'b1;
-    `TICK(clk);
+    cache_rd_ready      = 1'b1;
 
+    // dmem_rdata is combinational - miss data visible now
     `CHECK_EQ(dmem_rdata, 32'hCCCC_CCCC);
 
+    `TICK(clk);
+
+    // miss_returning holds stall for one extra cycle
     cache_rd_data_valid = 1'b0;
+    `CHECK_TRUE(dmem_stall);
     `TICK(clk);
 
     `CHECK_FALSE(dmem_stall);
@@ -529,6 +531,7 @@ module svc_rv_dmem_cache_if_tb;
     dmem_raddr   = 32'h0000_2000;
     cache_rd_hit = 1'b1;
 
+    `CHECK_TRUE(cache_rd_valid);
     `CHECK_FALSE(dmem_stall);
     `TICK(clk);
 
@@ -538,10 +541,42 @@ module svc_rv_dmem_cache_if_tb;
     cache_rd_data_valid = 1'b1;
 
     `CHECK_FALSE(dmem_stall);
+    // dmem_rdata is combinational - hit data visible now
     `CHECK_EQ(dmem_rdata, 32'hDDDD_DDDD);
 
-    cache_rd_data_valid = 1'b0;
     `TICK(clk);
+
+    cache_rd_data_valid = 1'b0;
+  endtask
+
+  //
+  // Test: Write data stability during store_inflight
+  //
+  task automatic test_write_data_stability;
+    dmem_we    = 1'b1;
+    dmem_waddr = 32'h0000_5000;
+    dmem_wdata = 32'hABCD_EF01;
+    dmem_wstrb = 4'hF;
+
+    `TICK(clk);
+
+    // store_inflight set
+    dmem_we    = 1'b0;
+
+    // CPU may change waddr/wdata, but registered values are stable
+    dmem_waddr = 32'hFFFF_FFFF;
+    dmem_wdata = 32'h0000_0000;
+
+    `CHECK_EQ(cache_wr_addr, 32'h0000_5000);
+    `CHECK_EQ(cache_wr_data, 32'hABCD_EF01);
+    `CHECK_EQ(cache_wr_strb, 4'hF);
+
+    // Wait for completion
+    cache_wr_ready = 1'b1;
+    `TICK(clk);
+
+    cache_wr_ready = 1'b0;
+    `CHECK_FALSE(dmem_stall);
   endtask
 
   `TEST_SUITE_BEGIN(svc_rv_dmem_cache_if_tb);
@@ -551,11 +586,12 @@ module svc_rv_dmem_cache_if_tb;
   `TEST_CASE(test_cache_write);
   `TEST_CASE(test_io_read_bypass);
   `TEST_CASE(test_io_write_bypass);
-  `TEST_CASE(test_address_registration);
+  `TEST_CASE(test_address_passthrough);
   `TEST_CASE(test_speculative_hit);
   `TEST_CASE(test_back_to_back_hits);
   `TEST_CASE(test_miss_after_hit);
   `TEST_CASE(test_hit_after_miss);
+  `TEST_CASE(test_write_data_stability);
   `TEST_SUITE_END();
 
 endmodule
