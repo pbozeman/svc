@@ -7,11 +7,23 @@
 // RISC-V Data Memory to Cache Interface Bridge
 //
 // Converts CPU dmem pulse-based signals to cache valid/ready protocol.
-// Handles address/data registration since CPU may change values while
-// cache handles a miss.
 //
 // I/O bypass: Addresses with bit 31 = 1 bypass the cache and connect
 // directly to I/O. I/O has fixed 1-cycle BRAM timing.
+//
+// Design choices:
+//   * On cache HIT:
+//       - rd_valid asserted in *same* cycle as dmem_ren
+//       - no dmem_stall
+//       - rd_data_valid from cache next cycle -> forwarded to dmem_rdata
+//   * On cache MISS:
+//       - dmem_stall asserted while in STATE_MISS or STATE_MISS_RETURN
+//       - STATE_MISS entered when we start a miss
+//       - returns to IDLE when cache_rd_data_valid for the miss
+//   * Stores:
+//       - write-through via cache
+//       - STATE_STORE prevents new stores until cache_wr_ready pulses
+//       - dmem_stall asserted while in STATE_STORE
 //
 module svc_rv_dmem_cache_if (
     input logic clk,
@@ -27,7 +39,6 @@ module svc_rv_dmem_cache_if (
     input logic [31:0] dmem_wdata,
     input logic [ 3:0] dmem_wstrb,
 
-    // max_fanout to reduce routing delay on timing-critical signal
     (* max_fanout = 16 *) output logic dmem_stall,
 
     // Cache interface
@@ -55,219 +66,193 @@ module svc_rv_dmem_cache_if (
     output logic [31:0] io_wdata,
     output logic [ 3:0] io_wstrb
 );
-  logic cache_rd_valid_next;
-
   //
   // State machine
   //
   typedef enum logic [2:0] {
     STATE_IDLE,
-    STATE_READING,
-    STATE_READ_STALLED,
-    STATE_READ_COMPLETE,
-    STATE_WRITE,
-    STATE_WRITE_COMPLETE
+    STATE_WAIT_CACHE,
+    STATE_MISS,
+    STATE_MISS_RETURN,
+    STATE_STORE
   } state_t;
 
-  state_t state;
-  state_t state_next;
+  state_t        state;
+  state_t        state_next;
+
+  //
+  // Address decode
+  //
+  logic          io_sel_rd;
+  logic          io_sel_wr;
+
+  //
+  // Decode and classify requests
+  //
+  logic          is_load;
+  logic          is_store;
+  logic          is_cache_load;
+  logic          is_cache_store;
+
+  //
+  // Cache request tracking
+  //
+  logic          cache_rd_start;
+  logic   [31:0] cache_rd_addr_reg;
+  logic          cache_wr_start;
+  logic   [31:0] cache_wr_addr_reg;
+  logic   [31:0] cache_wr_data_reg;
+  logic   [ 3:0] cache_wr_strb_reg;
+
+  //
+  // Read data hold
+  //
+  logic   [31:0] rdata_reg_data;
+  logic          rdata_reg_valid;
+  logic          io_sel_rd_p1;
 
   //
   // Address decode: bit 31 = 1 selects I/O
   //
-  logic   io_sel_rd;
-  logic   io_sel_wr;
-
-  assign io_sel_rd = dmem_raddr[31];
-  assign io_sel_wr = dmem_waddr[31];
+  assign io_sel_rd      = dmem_raddr[31];
+  assign io_sel_wr      = dmem_waddr[31];
 
   //
-  // I/O select tracking for read response mux
+  // Decode and classify requests
   //
-  logic io_sel_rd_p1;
-
-  always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      io_sel_rd_p1 <= 1'b0;
-    end else if (state == STATE_IDLE && dmem_ren) begin
-      io_sel_rd_p1 <= io_sel_rd;
-    end
-  end
+  assign is_load        = dmem_ren && !dmem_we;
+  assign is_store       = dmem_we;
+  assign is_cache_load  = is_load && !io_sel_rd;
+  assign is_cache_store = is_store && !io_sel_wr;
 
   //
-  // Registered address for cache reads
-  //
-  // CPU may change address while we're handling a cache miss,
-  // so we register the address when the read starts.
-  //
-  logic [31:0] rd_addr_reg;
-
-  //
-  // Registered read data for CPU
-  //
-  // The pipelined CPU may hold a load in WB while we start processing the next
-  // read. If we change dmem_rdata when the new read completes, the old load
-  // in WB would pick up the wrong value. So we capture the data when the read
-  // completes and hold it until the pipeline has advanced (stall=0).
-  //
-  logic [31:0] rd_data_reg;
-  logic        rd_data_valid;
-
-  always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      rd_data_reg   <= 32'h0;
-      rd_data_valid <= 1'b0;
-    end else begin
-      // Clear rd_data_valid when pipeline can advance (stall is low)
-      if (rd_data_valid && !dmem_stall) begin
-        rd_data_valid <= 1'b0;
-      end
-      // Capture new data when read completes (overrides clear)
-      if ((state == STATE_READING || state == STATE_READ_STALLED) &&
-          cache_rd_data_valid) begin
-        rd_data_reg   <= cache_rd_data;
-        rd_data_valid <= 1'b1;
-      end
-    end
-  end
-
-  //
-  // Registered write data for cache
-  //
-  logic [31:0] wr_addr_reg;
-  logic [31:0] wr_data_reg;
-  logic [ 3:0] wr_strb_reg;
-
-  //
-  // Starting flags for immediate stall when initiating operations
-  //
-  logic        rd_starting_miss;
-  logic        wr_starting;
-
-  //
-  // State machine next-state logic
+  // Cache io start conditions and signals
   //
   always_comb begin
-    state_next          = state;
-    cache_rd_valid_next = cache_rd_valid && !cache_rd_ready;
+    // Note: the contract with the CPU that it issues only one of these
+    // at a time.
+    cache_rd_start = (state == STATE_IDLE) && is_cache_load;
+    cache_wr_start = (state == STATE_IDLE) && is_cache_store;
 
-    case (state)
+    cache_rd_valid = cache_rd_start || (state == STATE_WAIT_CACHE);
+    cache_rd_addr  = cache_rd_start ? dmem_raddr : cache_rd_addr_reg;
+
+    cache_wr_valid = cache_wr_start || (state == STATE_STORE);
+    cache_wr_addr  = cache_wr_start ? dmem_waddr : cache_wr_addr_reg;
+    cache_wr_data  = cache_wr_start ? dmem_wdata : cache_wr_data_reg;
+    cache_wr_strb  = cache_wr_start ? dmem_wstrb : cache_wr_strb_reg;
+
+    dmem_stall     = state != STATE_IDLE;
+  end
+
+  //
+  // State machine for miss/store tracking
+  //
+  // dmem_stall is set directly here based on state.
+  //
+  always_comb begin
+    state_next = state;
+
+    unique case (state)
       STATE_IDLE: begin
-        if (!cache_rd_valid || cache_rd_ready) begin
-          if (dmem_ren && !io_sel_rd) begin
-            cache_rd_valid_next = 1'b1;
-            // On hit, stay in IDLE.
+        if (cache_wr_start) begin
+          state_next = STATE_STORE;
+        end else if (cache_rd_start) begin
+          if (cache_rd_ready) begin
             if (!cache_rd_hit) begin
-              state_next = STATE_READING;
+              state_next = STATE_MISS;
             end
-          end else if (dmem_we && !io_sel_wr) begin
-            state_next = STATE_WRITE;
+          end else begin
+            state_next = STATE_WAIT_CACHE;
           end
         end
       end
 
-      STATE_READING: begin
-        if (cache_rd_data_valid) begin
-          state_next = STATE_READ_COMPLETE;
-        end else begin
-          state_next = STATE_READ_STALLED;
+      STATE_WAIT_CACHE: begin
+        if (cache_rd_ready) begin
+          if (cache_rd_hit) begin
+            state_next = STATE_IDLE;
+          end else begin
+            state_next = STATE_MISS;
+          end
         end
       end
 
-      STATE_READ_STALLED: begin
+      STATE_MISS: begin
         if (cache_rd_data_valid) begin
-          state_next = STATE_READ_COMPLETE;
+          state_next = STATE_MISS_RETURN;
         end
       end
 
-      STATE_READ_COMPLETE: begin
+      STATE_MISS_RETURN: begin
         state_next = STATE_IDLE;
       end
 
-      STATE_WRITE: begin
+      STATE_STORE: begin
         if (cache_wr_ready) begin
-          state_next = STATE_WRITE_COMPLETE;
+          state_next = STATE_IDLE;
         end
       end
 
-      STATE_WRITE_COMPLETE: begin
-        state_next = STATE_IDLE;
-      end
-
-      default: begin
-        state_next = STATE_IDLE;
-      end
+      default: state_next = STATE_IDLE;
     endcase
   end
 
   //
-  // State registration
+  // Registered state registers
   //
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      state          <= STATE_IDLE;
-      cache_rd_valid <= 1'b0;
+      state <= STATE_IDLE;
     end else begin
-      state          <= state_next;
-      cache_rd_valid <= cache_rd_valid_next;
+      state <= state_next;
     end
   end
 
   //
-  // Register read address when starting any cache read (hit or miss)
-  //
-  logic capture_rd_addr;
-  assign capture_rd_addr = ((state == STATE_IDLE) && dmem_ren && !io_sel_rd &&
-                            (!cache_rd_valid || cache_rd_ready));
-
-  always_ff @(posedge clk) begin
-    if (capture_rd_addr) begin
-      rd_addr_reg <= dmem_raddr;
-    end
-  end
-
-  //
-  // Register write data on state transition to WRITE
-  //
-  // Capture data when transitioning from IDLE to WRITE.
+  // Registered holds
   //
   always_ff @(posedge clk) begin
-    if (state_next == STATE_WRITE && state == STATE_IDLE) begin
-      wr_addr_reg <= dmem_waddr;
-      wr_data_reg <= dmem_wdata;
-      wr_strb_reg <= dmem_wstrb;
+    if (!rst_n) begin
+      rdata_reg_valid <= 1'b0;
+      io_sel_rd_p1    <= 1'b0;
+    end else begin
+      rdata_reg_valid <=
+          ((state == STATE_MISS_RETURN) ||
+           (state == STATE_WAIT_CACHE && cache_rd_ready && cache_rd_hit));
+
+      if (is_load && !dmem_stall) begin
+        io_sel_rd_p1 <= io_sel_rd;
+      end
     end
   end
 
-  //
-  // Cache read interface
-  //
-  // Use rd_addr_reg only during active transaction (valid && !ready).
-  // Use dmem_raddr otherwise to enable hit detection for new requests.
-  assign cache_rd_addr = ((cache_rd_valid && !cache_rd_ready) ? rd_addr_reg :
-                          dmem_raddr);
+  always_ff @(posedge clk) begin
+    if (cache_rd_start) begin
+      cache_rd_addr_reg <= dmem_raddr;
+    end
 
-  //
-  // Cache write interface
-  //
-  // Valid only in WRITE state. Unlike reads, we don't drop valid when ready
-  // arrives - the handshake requires valid && ready at clock edge.
-  //
-  assign cache_wr_valid = (state == STATE_WRITE);
-  assign cache_wr_addr = wr_addr_reg;
-  assign cache_wr_data = wr_data_reg;
-  assign cache_wr_strb = wr_strb_reg;
+    if (cache_wr_start) begin
+      cache_wr_addr_reg <= dmem_waddr;
+      cache_wr_data_reg <= dmem_wdata;
+      cache_wr_strb_reg <= dmem_wstrb;
+    end
+
+    if (cache_rd_data_valid) begin
+      rdata_reg_data <= cache_rd_data;
+    end
+  end
 
   //
   // I/O read interface
   //
-  assign io_ren = dmem_ren && io_sel_rd;
+  assign io_ren   = dmem_ren && io_sel_rd;
   assign io_raddr = dmem_raddr;
 
   //
   // I/O write interface
   //
-  assign io_wen = dmem_we && io_sel_wr;
+  assign io_wen   = dmem_we && io_sel_wr;
   assign io_waddr = dmem_waddr;
   assign io_wdata = dmem_wdata;
   assign io_wstrb = dmem_wstrb;
@@ -275,33 +260,23 @@ module svc_rv_dmem_cache_if (
   //
   // Read data mux
   //
-  // Select between I/O (BRAM timing) and cache data.
-  // Use registered cache data when valid to hold value through pipeline stalls.
+  // Priority: cache data valid > stall/miss hold > I/O > default 0
+  //
+  // - cache_rd_data_valid: live data from cache (hit or miss return)
+  // - stall/rdata_reg_valid: registered data during stall or miss completion
+  // - I/O: one-cycle BRAM timing via io_sel_rd_p1
   //
   always_comb begin
-    if (io_sel_rd_p1) begin
-      dmem_rdata = io_rdata;
-    end else if (rd_data_valid) begin
-      dmem_rdata = rd_data_reg;
-    end else begin
+    if (cache_rd_data_valid) begin
       dmem_rdata = cache_rd_data;
+    end else if ((dmem_stall || rdata_reg_valid) && !io_sel_rd_p1) begin
+      dmem_rdata = rdata_reg_data;
+    end else if (io_sel_rd_p1) begin
+      dmem_rdata = io_rdata;
+    end else begin
+      dmem_rdata = 32'h0;
     end
   end
-
-  //
-  // Stall generation
-  //
-  // Only stall on MISS, not all reads
-  assign rd_starting_miss = ((state == STATE_IDLE) && dmem_ren && !io_sel_rd &&
-                             !cache_rd_hit);
-  assign wr_starting = (state == STATE_IDLE) && dmem_we && !io_sel_wr;
-
-  assign dmem_stall = rd_starting_miss || wr_starting ||
-      (state == STATE_READING && !cache_rd_data_valid) ||
-      (state == STATE_READ_STALLED && !cache_rd_data_valid) ||
-      (state == STATE_READ_COMPLETE) || (state == STATE_WRITE && !cache_wr_ready
-      ) || (state == STATE_WRITE_COMPLETE);
-
 
 `ifdef FORMAL
 `ifdef FORMAL_SVC_RV_DMEM_CACHE_IF
@@ -315,18 +290,52 @@ module svc_rv_dmem_cache_if (
 `endif
 
   logic f_past_valid = 1'b0;
+  logic f_start_hit;
+  logic f_hit_completing;
+  logic f_wait_cache_inflight;
+  logic f_miss_inflight;
+  logic f_miss_returning;
+  logic f_store_inflight;
+
+  // cache_rd_start is defined in functional logic above
+  assign f_start_hit = cache_rd_start && cache_rd_ready && cache_rd_hit;
+  assign f_hit_completing = cache_rd_data_valid && (state == STATE_IDLE);
+  assign f_wait_cache_inflight = (state == STATE_WAIT_CACHE);
+  assign f_miss_inflight = (state == STATE_MISS);
+  assign f_miss_returning = (state == STATE_MISS_RETURN);
+  assign f_store_inflight = (state == STATE_STORE);
 
   always_ff @(posedge clk) begin
     f_past_valid <= 1'b1;
   end
 
-  // States that will return to IDLE next cycle
-  logic completing;
-  assign completing = (state == STATE_READ_COMPLETE) ||
-      (state == STATE_WRITE_COMPLETE);
-
   initial begin
     assume (!rst_n);
+    assume (f_rd_pending == 0);
+    assume (f_expected_rdata == rdata_reg_data);
+    assume (f_cache_load_pending == 0);
+  end
+
+  //
+  // Track outstanding cache read requests
+  //
+  // cache_rd_data_valid should only occur when there's a pending request.
+  // Use a counter: increment on request accepted, decrement on response.
+  //
+  logic [1:0] f_rd_pending;
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      f_rd_pending <= 2'b0;
+    end else begin
+      case ({
+        cache_rd_valid && cache_rd_ready, cache_rd_data_valid
+      })
+        2'b10:   f_rd_pending <= f_rd_pending + 1'b1;
+        2'b01:   f_rd_pending <= f_rd_pending - 1'b1;
+        default: f_rd_pending <= f_rd_pending;
+      endcase
+    end
   end
 
   //
@@ -336,75 +345,60 @@ module svc_rv_dmem_cache_if (
     `FASSUME(a_no_simul_rd_wr, !(dmem_ren && dmem_we));
     `FASSUME(a_cache_mutex, !(cache_rd_data_valid && cache_wr_ready));
 
-    // cache_rd_hit implies cache_rd_data_valid next cycle
-    if (f_past_valid && $past(rst_n) && rst_n && $past(cache_rd_hit)) begin
+    // cache_rd_data_valid requires a pending request OR simultaneous hit
+    // (for immediate hits, request and response happen same cycle)
+    if (cache_rd_data_valid) begin
+      `FASSUME(a_rd_data_valid_needs_pending,
+               f_rd_pending > 0 || (cache_rd_valid && cache_rd_ready));
+    end
+
+    // cache_rd_hit with valid handshake implies cache_rd_data_valid
+    // in same cycle (hit returns data immediately for zero-stall hits)
+    if (cache_rd_valid && cache_rd_ready && cache_rd_hit) begin
       `FASSUME(a_hit_implies_data_valid, cache_rd_data_valid);
     end
   end
 
   //
-  // Assertions
+  // External assertions (module ports only)
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && rst_n) begin
-      `FASSERT(a_cache_wr_valid, cache_wr_valid == (state == STATE_WRITE));
-
       // I/O interface is combinational passthrough
-      `FASSERT(a_io_ren, io_ren == (dmem_ren && io_sel_rd));
-      `FASSERT(a_io_wen, io_wen == (dmem_we && io_sel_wr));
+      `FASSERT(a_io_ren, io_ren == (dmem_ren && dmem_raddr[31]));
+      `FASSERT(a_io_wen, io_wen == (dmem_we && dmem_waddr[31]));
       `FASSERT(a_io_raddr, io_raddr == dmem_raddr);
       `FASSERT(a_io_waddr, io_waddr == dmem_waddr);
       `FASSERT(a_io_wdata, io_wdata == dmem_wdata);
       `FASSERT(a_io_wstrb, io_wstrb == dmem_wstrb);
-    end
 
-    if (f_past_valid && !$past(rst_n)) begin
-      `FASSERT(a_reset_to_idle, state == STATE_IDLE);
+      // Cache addresses never have I/O bit set
+      if (cache_rd_valid) begin
+        `FASSERT(a_rd_addr_not_io, !cache_rd_addr[31]);
+      end
+      if (cache_wr_valid) begin
+        `FASSERT(a_wr_addr_not_io, !cache_wr_addr[31]);
+      end
     end
 
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      // I/O bypass: I/O requests don't change state from IDLE
+      // Cache miss stalls one cycle after detection (handshake must complete first)
       if ($past(
-              dmem_ren && io_sel_rd && state == STATE_IDLE && !completing
+              cache_rd_valid && cache_rd_ready && !cache_rd_hit &&
+                  !f_hit_completing
           )) begin
-        `FASSERT(a_io_rd_stays_idle, state == STATE_IDLE);
-      end
-      if ($past(
-              dmem_we && io_sel_wr && state == STATE_IDLE && !completing
-          )) begin
-        `FASSERT(a_io_wr_stays_idle, state == STATE_IDLE);
+        `FASSERT(a_miss_stalls_next, dmem_stall);
       end
 
-      // Cache hit: stays in IDLE (speculative path)
-      if ($past(
-              dmem_ren && !io_sel_rd && cache_rd_hit && state == STATE_IDLE &&
-                  !completing && !cache_rd_valid
-          )) begin
-        `FASSERT(a_cache_hit_stays_idle, state == STATE_IDLE);
-      end
-
-      // Cache hit: no stall
-      if ($past(cache_rd_hit && state == STATE_IDLE)) begin
-        `FASSERT(a_cache_hit_no_stall, !$past(dmem_stall) || $past(wr_starting
-                 ));
-      end
-
-      // Valid/ready protocol for reads: valid and addr stable until ready
+      // Read valid/ready stability: valid stays high until ready
       if ($past(cache_rd_valid && !cache_rd_ready)) begin
         `FASSERT(a_rd_valid_stable, cache_rd_valid);
-        `FASSERT(a_rd_addr_until_ready, cache_rd_addr == $past(cache_rd_addr));
+        `FASSERT(a_rd_addr_stable, cache_rd_addr == $past(cache_rd_addr));
       end
 
-      // Valid/ready protocol for writes: valid and data stable until ready
+      // Write valid/ready stability
       if ($past(cache_wr_valid && !cache_wr_ready)) begin
         `FASSERT(a_wr_valid_stable, cache_wr_valid);
-        `FASSERT(a_wr_addr_until_ready, cache_wr_addr == $past(cache_wr_addr));
-        `FASSERT(a_wr_data_until_ready, cache_wr_data == $past(cache_wr_data));
-        `FASSERT(a_wr_strb_until_ready, cache_wr_strb == $past(cache_wr_strb));
-      end
-
-      // Address/data stability during write state
-      if ($past(state == STATE_WRITE) && (state == STATE_WRITE)) begin
         `FASSERT(a_wr_addr_stable, cache_wr_addr == $past(cache_wr_addr));
         `FASSERT(a_wr_data_stable, cache_wr_data == $past(cache_wr_data));
         `FASSERT(a_wr_strb_stable, cache_wr_strb == $past(cache_wr_strb));
@@ -413,51 +407,140 @@ module svc_rv_dmem_cache_if (
   end
 
   //
-  // Cover properties - read state machine paths
+  // Read data correctness (module ports only)
+  //
+  // Key contract: when dmem_stall drops after a cache read,
+  // dmem_rdata must equal the cache_rd_data captured when
+  // cache_rd_data_valid pulsed.
+  //
+  logic [31:0] f_expected_rdata;
+  logic        f_cache_load_pending;
+
+  always_ff @(posedge clk) begin
+    if (cache_rd_data_valid) begin
+      f_expected_rdata <= cache_rd_data;
+    end
+  end
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      f_cache_load_pending <= 1'b0;
+    end else begin
+      // Track loads that actually STARTED, not just requests.
+      // Blocked requests (e.g., during f_store_inflight) don't count.
+      if (cache_rd_start) begin
+        f_cache_load_pending <= 1'b1;
+      end else if (!dmem_stall) begin
+        f_cache_load_pending <= 1'b0;
+      end
+    end
+  end
+
+  always_ff @(posedge clk) begin
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      // When stall drops after a cache load (not I/O), data should be correct.
+      // Exclude f_hit_completing case - hits write data directly without stall.
+      // Exclude I/O reads which use io_rdata path.
+      if ($past(
+              dmem_stall
+          ) && !dmem_stall && $past(
+              f_cache_load_pending
+          ) && !$past(
+              dmem_raddr[31]
+          ) && !$past(
+              f_hit_completing
+          ) && !cache_rd_data_valid && !io_sel_rd_p1) begin
+        `FASSERT(a_rdata_correct_on_complete, dmem_rdata == f_expected_rdata);
+      end
+    end
+  end
+
+  //
+  // Internal assertions (implementation details)
+  //
+  always_ff @(posedge clk) begin
+    if (f_past_valid && rst_n) begin
+      if (f_start_hit && !f_store_inflight) begin
+        `FASSERT(a_hit_no_stall, !dmem_stall);
+      end
+
+      if (f_store_inflight) begin
+        `FASSERT(a_store_stalls, dmem_stall);
+      end
+
+      if (f_miss_returning) begin
+        `FASSERT(a_miss_returning_stalls, dmem_stall);
+      end
+
+      if (f_wait_cache_inflight) begin
+        `FASSERT(a_wait_cache_stalls, dmem_stall);
+      end
+    end
+
+    if (f_past_valid && !$past(rst_n)) begin
+      `FASSERT(a_reset_no_wait_cache, !f_wait_cache_inflight);
+      `FASSERT(a_reset_no_miss, !f_miss_inflight);
+      `FASSERT(a_reset_no_store, !f_store_inflight);
+      `FASSERT(a_reset_no_returning, !f_miss_returning);
+      `FASSERT(a_reset_no_data_reg, !rdata_reg_valid);
+    end
+
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      // rdata_reg_valid follows f_miss_returning or wait_cache hit by one cycle
+      if ($past(f_miss_returning)) begin
+        `FASSERT(a_miss_data_reg_follows, rdata_reg_valid);
+      end
+      if ($past(
+              f_wait_cache_inflight
+          ) && $past(
+              cache_rd_ready
+          ) && $past(
+              cache_rd_hit
+          )) begin
+        `FASSERT(a_wait_cache_hit_data_reg, rdata_reg_valid);
+      end
+
+      // When cache_rd_data_valid, dmem_rdata uses live data
+      if (cache_rd_data_valid) begin
+        `FASSERT(a_rdata_live, dmem_rdata == cache_rd_data);
+      end
+
+      // When rdata_reg_valid is active (not f_miss_returning), dmem_rdata uses
+      // rdata_reg_data (unless I/O has priority)
+      if (rdata_reg_valid && !cache_rd_data_valid && !io_sel_rd_p1) begin
+        `FASSERT(a_rdata_miss_reg, dmem_rdata == rdata_reg_data);
+      end
+    end
+  end
+
+
+  //
+  // Cover properties
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      // Read hit path: IDLE → READING → WB → IDLE
-      `FCOVER(c_idle_to_reading, $past(state == STATE_IDLE
-              ) && state == STATE_READING);
-      `FCOVER(c_reading_to_wb, $past(state == STATE_READING
-              ) && state == STATE_READ_COMPLETE);
-      `FCOVER(c_wb_to_idle, $past(state == STATE_READ_COMPLETE
-              ) && state == STATE_IDLE);
+      // Cache hit path (zero stall)
+      `FCOVER(c_cache_hit, f_start_hit);
+      `FCOVER(c_cache_hit_no_stall, f_start_hit && !dmem_stall);
 
-      // Read miss path: READING → STALLED → WB → IDLE
-      `FCOVER(c_reading_to_stalled, $past(state == STATE_READING
-              ) && state == STATE_READ_STALLED);
-      `FCOVER(c_stalled_to_wb, $past(state == STATE_READ_STALLED
-              ) && state == STATE_READ_COMPLETE);
+      // Cache miss path
+      `FCOVER(c_cache_miss, cache_rd_start && cache_rd_ready && !cache_rd_hit);
+      `FCOVER(c_wait_cache, f_wait_cache_inflight);
+      `FCOVER(c_miss_inflight, f_miss_inflight);
+      `FCOVER(c_miss_returning, f_miss_returning);
+      `FCOVER(c_miss_complete, $past(f_miss_returning) && !f_miss_returning);
 
-      // Write path: IDLE → WRITE → WRITE_COMPLETE → IDLE
-      `FCOVER(c_idle_to_write, $past(state == STATE_IDLE
-              ) && state == STATE_WRITE);
-      `FCOVER(c_write_to_complete, $past(state == STATE_WRITE
-              ) && state == STATE_WRITE_COMPLETE);
-      `FCOVER(c_write_complete_to_idle, $past(state == STATE_WRITE_COMPLETE
-              ) && state == STATE_IDLE);
-
-      // Multi-cycle miss
-      `FCOVER(c_multi_cycle_stall, $past(state == STATE_READ_STALLED
-              ) && state == STATE_READ_STALLED);
+      // Store path
+      `FCOVER(c_store_start, cache_wr_start);
+      `FCOVER(c_store_inflight, f_store_inflight);
+      `FCOVER(c_store_complete, $past(f_store_inflight) && !f_store_inflight);
 
       // I/O bypass
-      `FCOVER(c_io_read, $past(io_ren));
-      `FCOVER(c_io_write, $past(io_wen));
+      `FCOVER(c_io_read, io_ren);
+      `FCOVER(c_io_write, io_wen);
 
-      // Stall scenarios
-      `FCOVER(c_stall_on_rd_start, dmem_stall && rd_starting_miss);
-      `FCOVER(c_stall_on_wr_start, dmem_stall && wr_starting);
-      `FCOVER(c_stall_in_stalled, dmem_stall && state == STATE_READ_STALLED);
-      `FCOVER(c_no_stall_idle, !dmem_stall && state == STATE_IDLE);
-
-      // Zero-stall cache hit path
-      `FCOVER(c_cache_hit_no_stall, $past(
-              dmem_ren && !io_sel_rd && cache_rd_hit && state == STATE_IDLE
-              ) && state == STATE_IDLE && !dmem_stall);
-      `FCOVER(c_back_to_back_hits, $past(cache_rd_hit) && cache_rd_hit);
+      // Back-to-back operations
+      `FCOVER(c_back_to_back_hits, $past(f_start_hit) && f_start_hit);
     end
   end
 

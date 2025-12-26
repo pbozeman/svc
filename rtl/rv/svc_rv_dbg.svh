@@ -23,7 +23,7 @@
 localparam int DBG_IF_MIN_WIDTH = 30;
 localparam int DBG_ID_PRED_WIDTH = 13;
 localparam int DBG_EX_FLAGS_WIDTH = 5;
-localparam int DBG_WB_WIDTH = 27;
+localparam int DBG_WB_WIDTH = 29;
 localparam int DBG_MEM_WIDTH = 24;
 
 logic dbg_if;
@@ -538,12 +538,16 @@ always @(posedge clk) begin
     //
     if (dbg_wb) begin
       string wb_str;
+      string stall_str;
+
+      stall_str = stall_wb ? "s " : "  ";
       if (line != "") line = {line, " | "};
-      if (reg_write_wb && (rd_wb != 5'h0)) begin
-        wb_str = $sformatf("WB %08x %08x -> x%02d", pc_plus4_wb - 4,
-                           stage_wb.rd_data_wb, rd_wb);
+      // Only show register writes when the WB stage is actually committing
+      if (!stall_wb && reg_write_wb && (rd_wb != 5'h0)) begin
+        wb_str = $sformatf("WB %s%08x %08x -> x%02d", stall_str,
+                           pc_plus4_wb - 4, stage_wb.rd_data_wb, rd_wb);
       end else begin
-        wb_str = $sformatf("WB %08x", pc_plus4_wb - 4);
+        wb_str = $sformatf("WB %s%08x", stall_str, pc_plus4_wb - 4);
         while (wb_str.len() < DBG_WB_WIDTH) begin
           wb_str = {wb_str, " "};
         end

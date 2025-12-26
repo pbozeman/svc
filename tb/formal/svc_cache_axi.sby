@@ -18,7 +18,7 @@ cover_direct: depth 10
 cover_twoway: mode cover
 cover_twoway: depth 10
 cover_wide: mode cover
-cover_wide: depth 11
+cover_wide: depth 12
 
 [engines]
 smtbmc boolector
