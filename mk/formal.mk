@@ -128,7 +128,8 @@ $(F_BUILD_DIR)/%_f/ran: $(PRJ_FORMAL_DIR)/%.sby $(F_BUILD_DIR)/%_f $(F_BUILD_DIR
 	$(call f_run_formal,$*)
 
 .PHONY: $(F_TARGETS)
-$(F_TARGETS): %_f : $(F_BUILD_DIR)/%_f/ran ;
+$(F_TARGETS): %_f : $(F_BUILD_DIR)/%_f/ran
+	@test -f $< || exit 1
 
 define f_run_formal
 	@echo "$1" >> $(F_BUILD_DIR)/f_run.log
