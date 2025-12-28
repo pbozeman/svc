@@ -320,15 +320,18 @@ $(RV_CACHE_I_ZMMUL_SIMS): rv_%_cache_i_zmmul_sim:
 # The .d files (included above) provide source dependencies for rebuild detection
 # Build only the specific program/arch needed rather than all software
 # Pass SVC_SIM=1 to enable simulation-specific settings (e.g., fewer iterations)
+# Pass SVC_DISABLE_MMIO if set (deterministic I/O stubs)
+SW_BUILD_FLAGS := SVC_SIM=1 $(if $(SVC_DISABLE_MMIO),SVC_DISABLE_MMIO=1)
+
 define rv_hex_rules
 $(BUILD_DIR)/sw/rv32i/$(1)/$(1).hex:
-	@$$(MAKE) -C sw/$(1) RV_ARCH=rv32i SVC_SIM=1
+	@$$(MAKE) -C sw/$(1) RV_ARCH=rv32i $(SW_BUILD_FLAGS)
 
 $(BUILD_DIR)/sw/rv32im/$(1)/$(1).hex:
-	@$$(MAKE) -C sw/$(1) RV_ARCH=rv32im SVC_SIM=1
+	@$$(MAKE) -C sw/$(1) RV_ARCH=rv32im $(SW_BUILD_FLAGS)
 
 $(BUILD_DIR)/sw/rv32i_zmmul/$(1)/$(1).hex:
-	@$$(MAKE) -C sw/$(1) RV_ARCH=rv32i_zmmul SVC_SIM=1
+	@$$(MAKE) -C sw/$(1) RV_ARCH=rv32i_zmmul $(SW_BUILD_FLAGS)
 
 $(BUILD_DIR)/sw/rv32i/$(1)/$(1)_128.hex: $(BUILD_DIR)/sw/rv32i/$(1)/$(1).hex
 	@$$(MAKE) -C sw/$(1) RV_ARCH=rv32i ../../.build/sw/rv32i/$(1)/$(1)_128.hex
