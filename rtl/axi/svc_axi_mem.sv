@@ -293,7 +293,7 @@ module svc_axi_mem #(
       WRITE_STATE_BURST: begin
         sb_s_wready = !s_axi_bvalid || s_axi_bready;
 
-        if (s_axi_wvalid && s_axi_wready) begin
+        if (sb_s_wvalid && sb_s_wready) begin
           mem_wr_en   = 1'b1;
           mem_wr_addr = w_addr[AW-1:LSB];
 
@@ -301,7 +301,7 @@ module svc_axi_mem #(
             w_addr_next = w_addr + (1 << w_size);
           end
 
-          if (s_axi_wlast) begin
+          if (sb_s_wlast) begin
             if (!s_axi_bvalid || s_axi_bready) begin
               sb_s_awready      = 1'b1;
               write_state_next  = WRITE_STATE_IDLE;
@@ -471,6 +471,20 @@ module svc_axi_mem #(
 `endif
 
 `ifdef FORMAL
+  //
+  // Burst writes must consume skid buffer outputs.
+  //
+  // This catches cases where WRITE_STATE_BURST incorrectly
+  // uses raw s_axi_w* inputs under backpressure.
+  //
+  always_comb begin
+    if (rst_n) begin
+      if (write_state == WRITE_STATE_BURST && sb_s_wvalid && sb_s_wready) begin
+        assert (mem_wr_en);
+      end
+    end
+  end
+
   // This uses faxi_* files in tb/formal/private.
   // See tb/formal/private/README.md
 `ifdef ZIPCPU_PRIVATE
