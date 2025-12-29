@@ -64,7 +64,7 @@ module svc_axi_arbiter_wr #(
   localparam SKIDBUF_AW_WIDTH = AXI_ID_WIDTH + AXI_ADDR_WIDTH + 8 + 3 + 2;
 
   // data + strb + last
-  localparam SKIDBUF_W_WIDTH = AXI_DATA_WIDTH + 2 + 1;
+  localparam SKIDBUF_W_WIDTH = AXI_DATA_WIDTH + AXI_STRB_WIDTH + 1;
 
   // id + resp
   localparam SKIDBUF_B_WIDTH = AXI_ID_WIDTH + 2;
