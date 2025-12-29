@@ -3,6 +3,8 @@
 
 `include "svc.sv"
 
+`include "svc_axi_arbiter.sv"
+`include "svc_axi_null.sv"
 `include "svc_cache_axi.sv"
 `include "svc_mem_bram.sv"
 `include "svc_rv.sv"
@@ -19,19 +21,21 @@
 // - Bit 31 = 1: I/O (direct BRAM timing, bypasses cache)
 //
 module svc_rv_soc_bram_cache #(
-    parameter int XLEN        = 32,
-    parameter int IMEM_DEPTH  = 1024,
-    parameter int PIPELINED   = 1,
-    parameter int FWD_REGFILE = 1,
-    parameter int FWD         = 0,
-    parameter int BPRED       = 0,
-    parameter int BTB_ENABLE  = 0,
-    parameter int BTB_ENTRIES = 16,
-    parameter int RAS_ENABLE  = 0,
-    parameter int RAS_DEPTH   = 8,
-    parameter int EXT_ZMMUL   = 0,
-    parameter int EXT_M       = 0,
-    parameter int PC_REG      = 0,
+    parameter int XLEN          = 32,
+    parameter int IMEM_DEPTH    = 1024,
+    parameter int PIPELINED     = 1,
+    parameter int ICACHE_ENABLE = 0,
+    parameter int DCACHE_ENABLE = 1,
+    parameter int FWD_REGFILE   = 1,
+    parameter int FWD           = 0,
+    parameter int BPRED         = 0,
+    parameter int BTB_ENABLE    = 0,
+    parameter int BTB_ENTRIES   = 16,
+    parameter int RAS_ENABLE    = 0,
+    parameter int RAS_DEPTH     = 8,
+    parameter int EXT_ZMMUL     = 0,
+    parameter int EXT_M         = 0,
+    parameter int PC_REG        = 0,
 
     parameter logic [31:0] RESET_PC = 0,
 
@@ -178,7 +182,100 @@ module svc_rv_soc_bram_cache #(
   logic [31:0] cache_wr_data;
   logic [ 3:0] cache_wr_strb;
 
+  //
+  // Internal AXI signals for arbiter
+  //
+  // Arbiter port 0: I$ (null for now)
+  // Arbiter port 1: D$
+  //
+  // The arbiter adds $clog2(NUM_M) bits to the ID width for routing.
+  // Our external interface uses AXI_ID_WIDTH, so we need AXI_ID_WIDTH-1
+  // for the internal ID width to leave room for the routing bit.
+  //
+  localparam int NUM_ARB_M = 2;
+  localparam int ARB_INTERNAL_ID_WIDTH = AXI_ID_WIDTH - 1;
+
+  // D$ AXI signals (to arbiter port 1)
+  logic                             dcache_axi_arvalid;
+  logic [ARB_INTERNAL_ID_WIDTH-1:0] dcache_axi_arid;
+  logic [       AXI_ADDR_WIDTH-1:0] dcache_axi_araddr;
+  logic [                      7:0] dcache_axi_arlen;
+  logic [                      2:0] dcache_axi_arsize;
+  logic [                      1:0] dcache_axi_arburst;
+  logic                             dcache_axi_arready;
+
+  logic                             dcache_axi_rvalid;
+  logic [ARB_INTERNAL_ID_WIDTH-1:0] dcache_axi_rid;
+  logic [       AXI_DATA_WIDTH-1:0] dcache_axi_rdata;
+  logic [                      1:0] dcache_axi_rresp;
+  logic                             dcache_axi_rlast;
+  logic                             dcache_axi_rready;
+
+  logic                             dcache_axi_awvalid;
+  logic [ARB_INTERNAL_ID_WIDTH-1:0] dcache_axi_awid;
+  logic [       AXI_ADDR_WIDTH-1:0] dcache_axi_awaddr;
+  logic [                      7:0] dcache_axi_awlen;
+  logic [                      2:0] dcache_axi_awsize;
+  logic [                      1:0] dcache_axi_awburst;
+  logic                             dcache_axi_awready;
+
+  logic                             dcache_axi_wvalid;
+  logic [       AXI_DATA_WIDTH-1:0] dcache_axi_wdata;
+  logic [     AXI_DATA_WIDTH/8-1:0] dcache_axi_wstrb;
+  logic                             dcache_axi_wlast;
+  logic                             dcache_axi_wready;
+
+  logic                             dcache_axi_bvalid;
+  logic [ARB_INTERNAL_ID_WIDTH-1:0] dcache_axi_bid;
+  logic [                      1:0] dcache_axi_bresp;
+  logic                             dcache_axi_bready;
+
+  // I$ AXI signals (null client, to arbiter port 0)
+  logic                             icache_axi_arvalid;
+  logic [ARB_INTERNAL_ID_WIDTH-1:0] icache_axi_arid;
+  logic [       AXI_ADDR_WIDTH-1:0] icache_axi_araddr;
+  logic [                      7:0] icache_axi_arlen;
+  logic [                      2:0] icache_axi_arsize;
+  logic [                      1:0] icache_axi_arburst;
+  logic                             icache_axi_arready;
+
+  logic                             icache_axi_rvalid;
+  logic [ARB_INTERNAL_ID_WIDTH-1:0] icache_axi_rid;
+  logic [       AXI_DATA_WIDTH-1:0] icache_axi_rdata;
+  logic [                      1:0] icache_axi_rresp;
+  logic                             icache_axi_rlast;
+  logic                             icache_axi_rready;
+
+  logic                             icache_axi_awvalid;
+  logic [ARB_INTERNAL_ID_WIDTH-1:0] icache_axi_awid;
+  logic [       AXI_ADDR_WIDTH-1:0] icache_axi_awaddr;
+  logic [                      7:0] icache_axi_awlen;
+  logic [                      2:0] icache_axi_awsize;
+  logic [                      1:0] icache_axi_awburst;
+  logic                             icache_axi_awready;
+
+  logic                             icache_axi_wvalid;
+  logic [       AXI_DATA_WIDTH-1:0] icache_axi_wdata;
+  logic [     AXI_DATA_WIDTH/8-1:0] icache_axi_wstrb;
+  logic                             icache_axi_wlast;
+  logic                             icache_axi_wready;
+
+  logic                             icache_axi_bvalid;
+  logic [ARB_INTERNAL_ID_WIDTH-1:0] icache_axi_bid;
+  logic [                      1:0] icache_axi_bresp;
+  logic                             icache_axi_bready;
+
   `include "svc_rv_defs.svh"
+
+  // Only ICACHE_ENABLE=0 and DCACHE_ENABLE=1 is currently supported
+  initial begin
+    if (ICACHE_ENABLE != 0) begin
+      $error("ICACHE_ENABLE=1 is not yet supported");
+    end
+    if (DCACHE_ENABLE != 1) begin
+      $error("DCACHE_ENABLE=0 is not yet supported");
+    end
+  end
 
   //
   // RISC-V core
@@ -326,7 +423,7 @@ module svc_rv_soc_bram_cache #(
       .TWO_WAY         (CACHE_TWO_WAY),
       .AXI_ADDR_WIDTH  (AXI_ADDR_WIDTH),
       .AXI_DATA_WIDTH  (AXI_DATA_WIDTH),
-      .AXI_ID_WIDTH    (AXI_ID_WIDTH)
+      .AXI_ID_WIDTH    (ARB_INTERNAL_ID_WIDTH)
   ) dcache (
       .clk  (clk),
       .rst_n(rst_n),
@@ -344,21 +441,143 @@ module svc_rv_soc_bram_cache #(
       .wr_data (cache_wr_data),
       .wr_strb (cache_wr_strb),
 
-      .m_axi_arvalid(m_axi_arvalid),
-      .m_axi_arid   (m_axi_arid),
-      .m_axi_araddr (m_axi_araddr),
-      .m_axi_arlen  (m_axi_arlen),
-      .m_axi_arsize (m_axi_arsize),
-      .m_axi_arburst(m_axi_arburst),
-      .m_axi_arready(m_axi_arready),
+      .m_axi_arvalid(dcache_axi_arvalid),
+      .m_axi_arid   (dcache_axi_arid),
+      .m_axi_araddr (dcache_axi_araddr),
+      .m_axi_arlen  (dcache_axi_arlen),
+      .m_axi_arsize (dcache_axi_arsize),
+      .m_axi_arburst(dcache_axi_arburst),
+      .m_axi_arready(dcache_axi_arready),
 
-      .m_axi_rvalid(m_axi_rvalid),
-      .m_axi_rid   (m_axi_rid),
-      .m_axi_rdata (m_axi_rdata),
-      .m_axi_rresp (m_axi_rresp),
-      .m_axi_rlast (m_axi_rlast),
-      .m_axi_rready(m_axi_rready),
+      .m_axi_rvalid(dcache_axi_rvalid),
+      .m_axi_rid   (dcache_axi_rid),
+      .m_axi_rdata (dcache_axi_rdata),
+      .m_axi_rresp (dcache_axi_rresp),
+      .m_axi_rlast (dcache_axi_rlast),
+      .m_axi_rready(dcache_axi_rready),
 
+      .m_axi_awvalid(dcache_axi_awvalid),
+      .m_axi_awid   (dcache_axi_awid),
+      .m_axi_awaddr (dcache_axi_awaddr),
+      .m_axi_awlen  (dcache_axi_awlen),
+      .m_axi_awsize (dcache_axi_awsize),
+      .m_axi_awburst(dcache_axi_awburst),
+      .m_axi_awready(dcache_axi_awready),
+
+      .m_axi_wvalid(dcache_axi_wvalid),
+      .m_axi_wdata (dcache_axi_wdata),
+      .m_axi_wstrb (dcache_axi_wstrb),
+      .m_axi_wlast (dcache_axi_wlast),
+      .m_axi_wready(dcache_axi_wready),
+
+      .m_axi_bvalid(dcache_axi_bvalid),
+      .m_axi_bid   (dcache_axi_bid),
+      .m_axi_bresp (dcache_axi_bresp),
+      .m_axi_bready(dcache_axi_bready)
+  );
+
+  //
+  // Null AXI client for I$ slot (arbiter port 0)
+  //
+  // When ICACHE_ENABLE=0, this provides a quiet client that never
+  // initiates transactions.
+  //
+  svc_axi_null #(
+      .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
+      .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
+      .AXI_ID_WIDTH  (ARB_INTERNAL_ID_WIDTH)
+  ) icache_null (
+      .clk  (clk),
+      .rst_n(rst_n),
+
+      .m_axi_arvalid(icache_axi_arvalid),
+      .m_axi_arid   (icache_axi_arid),
+      .m_axi_araddr (icache_axi_araddr),
+      .m_axi_arlen  (icache_axi_arlen),
+      .m_axi_arsize (icache_axi_arsize),
+      .m_axi_arburst(icache_axi_arburst),
+      .m_axi_arready(icache_axi_arready),
+
+      .m_axi_rvalid(icache_axi_rvalid),
+      .m_axi_rid   (icache_axi_rid),
+      .m_axi_rdata (icache_axi_rdata),
+      .m_axi_rresp (icache_axi_rresp),
+      .m_axi_rlast (icache_axi_rlast),
+      .m_axi_rready(icache_axi_rready),
+
+      .m_axi_awvalid(icache_axi_awvalid),
+      .m_axi_awid   (icache_axi_awid),
+      .m_axi_awaddr (icache_axi_awaddr),
+      .m_axi_awlen  (icache_axi_awlen),
+      .m_axi_awsize (icache_axi_awsize),
+      .m_axi_awburst(icache_axi_awburst),
+      .m_axi_awready(icache_axi_awready),
+
+      .m_axi_wvalid(icache_axi_wvalid),
+      .m_axi_wdata (icache_axi_wdata),
+      .m_axi_wstrb (icache_axi_wstrb),
+      .m_axi_wlast (icache_axi_wlast),
+      .m_axi_wready(icache_axi_wready),
+
+      .m_axi_bvalid(icache_axi_bvalid),
+      .m_axi_bid   (icache_axi_bid),
+      .m_axi_bresp (icache_axi_bresp),
+      .m_axi_bready(icache_axi_bready)
+  );
+
+  //
+  // AXI Arbiter
+  //
+  // Port 0: I$ (null client for now)
+  // Port 1: D$
+  //
+  svc_axi_arbiter #(
+      .NUM_M         (NUM_ARB_M),
+      .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
+      .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
+      .AXI_ID_WIDTH  (ARB_INTERNAL_ID_WIDTH)
+  ) axi_arbiter (
+      .clk  (clk),
+      .rst_n(rst_n),
+
+      // Subordinate interface (from caches)
+      // Port 0: I$ (null)
+      // Port 1: D$
+      .s_axi_awvalid({dcache_axi_awvalid, icache_axi_awvalid}),
+      .s_axi_awid   ({dcache_axi_awid, icache_axi_awid}),
+      .s_axi_awaddr ({dcache_axi_awaddr, icache_axi_awaddr}),
+      .s_axi_awlen  ({dcache_axi_awlen, icache_axi_awlen}),
+      .s_axi_awsize ({dcache_axi_awsize, icache_axi_awsize}),
+      .s_axi_awburst({dcache_axi_awburst, icache_axi_awburst}),
+      .s_axi_awready({dcache_axi_awready, icache_axi_awready}),
+
+      .s_axi_wvalid({dcache_axi_wvalid, icache_axi_wvalid}),
+      .s_axi_wdata ({dcache_axi_wdata, icache_axi_wdata}),
+      .s_axi_wstrb ({dcache_axi_wstrb, icache_axi_wstrb}),
+      .s_axi_wlast ({dcache_axi_wlast, icache_axi_wlast}),
+      .s_axi_wready({dcache_axi_wready, icache_axi_wready}),
+
+      .s_axi_bvalid({dcache_axi_bvalid, icache_axi_bvalid}),
+      .s_axi_bid   ({dcache_axi_bid, icache_axi_bid}),
+      .s_axi_bresp ({dcache_axi_bresp, icache_axi_bresp}),
+      .s_axi_bready({dcache_axi_bready, icache_axi_bready}),
+
+      .s_axi_arvalid({dcache_axi_arvalid, icache_axi_arvalid}),
+      .s_axi_arid   ({dcache_axi_arid, icache_axi_arid}),
+      .s_axi_araddr ({dcache_axi_araddr, icache_axi_araddr}),
+      .s_axi_arlen  ({dcache_axi_arlen, icache_axi_arlen}),
+      .s_axi_arsize ({dcache_axi_arsize, icache_axi_arsize}),
+      .s_axi_arburst({dcache_axi_arburst, icache_axi_arburst}),
+      .s_axi_arready({dcache_axi_arready, icache_axi_arready}),
+
+      .s_axi_rvalid({dcache_axi_rvalid, icache_axi_rvalid}),
+      .s_axi_rid   ({dcache_axi_rid, icache_axi_rid}),
+      .s_axi_rdata ({dcache_axi_rdata, icache_axi_rdata}),
+      .s_axi_rresp ({dcache_axi_rresp, icache_axi_rresp}),
+      .s_axi_rlast ({dcache_axi_rlast, icache_axi_rlast}),
+      .s_axi_rready({dcache_axi_rready, icache_axi_rready}),
+
+      // Manager interface (to external memory)
       .m_axi_awvalid(m_axi_awvalid),
       .m_axi_awid   (m_axi_awid),
       .m_axi_awaddr (m_axi_awaddr),
@@ -376,7 +595,22 @@ module svc_rv_soc_bram_cache #(
       .m_axi_bvalid(m_axi_bvalid),
       .m_axi_bid   (m_axi_bid),
       .m_axi_bresp (m_axi_bresp),
-      .m_axi_bready(m_axi_bready)
+      .m_axi_bready(m_axi_bready),
+
+      .m_axi_arvalid(m_axi_arvalid),
+      .m_axi_arid   (m_axi_arid),
+      .m_axi_araddr (m_axi_araddr),
+      .m_axi_arlen  (m_axi_arlen),
+      .m_axi_arsize (m_axi_arsize),
+      .m_axi_arburst(m_axi_arburst),
+      .m_axi_arready(m_axi_arready),
+
+      .m_axi_rvalid(m_axi_rvalid),
+      .m_axi_rid   (m_axi_rid),
+      .m_axi_rdata (m_axi_rdata),
+      .m_axi_rresp (m_axi_rresp),
+      .m_axi_rlast (m_axi_rlast),
+      .m_axi_rready(m_axi_rready)
   );
 
 endmodule
