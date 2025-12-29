@@ -64,6 +64,11 @@ module svc_rv_stage_pc #(
     input logic stall_pc,
 
     //
+    // Instruction memory stall (for cache miss)
+    //
+    input logic imem_stall,
+
+    //
     // PC output (directly from PC register, for BTB lookup)
     //
     output logic [XLEN-1:0] pc,
@@ -112,6 +117,38 @@ module svc_rv_stage_pc #(
   logic [XLEN-1:0] pc_next;
 
   //
+  // Redirect hold (BRAM + BPRED + I$ stall)
+  //
+  // When a redirect occurs while imem is stalled, the target fetch cannot be
+  // issued immediately. Hold pc_next at the redirect target until the stall
+  // clears so the target instruction is not skipped.
+  //
+  logic            redir_hold;
+  logic [XLEN-1:0] redir_hold_tgt;
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      redir_hold <= 1'b0;
+    end else begin
+      if ((MEM_TYPE == MEM_TYPE_BRAM) && (BPRED != 0) &&
+          (pc_sel == PC_SEL_REDIRECT) && imem_stall) begin
+        redir_hold <= 1'b1;
+      end else if (redir_hold && !imem_stall && !stall_pc) begin
+        redir_hold <= 1'b0;
+      end
+    end
+  end
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      redir_hold_tgt <= '0;
+    end else if ((MEM_TYPE == MEM_TYPE_BRAM) && (BPRED != 0) &&
+                 (pc_sel == PC_SEL_REDIRECT) && imem_stall) begin
+      redir_hold_tgt <= pc_redir_tgt;
+    end
+  end
+
+  //
   // PC next calculation
   //
   // - PC_SEL_REDIRECT: Actual branch/jump or misprediction
@@ -119,12 +156,16 @@ module svc_rv_stage_pc #(
   // - PC_SEL_SEQUENTIAL: Normal sequential execution (pc + 4)
   //
   always_comb begin
-    case (pc_sel)
-      PC_SEL_REDIRECT:   pc_next = pc_redir_tgt;
-      PC_SEL_PREDICTED:  pc_next = pred_tgt;
-      PC_SEL_SEQUENTIAL: pc_next = pc + 4;
-      default:           pc_next = pc + 4;
-    endcase
+    if (redir_hold) begin
+      pc_next = redir_hold_tgt;
+    end else begin
+      case (pc_sel)
+        PC_SEL_REDIRECT:   pc_next = pc_redir_tgt;
+        PC_SEL_PREDICTED:  pc_next = pred_tgt;
+        PC_SEL_SEQUENTIAL: pc_next = pc + 4;
+        default:           pc_next = pc + 4;
+      endcase
+    end
   end
 
   //
@@ -328,6 +369,10 @@ module svc_rv_stage_pc #(
 
   always @(posedge clk) begin
     f_past_valid <= 1'b1;
+  end
+
+  always @(*) begin
+    assume (rst_n == f_past_valid);
   end
 
   always_ff @(posedge clk) begin

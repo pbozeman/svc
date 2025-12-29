@@ -4,7 +4,7 @@
 `include "svc_mem_bram.sv"
 `include "svc_rv_soc_bram_cache.sv"
 
-module svc_rv_soc_bram_cache_btb_tb;
+module svc_rv_soc_bram_icache_ras_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
@@ -19,12 +19,12 @@ module svc_rv_soc_bram_cache_btb_tb;
   localparam int AXI_ID_WIDTH = 4;
 
   //
-  // CPI expectations with cached data memory and BTB
+  // CPI expectations with cached data memory and BTB + RAS
   //
   localparam real alu_indep_max_cpi = 1.5;
   localparam real alu_chain_max_cpi = 2.9;
   localparam real br_taken_max_cpi = 3.5;
-  localparam real br_not_taken_max_cpi = 2.8;
+  localparam real br_not_taken_max_cpi = 3.5;
   localparam real load_use_max_cpi = 8.0;
   localparam real mixed_alu_max_cpi = 2.7;
   localparam real function_calls_max_cpi = 3.15;
@@ -93,6 +93,8 @@ module svc_rv_soc_bram_cache_btb_tb;
       .BPRED      (1),
       .BTB_ENABLE (1),
       .BTB_ENTRIES(16),
+      .RAS_ENABLE (1),
+      .RAS_DEPTH  (8),
 
       .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
       .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
@@ -215,10 +217,10 @@ module svc_rv_soc_bram_cache_btb_tb;
   );
 
   //
-  // Override dmem backdoor macros for AXI memory
+  // Override imem backdoor macro for AXI memory
   //
-  `define DMEM_RD(i) axi_dmem.mem[(i) >> 2][((i) & 3) * 32 +: 32]
-  `define DMEM_WR(i, val) axi_dmem.mem[(i) >> 2][((i) & 3) * 32 +: 32] = val
+  `define IMEM_WR(i, val) axi_dmem.mem[(i) >> 2][((i) & 3) * 32 +: 32] = val
+  `define IMEM_RD(i) axi_dmem.mem[(i) >> 2][((i) & 3) * 32 +: 32]
 
   //
   // Upper address bits unused (memory is 64KB)
@@ -230,7 +232,7 @@ module svc_rv_soc_bram_cache_btb_tb;
   //
   // Test suite
   //
-  `TEST_SUITE_BEGIN(svc_rv_soc_bram_cache_btb_tb, 100000);
+  `TEST_SUITE_BEGIN(svc_rv_soc_bram_icache_ras_tb, 100000);
   `include "svc_rv_soc_test_list.svh"
   `TEST_SUITE_END();
 

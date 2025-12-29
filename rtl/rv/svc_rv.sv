@@ -87,6 +87,11 @@ module svc_rv #(
     //
     input logic dmem_stall,
 
+    //
+    // Instruction memory stall (for cache miss)
+    //
+    input logic imem_stall,
+
 `ifdef RISCV_FORMAL
     output logic        rvfi_valid,
     output logic [63:0] rvfi_order,
@@ -358,6 +363,7 @@ module svc_rv #(
 
   // Hazard control signals
   // verilog_format: off
+  (* max_fanout = 32 *)logic data_hazard_id_raw;
   (* max_fanout = 32 *)logic data_hazard_id;
   (* max_fanout = 32 *)logic if_id_flush;
   (* max_fanout = 32 *)logic id_ex_flush;
@@ -431,7 +437,12 @@ module svc_rv #(
   // Global stall
   //
   logic stall_cpu;
-  assign stall_cpu = halt || dmem_stall;
+  assign stall_cpu      = halt || dmem_stall;
+
+  //
+  // Front-end stall/bubble (data hazards + instruction fetch stalls)
+  //
+  assign data_hazard_id = data_hazard_id_raw || imem_stall;
 
   //
   // Per-stage stall signals
@@ -486,6 +497,7 @@ module svc_rv #(
         .MEM_TYPE   (MEM_TYPE),
         .PC_REG     (PC_REG)
     ) hazard (
+        .data_hazard_id(data_hazard_id_raw),
         .*
     );
 
@@ -498,10 +510,10 @@ module svc_rv #(
     // are handled by EX stage's s_ready (gated by op_active_ex).
     // Halt is handled by stall_cpu.
     //
-    assign data_hazard_id = 1'b0;
-    assign if_id_flush    = 1'b0;
-    assign id_ex_flush    = 1'b0;
-    assign ex_mem_flush   = 1'b0;
+    assign data_hazard_id_raw = 1'b0;
+    assign if_id_flush        = 1'b0;
+    assign id_ex_flush        = 1'b0;
+    assign ex_mem_flush       = 1'b0;
 
     // verilog_format: off
     `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_ld_ex,
@@ -514,10 +526,10 @@ module svc_rv #(
     //
     // Halt is handled by stall_cpu.
     //
-    assign data_hazard_id = 1'b0;
-    assign if_id_flush    = 1'b0;
-    assign id_ex_flush    = 1'b0;
-    assign ex_mem_flush   = 1'b0;
+    assign data_hazard_id_raw = 1'b0;
+    assign if_id_flush        = 1'b0;
+    assign id_ex_flush        = 1'b0;
+    assign ex_mem_flush       = 1'b0;
 
     // verilog_format: off
     `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_ld_ex,
@@ -634,6 +646,7 @@ module svc_rv #(
       .ras_tgt_pc       (ras_tgt_pc),
       .m_valid          (pc_m_valid),
       .stall_pc         (stall_pc),
+      .imem_stall       (imem_stall),
       .pc               (pc),
       .pc_if            (pc_if),
       .pc_next_if       (pc_next_if),

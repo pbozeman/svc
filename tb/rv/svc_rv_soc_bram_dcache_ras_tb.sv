@@ -4,7 +4,7 @@
 `include "svc_mem_bram.sv"
 `include "svc_rv_soc_bram_cache.sv"
 
-module svc_rv_soc_bram_cache_bpred_tb;
+module svc_rv_soc_bram_dcache_ras_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
@@ -19,7 +19,7 @@ module svc_rv_soc_bram_cache_bpred_tb;
   localparam int AXI_ID_WIDTH = 4;
 
   //
-  // CPI expectations with cached data memory and branch prediction
+  // CPI expectations with cached data memory and BTB + RAS
   //
   localparam real alu_indep_max_cpi = 1.5;
   localparam real alu_chain_max_cpi = 2.9;
@@ -87,12 +87,16 @@ module svc_rv_soc_bram_cache_bpred_tb;
   // System under test
   //
   svc_rv_soc_bram_cache #(
-      .IMEM_DEPTH (IMEM_DEPTH),
-      .PIPELINED  (1),
-      .FWD_REGFILE(1),
-      .BPRED      (1),
-      .BTB_ENABLE (0),
-      .BTB_ENTRIES(16),
+      .IMEM_DEPTH   (IMEM_DEPTH),
+      .PIPELINED    (1),
+      .FWD_REGFILE  (1),
+      .ICACHE_ENABLE(0),
+      .DCACHE_ENABLE(1),
+      .BPRED        (1),
+      .BTB_ENABLE   (1),
+      .BTB_ENTRIES  (16),
+      .RAS_ENABLE   (1),
+      .RAS_DEPTH    (8),
 
       .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
       .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
@@ -217,8 +221,11 @@ module svc_rv_soc_bram_cache_bpred_tb;
   //
   // Override dmem backdoor macros for AXI memory
   //
-  `define DMEM_RD(i) axi_dmem.mem[(i) >> 2][((i) & 3) * 32 +: 32]
-  `define DMEM_WR(i, val) axi_dmem.mem[(i) >> 2][((i) & 3) * 32 +: 32] = val
+  // DMEM offset: Tests access data at CPU address 0x1000 (AXI entry 0x100).
+  //
+  `define DMEM_RD(i) axi_dmem.mem[((i) >> 2) + 'h100][((i) & 3) * 32 +: 32]
+  `define DMEM_WR(
+      i, val) axi_dmem.mem[((i) >> 2) + 'h100][((i) & 3) * 32 +: 32] = val
 
   //
   // Upper address bits unused (memory is 64KB)
@@ -230,7 +237,7 @@ module svc_rv_soc_bram_cache_bpred_tb;
   //
   // Test suite
   //
-  `TEST_SUITE_BEGIN(svc_rv_soc_bram_cache_bpred_tb, 100000);
+  `TEST_SUITE_BEGIN(svc_rv_soc_bram_dcache_ras_tb, 100000);
   `include "svc_rv_soc_test_list.svh"
   `TEST_SUITE_END();
 

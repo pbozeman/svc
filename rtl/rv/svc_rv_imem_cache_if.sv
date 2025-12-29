@@ -139,19 +139,23 @@ module svc_rv_imem_cache_if (
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       rdata_reg_valid <= 1'b0;
-    end else begin
-      rdata_reg_valid <=
-          ((state == STATE_MISS_RETURN) ||
-           (state == STATE_WAIT_CACHE && cache_rd_ready && cache_rd_hit));
+    end else if (cache_rd_data_valid) begin
+      rdata_reg_valid <= 1'b1;
     end
   end
 
   always_ff @(posedge clk) begin
-    if (cache_rd_start) begin
+    if (!rst_n) begin
+      cache_rd_addr_reg <= '0;
+    end else if (cache_rd_start) begin
       cache_rd_addr_reg <= imem_raddr;
     end
+  end
 
-    if (cache_rd_data_valid) begin
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      rdata_reg_data <= 32'h00000013;
+    end else if (cache_rd_data_valid) begin
       rdata_reg_data <= cache_rd_data;
     end
   end
@@ -159,10 +163,10 @@ module svc_rv_imem_cache_if (
   //
   // Read data mux
   //
-  // Priority: cache data valid > stall/miss hold > default 0
+  // Priority: cache data valid > registered hold
   //
   // - cache_rd_data_valid: live data from cache (hit or miss return)
-  // - stall/rdata_reg_valid: registered data during stall or miss completion
+  // - imem_stall/rdata_reg_valid: registered data hold (BRAM-style stable output)
   //
   always_comb begin
     if (cache_rd_data_valid) begin

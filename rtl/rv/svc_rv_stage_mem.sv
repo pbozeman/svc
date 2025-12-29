@@ -194,12 +194,20 @@ module svc_rv_stage_mem #(
   // Suppress memory operations on misalignment trap
   //===========================================================================
 
-  assign dmem_ren      = s_accept && mem_read_mem && !misalign_trap;
-  assign dmem_raddr    = {alu_result_mem[31:2], 2'b00};
+  //
+  // When the pipeline is stalled (e.g., instruction cache miss), hold off
+  // issuing new memory enables. This prevents BRAM read data from being
+  // overwritten by younger loads while an older load sits in WB.
+  //
+  logic mem_req_en;
+  assign mem_req_en = s_accept && !stall_mem;
 
-  assign dmem_we       = s_accept && mem_write_mem && !misalign_trap;
-  assign dmem_waddr    = {alu_result_mem[31:2], 2'b00};
-  assign dmem_wstrb    = mem_write_mem ? st_fmt_wstrb : 4'b0000;
+  assign dmem_ren   = mem_req_en && mem_read_mem && !misalign_trap;
+  assign dmem_raddr = {alu_result_mem[31:2], 2'b00};
+
+  assign dmem_we    = mem_req_en && mem_write_mem && !misalign_trap;
+  assign dmem_waddr = {alu_result_mem[31:2], 2'b00};
+  assign dmem_wstrb = mem_write_mem ? st_fmt_wstrb : 4'b0000;
 
   //===========================================================================
   // Load data extension

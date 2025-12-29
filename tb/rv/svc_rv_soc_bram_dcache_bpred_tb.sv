@@ -4,7 +4,7 @@
 `include "svc_mem_bram.sv"
 `include "svc_rv_soc_bram_cache.sv"
 
-module svc_rv_soc_bram_cache_tb;
+module svc_rv_soc_bram_dcache_bpred_tb;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
@@ -19,17 +19,15 @@ module svc_rv_soc_bram_cache_tb;
   localparam int AXI_ID_WIDTH = 4;
 
   //
-  // CPI expectations with both instruction and data caching
+  // CPI expectations with cached data memory and branch prediction
   //
-  // Highest CPI due to cache miss penalties on both I$ and D$ cold accesses.
-  //
-  localparam real alu_indep_max_cpi = 1.52;
+  localparam real alu_indep_max_cpi = 1.5;
   localparam real alu_chain_max_cpi = 2.9;
-  localparam real br_taken_max_cpi = 3.55;
+  localparam real br_taken_max_cpi = 3.5;
   localparam real br_not_taken_max_cpi = 2.8;
   localparam real load_use_max_cpi = 8.0;
   localparam real mixed_alu_max_cpi = 2.7;
-  localparam real function_calls_max_cpi = 3.18;
+  localparam real function_calls_max_cpi = 3.15;
   localparam real fib12_max_cpi = 3.0;
   localparam real fib100_max_cpi = 2.5;
   localparam real bubble_max_cpi = 5.0;
@@ -49,7 +47,7 @@ module svc_rv_soc_bram_cache_tb;
   logic [                 3:0] io_wstrb;
 
   //
-  // AXI signals for memory backing store
+  // AXI signals for data memory backing store
   //
   logic                        m_axi_arvalid;
   logic [    AXI_ID_WIDTH-1:0] m_axi_arid;
@@ -92,8 +90,11 @@ module svc_rv_soc_bram_cache_tb;
       .IMEM_DEPTH   (IMEM_DEPTH),
       .PIPELINED    (1),
       .FWD_REGFILE  (1),
-      .ICACHE_ENABLE(1),
+      .ICACHE_ENABLE(0),
       .DCACHE_ENABLE(1),
+      .BPRED        (1),
+      .BTB_ENABLE   (0),
+      .BTB_ENTRIES  (16),
 
       .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
       .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
@@ -150,15 +151,13 @@ module svc_rv_soc_bram_cache_tb;
   );
 
   //
-  // AXI memory backing store for both caches
-  //
-  // Uses 16-bit address for 64KB memory with 128-bit data width.
+  // AXI memory backing store for data cache
   //
   svc_axi_mem #(
       .AXI_ADDR_WIDTH(16),
       .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
       .AXI_ID_WIDTH  (AXI_ID_WIDTH)
-  ) axi_mem (
+  ) axi_dmem (
       .clk  (clk),
       .rst_n(rst_n),
 
@@ -218,22 +217,13 @@ module svc_rv_soc_bram_cache_tb;
   );
 
   //
-  // Override imem and dmem backdoor macros for AXI memory
+  // Override dmem backdoor macros for AXI memory
   //
-  // AXI memory is 128-bit wide. Map 32-bit word index to correct lane:
-  // - Word i -> AXI entry i/4, bits [(i%4)*32 +: 32]
+  // DMEM offset: Tests access data at CPU address 0x1000 (AXI entry 0x100).
   //
-  // DMEM offset: Tests access data at CPU address 0x1000 (word 0x400).
-  // DMEM_WR(0) writes to AXI word 0x400 to match CPU address 0x1000.
-  //
-  localparam int DMEM_WORD_OFFSET = 'h1000 / 4;
-
-  `define IMEM_WR(i, val) axi_mem.mem[(i) >> 2][((i) & 3) * 32 +: 32] = val
-  `define IMEM_RD(i) axi_mem.mem[(i) >> 2][((i) & 3) * 32 +: 32]
-  `define DMEM_RD(
-      i) axi_mem.mem[(DMEM_WORD_OFFSET + (i)) >> 2][((DMEM_WORD_OFFSET + (i)) & 3) * 32 +: 32]
-  `define DMEM_WR(i,
-                  val) axi_mem.mem[(DMEM_WORD_OFFSET + (i)) >> 2][((DMEM_WORD_OFFSET + (i)) & 3) * 32 +: 32] = val
+  `define DMEM_RD(i) axi_dmem.mem[((i) >> 2) + 'h100][((i) & 3) * 32 +: 32]
+  `define DMEM_WR(
+      i, val) axi_dmem.mem[((i) >> 2) + 'h100][((i) & 3) * 32 +: 32] = val
 
   //
   // Upper address bits unused (memory is 64KB)
@@ -245,7 +235,7 @@ module svc_rv_soc_bram_cache_tb;
   //
   // Test suite
   //
-  `TEST_SUITE_BEGIN(svc_rv_soc_bram_cache_tb, 100000);
+  `TEST_SUITE_BEGIN(svc_rv_soc_bram_dcache_bpred_tb, 100000);
   `include "svc_rv_soc_test_list.svh"
   `TEST_SUITE_END();
 

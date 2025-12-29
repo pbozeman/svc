@@ -9,23 +9,30 @@
 `include "svc_mem_bram.sv"
 `include "svc_rv.sv"
 `include "svc_rv_dmem_cache_if.sv"
+`include "svc_rv_imem_cache_if.sv"
 
 //
-// RISC-V SoC with BRAM instruction memory and cached data memory
+// RISC-V SoC with optional instruction and data caching
 //
-// Instruction memory: BRAM with 1-cycle latency
-// Data memory: Cache backed by AXI interface to external memory
+// Instruction memory:
+// - ICACHE_ENABLE=0: BRAM with 1-cycle latency
+// - ICACHE_ENABLE=1: I$ backed by AXI interface to external memory
 //
-// Address decode:
-// - Bit 31 = 0: Data memory (through cache to AXI)
-// - Bit 31 = 1: I/O (direct BRAM timing, bypasses cache)
+// Data memory:
+// - DCACHE_ENABLE=0: BRAM with 1-cycle latency (bit 31 selects I/O)
+// - DCACHE_ENABLE=1: D$ backed by AXI interface to external memory (bit 31 selects I/O)
+//
+// Address decode (data memory):
+// - Bit 31 = 0: Data memory
+// - Bit 31 = 1: I/O
 //
 module svc_rv_soc_bram_cache #(
     parameter int XLEN          = 32,
     parameter int IMEM_DEPTH    = 1024,
+    parameter int DMEM_DEPTH    = 1024,
     parameter int PIPELINED     = 1,
-    parameter int ICACHE_ENABLE = 0,
-    parameter int DCACHE_ENABLE = 1,
+    parameter int ICACHE_ENABLE = 1,
+    parameter int DCACHE_ENABLE = 0,
     parameter int FWD_REGFILE   = 1,
     parameter int FWD           = 0,
     parameter int BPRED         = 0,
@@ -41,6 +48,8 @@ module svc_rv_soc_bram_cache #(
 
     // verilog_lint: waive explicit-parameter-storage-type
     parameter IMEM_INIT = "",
+    // verilog_lint: waive explicit-parameter-storage-type
+    parameter DMEM_INIT = "",
 
     //
     // Cache parameters
@@ -138,12 +147,20 @@ module svc_rv_soc_bram_cache #(
     output logic [ 3:0] rvfi_mem_wmask,
     output logic [31:0] rvfi_mem_rdata,
     output logic [31:0] rvfi_mem_wdata,
+
+    output logic        formal_imem_ren,
+    output logic [31:0] formal_imem_raddr,
+    output logic        formal_dmem_ren,
+    output logic [31:0] formal_dmem_raddr,
+    output logic        formal_dmem_wen,
+    output logic [31:0] formal_dmem_waddr,
 `endif
 
     output logic ebreak,
     output logic trap
 );
   localparam int IMEM_AW = $clog2(IMEM_DEPTH);
+  localparam int DMEM_AW = (DCACHE_ENABLE != 0) ? 30 : $clog2(DMEM_DEPTH);
 
   //
   // Instruction memory interface signals
@@ -151,6 +168,8 @@ module svc_rv_soc_bram_cache #(
   logic        imem_ren;
   logic [31:0] imem_raddr;
   logic [31:0] imem_rdata;
+  logic        imem_stall;
+  logic [31:0] imem_rdata_bram;
 
   //
   // CPU data memory interface signals
@@ -166,21 +185,35 @@ module svc_rv_soc_bram_cache #(
 
   logic        dmem_stall;
 
-  //
-  // Cache interface signals
-  //
-  logic        cache_rd_valid;
-  logic        cache_rd_ready;
-  logic [31:0] cache_rd_addr;
-  logic [31:0] cache_rd_data;
-  logic        cache_rd_data_valid;
-  logic        cache_rd_hit;
+`ifdef RISCV_FORMAL
+  assign formal_imem_ren   = imem_ren;
+  assign formal_imem_raddr = imem_raddr;
+  assign formal_dmem_ren   = dmem_ren;
+  assign formal_dmem_raddr = dmem_raddr;
+  assign formal_dmem_wen   = dmem_wen;
+  assign formal_dmem_waddr = dmem_waddr;
+`endif
 
-  logic        cache_wr_valid;
-  logic        cache_wr_ready;
-  logic [31:0] cache_wr_addr;
-  logic [31:0] cache_wr_data;
-  logic [ 3:0] cache_wr_strb;
+  // Instruction cache interface
+  logic        icache_rd_valid;
+  logic [31:0] icache_rd_addr;
+  logic        icache_rd_ready;
+  logic [31:0] icache_rd_data;
+  logic        icache_rd_data_valid;
+  logic        icache_rd_hit;
+
+  logic        icache_wr_ready;
+
+  //
+  // Data BRAM interface signals (DCACHE_ENABLE=0)
+  //
+  logic        bram_ren;
+  logic [31:0] bram_rdata;
+  logic        bram_wen;
+
+  logic        io_sel_rd;
+  logic        io_sel_rd_p1;
+  logic        io_sel_wr;
 
   //
   // Internal AXI signals for arbiter
@@ -267,26 +300,16 @@ module svc_rv_soc_bram_cache #(
 
   `include "svc_rv_defs.svh"
 
-  // Only ICACHE_ENABLE=0 and DCACHE_ENABLE=1 is currently supported
-  initial begin
-    if (ICACHE_ENABLE != 0) begin
-      $error("ICACHE_ENABLE=1 is not yet supported");
-    end
-    if (DCACHE_ENABLE != 1) begin
-      $error("DCACHE_ENABLE=0 is not yet supported");
-    end
-  end
-
   //
   // RISC-V core
   //
   // DMEM_AW is set to maximum (30 bits, since bit 31 is for I/O select)
-  // since actual memory is external via AXI.
+  // since actual memory may be external via AXI.
   //
   svc_rv #(
       .XLEN       (XLEN),
       .IMEM_AW    (IMEM_AW),
-      .DMEM_AW    (30),
+      .DMEM_AW    (DMEM_AW),
       .PIPELINED  (PIPELINED),
       .FWD_REGFILE(FWD_REGFILE),
       .FWD        (FWD),
@@ -318,6 +341,7 @@ module svc_rv_soc_bram_cache #(
       .dmem_wstrb(dmem_wstrb),
 
       .dmem_stall(dmem_stall),
+      .imem_stall(imem_stall),
 
 `ifdef RISCV_FORMAL
       .rvfi_valid    (rvfi_valid),
@@ -362,7 +386,7 @@ module svc_rv_soc_bram_cache #(
       .rst_n  (rst_n),
       .rd_en  (imem_ren),
       .rd_addr(imem_raddr),
-      .rd_data(imem_rdata),
+      .rd_data(imem_rdata_bram),
       .wr_addr(32'h0),
       .wr_data(32'h0),
       .wr_strb(4'h0),
@@ -370,160 +394,377 @@ module svc_rv_soc_bram_cache #(
   );
 
   //
-  // Data memory cache interface bridge
+  // Data memory (BRAM)
   //
-  // Converts CPU dmem signals to cache valid/ready protocol.
-  // Handles I/O bypass (bit 31 = 1 bypasses cache).
+  // This is used when DCACHE_ENABLE=0 and provides the default DMEM backdoor
+  // path for SoC testbenches via `uut.dmem.mem[...]`.
   //
-  svc_rv_dmem_cache_if dmem_cache_if (
+  svc_mem_bram #(
+      .DW       (32),
+      .DEPTH    (DMEM_DEPTH),
+      .INIT_FILE(DMEM_INIT)
+  ) dmem (
       .clk  (clk),
       .rst_n(rst_n),
 
-      .dmem_ren  (dmem_ren),
-      .dmem_raddr(dmem_raddr),
-      .dmem_rdata(dmem_rdata),
+      .rd_en  (bram_ren),
+      .rd_addr(dmem_raddr),
+      .rd_data(bram_rdata),
 
-      .dmem_we   (dmem_wen),
-      .dmem_waddr(dmem_waddr),
-      .dmem_wdata(dmem_wdata),
-      .dmem_wstrb(dmem_wstrb),
-
-      .dmem_stall(dmem_stall),
-
-      .cache_rd_valid     (cache_rd_valid),
-      .cache_rd_ready     (cache_rd_ready),
-      .cache_rd_addr      (cache_rd_addr),
-      .cache_rd_data      (cache_rd_data),
-      .cache_rd_data_valid(cache_rd_data_valid),
-      .cache_rd_hit       (cache_rd_hit),
-
-      .cache_wr_valid(cache_wr_valid),
-      .cache_wr_ready(cache_wr_ready),
-      .cache_wr_addr (cache_wr_addr),
-      .cache_wr_data (cache_wr_data),
-      .cache_wr_strb (cache_wr_strb),
-
-      .io_ren  (io_ren),
-      .io_raddr(io_raddr),
-      .io_rdata(io_rdata),
-
-      .io_wen  (io_wen),
-      .io_waddr(io_waddr),
-      .io_wdata(io_wdata),
-      .io_wstrb(io_wstrb)
+      .wr_en  (bram_wen),
+      .wr_addr(dmem_waddr),
+      .wr_data(dmem_wdata),
+      .wr_strb(dmem_wstrb)
   );
 
   //
-  // Data cache
+  // Instruction memory
   //
-  svc_cache_axi #(
-      .CACHE_SIZE_BYTES(CACHE_SIZE_BYTES),
-      .CACHE_ADDR_WIDTH(32),
-      .CACHE_LINE_BYTES(CACHE_LINE_BYTES),
-      .TWO_WAY         (CACHE_TWO_WAY),
-      .AXI_ADDR_WIDTH  (AXI_ADDR_WIDTH),
-      .AXI_DATA_WIDTH  (AXI_DATA_WIDTH),
-      .AXI_ID_WIDTH    (ARB_INTERNAL_ID_WIDTH)
-  ) dcache (
-      .clk  (clk),
-      .rst_n(rst_n),
+  if (ICACHE_ENABLE == 0) begin : g_imem_bram
+    assign imem_rdata = imem_rdata_bram;
+    assign imem_stall = 1'b0;
 
-      .rd_valid     (cache_rd_valid),
-      .rd_ready     (cache_rd_ready),
-      .rd_addr      (cache_rd_addr),
-      .rd_data      (cache_rd_data),
-      .rd_data_valid(cache_rd_data_valid),
-      .rd_hit       (cache_rd_hit),
+    svc_axi_null #(
+        .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
+        .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
+        .AXI_ID_WIDTH  (ARB_INTERNAL_ID_WIDTH)
+    ) icache_null (
+        .clk  (clk),
+        .rst_n(rst_n),
 
-      .wr_valid(cache_wr_valid),
-      .wr_ready(cache_wr_ready),
-      .wr_addr (cache_wr_addr),
-      .wr_data (cache_wr_data),
-      .wr_strb (cache_wr_strb),
+        .m_axi_arvalid(icache_axi_arvalid),
+        .m_axi_arid   (icache_axi_arid),
+        .m_axi_araddr (icache_axi_araddr),
+        .m_axi_arlen  (icache_axi_arlen),
+        .m_axi_arsize (icache_axi_arsize),
+        .m_axi_arburst(icache_axi_arburst),
+        .m_axi_arready(icache_axi_arready),
 
-      .m_axi_arvalid(dcache_axi_arvalid),
-      .m_axi_arid   (dcache_axi_arid),
-      .m_axi_araddr (dcache_axi_araddr),
-      .m_axi_arlen  (dcache_axi_arlen),
-      .m_axi_arsize (dcache_axi_arsize),
-      .m_axi_arburst(dcache_axi_arburst),
-      .m_axi_arready(dcache_axi_arready),
+        .m_axi_rvalid(icache_axi_rvalid),
+        .m_axi_rid   (icache_axi_rid),
+        .m_axi_rdata (icache_axi_rdata),
+        .m_axi_rresp (icache_axi_rresp),
+        .m_axi_rlast (icache_axi_rlast),
+        .m_axi_rready(icache_axi_rready),
 
-      .m_axi_rvalid(dcache_axi_rvalid),
-      .m_axi_rid   (dcache_axi_rid),
-      .m_axi_rdata (dcache_axi_rdata),
-      .m_axi_rresp (dcache_axi_rresp),
-      .m_axi_rlast (dcache_axi_rlast),
-      .m_axi_rready(dcache_axi_rready),
+        .m_axi_awvalid(icache_axi_awvalid),
+        .m_axi_awid   (icache_axi_awid),
+        .m_axi_awaddr (icache_axi_awaddr),
+        .m_axi_awlen  (icache_axi_awlen),
+        .m_axi_awsize (icache_axi_awsize),
+        .m_axi_awburst(icache_axi_awburst),
+        .m_axi_awready(icache_axi_awready),
 
-      .m_axi_awvalid(dcache_axi_awvalid),
-      .m_axi_awid   (dcache_axi_awid),
-      .m_axi_awaddr (dcache_axi_awaddr),
-      .m_axi_awlen  (dcache_axi_awlen),
-      .m_axi_awsize (dcache_axi_awsize),
-      .m_axi_awburst(dcache_axi_awburst),
-      .m_axi_awready(dcache_axi_awready),
+        .m_axi_wvalid(icache_axi_wvalid),
+        .m_axi_wdata (icache_axi_wdata),
+        .m_axi_wstrb (icache_axi_wstrb),
+        .m_axi_wlast (icache_axi_wlast),
+        .m_axi_wready(icache_axi_wready),
 
-      .m_axi_wvalid(dcache_axi_wvalid),
-      .m_axi_wdata (dcache_axi_wdata),
-      .m_axi_wstrb (dcache_axi_wstrb),
-      .m_axi_wlast (dcache_axi_wlast),
-      .m_axi_wready(dcache_axi_wready),
+        .m_axi_bvalid(icache_axi_bvalid),
+        .m_axi_bid   (icache_axi_bid),
+        .m_axi_bresp (icache_axi_bresp),
+        .m_axi_bready(icache_axi_bready)
+    );
 
-      .m_axi_bvalid(dcache_axi_bvalid),
-      .m_axi_bid   (dcache_axi_bid),
-      .m_axi_bresp (dcache_axi_bresp),
-      .m_axi_bready(dcache_axi_bready)
-  );
+    // icache signals not used when ICACHE_ENABLE=0
+    assign icache_rd_valid      = 1'b0;
+    assign icache_rd_addr       = '0;
+    assign icache_rd_ready      = 1'b0;
+    assign icache_rd_data       = '0;
+    assign icache_rd_data_valid = 1'b0;
+    assign icache_rd_hit        = 1'b0;
+    assign icache_wr_ready      = 1'b0;
+
+    `SVC_UNUSED({
+                icache_rd_valid,
+                icache_rd_addr,
+                icache_rd_ready,
+                icache_rd_data,
+                icache_rd_data_valid,
+                icache_rd_hit,
+                icache_wr_ready
+                });
+  end else begin : g_icache
+    svc_rv_imem_cache_if imem_cache_if (
+        .clk  (clk),
+        .rst_n(rst_n),
+
+        .imem_ren  (imem_ren),
+        .imem_raddr(imem_raddr),
+        .imem_rdata(imem_rdata),
+
+        .imem_stall(imem_stall),
+
+        .cache_rd_valid(icache_rd_valid),
+        .cache_rd_addr (icache_rd_addr),
+        .cache_rd_ready(icache_rd_ready),
+
+        .cache_rd_data      (icache_rd_data),
+        .cache_rd_data_valid(icache_rd_data_valid),
+        .cache_rd_hit       (icache_rd_hit)
+    );
+
+    svc_cache_axi #(
+        .CACHE_SIZE_BYTES(CACHE_SIZE_BYTES),
+        .CACHE_ADDR_WIDTH(32),
+        .CACHE_LINE_BYTES(CACHE_LINE_BYTES),
+        .TWO_WAY         (CACHE_TWO_WAY),
+        .AXI_ADDR_WIDTH  (AXI_ADDR_WIDTH),
+        .AXI_DATA_WIDTH  (AXI_DATA_WIDTH),
+        .AXI_ID_WIDTH    (ARB_INTERNAL_ID_WIDTH)
+    ) icache (
+        .clk  (clk),
+        .rst_n(rst_n),
+
+        .rd_valid     (icache_rd_valid),
+        .rd_addr      (icache_rd_addr),
+        .rd_ready     (icache_rd_ready),
+        .rd_data      (icache_rd_data),
+        .rd_data_valid(icache_rd_data_valid),
+        .rd_hit       (icache_rd_hit),
+
+        .wr_valid(1'b0),
+        .wr_ready(icache_wr_ready),
+        .wr_addr (32'h0),
+        .wr_data (32'h0),
+        .wr_strb (4'h0),
+
+        .m_axi_arvalid(icache_axi_arvalid),
+        .m_axi_arid   (icache_axi_arid),
+        .m_axi_araddr (icache_axi_araddr),
+        .m_axi_arlen  (icache_axi_arlen),
+        .m_axi_arsize (icache_axi_arsize),
+        .m_axi_arburst(icache_axi_arburst),
+        .m_axi_arready(icache_axi_arready),
+
+        .m_axi_rvalid(icache_axi_rvalid),
+        .m_axi_rid   (icache_axi_rid),
+        .m_axi_rdata (icache_axi_rdata),
+        .m_axi_rresp (icache_axi_rresp),
+        .m_axi_rlast (icache_axi_rlast),
+        .m_axi_rready(icache_axi_rready),
+
+        .m_axi_awvalid(icache_axi_awvalid),
+        .m_axi_awid   (icache_axi_awid),
+        .m_axi_awaddr (icache_axi_awaddr),
+        .m_axi_awlen  (icache_axi_awlen),
+        .m_axi_awsize (icache_axi_awsize),
+        .m_axi_awburst(icache_axi_awburst),
+        .m_axi_awready(icache_axi_awready),
+
+        .m_axi_wvalid(icache_axi_wvalid),
+        .m_axi_wdata (icache_axi_wdata),
+        .m_axi_wstrb (icache_axi_wstrb),
+        .m_axi_wlast (icache_axi_wlast),
+        .m_axi_wready(icache_axi_wready),
+
+        .m_axi_bvalid(icache_axi_bvalid),
+        .m_axi_bid   (icache_axi_bid),
+        .m_axi_bresp (icache_axi_bresp),
+        .m_axi_bready(icache_axi_bready)
+    );
+
+    `SVC_UNUSED({icache_wr_ready, imem_rdata_bram});
+  end
 
   //
-  // Null AXI client for I$ slot (arbiter port 0)
+  // Data memory path
   //
-  // When ICACHE_ENABLE=0, this provides a quiet client that never
-  // initiates transactions.
+  // DCACHE_ENABLE=1: D$ backed by AXI
+  // DCACHE_ENABLE=0: BRAM backed by internal memory (I/O bypass uses bit 31)
   //
-  svc_axi_null #(
-      .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
-      .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
-      .AXI_ID_WIDTH  (ARB_INTERNAL_ID_WIDTH)
-  ) icache_null (
-      .clk  (clk),
-      .rst_n(rst_n),
+  if (DCACHE_ENABLE != 0) begin : g_dcache
+    assign bram_ren = 1'b0;
+    assign bram_wen = 1'b0;
 
-      .m_axi_arvalid(icache_axi_arvalid),
-      .m_axi_arid   (icache_axi_arid),
-      .m_axi_araddr (icache_axi_araddr),
-      .m_axi_arlen  (icache_axi_arlen),
-      .m_axi_arsize (icache_axi_arsize),
-      .m_axi_arburst(icache_axi_arburst),
-      .m_axi_arready(icache_axi_arready),
+    //
+    // Data cache interface signals
+    //
+    logic        cache_rd_valid;
+    logic        cache_rd_ready;
+    logic [31:0] cache_rd_addr;
+    logic [31:0] cache_rd_data;
+    logic        cache_rd_data_valid;
+    logic        cache_rd_hit;
 
-      .m_axi_rvalid(icache_axi_rvalid),
-      .m_axi_rid   (icache_axi_rid),
-      .m_axi_rdata (icache_axi_rdata),
-      .m_axi_rresp (icache_axi_rresp),
-      .m_axi_rlast (icache_axi_rlast),
-      .m_axi_rready(icache_axi_rready),
+    logic        cache_wr_valid;
+    logic        cache_wr_ready;
+    logic [31:0] cache_wr_addr;
+    logic [31:0] cache_wr_data;
+    logic [ 3:0] cache_wr_strb;
 
-      .m_axi_awvalid(icache_axi_awvalid),
-      .m_axi_awid   (icache_axi_awid),
-      .m_axi_awaddr (icache_axi_awaddr),
-      .m_axi_awlen  (icache_axi_awlen),
-      .m_axi_awsize (icache_axi_awsize),
-      .m_axi_awburst(icache_axi_awburst),
-      .m_axi_awready(icache_axi_awready),
+    svc_rv_dmem_cache_if dmem_cache_if (
+        .clk  (clk),
+        .rst_n(rst_n),
 
-      .m_axi_wvalid(icache_axi_wvalid),
-      .m_axi_wdata (icache_axi_wdata),
-      .m_axi_wstrb (icache_axi_wstrb),
-      .m_axi_wlast (icache_axi_wlast),
-      .m_axi_wready(icache_axi_wready),
+        .dmem_ren  (dmem_ren),
+        .dmem_raddr(dmem_raddr),
+        .dmem_rdata(dmem_rdata),
 
-      .m_axi_bvalid(icache_axi_bvalid),
-      .m_axi_bid   (icache_axi_bid),
-      .m_axi_bresp (icache_axi_bresp),
-      .m_axi_bready(icache_axi_bready)
-  );
+        .dmem_we   (dmem_wen),
+        .dmem_waddr(dmem_waddr),
+        .dmem_wdata(dmem_wdata),
+        .dmem_wstrb(dmem_wstrb),
+
+        .dmem_stall(dmem_stall),
+
+        .cache_rd_valid     (cache_rd_valid),
+        .cache_rd_ready     (cache_rd_ready),
+        .cache_rd_addr      (cache_rd_addr),
+        .cache_rd_data      (cache_rd_data),
+        .cache_rd_data_valid(cache_rd_data_valid),
+        .cache_rd_hit       (cache_rd_hit),
+
+        .cache_wr_valid(cache_wr_valid),
+        .cache_wr_ready(cache_wr_ready),
+        .cache_wr_addr (cache_wr_addr),
+        .cache_wr_data (cache_wr_data),
+        .cache_wr_strb (cache_wr_strb),
+
+        .io_ren  (io_ren),
+        .io_raddr(io_raddr),
+        .io_rdata(io_rdata),
+
+        .io_wen  (io_wen),
+        .io_waddr(io_waddr),
+        .io_wdata(io_wdata),
+        .io_wstrb(io_wstrb)
+    );
+
+    svc_cache_axi #(
+        .CACHE_SIZE_BYTES(CACHE_SIZE_BYTES),
+        .CACHE_ADDR_WIDTH(32),
+        .CACHE_LINE_BYTES(CACHE_LINE_BYTES),
+        .TWO_WAY         (CACHE_TWO_WAY),
+        .AXI_ADDR_WIDTH  (AXI_ADDR_WIDTH),
+        .AXI_DATA_WIDTH  (AXI_DATA_WIDTH),
+        .AXI_ID_WIDTH    (ARB_INTERNAL_ID_WIDTH)
+    ) dcache (
+        .clk  (clk),
+        .rst_n(rst_n),
+
+        .rd_valid     (cache_rd_valid),
+        .rd_ready     (cache_rd_ready),
+        .rd_addr      (cache_rd_addr),
+        .rd_data      (cache_rd_data),
+        .rd_data_valid(cache_rd_data_valid),
+        .rd_hit       (cache_rd_hit),
+
+        .wr_valid(cache_wr_valid),
+        .wr_ready(cache_wr_ready),
+        .wr_addr (cache_wr_addr),
+        .wr_data (cache_wr_data),
+        .wr_strb (cache_wr_strb),
+
+        .m_axi_arvalid(dcache_axi_arvalid),
+        .m_axi_arid   (dcache_axi_arid),
+        .m_axi_araddr (dcache_axi_araddr),
+        .m_axi_arlen  (dcache_axi_arlen),
+        .m_axi_arsize (dcache_axi_arsize),
+        .m_axi_arburst(dcache_axi_arburst),
+        .m_axi_arready(dcache_axi_arready),
+
+        .m_axi_rvalid(dcache_axi_rvalid),
+        .m_axi_rid   (dcache_axi_rid),
+        .m_axi_rdata (dcache_axi_rdata),
+        .m_axi_rresp (dcache_axi_rresp),
+        .m_axi_rlast (dcache_axi_rlast),
+        .m_axi_rready(dcache_axi_rready),
+
+        .m_axi_awvalid(dcache_axi_awvalid),
+        .m_axi_awid   (dcache_axi_awid),
+        .m_axi_awaddr (dcache_axi_awaddr),
+        .m_axi_awlen  (dcache_axi_awlen),
+        .m_axi_awsize (dcache_axi_awsize),
+        .m_axi_awburst(dcache_axi_awburst),
+        .m_axi_awready(dcache_axi_awready),
+
+        .m_axi_wvalid(dcache_axi_wvalid),
+        .m_axi_wdata (dcache_axi_wdata),
+        .m_axi_wstrb (dcache_axi_wstrb),
+        .m_axi_wlast (dcache_axi_wlast),
+        .m_axi_wready(dcache_axi_wready),
+
+        .m_axi_bvalid(dcache_axi_bvalid),
+        .m_axi_bid   (dcache_axi_bid),
+        .m_axi_bresp (dcache_axi_bresp),
+        .m_axi_bready(dcache_axi_bready)
+    );
+
+    // BRAM/IO signals not used when DCACHE_ENABLE=1
+    assign io_sel_rd    = 1'b0;
+    assign io_sel_rd_p1 = 1'b0;
+    assign io_sel_wr    = 1'b0;
+    `SVC_UNUSED({bram_rdata, io_sel_rd, io_sel_rd_p1, io_sel_wr});
+  end else begin : g_dmem_bram
+    assign dmem_stall = 1'b0;
+
+    assign io_sel_rd  = dmem_raddr[31];
+    assign io_sel_wr  = dmem_waddr[31];
+
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        io_sel_rd_p1 <= 1'b0;
+      end else if (dmem_ren) begin
+        io_sel_rd_p1 <= io_sel_rd;
+      end
+    end
+
+    assign bram_ren   = dmem_ren && !io_sel_rd;
+    assign io_ren     = dmem_ren && io_sel_rd;
+    assign io_raddr   = dmem_raddr;
+    assign dmem_rdata = io_sel_rd_p1 ? io_rdata : bram_rdata;
+
+    assign bram_wen   = dmem_wen && !io_sel_wr;
+    assign io_wen     = dmem_wen && io_sel_wr;
+    assign io_waddr   = dmem_waddr;
+    assign io_wdata   = dmem_wdata;
+    assign io_wstrb   = dmem_wstrb;
+
+    svc_axi_null #(
+        .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
+        .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
+        .AXI_ID_WIDTH  (ARB_INTERNAL_ID_WIDTH)
+    ) dcache_null (
+        .clk  (clk),
+        .rst_n(rst_n),
+
+        .m_axi_arvalid(dcache_axi_arvalid),
+        .m_axi_arid   (dcache_axi_arid),
+        .m_axi_araddr (dcache_axi_araddr),
+        .m_axi_arlen  (dcache_axi_arlen),
+        .m_axi_arsize (dcache_axi_arsize),
+        .m_axi_arburst(dcache_axi_arburst),
+        .m_axi_arready(dcache_axi_arready),
+
+        .m_axi_rvalid(dcache_axi_rvalid),
+        .m_axi_rid   (dcache_axi_rid),
+        .m_axi_rdata (dcache_axi_rdata),
+        .m_axi_rresp (dcache_axi_rresp),
+        .m_axi_rlast (dcache_axi_rlast),
+        .m_axi_rready(dcache_axi_rready),
+
+        .m_axi_awvalid(dcache_axi_awvalid),
+        .m_axi_awid   (dcache_axi_awid),
+        .m_axi_awaddr (dcache_axi_awaddr),
+        .m_axi_awlen  (dcache_axi_awlen),
+        .m_axi_awsize (dcache_axi_awsize),
+        .m_axi_awburst(dcache_axi_awburst),
+        .m_axi_awready(dcache_axi_awready),
+
+        .m_axi_wvalid(dcache_axi_wvalid),
+        .m_axi_wdata (dcache_axi_wdata),
+        .m_axi_wstrb (dcache_axi_wstrb),
+        .m_axi_wlast (dcache_axi_wlast),
+        .m_axi_wready(dcache_axi_wready),
+
+        .m_axi_bvalid(dcache_axi_bvalid),
+        .m_axi_bid   (dcache_axi_bid),
+        .m_axi_bresp (dcache_axi_bresp),
+        .m_axi_bready(dcache_axi_bready)
+    );
+  end
 
   //
   // AXI Arbiter
