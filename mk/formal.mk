@@ -244,6 +244,6 @@ endif
 endif
 
 .PHONY: list_f
-list_f: list_svc_f list_rv_f
+list_f: list_svc_f list_rv_f list_rv_cache_f
 
 endif

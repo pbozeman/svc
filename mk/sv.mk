@@ -95,8 +95,9 @@ list:
 	@echo "Available list commands:"
 	@echo "  list_tb    - testbenches"
 	@echo "  list_sim   - simulations"
-	@echo "  list_f     - formal (svc_f + rv_f)"
+	@echo "  list_f     - formal (svc_f + rv_f + rv_cache_f)"
 	@echo "  list_svc_f - SVC formal"
 	@echo "  list_rv_f  - RISC-V formal"
+	@echo "  list_rv_cache_f - RISC-V cache formal"
 	@echo "  list_prog  - programmers"
 endif
