@@ -104,22 +104,15 @@ module svc_rv_stage_if_sram #(
     logic        valid_buf;
 
     //
-    // Instruction buffer with stall-aware flush
+    // Instruction buffer
     //
-    // When stalled (advance=0), hold the buffer even if if_id_flush is
-    // asserted. This prevents losing the predicting instruction (e.g., JAL)
-    // when a prediction coincides with a stall. The flush takes effect
-    // when the stall releases.
+    // Flush is allowed to drop valid/payload even when stalled.
     //
     always_ff @(posedge clk) begin
-      if (!rst_n) begin
+      if (!rst_n || if_id_flush) begin
         instr_buf <= I_NOP;
       end else if (advance) begin
-        if (if_id_flush) begin
-          instr_buf <= I_NOP;
-        end else begin
-          instr_buf <= instr;
-        end
+        instr_buf <= instr;
       end
     end
 
@@ -135,6 +128,8 @@ module svc_rv_stage_if_sram #(
     //
     always_ff @(posedge clk) begin
       if (!rst_n) begin
+        valid_buf <= 1'b0;
+      end else if (if_id_flush) begin
         valid_buf <= 1'b0;
       end else if (advance) begin
         valid_buf <= valid_if && !if_id_flush;
@@ -216,3 +211,4 @@ module svc_rv_stage_if_sram #(
 endmodule
 
 `endif
+
