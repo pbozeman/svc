@@ -45,6 +45,7 @@ module svc_rv_hazard #(
     input logic [4:0] rs2_id,
     input logic       rs1_used_id,
     input logic       rs2_used_id,
+    input logic       is_mc_id,
 
     // EX stage control signals and destination
     input logic [4:0] rd_ex,
@@ -285,9 +286,20 @@ module svc_rv_hazard #(
     end
 
     //
+    // Multi-cycle op hazard detection
+    //
+    // MC ops (DIV/REM) don't receive forwarding - they use stable pipeline
+    // register values. If an MC op in ID depends on EX or MEM results, we
+    // must stall until the result reaches the regfile (via WB→ID forwarding).
+    //
+    logic mc_hazard;
+    assign mc_hazard = is_mc_id && (ex_hazard || mem_hazard);
+
+    //
     // With forwarding enabled: only stall on unavoidable hazards
     //
-    // - load_use_hazard: Load/CSR in EX can't forward to consumer in ID
+    // - load_use_hazard: Load/CSR/M-ext in EX/MEM can't forward to consumer in ID
+    // - mc_hazard: MC op in ID can't receive forwarding from EX/MEM
     // - wb_hazard: Only if regfile doesn't have internal forwarding
     //
     // Regular EX and MEM stage RAW hazards are assumed to be resolved by the
@@ -295,9 +307,8 @@ module svc_rv_hazard #(
     //
     // On control_flush, clear data_hazard_id so redirect can proceed.
     //
-    assign data_hazard_id = (load_use_hazard || wb_hazard) && !control_flush;
-
-    `SVC_UNUSED({ex_hazard, mem_hazard});
+    assign data_hazard_id = (load_use_hazard || mc_hazard || wb_hazard) &&
+        !control_flush;
   end else begin : g_no_forwarding
     //
     // Non-forwarding: stall on all hazards
@@ -306,7 +317,8 @@ module svc_rv_hazard #(
     //
     assign data_hazard_id = (ex_hazard || mem_hazard || wb_hazard) &&
         !control_flush;
-    `SVC_UNUSED({is_ld_ex, is_csr_ex, is_m_ex, mem_read_mem, res_src_mem});
+    `SVC_UNUSED(
+        {is_ld_ex, is_csr_ex, is_m_ex, is_mc_id, mem_read_mem, res_src_mem});
   end
 
 
@@ -344,8 +356,9 @@ module svc_rv_hazard #(
   // the sequential instruction is already in the pipeline.
   //
   // Only flush if pipeline is advancing (!data_hazard_id && !op_active_ex &&
-  // !stall_ex). The stall_ex check prevents flushing during memory stalls
-  // (e.g., cache misses) which would corrupt pipeline state.
+  // !stall_ex && !imem_stall). The stall_ex and imem_stall checks prevent
+  // flushing during memory stalls (e.g., cache misses) which would corrupt
+  // pipeline state.
   //
   logic pred_flush;
 

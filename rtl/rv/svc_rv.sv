@@ -223,6 +223,7 @@ module svc_rv #(
   logic [     4:0] rs2_id;
   logic            rs1_used_id;
   logic            rs2_used_id;
+  logic            is_mc_id;
 
   // IF -> ID (valid only, ready removed - stall controls flow)
   logic            if_m_valid;
@@ -524,7 +525,7 @@ module svc_rv #(
     assign ex_mem_flush       = 1'b0;
 
     // verilog_format: off
-    `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_ld_ex,
+    `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_mc_id, is_ld_ex,
                 mispredicted_ex, is_csr_ex, is_m_ex, btb_pred_taken, ras_pred_taken,
                 op_active_ex, redir_pending_if});
     // verilog_format: on
@@ -540,7 +541,7 @@ module svc_rv #(
     assign ex_mem_flush       = 1'b0;
 
     // verilog_format: off
-    `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_ld_ex,
+    `SVC_UNUSED({rs1_id, rs2_id, rs1_used_id, rs2_used_id, is_mc_id, is_ld_ex,
                 mispredicted_ex, is_csr_ex, is_m_ex, op_active_ex, btb_pred_taken,
                 redir_pending_if, ras_pred_taken});
     // verilog_format: on

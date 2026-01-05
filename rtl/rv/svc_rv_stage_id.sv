@@ -112,6 +112,7 @@ module svc_rv_stage_id #(
     output logic [4:0] rs2_id,
     output logic       rs1_used_id,
     output logic       rs2_used_id,
+    output logic       is_mc_id,
 
     // Branch prediction outputs to IF stage
     output logic [     1:0] pc_sel_id,
@@ -139,7 +140,6 @@ module svc_rv_stage_id #(
   logic            is_m_id;
   logic            is_csr_id;
   logic            is_jal_id;
-  logic            is_mc_id;
   logic            is_ebreak_id;
   logic            instr_invalid_id;
   logic [     4:0] rd_id;

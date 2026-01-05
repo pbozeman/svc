@@ -11,6 +11,7 @@ module svc_rv_hazard_tb;
   logic [4:0] rs2_id;
   logic       rs1_used_id;
   logic       rs2_used_id;
+  logic       is_mc_id;
   logic [4:0] rd_ex;
   logic       reg_write_ex;
   logic       is_ld_ex;
@@ -41,6 +42,7 @@ module svc_rv_hazard_tb;
       .rs2_id          (rs2_id),
       .rs1_used_id     (rs1_used_id),
       .rs2_used_id     (rs2_used_id),
+      .is_mc_id        (is_mc_id),
       .rd_ex           (rd_ex),
       .reg_write_ex    (reg_write_ex),
       .is_ld_ex        (is_ld_ex),
@@ -72,6 +74,7 @@ module svc_rv_hazard_tb;
     rs2_id          = 5'd0;
     rs1_used_id     = 1'b0;
     rs2_used_id     = 1'b0;
+    is_mc_id        = 1'b0;
     rd_ex           = 5'd0;
     reg_write_ex    = 1'b0;
     is_ld_ex        = 1'b0;
