@@ -93,6 +93,7 @@ module svc_rv_hazard #(
     //
     input logic stall_ex,
     input logic stall_mem,
+    input logic imem_stall,
 
     // Hazard control outputs
     output logic data_hazard_id,
@@ -350,7 +351,8 @@ module svc_rv_hazard #(
 
   assign pc_predicted = (pc_sel == PC_SEL_PREDICTED);
   assign pred_flush = (pc_predicted && (!btb_pred_taken || ras_pred_taken) &&
-                       !data_hazard_id && !op_active_ex && !stall_ex);
+                       !data_hazard_id && !op_active_ex && !stall_ex &&
+                       !imem_stall);
 
   if (PC_REG != 0) begin : g_registered_flush
     //
@@ -421,7 +423,8 @@ module svc_rv_hazard #(
   // pred_flush should not fire during memory stalls
   // (prediction redirect cannot proceed while pipeline is stalled)
   always_comb begin
-    a_no_pred_flush_during_stall : assert (!(pred_flush && stall_ex));
+    a_no_pred_flush_during_stall :
+    assert (!(pred_flush && (stall_ex || imem_stall)));
   end
 `endif
 

@@ -24,6 +24,7 @@ module svc_rv_hazard_tb;
   logic       reg_write_wb;
   logic [1:0] pc_sel;
   logic       redir_valid_mem;
+  logic       imem_stall;
   logic       data_hazard_id;
   logic       if_id_flush;
   // verilator lint_off UNUSEDSIGNAL
@@ -59,6 +60,7 @@ module svc_rv_hazard_tb;
       .redir_pending_if(1'b0),
       .stall_ex        (1'b0),
       .stall_mem       (1'b0),
+      .imem_stall      (imem_stall),
       .data_hazard_id  (data_hazard_id),
       .if_id_flush     (if_id_flush),
       .id_ex_flush     (id_ex_flush),
@@ -83,6 +85,7 @@ module svc_rv_hazard_tb;
     reg_write_wb    = 1'b0;
     pc_sel          = PC_SEL_SEQUENTIAL;
     redir_valid_mem = 1'b0;
+    imem_stall      = 1'b0;
 
     `TICK(clk);
     `CHECK_EQ(data_hazard_id, 1'b0);
