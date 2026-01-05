@@ -126,6 +126,17 @@ module svc_rv_stage_pc #(
   logic            redir_hold;
   logic [XLEN-1:0] redir_hold_tgt;
 
+  //
+  // Prediction hold (BPRED + imem_stall)
+  //
+  // With static (ID-stage) prediction, pc_sel can change back to sequential
+  // while the front end is stalled on an outstanding miss for the sequential
+  // path. Hold the predicted target until the stall clears so the prediction
+  // isn't lost.
+  //
+  logic            pred_hold;
+  logic [XLEN-1:0] pred_hold_tgt;
+
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       redir_hold <= 1'b0;
@@ -148,6 +159,30 @@ module svc_rv_stage_pc #(
     end
   end
 
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      pred_hold <= 1'b0;
+    end else begin
+      if (pc_sel == PC_SEL_REDIRECT) begin
+        pred_hold <= 1'b0;
+      end else
+          if ((BPRED != 0) && (pc_sel == PC_SEL_PREDICTED) && imem_stall) begin
+        pred_hold <= 1'b1;
+      end else if (pred_hold && !imem_stall && !stall_pc) begin
+        pred_hold <= 1'b0;
+      end
+    end
+  end
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      pred_hold_tgt <= '0;
+    end else
+        if ((BPRED != 0) && (pc_sel == PC_SEL_PREDICTED) && imem_stall) begin
+      pred_hold_tgt <= pred_tgt;
+    end
+  end
+
   //
   // PC next calculation
   //
@@ -158,9 +193,12 @@ module svc_rv_stage_pc #(
   always_comb begin
     if (redir_hold) begin
       pc_next = redir_hold_tgt;
+    end else if (pc_sel == PC_SEL_REDIRECT) begin
+      pc_next = pc_redir_tgt;
+    end else if (pred_hold) begin
+      pc_next = pred_hold_tgt;
     end else begin
       case (pc_sel)
-        PC_SEL_REDIRECT:   pc_next = pc_redir_tgt;
         PC_SEL_PREDICTED:  pc_next = pred_tgt;
         PC_SEL_SEQUENTIAL: pc_next = pc + 4;
         default:           pc_next = pc + 4;
