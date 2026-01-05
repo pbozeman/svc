@@ -19,9 +19,7 @@ module svc_rv_fwd_ex_tb;
   logic [     4:0] rs2_ex;
   logic [XLEN-1:0] rs1_data_ex;
   logic [XLEN-1:0] rs2_data_ex;
-  logic            is_mc;
-  logic [XLEN-1:0] mc_rs1;
-  logic [XLEN-1:0] mc_rs2;
+  logic            is_mc_ex;
   logic [     4:0] rd_mem;
   logic            reg_write_mem;
   logic [     2:0] res_src_mem;
@@ -39,9 +37,7 @@ module svc_rv_fwd_ex_tb;
       .rs2_ex       (rs2_ex),
       .rs1_data_ex  (rs1_data_ex),
       .rs2_data_ex  (rs2_data_ex),
-      .is_mc        (is_mc),
-      .mc_rs1       (mc_rs1),
-      .mc_rs2       (mc_rs2),
+      .is_mc_ex     (is_mc_ex),
       .rd_mem       (rd_mem),
       .reg_write_mem(reg_write_mem),
       .res_src_mem  (res_src_mem),
@@ -56,9 +52,7 @@ module svc_rv_fwd_ex_tb;
     rs2_ex        = 5'd0;
     rs1_data_ex   = 32'h0;
     rs2_data_ex   = 32'h0;
-    is_mc         = 1'b0;
-    mc_rs1        = 32'h0;
-    mc_rs2        = 32'h0;
+    is_mc_ex      = 1'b0;
     rd_mem        = 5'd0;
     reg_write_mem = 1'b0;
     res_src_mem   = 3'd0;
@@ -268,13 +262,14 @@ module svc_rv_fwd_ex_tb;
   endtask
 
   //
-  // Test: Multi-cycle op uses captured values instead of MEM forwarding
+  // Test: Multi-cycle ops disable forwarding (use pipeline register values)
   //
-  // During multi-cycle ops (DIV/REM), the pipeline drains and MEM stage
-  // contains unrelated instructions. The captured values from the first
-  // cycle must be used instead of stale MEM forwarding.
+  // When is_mc_ex=1, forwarding is disabled entirely. The stable pipeline
+  // register values (rs1_data_ex, rs2_data_ex) are used directly. The
+  // hazard unit handles any dependencies by stalling until values are
+  // in the regfile.
   //
-  task automatic test_mc_uses;
+  task automatic test_mc_disables_forwarding;
     reset_inputs();
     rs1_ex        = 5'd10;
     rs2_ex        = 5'd10;
@@ -282,14 +277,12 @@ module svc_rv_fwd_ex_tb;
     rs2_data_ex   = 32'hBBBBBBBB;
 
     //
-    // Multi-cycle op in progress with captured values
+    // Multi-cycle op - forwarding should be disabled
     //
-    is_mc         = 1'b1;
-    mc_rs1        = 32'h84080000;
-    mc_rs2        = 32'h84080000;
+    is_mc_ex      = 1'b1;
 
     //
-    // MEM stage has different instruction that would forward if not mc
+    // MEM stage has instruction that would forward if not mc
     //
     rd_mem        = 5'd10;
     reg_write_mem = 1'b1;
@@ -299,10 +292,10 @@ module svc_rv_fwd_ex_tb;
     `TICK(clk);
 
     //
-    // Should use captured values, not result_mem
+    // Should use pipeline register values, not result_mem
     //
-    `CHECK_EQ(fwd_rs1_ex, 32'h84080000);
-    `CHECK_EQ(fwd_rs2_ex, 32'h84080000);
+    `CHECK_EQ(fwd_rs1_ex, 32'hAAAAAAAA);
+    `CHECK_EQ(fwd_rs2_ex, 32'hBBBBBBBB);
   endtask
 
   `TEST_SUITE_BEGIN(svc_rv_fwd_ex_tb);
@@ -315,7 +308,7 @@ module svc_rv_fwd_ex_tb;
   `TEST_CASE(test_no_fwd_from_csr);
   `TEST_CASE(test_no_fwd_to_x0);
   `TEST_CASE(test_no_fwd_if_not_used);
-  `TEST_CASE(test_mc_uses);
+  `TEST_CASE(test_mc_disables_forwarding);
   `TEST_SUITE_END();
 
 endmodule

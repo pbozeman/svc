@@ -10,7 +10,7 @@
 // Provides MEM→EX bypass for back-to-back ALU operations (cheap forwarding
 // from nearby EX/MEM pipeline register).
 //
-// TIMING NOTE: WB→EX forwarding was removed to improve timing. The WB
+// NOTE: WB→EX forwarding was removed to improve timing. The WB
 // forwarding path is long (from WB stage back to EX mux) and increases EX
 // stage combinational depth. Instead, WB→ID forwarding happens earlier in
 // the ID stage (see svc_rv_fwd_id), before the ID→EX pipeline register.
@@ -29,8 +29,13 @@
 // - CSR results (data not ready until WB)
 // - (Load results on SRAM ARE ready in MEM and can be forwarded)
 //
-// TODO: Consider making WB→EX configurable for timing-relaxed designs.
+// Multi-cycle ops (div/rem):
+// - No forwarding to MC ops - use pipeline register values directly
+// - Hazard unit stalls if there's a dependency until value is in regfile
+// - Pipeline register holds stable rs1_data_ex/rs2_data_ex during MC execution
+// - This removes FSM state from the forwarding critical path
 //
+// TODO: Consider making WB→EX configurable for timing-relaxed designs.
 module svc_rv_fwd_ex #(
     parameter int XLEN,
     parameter int FWD,
@@ -45,20 +50,16 @@ module svc_rv_fwd_ex #(
     input logic [XLEN-1:0] rs2_data_ex,
 
     //
-    // Multi-cycle operation in progress (use captured values)
+    // Multi-cycle operation indicator (registered, from decode)
     //
-    // When a multi-cycle op (div/rem) is executing past its first cycle, we
-    // must use the captured operand values from the first cycle. The pipeline
-    // drains during multi-cycle ops, so MEM contains unrelated instructions
-    // and we cannot forward from there. On the first cycle (mc_in_progress=0),
-    // MEM→EX forwarding provides the correct values which get captured.
+    // When is_mc_ex=1, disable forwarding entirely. The pipeline register
+    // holds stable rs1_data_ex/rs2_data_ex values during MC execution.
+    // Hazard unit handles stalls for any dependencies.
     //
-    input logic            is_mc,
-    input logic [XLEN-1:0] mc_rs1,
-    input logic [XLEN-1:0] mc_rs2,
+    input logic is_mc_ex,
 
     //
-    // MEM stage inputs (producer)
+    // MEM stage inputs
     //
     input logic [     4:0] rd_mem,
     input logic            reg_write_mem,
@@ -90,9 +91,12 @@ module svc_rv_fwd_ex #(
     //
     // MEM→EX result forwarding (common to both SRAM and BRAM)
     //
-    // Forward results from MEM stage (ALU, etc).
-    // Do NOT forward: loads, CSRs, or M extension results (2-stage multiply).
-    // M extension results are treated like BRAM loads - not available until WB.
+    // Forward results from MEM stage (ALU, etc). Do NOT forward: loads, CSRs,
+    // or M extension results (2-stage multiply). M extension results are
+    // treated like BRAM loads - not available until WB.
+    //
+    // Disable forwarding entirely for multi-cycle ops (is_mc_ex) - they use
+    // stable pipeline register values directly.
     //
     logic mem_to_ex_fwd_a;
     logic mem_to_ex_fwd_b;
@@ -101,7 +105,7 @@ module svc_rv_fwd_ex #(
       mem_to_ex_fwd_a = 1'b0;
       mem_to_ex_fwd_b = 1'b0;
 
-      if (!is_mc && reg_write_mem && rd_mem != 5'd0 && !is_ld_mem &&
+      if (!is_mc_ex && reg_write_mem && rd_mem != 5'd0 && !is_ld_mem &&
           !is_csr_mem && !is_m_result_mem) begin
         mem_to_ex_fwd_a = (rd_mem == rs1_ex);
         mem_to_ex_fwd_b = (rd_mem == rs2_ex);
@@ -122,7 +126,7 @@ module svc_rv_fwd_ex #(
         mem_to_ex_fwd_load_a = 1'b0;
         mem_to_ex_fwd_load_b = 1'b0;
 
-        if (!is_mc && reg_write_mem && rd_mem != 5'd0 && is_ld_mem) begin
+        if (!is_mc_ex && reg_write_mem && rd_mem != 5'd0 && is_ld_mem) begin
           mem_to_ex_fwd_load_a = (rd_mem == rs1_ex);
           mem_to_ex_fwd_load_b = (rd_mem == rs2_ex);
         end
@@ -130,11 +134,10 @@ module svc_rv_fwd_ex #(
 
       //
       // Forwarding muxes with priority:
-      // mc_in_progress > MEM load > MEM result > regfile
+      // MEM load > MEM result > regfile
       //
       always_comb begin
         case (1'b1)
-          is_mc:                fwd_rs1_ex = mc_rs1;
           mem_to_ex_fwd_load_a: fwd_rs1_ex = ld_data_mem;
           mem_to_ex_fwd_a:      fwd_rs1_ex = result_mem;
           default:              fwd_rs1_ex = rs1_data_ex;
@@ -143,7 +146,6 @@ module svc_rv_fwd_ex #(
 
       always_comb begin
         case (1'b1)
-          is_mc:                fwd_rs2_ex = mc_rs2;
           mem_to_ex_fwd_load_b: fwd_rs2_ex = ld_data_mem;
           mem_to_ex_fwd_b:      fwd_rs2_ex = result_mem;
           default:              fwd_rs2_ex = rs2_data_ex;
@@ -155,11 +157,10 @@ module svc_rv_fwd_ex #(
       // BRAM: Load data not ready in MEM stage, cannot forward
       //
       // Forwarding muxes with priority:
-      // mc_in_progress > MEM result > regfile
+      // MEM result > regfile
       //
       always_comb begin
         case (1'b1)
-          is_mc:           fwd_rs1_ex = mc_rs1;
           mem_to_ex_fwd_a: fwd_rs1_ex = result_mem;
           default:         fwd_rs1_ex = rs1_data_ex;
         endcase
@@ -167,7 +168,6 @@ module svc_rv_fwd_ex #(
 
       always_comb begin
         case (1'b1)
-          is_mc:           fwd_rs2_ex = mc_rs2;
           mem_to_ex_fwd_b: fwd_rs2_ex = result_mem;
           default:         fwd_rs2_ex = rs2_data_ex;
         endcase
@@ -178,14 +178,14 @@ module svc_rv_fwd_ex #(
 
   end else begin : g_no_forwarding
     //
-    // No forwarding, just pass through (but still use captured for mc ops)
+    // No forwarding, just pass through
     //
-    assign fwd_rs1_ex = is_mc ? mc_rs1 : rs1_data_ex;
-    assign fwd_rs2_ex = is_mc ? mc_rs2 : rs2_data_ex;
+    assign fwd_rs1_ex = rs1_data_ex;
+    assign fwd_rs2_ex = rs2_data_ex;
 
     // verilog_format: off
     `SVC_UNUSED({rs1_ex, rs2_ex, rd_mem, reg_write_mem,
-                 res_src_mem, result_mem, ld_data_mem, MEM_TYPE});
+                 res_src_mem, result_mem, ld_data_mem, is_mc_ex, MEM_TYPE});
     // verilog_format: on
   end
 

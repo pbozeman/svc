@@ -179,15 +179,11 @@ module svc_rv_stage_ex #(
     EX_MC_DONE
   } ex_state_t;
 
-  ex_state_t            state;
-  ex_state_t            state_next;
+  ex_state_t state;
+  ex_state_t state_next;
 
   // our output is valid (input to pipe_ctrl)
-  logic                 m_valid_next;
-
-  // Captured operand values for multi-cycle operations
-  logic      [XLEN-1:0] mc_rs1;
-  logic      [XLEN-1:0] mc_rs2;
+  logic      m_valid_next;
 
   always_comb begin
     state_next   = state;
@@ -240,28 +236,17 @@ module svc_rv_stage_ex #(
   end
 
   //
-  // State and m_valid registers
+  // State register
   //
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      state  <= EX_IDLE;
-      mc_rs1 <= '0;
-      mc_rs2 <= '0;
+      state <= EX_IDLE;
     end else if (!stall_ex) begin
       //
       // Only advance state when not stalled. This ensures division results
       // are not lost if stall_ex is asserted when division completes.
       //
       state <= state_next;
-
-      //
-      // Capture forwarded operands when starting a multi-cycle op
-      // (op_en_ex is true for both IDLE→EXEC and DONE→EXEC transitions)
-      //
-      if (op_en_ex) begin
-        mc_rs1 <= fwd_rs1_ex;
-        mc_rs2 <= fwd_rs2_ex;
-      end
     end
   end
 
@@ -288,7 +273,6 @@ module svc_rv_stage_ex #(
       .FWD     ((PIPELINED != 0 && FWD != 0) ? 1 : 0),
       .MEM_TYPE(MEM_TYPE)
   ) forward (
-      .is_mc(state == EX_MC_EXEC),
       .*
   );
 
