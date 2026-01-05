@@ -170,11 +170,28 @@ module svc_rv_stage_if_bram #(
   // Extended flush for BRAM
   //
   if (BPRED != 0) begin : g_no_flush_extend
-    // Without BPRED: Sequential instruction is already fetched before redirect
-    // is detected, so we need flush_extend to clear the stale instruction.
-    assign flush_extend = 1'b0;
+    //
+    // With BPRED, early fetch targets pc_next and avoids fetching stale
+    // sequential instructions before redirects are known.
+    //
+    // However, a flush can still arrive while stalled (advance=0), e.g. when
+    // a redirect occurs during an instruction cache miss. In that case we
+    // need a single-cycle extended flush when the stall clears to prevent
+    // capturing a stale held response.
+    //
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        flush_extend <= 1'b0;
+      end else if (if_id_flush && !advance) begin
+        flush_extend <= 1'b1;
+      end else if (advance) begin
+        flush_extend <= 1'b0;
+      end
+      // During stall (advance=0), flush_extend holds its value
+    end
 
   end else begin : g_flush_extend
+    //
     // Without BPRED: Sequential instruction is already fetched before redirect
     // is detected, so we need flush_extend to discard the stale instruction.
     //
@@ -249,3 +266,4 @@ module svc_rv_stage_if_bram #(
 endmodule
 
 `endif
+
