@@ -196,7 +196,7 @@ module svc_rv_soc_bram_cache #(
 
   // Instruction cache interface
   logic        icache_rd_valid;
-  logic [31:0] icache_rd_addr;
+  (* max_fanout = 64, keep = "true" *)logic [31:0] icache_rd_addr;
   logic        icache_rd_ready;
   logic [31:0] icache_rd_data;
   logic        icache_rd_data_valid;

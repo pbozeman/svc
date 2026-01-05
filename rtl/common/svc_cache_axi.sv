@@ -266,9 +266,12 @@ module svc_cache_axi #(
   // ===========================================================================
   // Read address field extraction
   // ===========================================================================
-  assign addr_tag = rd_addr[31:32-TAG_WIDTH];
-  assign addr_set = rd_addr[OFFSET_WIDTH+SET_WIDTH-1:OFFSET_WIDTH];
-  assign addr_offset = rd_addr[OFFSET_WIDTH-1:2];
+  (* max_fanout = 64, keep = "true" *) logic [CACHE_ADDR_WIDTH-1:0] rd_addr_fanout;
+  assign rd_addr_fanout = rd_addr;
+
+  assign addr_tag = rd_addr_fanout[31:32-TAG_WIDTH];
+  assign addr_set = rd_addr_fanout[OFFSET_WIDTH+SET_WIDTH-1:OFFSET_WIDTH];
+  assign addr_offset = rd_addr_fanout[OFFSET_WIDTH-1:2];
 
   // Line-aligned address from registered fill address (for STATE_READ_SETUP)
   // Truncate to AXI_ADDR_WIDTH (tag+set+offset may exceed AXI address width)
@@ -465,7 +468,7 @@ module svc_cache_axi #(
   // the handshake.
   //
   always_ff @(posedge clk) begin
-    if (state == STATE_IDLE && rd_valid && !hit) begin
+    if (state == STATE_IDLE && rd_valid && rd_ready) begin
       fill_addr_tag    <= addr_tag;
       fill_addr_set    <= addr_set;
       fill_addr_offset <= addr_offset;
@@ -881,7 +884,7 @@ module svc_cache_axi #(
   // Unused signals
   // ===========================================================================
   `SVC_UNUSED({m_axi_arready, m_axi_rid, m_axi_rresp, m_axi_bid, m_axi_bresp,
-               m_axi_bvalid, rd_addr[1:0], wr_addr[1:0]});
+               m_axi_bvalid, rd_addr_fanout[1:0], wr_addr[1:0]});
 
   if (AXI_ADDR_WIDTH < 32) begin : gen_unused_wr_addr_hi
     `SVC_UNUSED(wr_addr[31:AXI_ADDR_WIDTH]);
