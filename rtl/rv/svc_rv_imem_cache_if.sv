@@ -2,6 +2,7 @@
 `define SVC_RV_IMEM_CACHE_IF_SV
 
 `include "svc.sv"
+`include "svc_unused.sv"
 
 //
 // RISC-V Instruction Memory to Cache Interface Bridge
@@ -16,9 +17,10 @@
 //       - no imem_stall
 //       - rd_data_valid from cache next cycle -> forwarded to imem_rdata
 //   * On cache MISS:
-//       - imem_stall asserted while in STATE_MISS or STATE_MISS_RETURN
-//       - STATE_MISS entered when we start a miss
-//       - returns to IDLE when cache_rd_data_valid for the miss
+//       - miss detected when a request is accepted and no response arrives
+//         the next cycle
+//       - imem_stall asserted while miss is in-flight and for one extra
+//         cycle after the miss response (to use registered rdata)
 //
 module svc_rv_imem_cache_if (
     input logic clk,
@@ -43,11 +45,9 @@ module svc_rv_imem_cache_if (
   //
   // State machine
   //
-  typedef enum logic [1:0] {
+  typedef enum {
     STATE_IDLE,
-    STATE_WAIT_CACHE,
-    STATE_MISS,
-    STATE_MISS_RETURN
+    STATE_WAIT
   } state_t;
 
   state_t        state;
@@ -58,6 +58,11 @@ module svc_rv_imem_cache_if (
   //
   logic          cache_rd_start;
   logic   [31:0] cache_rd_addr_reg;
+  logic          cache_rd_fire;
+  logic          cache_rd_fire_q;
+  logic          cache_miss_detected;
+  logic          cache_miss_inflight;
+  logic          cache_miss_return_hold;
 
   //
   // Read data hold
@@ -68,14 +73,19 @@ module svc_rv_imem_cache_if (
   //
   // Cache io start conditions and signals
   //
-  always_comb begin
-    cache_rd_start = (state == STATE_IDLE) && imem_ren;
+  assign cache_miss_detected = (cache_rd_fire_q && !cache_rd_data_valid &&
+                                !cache_miss_inflight);
 
-    cache_rd_valid = cache_rd_start || (state == STATE_WAIT_CACHE);
-    cache_rd_addr  = cache_rd_start ? imem_raddr : cache_rd_addr_reg;
+  assign cache_rd_start = ((state == STATE_IDLE) && imem_ren &&
+                           !cache_miss_inflight && !cache_miss_return_hold &&
+                           !cache_miss_detected);
 
-    imem_stall     = state != STATE_IDLE;
-  end
+  assign cache_rd_valid = cache_rd_start || (state == STATE_WAIT);
+
+  assign imem_stall = ((state == STATE_WAIT) || cache_miss_inflight ||
+                       cache_miss_return_hold || cache_miss_detected);
+
+  assign cache_rd_addr = imem_stall ? cache_rd_addr_reg : imem_raddr;
 
   //
   // State machine for miss tracking
@@ -88,39 +98,23 @@ module svc_rv_imem_cache_if (
     unique case (state)
       STATE_IDLE: begin
         if (cache_rd_start) begin
-          if (cache_rd_ready) begin
-            if (!cache_rd_hit) begin
-              state_next = STATE_MISS;
-            end
-          end else begin
-            state_next = STATE_WAIT_CACHE;
+          if (!cache_rd_ready) begin
+            state_next = STATE_WAIT;
           end
         end
       end
 
-      STATE_WAIT_CACHE: begin
+      STATE_WAIT: begin
         if (cache_rd_ready) begin
-          if (cache_rd_hit) begin
-            state_next = STATE_IDLE;
-          end else begin
-            state_next = STATE_MISS;
-          end
+          state_next = STATE_IDLE;
         end
-      end
-
-      STATE_MISS: begin
-        if (cache_rd_data_valid) begin
-          state_next = STATE_MISS_RETURN;
-        end
-      end
-
-      STATE_MISS_RETURN: begin
-        state_next = STATE_IDLE;
       end
 
       default: state_next = STATE_IDLE;
     endcase
   end
+
+  assign cache_rd_fire = cache_rd_valid && cache_rd_ready;
 
   //
   // Registered state registers
@@ -138,9 +132,27 @@ module svc_rv_imem_cache_if (
   //
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      rdata_reg_valid <= 1'b0;
+      rdata_reg_valid        <= 1'b0;
+      cache_rd_fire_q        <= 1'b0;
+      cache_miss_inflight    <= 1'b0;
+      cache_miss_return_hold <= 1'b0;
     end else if (cache_rd_data_valid) begin
       rdata_reg_valid <= 1'b1;
+      cache_rd_fire_q <= cache_rd_fire;
+      if (cache_miss_inflight) begin
+        cache_miss_inflight    <= 1'b0;
+        cache_miss_return_hold <= 1'b1;
+      end else if (cache_miss_return_hold) begin
+        cache_miss_return_hold <= 1'b0;
+      end
+    end else begin
+      cache_rd_fire_q <= cache_rd_fire;
+      if (cache_miss_detected) begin
+        cache_miss_inflight <= 1'b1;
+      end
+      if (cache_miss_return_hold) begin
+        cache_miss_return_hold <= 1'b0;
+      end
     end
   end
 
@@ -178,6 +190,8 @@ module svc_rv_imem_cache_if (
     end
   end
 
+  `SVC_UNUSED({cache_rd_hit});
+
 `ifdef FORMAL
 `ifdef FORMAL_SVC_RV_IMEM_CACHE_IF
   `define FASSERT(label, a) label: assert(a)
@@ -197,11 +211,11 @@ module svc_rv_imem_cache_if (
   logic f_miss_returning;
 
   // cache_rd_start is defined in functional logic above
-  assign f_start_hit = cache_rd_start && cache_rd_ready && cache_rd_hit;
-  assign f_hit_completing = cache_rd_data_valid && (state == STATE_IDLE);
-  assign f_wait_cache_inflight = (state == STATE_WAIT_CACHE);
-  assign f_miss_inflight = (state == STATE_MISS);
-  assign f_miss_returning = (state == STATE_MISS_RETURN);
+  assign f_start_hit           = cache_rd_data_valid && cache_rd_hit;
+  assign f_hit_completing      = cache_rd_data_valid && cache_rd_hit;
+  assign f_wait_cache_inflight = (state == STATE_WAIT);
+  assign f_miss_inflight       = cache_miss_inflight;
+  assign f_miss_returning      = cache_miss_return_hold;
 
   always_ff @(posedge clk) begin
     f_past_valid <= 1'b1;
@@ -240,17 +254,20 @@ module svc_rv_imem_cache_if (
   // Input assumptions
   //
   always_ff @(posedge clk) begin
-    // cache_rd_data_valid requires a pending request OR simultaneous hit
-    // (for immediate hits, request and response happen same cycle)
     if (cache_rd_data_valid) begin
-      `FASSUME(a_rd_data_valid_needs_pending,
-               f_rd_pending > 0 || (cache_rd_valid && cache_rd_ready));
+      `FASSUME(a_rd_data_valid_needs_pending, f_rd_pending > 0);
     end
 
-    // cache_rd_hit with valid handshake implies cache_rd_data_valid
-    // in same cycle (hit returns data immediately for zero-stall hits)
-    if (cache_rd_valid && cache_rd_ready && cache_rd_hit) begin
+    // cache_rd_hit implies cache_rd_data_valid in same cycle
+    if (cache_rd_hit) begin
       `FASSUME(a_hit_implies_data_valid, cache_rd_data_valid);
+    end
+
+    // Hits return with fixed 1-cycle latency after a handshake.
+    if (f_past_valid && $past(rst_n) && rst_n) begin
+      if (cache_rd_data_valid && cache_rd_hit) begin
+        `FASSUME(a_hit_timing, $past(cache_rd_valid && cache_rd_ready));
+      end
     end
   end
 
@@ -259,12 +276,9 @@ module svc_rv_imem_cache_if (
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      // Cache miss stalls one cycle after detection (handshake must complete first)
-      if ($past(
-              cache_rd_valid && cache_rd_ready && !cache_rd_hit &&
-                  !f_hit_completing
-          )) begin
-        `FASSERT(a_miss_stalls_next, imem_stall);
+      // Cache miss stalls on detection
+      if ($past(cache_rd_valid && cache_rd_ready) && !cache_rd_data_valid) begin
+        `FASSERT(a_miss_stalls, imem_stall);
       end
 
       // Read valid/ready stability: valid stays high until ready
@@ -329,6 +343,10 @@ module svc_rv_imem_cache_if (
         `FASSERT(a_hit_no_stall, !imem_stall);
       end
 
+      if (f_miss_inflight) begin
+        `FASSERT(a_miss_inflight_stalls, imem_stall);
+      end
+
       if (f_miss_returning) begin
         `FASSERT(a_miss_returning_stalls, imem_stall);
       end
@@ -340,26 +358,12 @@ module svc_rv_imem_cache_if (
 
     if (f_past_valid && !$past(rst_n)) begin
       `FASSERT(a_reset_no_wait_cache, !f_wait_cache_inflight);
-      `FASSERT(a_reset_no_miss, !f_miss_inflight);
+      `FASSERT(a_reset_no_miss, !cache_miss_inflight);
       `FASSERT(a_reset_no_returning, !f_miss_returning);
       `FASSERT(a_reset_no_data_reg, !rdata_reg_valid);
     end
 
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      // rdata_reg_valid follows f_miss_returning or wait_cache hit by one cycle
-      if ($past(f_miss_returning)) begin
-        `FASSERT(a_miss_data_reg_follows, rdata_reg_valid);
-      end
-      if ($past(
-              f_wait_cache_inflight
-          ) && $past(
-              cache_rd_ready
-          ) && $past(
-              cache_rd_hit
-          )) begin
-        `FASSERT(a_wait_cache_hit_data_reg, rdata_reg_valid);
-      end
-
       // When cache_rd_data_valid, imem_rdata uses live data
       if (cache_rd_data_valid) begin
         `FASSERT(a_rdata_live, imem_rdata == cache_rd_data);
@@ -384,7 +388,7 @@ module svc_rv_imem_cache_if (
       `FCOVER(c_cache_hit_no_stall, f_start_hit && !imem_stall);
 
       // Cache miss path
-      `FCOVER(c_cache_miss, cache_rd_start && cache_rd_ready && !cache_rd_hit);
+      `FCOVER(c_cache_miss, cache_miss_detected);
       `FCOVER(c_wait_cache, f_wait_cache_inflight);
       `FCOVER(c_miss_inflight, f_miss_inflight);
       `FCOVER(c_miss_returning, f_miss_returning);

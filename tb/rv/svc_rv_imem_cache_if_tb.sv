@@ -188,6 +188,12 @@ module svc_rv_imem_cache_if_tb;
     imem_raddr     = 32'h0000_5000;
     `CHECK_EQ(cache_rd_addr, 32'h0000_4000);  // still original address
 
+    // Simulate fill latency
+    repeat (2) begin
+      `TICK(clk);
+      `CHECK_TRUE(imem_stall);
+    end
+
     // Complete the miss
     cache_rd_data       = 32'hAAAA_BBBB;
     cache_rd_data_valid = 1'b1;
@@ -321,6 +327,12 @@ module svc_rv_imem_cache_if_tb;
     cache_rd_data_valid = 1'b0;
     `CHECK_TRUE(imem_stall);
 
+    // Simulate fill latency
+    repeat (2) begin
+      `TICK(clk);
+      `CHECK_TRUE(imem_stall);
+    end
+
     // Miss data arrives
     cache_rd_data       = 32'hBBBB_BBBB;
     cache_rd_data_valid = 1'b1;
@@ -354,6 +366,12 @@ module svc_rv_imem_cache_if_tb;
     imem_ren       = 1'b0;
     cache_rd_ready = 1'b0;
     `CHECK_TRUE(imem_stall);
+
+    // Simulate fill latency
+    repeat (2) begin
+      `TICK(clk);
+      `CHECK_TRUE(imem_stall);
+    end
 
     // Miss data arrives
     cache_rd_data       = 32'hCCCC_CCCC;
@@ -425,15 +443,23 @@ module svc_rv_imem_cache_if_tb;
       `CHECK_TRUE(imem_stall);
     end
 
-    // Cache becomes ready with a hit
+    // Cache becomes ready
     cache_rd_ready      = 1'b1;
+    cache_rd_hit        = 1'b0;
+    cache_rd_data_valid = 1'b0;
+
+    `TICK(clk);
+
+    // Hit response arrives next cycle
     cache_rd_hit        = 1'b1;
     cache_rd_data       = 32'hFEED_CAFE;
     cache_rd_data_valid = 1'b1;
 
+    `CHECK_FALSE(imem_stall);
+    `CHECK_EQ(imem_rdata, 32'hFEED_CAFE);
+
     `TICK(clk);
 
-    // Stall drops on hit from WAIT_CACHE
     cache_rd_data_valid = 1'b0;
     cache_rd_hit        = 1'b0;
     `CHECK_FALSE(imem_stall);

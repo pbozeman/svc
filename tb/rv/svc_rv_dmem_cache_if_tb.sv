@@ -342,6 +342,12 @@ module svc_rv_dmem_cache_if_tb;
     dmem_raddr     = 32'h0000_5000;
     `CHECK_EQ(cache_rd_addr, 32'h0000_4000);  // still original address
 
+    // Simulate fill latency
+    repeat (2) begin
+      `TICK(clk);
+      `CHECK_TRUE(dmem_stall);
+    end
+
     // Complete the miss
     cache_rd_data       = 32'hAAAA_BBBB;
     cache_rd_data_valid = 1'b1;
@@ -475,6 +481,12 @@ module svc_rv_dmem_cache_if_tb;
     cache_rd_data_valid = 1'b0;
     `CHECK_TRUE(dmem_stall);
 
+    // Simulate fill latency
+    repeat (2) begin
+      `TICK(clk);
+      `CHECK_TRUE(dmem_stall);
+    end
+
     // Miss data arrives
     cache_rd_data       = 32'hBBBB_BBBB;
     cache_rd_data_valid = 1'b1;
@@ -508,6 +520,12 @@ module svc_rv_dmem_cache_if_tb;
     dmem_ren       = 1'b0;
     cache_rd_ready = 1'b0;
     `CHECK_TRUE(dmem_stall);
+
+    // Simulate fill latency
+    repeat (2) begin
+      `TICK(clk);
+      `CHECK_TRUE(dmem_stall);
+    end
 
     // Miss data arrives
     cache_rd_data       = 32'hCCCC_CCCC;

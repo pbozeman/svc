@@ -65,12 +65,18 @@ endtask
 
 //
 // Test: Read miss transitions through STATE_READ_SETUP to STATE_READ_BURST
+// Note: With BRAM tags, miss detection is pipelined (1 extra cycle)
 //
 task automatic test_read_miss;
   rd_addr     = 32'h100;
   rd_valid_in = 1;
 
   `TICK(clk);
+  // Cycle after handshake: checking hit (tag_r_valid)
+  `CHECK_EQ(uut.state, STATE_IDLE);
+
+  `TICK(clk);
+  // Miss detected, transition to STATE_READ_SETUP
   `CHECK_EQ(uut.state, STATE_READ_SETUP);
 
   `TICK(clk);
@@ -349,7 +355,8 @@ task automatic test_addr_registered_on_miss;
   // rd_data is computed from the current rd_addr instead of the registered
   // request address, we'll get wrong data.
   rd_valid_in = 0;
-  rd_addr     = 32'hFFF;  // Different address, not in cache
+  // Different address, not in cache
+  rd_addr     = 32'hFFF;
 
   // Wait for data valid
   `CHECK_WAIT_FOR(clk, rd_data_valid, 10);
@@ -390,24 +397,27 @@ endtask
 
 //
 // Test: rd_hit is low on cache miss
+// Note: With BRAM tags, rd_hit is determined one cycle after handshake
 //
 task automatic test_rd_hit_on_miss;
   // Read uncached address - should be a miss
   rd_addr     = 32'h200;
   rd_valid_in = 1;
 
-  // rd_hit should be low on same cycle as request (combinational)
+  // rd_hit is low on handshake cycle (not yet determined)
   `CHECK_FALSE(rd_hit);
 
   `TICK(clk);
-  `CHECK_EQ(uut.state, STATE_READ_SETUP);
+  // Miss determined this cycle, rd_hit still low
+  `CHECK_FALSE(rd_hit);
 
-  // rd_hit stays low during miss handling
+  `TICK(clk);
   `CHECK_FALSE(rd_hit);
 endtask
 
 //
 // Test: rd_hit is high on cache hit
+// Note: With BRAM tags, rd_hit goes high one cycle after handshake
 //
 task automatic test_rd_hit_on_hit;
   // First read - cache miss to fill line
@@ -423,21 +433,22 @@ task automatic test_rd_hit_on_hit;
   rd_addr     = 32'h300;
   rd_valid_in = 1;
 
-  // rd_hit should be high on same cycle (combinational)
-  `CHECK_TRUE(rd_hit);
+  // rd_hit is low on handshake cycle (BRAM tag not ready yet)
+  `CHECK_FALSE(rd_hit);
   `CHECK_TRUE(rd_ready);
 
   `TICK(clk);
+  // rd_hit goes high when hit is determined (same cycle as rd_data_valid)
+  `CHECK_TRUE(rd_hit);
   `CHECK_TRUE(rd_data_valid);
   `CHECK_EQ(rd_data, 32'hCAC4ED00);
 endtask
 
 //
-// Test: rd_hit timing - combinational on address (speculative)
+// Test: rd_hit timing - indicates hit response this cycle
 //
-// rd_hit is purely address-based for speculative hit detection.
-// It indicates "this address would hit" regardless of rd_valid.
-// The consumer gates it with their read enable signal.
+// With BRAM tags, rd_hit is NOT speculative. It indicates that a hit
+// response is being returned this cycle (same cycle as rd_data_valid for hits).
 //
 task automatic test_rd_hit_timing;
   // Fill cache line first
@@ -446,25 +457,26 @@ task automatic test_rd_hit_timing;
   `CHECK_WAIT_FOR(clk, rd_data_valid, 10);
   `TICK(clk);
 
-  // rd_hit is high for cached address even when rd_valid is low (speculative)
+  // rd_hit is low when no read is in progress
   rd_valid_in = 0;
   rd_addr     = 32'h00;
-  `CHECK_TRUE(rd_hit);
+  `CHECK_FALSE(rd_hit);
 
-  // rd_hit stays high when rd_valid goes high
+  // Start a new read to cached address
   rd_valid_in = 1;
-  `CHECK_TRUE(rd_hit);
-
-  // rd_hit goes low for uncached address
-  rd_addr = 32'h1000;
+  // Not yet determined
   `CHECK_FALSE(rd_hit);
 
   `TICK(clk);
+  // rd_hit goes high same cycle as rd_data_valid (hit response)
+  `CHECK_TRUE(rd_hit);
+  `CHECK_TRUE(rd_data_valid);
   rd_valid_in = 0;
 endtask
 
 //
 // Test: rd_hit is low during non-IDLE states
+// Note: With BRAM tags, miss detection adds 1 cycle before STATE_READ_SETUP
 //
 task automatic test_rd_hit_non_idle;
   // Start a read miss
@@ -472,9 +484,14 @@ task automatic test_rd_hit_non_idle;
   rd_valid_in = 1;
 
   `TICK(clk);
+  // Checking miss (tag_r_valid)
+  `CHECK_EQ(uut.state, STATE_IDLE);
+  `CHECK_FALSE(rd_hit);
+
+  `TICK(clk);
   `CHECK_EQ(uut.state, STATE_READ_SETUP);
 
-  // Even with rd_valid high, rd_hit should be low (not in IDLE)
+  // Even with rd_valid high, rd_hit should be low (not accepting reads)
   rd_valid_in = 1;
   `CHECK_FALSE(rd_hit);
 

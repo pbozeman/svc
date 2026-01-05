@@ -177,7 +177,10 @@ module svc_cache_axi #(
   //
   // Cache storage
   //
-  logic [TAG_WIDTH-1:0] tag_table[NUM_SETS][NUM_WAYS];
+  // Tag tables use BRAM for timing - synchronous read adds pipeline stage
+  // verilog_format: off
+  (* ram_style = "block" *) logic [TAG_WIDTH-1:0] tag_way0[NUM_SETS];
+  // verilog_format: on
   logic valid_table[NUM_SETS][NUM_WAYS];
   logic lru_table[NUM_SETS];
 
@@ -185,7 +188,6 @@ module svc_cache_axi #(
   // Indexed by {set, word_offset} - no way bit in address
   // verilog_format: off
   (* ram_style = "block" *) logic [31:0] data_way0[DATA_WAY_DEPTH];
-  (* ram_style = "block" *) logic [31:0] data_way1[DATA_WAY_DEPTH];
   // verilog_format: on
 
   //
@@ -195,17 +197,30 @@ module svc_cache_axi #(
   (* max_fanout = 16 *)logic way0_hit;
   logic way1_hit;
   logic [31:0] hit_data;
-  logic way0_valid;
-  logic [TAG_WIDTH-1:0] way0_tag;
-  logic way1_valid;
-  logic [TAG_WIDTH-1:0] way1_tag;
+
+  // Registered BRAM tag outputs (sync read for BRAM inference)
+  logic [TAG_WIDTH-1:0] way0_tag_r;
+  logic [TAG_WIDTH-1:0] way1_tag_r;
+
+  // Registered valid bits to align with BRAM tag timing
+  logic way0_valid_r;
+  logic way1_valid_r;
+
+  // Registered input tag for comparison (breaks timing path)
+  logic [TAG_WIDTH-1:0] tag_r;
+  logic                 tag_r_valid;
 
   // Registered BRAM read outputs (sync read for BRAM inference)
   logic [31:0] way0_data_r;
   logic [31:0] way1_data_r;
 
-  // Registered hit metadata to align with BRAM output timing
-  logic way1_hit_r;
+  // BRAM read address
+  logic [DATA_WAY_AW-1:0] data_rd_addr;
+
+  //
+  // Cache response
+  //
+  logic hit_complete;
 
   //
   // Fill tracking
@@ -258,11 +273,6 @@ module svc_cache_axi #(
   logic m_axi_awvalid_next;
   logic m_axi_wvalid_next;
 
-  //
-  // Cache response
-  //
-  logic rd_data_valid_next;
-
   // ===========================================================================
   // Read address field extraction
   // ===========================================================================
@@ -275,55 +285,99 @@ module svc_cache_axi #(
 
   // Line-aligned address from registered fill address (for STATE_READ_SETUP)
   // Truncate to AXI_ADDR_WIDTH (tag+set+offset may exceed AXI address width)
-  assign fill_addr_line_aligned =
-      AXI_ADDR_WIDTH'({fill_addr_tag, fill_addr_set, {OFFSET_WIDTH{1'b0}}});
+  assign fill_addr_line_aligned = AXI_ADDR_WIDTH'({
+    fill_addr_tag, fill_addr_set, {OFFSET_WIDTH{1'b0}}
+  });
 
   // ===========================================================================
-  // Cache lookup
+  // Cache lookup - BRAM-based pipelined tag comparison
   // ===========================================================================
+  //
+  // Both tag and data use BRAM with synchronous reads. This naturally
+  // pipelines the hit determination:
+  //
+  //   Cycle 1: addr_set → tag BRAM read starts; addr_tag → tag_r registered
+  //   Cycle 2: BRAM outputs way*_tag_r; compare with tag_r → hit
+  //
+  // The BRAM's registered output breaks the timing path without explicit
+  // pipeline registers.
+  //
 
   //
-  // Way 0 lookup
+  // Synchronous BRAM reads for tags - output available next cycle
   //
-  assign way0_valid = valid_table[addr_set][0];
-  assign way0_tag = tag_table[addr_set][0];
-  assign way0_hit = way0_valid && (way0_tag == addr_tag);
-
-  //
-  // Way 1 lookup (only for 2-way)
-  //
-  if (TWO_WAY) begin : gen_way1
-    assign way1_valid = valid_table[addr_set][1];
-    assign way1_tag   = tag_table[addr_set][1];
-    assign way1_hit   = way1_valid && (way1_tag == addr_tag);
-  end else begin : gen_no_way1
-    assign way1_valid = 1'b0;
-    assign way1_tag   = '0;
-    assign way1_hit   = 1'b0;
+  always_ff @(posedge clk) begin
+    way0_tag_r <= tag_way0[addr_set];
   end
 
-  // Combinational hit for state machine (same cycle as rd_valid)
+  //
+  // Register valid bits to align with BRAM tag timing
+  //
+  always_ff @(posedge clk) begin
+    way0_valid_r <= valid_table[addr_set][0];
+  end
+
+  //
+  // Register input tag for comparison
+  //
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      tag_r_valid <= 1'b0;
+    end else begin
+      // Default: clear after hit is determined
+      tag_r_valid <= 1'b0;
+
+      // Capture tag when read is accepted
+      if (state == STATE_IDLE && rd_valid && rd_ready) begin
+        tag_r       <= addr_tag;
+        tag_r_valid <= 1'b1;
+      end
+    end
+  end
+
+  //
+  // Way 0 hit - uses registered BRAM tag output and registered input tag
+  //
+  assign way0_hit = tag_r_valid && way0_valid_r && (way0_tag_r == tag_r);
+
+  //
+  // Way 1 (only for 2-way)
+  //
+  if (TWO_WAY) begin : gen_way1
+    // verilog_format: off
+    (* ram_style = "block" *) logic [TAG_WIDTH-1:0] tag_way1[NUM_SETS];
+    (* ram_style = "block" *) logic [31:0] data_way1[DATA_WAY_DEPTH];
+    // verilog_format: on
+
+    always_ff @(posedge clk) begin
+      way1_tag_r   <= tag_way1[addr_set];
+      way1_data_r  <= data_way1[data_rd_addr];
+      way1_valid_r <= valid_table[addr_set][1];
+    end
+
+    assign way1_hit = tag_r_valid && way1_valid_r && (way1_tag_r == tag_r);
+  end else begin : gen_no_way1
+    assign way1_tag_r   = '0;
+    assign way1_data_r  = '0;
+    assign way1_valid_r = 1'b0;
+    assign way1_hit     = 1'b0;
+  end
+
+  // Pipelined hit - valid one cycle after read acceptance
   assign hit = way0_hit || way1_hit;
 
   //
   // Synchronous BRAM reads - output available next cycle
   // This enables BRAM inference instead of LUTRAM
   //
-  logic [DATA_WAY_AW-1:0] data_rd_addr;
   assign data_rd_addr = {addr_set, addr_offset};
 
   always_ff @(posedge clk) begin
     way0_data_r <= data_way0[data_rd_addr];
-    way1_data_r <= data_way1[data_rd_addr];
   end
 
-  // Register hit metadata to align with BRAM output timing
-  always_ff @(posedge clk) begin
-    way1_hit_r <= way1_hit;
-  end
-
-  // Hit data mux uses registered signals (available cycle N+1)
-  assign hit_data = way1_hit_r ? way1_data_r : way0_data_r;
+  // Hit data mux uses registered BRAM outputs (available cycle N+1)
+  assign hit_data = way1_hit ? way1_data_r : way0_data_r;
 
   //
   // Select way for fill eviction (computed from registered fill_addr_set):
@@ -358,11 +412,11 @@ module svc_cache_axi #(
   // Write hit detection
   // ===========================================================================
   assign wr_way0_hit = (valid_table[wr_addr_set][0] &&
-                        (tag_table[wr_addr_set][0] == wr_addr_tag));
+                        (tag_way0[wr_addr_set] == wr_addr_tag));
 
   if (TWO_WAY) begin : gen_wr_way1_hit
     assign wr_way1_hit = (valid_table[wr_addr_set][1] &&
-                          (tag_table[wr_addr_set][1] == wr_addr_tag));
+                          (gen_way1.tag_way1[wr_addr_set] == wr_addr_tag));
   end else begin : gen_wr_no_way1_hit
     assign wr_way1_hit = 1'b0;
   end
@@ -387,7 +441,8 @@ module svc_cache_axi #(
 
     case (state)
       STATE_IDLE: begin
-        if (rd_valid && !hit) begin
+        // Check for pipelined miss (tag_r_valid means we checked hit last cycle)
+        if (tag_r_valid && !hit) begin
           state_next         = STATE_READ_SETUP;
           beat_word_idx_next = '0;
         end else if (wr_valid) begin
@@ -627,11 +682,15 @@ module svc_cache_axi #(
 
   // Write to banked RAMs - way select determines which bank
   always_ff @(posedge clk) begin
-    if (data_wr_en && (data_wr_strb == 4'b1111)) begin
-      if (!data_wr_way) begin
-        data_way0[data_wr_way_addr] <= data_wr_word;
-      end else begin
-        data_way1[data_wr_way_addr] <= data_wr_word;
+    if (data_wr_en && (data_wr_strb == 4'b1111) && !data_wr_way) begin
+      data_way0[data_wr_way_addr] <= data_wr_word;
+    end
+  end
+
+  if (TWO_WAY) begin : gen_data_way1_write
+    always_ff @(posedge clk) begin
+      if (data_wr_en && (data_wr_strb == 4'b1111) && data_wr_way) begin
+        gen_way1.data_way1[data_wr_way_addr] <= data_wr_word;
       end
     end
   end
@@ -666,8 +725,16 @@ module svc_cache_axi #(
   // Update tag on fill completion
   // ===========================================================================
   always_ff @(posedge clk) begin
-    if (fill_done) begin
-      tag_table[fill_addr_set][fill_way] <= fill_addr_tag;
+    if (fill_done && !fill_way) begin
+      tag_way0[fill_addr_set] <= fill_addr_tag;
+    end
+  end
+
+  if (TWO_WAY) begin : gen_tag_way1_write
+    always_ff @(posedge clk) begin
+      if (fill_done && fill_way) begin
+        gen_way1.tag_way1[fill_addr_set] <= fill_addr_tag;
+      end
     end
   end
 
@@ -700,9 +767,9 @@ module svc_cache_axi #(
         lru_update_valid <= 1'b0;
 
         // Read hit: mark the OTHER way as LRU
-        if (rd_valid && hit) begin
+        if (hit_complete) begin
           lru_update_valid <= 1'b1;
-          lru_update_set   <= addr_set;
+          lru_update_set   <= fill_addr_set;
           lru_update_value <= ~way1_hit;
         end
         // Write hit: same LRU update
@@ -829,12 +896,11 @@ module svc_cache_axi #(
   //
   // Use captured data for fill responses (avoids read-after-write hazard)
   //
-  // hit_complete is explicitly (state == STATE_IDLE) rather than rd_ready
-  // to make the timing path clear to the synthesizer.
+  // With BRAM tags, hit is determined one cycle after handshake (when tag_r_valid).
+  // To maintain 2-cycle hit latency, rd_data_valid goes high combinationally
+  // when hit is detected, rather than being registered.
   //
-  logic hit_complete;
-  assign hit_complete = (state == STATE_IDLE) && rd_valid && hit;
-  assign rd_data_valid_next = hit_complete || fill_done;
+  assign hit_complete = tag_r_valid && hit;
 
   //
   // rd_data generation
@@ -848,6 +914,7 @@ module svc_cache_axi #(
   //
   logic [31:0] fill_data_captured;
   logic        use_fill_data;
+  logic [31:0] rd_data_live;
 
   always_ff @(posedge clk) begin
     if (fill_done) begin
@@ -863,22 +930,32 @@ module svc_cache_axi #(
     end
   end
 
-  // hit_data uses registered BRAM outputs, fill_data_captured is registered
-  assign rd_data = use_fill_data ? fill_data_captured : hit_data;
+  //
+  // rd_data_valid has two components:
+  // 1. Combinational: hit_complete (immediate hit response, same cycle as BRAM output)
+  // 2. Registered: rd_data_valid_reg (fill response)
+  //
+  logic rd_data_valid_reg;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      rd_data_valid <= 1'b0;
+      rd_data_valid_reg <= 1'b0;
     end else begin
-      rd_data_valid <= rd_data_valid_next;
+      rd_data_valid_reg <= fill_done;
     end
   end
+
+  assign rd_data_valid = hit_complete || rd_data_valid_reg;
+  assign rd_data_live  = use_fill_data ? fill_data_captured : hit_data;
+  assign rd_data       = rd_data_live;
 
   // ===========================================================================
   // Cache ready signals
   // ===========================================================================
-  assign rd_ready = (state == STATE_IDLE);
-  assign rd_hit   = (state == STATE_IDLE) && hit;
+  // Allow pipelined hits; block only while a miss is being detected
+  assign rd_ready = (state == STATE_IDLE) && !(tag_r_valid && !hit);
+  // rd_hit indicates a hit is being returned this cycle
+  assign rd_hit   = hit_complete;
   assign wr_ready = (state == STATE_WRITE) && (state_next == STATE_IDLE);
   // ===========================================================================
   // Unused signals
@@ -891,8 +968,10 @@ module svc_cache_axi #(
   end
 
   if (TWO_WAY == 0) begin : gen_unused_direct
-    `SVC_UNUSED({way0_tag, way1_tag, way0_valid, way1_valid, lru_table,
-                 data_wr_way, way1_data_r, way1_hit_r, data_way1});
+    // verilog_format: off
+    `SVC_UNUSED({way0_tag_r, way1_tag_r, way0_valid_r, way1_valid_r,
+                 lru_table, data_wr_way, way1_data_r});
+    // verilog_format: on
   end
 
   // ===========================================================================
@@ -1013,7 +1092,7 @@ module svc_cache_axi #(
         f_rd_fifo_wptr            <= f_rd_fifo_wptr + 1'b1;
       end
 
-      // Pop on read data valid
+      // Pop on read data response
       if (rd_data_valid) begin
         f_rd_fifo_rptr <= f_rd_fifo_rptr + 1'b1;
       end
@@ -1085,6 +1164,7 @@ module svc_cache_axi #(
         `FASSUME(a_wr_data_stable, $stable(wr_data));
         `FASSUME(a_wr_strb_stable, $stable(wr_strb));
       end
+
     end
   end
 
@@ -1120,11 +1200,11 @@ module svc_cache_axi #(
       // rd_data_valid requires prior handshake or fill completion
       if (rd_data_valid && !$past(rd_data_valid)) begin
         `FASSERT(a_rd_data_valid_after_handshake, $past(
-                 rd_valid && rd_ready && hit) || $past(fill_done));
+                 rd_valid && rd_ready) || $past(fill_done));
       end
 
-      // rd_valid && rd_hit implies rd_data_valid next cycle
-      if ($past(rst_n) && $past(rd_valid && rd_hit)) begin
+      // rd_hit implies rd_data_valid in same cycle
+      if (rd_hit) begin
         `FASSERT(a_rd_hit_implies_rd_data_valid, rd_data_valid);
       end
     end
@@ -1145,11 +1225,11 @@ module svc_cache_axi #(
     if (!rst_n) begin
       f_req_pending <= 1'b0;
     end else begin
-      if (rd_valid && rd_ready && !hit) begin
-        // Capture address on miss acceptance
-        f_req_tag     <= addr_tag;
-        f_req_set     <= addr_set;
-        f_req_offset  <= addr_offset;
+      if (state == STATE_IDLE && tag_r_valid && !hit) begin
+        // Capture address on miss detection
+        f_req_tag     <= fill_addr_tag;
+        f_req_set     <= fill_addr_set;
+        f_req_offset  <= fill_addr_offset;
         f_req_pending <= 1'b1;
       end else if (fill_done) begin
         f_req_pending <= 1'b0;
@@ -1230,25 +1310,43 @@ module svc_cache_axi #(
   assign f_stored_way_addr = {f_req_set, f_req_offset};
 
   if (TWO_WAY) begin : gen_f_stored_2way
-    assign f_stored_word = fill_way ? data_way1[f_stored_way_addr]
-                                    : data_way0[f_stored_way_addr];
+    assign f_stored_word = (fill_way ? gen_way1.data_way1[f_stored_way_addr] :
+                            data_way0[f_stored_way_addr]);
   end else begin : gen_f_stored_direct
     assign f_stored_word = data_way0[f_stored_way_addr];
   end
 
   always_ff @(posedge clk) begin
     if (f_past_valid && rst_n && $past(rst_n)) begin
-      // Check only when no new miss is being accepted (which would corrupt f_req_*)
-      if (rd_data_valid && $past(fill_done) && !$past(rd_valid && rd_ready && !hit)) begin
+      // Check only when no new miss is being accepted
+      // (which would corrupt f_req_*)
+      if (rd_data_valid && $past(fill_done) &&
+          !$past(rd_valid && rd_ready && !hit)) begin
         // rd_data must match what we stored in the cache
-        // Skip when serialization is pending - data_table may not be fully updated
-        // because fill_done fires before all words are written
+        // Skip when serialization is pending - data_table may not be fully
+        // updated because fill_done fires before all words are written
         if (!fill_beat_pending) begin
           `FASSERT(a_fill_data_matches_table, rd_data == f_stored_word);
         end
         // And that should match what AXI delivered
         `FASSERT(a_fill_data_correct, rd_data == f_expected_word);
       end
+    end
+  end
+
+  //
+  // Fill done history (covers)
+  //
+  logic f_fill_done_p1;
+  logic f_fill_done_p2;
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      f_fill_done_p1 <= 1'b0;
+      f_fill_done_p2 <= 1'b0;
+    end else begin
+      f_fill_done_p1 <= fill_done;
+      f_fill_done_p2 <= f_fill_done_p1;
     end
   end
 
@@ -1267,7 +1365,7 @@ module svc_cache_axi #(
       `FCOVER(c_read_burst_start, $past(state
               ) == STATE_READ_SETUP && state == STATE_READ_BURST);
       `FCOVER(c_fill_done, fill_done);
-      `FCOVER(c_hit_after_fill, $past(fill_done) && rd_valid && hit);
+      `FCOVER(c_hit_after_fill, f_fill_done_p2 && hit_complete);
 
       // Cover fills where requested word is in different beats
       // These catches bugs in beat range calculations
@@ -1363,7 +1461,7 @@ module svc_cache_axi #(
 
   // Low bits unused since we word-address f_mem
   if (1) begin : gen_f_unused
-    `SVC_UNUSED({f_rd_addr[1:0], f_axi_word_addr[1:0]});
+    `SVC_UNUSED({f_rd_addr[1:0], f_axi_word_addr[1:0], f_fill_done_p2});
   end
 
   `undef FASSERT
