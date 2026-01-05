@@ -448,6 +448,7 @@ module svc_rv #(
   // Per-stage stall signals
   //
   logic stall_pc;
+  logic stall_if;
   logic stall_id;
   logic stall_ex;
   logic stall_mem;
@@ -467,6 +468,13 @@ module svc_rv #(
   assign pc_redir = (pc_sel == PC_SEL_REDIRECT);
   assign stall_pc = ((stall_cpu || data_hazard_id || op_active_ex) &&
                      !redir_valid_mem && !pc_redir);
+
+  //
+  // stall_if: IF must respect imem_stall even when stall_pc is overridden
+  // by redirects. Otherwise the fetch stage can "advance" while the I$ is
+  // busy, corrupting the BRAM-style 1-cycle alignment assumptions.
+  //
+  assign stall_if = stall_pc || imem_stall;
 
   //
   // ID stall does NOT include data_hazard_id because:
@@ -669,7 +677,7 @@ module svc_rv #(
       .BPRED    (BPRED)
   ) stage_if (
       .s_valid   (pc_m_valid),
-      .stall_i   (stall_pc),
+      .stall_i   (stall_if),
       .pc_if     (pc_if),
       .pc_next_if(pc_next_if),
       .m_valid   (if_m_valid),
