@@ -780,8 +780,8 @@ module svc_rv #(
       trap   <= 1'b0;
     end else begin
       halt   <= halt_next;
-      ebreak <= ebreak_ret || ebreak;
-      trap   <= trap_ret || trap;
+      ebreak <= (retired && ebreak_ret) || ebreak;
+      trap   <= (retired && trap_ret) || trap;
     end
   end
 
