@@ -1,7 +1,16 @@
 #! /bin/sh
 
 DEST_DIR=${1:-$(pwd)}
+DEST_DIR=$(cd "${DEST_DIR}" && pwd)
 SVC_TOP=$(cd $(dirname $(readlink -f "$0"))/.. && pwd)
+
+# Guard against running inside svc itself
+case "${DEST_DIR}" in
+  "${SVC_TOP}"*)
+    echo "Error: Cannot run init-project inside svc directory" >&2
+    exit 1
+    ;;
+esac
 
 [ -f "${DEST_DIR}"/flake.nix ] || cp "${SVC_TOP}"/flake.nix "${DEST_DIR}"
 [ -f "${DEST_DIR}"/flake.lock ] || cp "${SVC_TOP}"/flake.lock "${DEST_DIR}"
