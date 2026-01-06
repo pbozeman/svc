@@ -225,12 +225,11 @@ module svc_rv #(
   logic            rs2_used_id;
   logic            is_mc_id;
 
-  // IF -> ID (valid only, ready removed - stall controls flow)
+  // IF -> ID
   logic            if_m_valid;
 
-  // ID -> EX (ready/valid interface)
+  // ID -> EX
   logic            id_m_valid;
-  logic            id_m_ready;
 
   // EX -> MEM
   logic            ex_m_valid;
@@ -702,7 +701,6 @@ module svc_rv #(
       .s_valid (if_m_valid),
       .pred_tgt(pred_tgt_id),
       .m_valid (id_m_valid),
-      .m_ready (id_m_ready),
       .*
   );
 
@@ -723,11 +721,6 @@ module svc_rv #(
       .m_valid(ex_m_valid),
       .*
   );
-
-  //
-  // EX ready: accepts when not in multi-cycle op (stall handles flow control)
-  //
-  assign id_m_ready = !op_active_ex;
 
   //
   // MEM Stage: Memory Access

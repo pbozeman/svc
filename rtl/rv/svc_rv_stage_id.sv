@@ -8,7 +8,7 @@
 `include "svc_rv_bpred_id.sv"
 `include "svc_rv_idec.sv"
 `include "svc_rv_fwd_id.sv"
-`include "svc_rv_pipe_ctrl_rv.sv"
+`include "svc_rv_pipe_ctrl.sv"
 `include "svc_rv_pipe_data.sv"
 `include "svc_rv_regfile.sv"
 
@@ -73,7 +73,6 @@ module svc_rv_stage_id #(
 
     // Outputs to EX stage
     output logic m_valid,
-    input  logic m_ready,
 
     output logic            reg_write_ex,
     output logic            mem_read_ex,
@@ -299,14 +298,13 @@ module svc_rv_stage_id #(
   logic flush;
   logic bubble;
 
-  svc_rv_pipe_ctrl_rv #(
+  svc_rv_pipe_ctrl #(
       .REG(PIPELINED)
   ) pipe_ctrl (
       .clk      (clk),
       .rst_n    (rst_n),
       .valid_i  (s_valid),
       .valid_o  (m_valid),
-      .ready_i  (m_ready),
       .stall_i  (stall_id),
       .flush_i  (id_ex_flush),
       .bubble_i (data_hazard_id),
@@ -569,17 +567,6 @@ module svc_rv_stage_id #(
   end
 
   //
-  // Constraint: m_ready and stall_id relationship
-  //
-  // In real system: m_ready = !op_active_ex, stall_id = stall_cpu || op_active_ex
-  // So when m_ready=0 (op_active_ex=1), stall_id must be high.
-  // This constraint is: m_ready || stall_id (i.e., !m_ready implies stall_id)
-  //
-  always_comb begin
-    `FASSUME(a_m_ready_stall_constraint, m_ready || stall_id);
-  end
-
-  //
   // Constraint: id_ex_flush must not fire when EX has valid non-advancing data
   //
   // The hazard module (svc_rv_hazard.sv) guarantees this - it excludes
@@ -588,7 +575,7 @@ module svc_rv_stage_id #(
   // Flushing would corrupt bpred_taken_ex for the valid instruction in EX.
   //
   always_comb begin
-    `FASSUME(a_no_flush_when_stalled, !(m_valid && !m_ready && id_ex_flush));
+    `FASSUME(a_no_flush_when_stalled, !(m_valid && stall_id && id_ex_flush));
   end
 
   //
@@ -638,16 +625,15 @@ module svc_rv_stage_id #(
   end
 
   //
-  // m_valid/m_ready handshake assertions (output interface)
+  // Output stability assertions (stall-based flow control)
   //
-  // Unlike strict AXI-style valid/ready, pipeline flush/kill is allowed to
-  // drop m_valid even when m_ready is low. This is intentional - flush is
-  // orthogonal to flow control and gates m_valid to create bubbles.
+  // When stalled with valid output data, signals must remain stable unless
+  // flushed. Flush is orthogonal to flow control.
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      if ($past(m_valid && !m_ready && !id_ex_flush)) begin
-        // Valid must remain asserted until ready (unless flushed)
+      if ($past(m_valid && stall_id && !id_ex_flush)) begin
+        // Valid must remain asserted until unstalled (unless flushed)
         `FASSERT(a_valid_stable, m_valid || id_ex_flush);
 
         //
@@ -694,16 +680,16 @@ module svc_rv_stage_id #(
   //
   // Critical: bpred_taken_ex must remain stable when stalled with valid data.
   //
-  // When downstream is stalled (!m_ready) and we have a valid instruction in
-  // EX, bpred_taken_ex must not change. The assumption a_no_flush_when_stalled
-  // constrains id_ex_flush to not fire in this scenario.
+  // When stalled and we have a valid instruction in EX, bpred_taken_ex must
+  // not change. The assumption a_no_flush_when_stalled constrains id_ex_flush
+  // to not fire in this scenario.
   //
   // This catches bugs where id_ex_flush (e.g., from redir_pending_if with
   // PC_REG=1) corrupts the prediction via FLUSH_REG=1 on pipe_bpred_taken.
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      if ($past(m_valid && !m_ready)) begin
+      if ($past(m_valid && stall_id)) begin
         `FASSERT(a_bpred_taken_stable, bpred_taken_ex == $past(bpred_taken_ex));
       end
     end
@@ -715,14 +701,14 @@ module svc_rv_stage_id #(
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
       // Cover back-to-back valid transfers
-      `FCOVER(c_back_to_back, $past(m_valid && m_ready) && m_valid);
+      `FCOVER(c_back_to_back, $past(m_valid && !stall_id) && m_valid);
 
-      // Cover stalled transfer (valid high, ready low for a cycle)
-      `FCOVER(c_stalled, $past(m_valid && !m_ready) && m_valid && m_ready);
+      // Cover stalled transfer (valid high, stall for a cycle)
+      `FCOVER(c_stalled, $past(m_valid && stall_id) && m_valid && !stall_id);
 
       // Cover stalled with taken branch prediction - the scenario that
       // could corrupt bpred_taken_ex if id_ex_flush fired incorrectly
-      `FCOVER(c_stall_bpred_taken, $past(m_valid && !m_ready && bpred_taken_ex
+      `FCOVER(c_stall_bpred_taken, $past(m_valid && stall_id && bpred_taken_ex
               ));
     end
   end

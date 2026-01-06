@@ -137,7 +137,7 @@ function automatic string fmt_if_debug();
     default:           pc_sel_str = "????";
   endcase
 
-  stall_str = data_hazard_id ? "s" : " ";
+  stall_str = stall_pc ? "s" : " ";
   flush_str = if_id_flush ? "f" : " ";
 
   if (BTB_ENABLE != 0) begin
@@ -188,7 +188,7 @@ function automatic string fmt_id_debug();
   string flush_str;
   string pred_str;
 
-  stall_str = !stage_id.m_ready ? "s" : " ";
+  stall_str = stall_id ? "s" : " ";
   flush_str = id_ex_flush ? "f" : " ";
 
   if (BPRED != 0) begin
@@ -395,7 +395,7 @@ always @(posedge clk) begin
         //
         ex_str = $sformatf(
             "EX %s  %08x  %-30s   %08x %08x -> %08x %s %s ",
-            op_active_ex ? "s" : " ",
+            stall_ex ? "s" : " ",
             pc_ex,
             dasm_inst(
               instr_ex
@@ -544,8 +544,13 @@ always @(posedge clk) begin
       if (line != "") line = {line, " | "};
       // Only show register writes when the WB stage is actually committing
       if (!stall_wb && reg_write_wb && (rd_wb != 5'h0)) begin
-        wb_str = $sformatf("WB %s%08x %08x -> x%02d", stall_str,
-                           pc_plus4_wb - 4, stage_wb.rd_data_wb, rd_wb);
+        wb_str = $sformatf(
+            "WB %s%08x %08x -> x%02d",
+            stall_str,
+            pc_plus4_wb - 4,
+            stage_wb.rd_data_wb,
+            rd_wb
+        );
       end else begin
         wb_str = $sformatf("WB %s%08x", stall_str, pc_plus4_wb - 4);
         while (wb_str.len() < DBG_WB_WIDTH) begin
