@@ -16,10 +16,15 @@ mkdir -p "${DEST_DIR}"/rtl
 mkdir -p "${DEST_DIR}"/tb
 
 mkdir -p "${DEST_DIR}"/scripts
-cd scripts || exit
+cd "${DEST_DIR}"/scripts || exit
 SCRIPT_REL=$(realpath --relative-to=. "${SVC_TOP}"/scripts)
 ln -sf "${SCRIPT_REL}"/* .
 
 cd "${DEST_DIR}" || exit
 HOOKS_REL=$(realpath --relative-to=. "${SVC_TOP}"/.githooks)
 ln -sf "${HOOKS_REL}" "${DEST_DIR}"
+
+mkdir -p "${DEST_DIR}"/.claude
+cd "${DEST_DIR}"/.claude || exit
+SKILLS_REL=$(realpath --relative-to=. "${SVC_TOP}"/docs/skills)
+ln -sf "${SKILLS_REL}" skills
