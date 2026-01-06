@@ -87,13 +87,15 @@ module svc_rv_soc_bram_icache_bpred_fwd_tb;
   // System under test
   //
   svc_rv_soc_bram_cache #(
-      .IMEM_DEPTH (IMEM_DEPTH),
-      .PIPELINED  (1),
-      .FWD_REGFILE(1),
-      .FWD        (1),
-      .BPRED      (1),
-      .BTB_ENABLE (0),
-      .BTB_ENTRIES(16),
+      .IMEM_DEPTH   (IMEM_DEPTH),
+      .PIPELINED    (1),
+      .FWD_REGFILE  (1),
+      .ICACHE_ENABLE(1),
+      .DCACHE_ENABLE(0),
+      .FWD          (1),
+      .BPRED        (1),
+      .BTB_ENABLE   (0),
+      .BTB_ENTRIES  (16),
 
       .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
       .AXI_DATA_WIDTH(AXI_DATA_WIDTH),

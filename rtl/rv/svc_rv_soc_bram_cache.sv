@@ -32,7 +32,7 @@ module svc_rv_soc_bram_cache #(
     parameter int DMEM_DEPTH    = 1024,
     parameter int PIPELINED     = 1,
     parameter int ICACHE_ENABLE = 1,
-    parameter int DCACHE_ENABLE = 0,
+    parameter int DCACHE_ENABLE = 1,
     parameter int FWD_REGFILE   = 1,
     parameter int FWD           = 0,
     parameter int BPRED         = 0,
