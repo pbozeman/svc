@@ -28,3 +28,5 @@ mkdir -p "${DEST_DIR}"/.claude
 cd "${DEST_DIR}"/.claude || exit
 SKILLS_REL=$(realpath --relative-to=. "${SVC_TOP}"/docs/skills)
 ln -sf "${SKILLS_REL}" skills
+COMMANDS_REL=$(realpath --relative-to=. "${SVC_TOP}"/.claude/commands)
+ln -sf "${COMMANDS_REL}" commands

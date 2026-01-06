@@ -1,0 +1,230 @@
+#!/usr/bin/env python3
+"""
+Create a new Vivado project with standard scaffolding.
+
+Usage:
+    ./scripts/vivado-setup arty_s7 hello
+    ./scripts/vivado-setup arty_s7 benchmark --type ddr3
+    ./scripts/vivado-setup arty_s7 uart_test --type minimal
+"""
+
+import argparse
+import os
+import shutil
+import sys
+from pathlib import Path
+
+from jinja2 import Environment, FileSystemLoader
+
+SCRIPT_DIR = Path(__file__).parent.resolve()
+SVC_ROOT = SCRIPT_DIR.parent
+TEMPLATE_DIR = SCRIPT_DIR / "templates" / "vivado"
+
+# Supported boards and their configurations
+SUPPORTED_BOARDS = {
+    "arty_s7": {
+        "part": "xc7s50csga324-1",
+        "board_part": "digilentinc.com:arty-s7-50:part0:1.1",
+        "constraints": "arty_s7_50.xdc",
+    }
+}
+
+# Default parameters by project type
+TYPE_DEFAULTS = {
+    "rv-bram": {
+        "clock_freq": "100_000_000",
+        "baud_rate": "115_200",
+        "imem_depth": 2048,
+        "dmem_depth": 2048,
+        "ext_m": 1,
+        "top_template": "top_rv_bram.sv.j2",
+    },
+    "rv-ddr3": {
+        "clock_freq": "85_250_000",
+        "baud_rate": "115_200",
+        "imem_depth": 8704,
+        "ext_m": 1,
+        "axi_addr_width": 28,
+        "axi_data_width": 128,
+        "axi_id_width": 4,
+        "cache_size_bytes": 4096,
+        "cache_line_bytes": 32,
+        "top_template": "top_rv_ddr3.sv.j2",
+        "tcl_template": "create_project_rv_ddr3.tcl.j2",
+    },
+    "minimal": {
+        "clock_freq": "100_000_000",
+        "baud_rate": "115_200",
+        "top_template": "top_minimal.sv.j2",
+    },
+}
+
+
+def find_repo_root():
+    """Find the repository root by looking for vivado/ directory."""
+    # Start from current directory and go up
+    current = Path.cwd()
+    while current != current.parent:
+        if (current / "vivado").is_dir() or (current / "svc").is_dir():
+            return current
+        current = current.parent
+
+    # If not found, assume we're in svc and go up one level
+    if (SVC_ROOT.parent / "vivado").is_dir():
+        return SVC_ROOT.parent
+
+    return Path.cwd()
+
+
+def build_include_dirs(origin_dir: Path, repo_root: Path, svc_root: Path) -> str:
+    """Build the include_dirs string for the TCL file."""
+    # RTL directories to include
+    rtl_dirs = [
+        repo_root / "rtl",
+        svc_root / "rtl",
+        svc_root / "rtl" / "axi",
+        svc_root / "rtl" / "cdc",
+        svc_root / "rtl" / "common",
+        svc_root / "rtl" / "fifo",
+        svc_root / "rtl" / "gfx",
+        svc_root / "rtl" / "ice40",
+        svc_root / "rtl" / "rv",
+        svc_root / "rtl" / "stats",
+        svc_root / "rtl" / "uart",
+    ]
+
+    # Convert to relative paths from origin_dir (vivado/<project>/vivado/)
+    includes = []
+    for d in rtl_dirs:
+        if d.exists():
+            rel = os.path.relpath(d, origin_dir)
+            includes.append(f'[file normalize "$origin_dir/{rel}"]')
+
+    return " ".join(includes)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Create a new Vivado project with standard scaffolding"
+    )
+    parser.add_argument("board", help="Board name (e.g., arty_s7)")
+    parser.add_argument("name", help="Project name (e.g., hello)")
+    parser.add_argument(
+        "--type",
+        choices=["rv-bram", "rv-ddr3", "minimal"],
+        default="rv-bram",
+        help="Project type (default: rv-bram)",
+    )
+    parser.add_argument(
+        "--force", "-f", action="store_true", help="Overwrite existing project"
+    )
+
+    args = parser.parse_args()
+
+    # Validate board
+    if args.board not in SUPPORTED_BOARDS:
+        print(
+            f"Error: Unknown board '{args.board}'. "
+            f"Supported: {', '.join(SUPPORTED_BOARDS.keys())}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    board_config = SUPPORTED_BOARDS[args.board]
+    type_config = TYPE_DEFAULTS[args.type]
+
+    # Build project name (RV types get _rv_ prefix)
+    if args.type.startswith("rv-"):
+        project_name = f"{args.board}_rv_{args.name}"
+    else:
+        project_name = f"{args.board}_{args.name}"
+
+    # Find repository root
+    repo_root = find_repo_root()
+    svc_root = repo_root / "svc"
+
+    # Check if svc exists
+    if not svc_root.exists():
+        # Maybe we're in svc itself
+        if (repo_root / "rtl" / "rv").exists():
+            svc_root = repo_root
+            repo_root = repo_root.parent
+
+    # Create project directory
+    project_dir = repo_root / "vivado" / project_name
+
+    if project_dir.exists():
+        if args.force:
+            shutil.rmtree(project_dir)
+        else:
+            print(
+                f"Error: Project directory already exists: {project_dir}",
+                file=sys.stderr,
+            )
+            print("Use --force to overwrite", file=sys.stderr)
+            sys.exit(1)
+
+    # Create directory structure
+    (project_dir / "rtl").mkdir(parents=True)
+    (project_dir / "constraints").mkdir()
+    (project_dir / "vivado").mkdir()
+
+    # Setup Jinja2 environment
+    env = Environment(
+        loader=FileSystemLoader(TEMPLATE_DIR),
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+
+    # Build hex path
+    arch = "rv32im" if type_config.get("ext_m", 0) else "rv32i"
+    hex_path = f"../../../.build/sw/{arch}/{args.name}/{args.name}.hex"
+
+    # Build include directories
+    vivado_dir = project_dir / "vivado"
+    include_dirs = build_include_dirs(vivado_dir, repo_root, svc_root)
+
+    # Common template variables
+    template_vars = {
+        "project_name": project_name,
+        "board": args.board,
+        "name": args.name,
+        "hex_path": hex_path,
+        "part": board_config["part"],
+        "board_part": board_config["board_part"],
+        "constraints_file": board_config["constraints"],
+        "include_dirs": include_dirs,
+        **type_config,
+    }
+
+    # Render top.sv
+    top_template = env.get_template(type_config["top_template"])
+    top_content = top_template.render(**template_vars)
+    (project_dir / "rtl" / "top.sv").write_text(top_content)
+
+    # Render create_project.tcl (use type-specific template if available)
+    tcl_template_name = type_config.get("tcl_template", "create_project.tcl.j2")
+    tcl_template = env.get_template(tcl_template_name)
+    tcl_content = tcl_template.render(**template_vars)
+    (project_dir / "vivado" / "create_project.tcl").write_text(tcl_content)
+
+    # Copy static files
+    shutil.copy(
+        TEMPLATE_DIR / board_config["constraints"],
+        project_dir / "constraints" / board_config["constraints"],
+    )
+    shutil.copy(TEMPLATE_DIR / "gitignore", project_dir / ".gitignore")
+
+    # Print success message
+    print(f"Created Vivado project: {project_dir}")
+    print()
+    print("Next steps:")
+    print(f"  1. Build software: make sw/{args.name}")
+    print(f"  2. Open Vivado and source the TCL:")
+    print(f"     cd {project_dir}/vivado")
+    print("     vivado -source create_project.tcl")
+
+
+
+if __name__ == "__main__":
+    main()

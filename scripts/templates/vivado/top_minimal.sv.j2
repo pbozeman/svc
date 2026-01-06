@@ -1,0 +1,26 @@
+`include "svc.sv"
+
+// TODO: Add your module includes here
+// `include "your_module.sv"
+
+module top (
+    input  wire       CLK100MHZ,
+    input  wire       reset,
+    output wire [3:0] led,
+    output wire       UART_TX
+);
+  localparam CLOCK_FREQ = {{ clock_freq }};
+  localparam BAUD_RATE = {{ baud_rate }};
+
+  wire clk = CLK100MHZ;
+  wire rst_n = reset;
+
+  assign led[3] = reset;
+  assign led[2] = 1'b0;
+  assign led[1] = 1'b0;
+  assign led[0] = 1'b0;
+
+  // TODO: Instantiate your modules here
+  assign UART_TX = 1'b1;
+
+endmodule

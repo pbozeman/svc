@@ -1,0 +1,14 @@
+*
+!*/
+!.gitignore
+
+!rtl/*
+!constraints/*
+!LICENSE
+!README.md
+!vivado/*.tcl
+
+vivado/**/*.v
+vivado/**/*.sv
+vivado/**/*.xdc
+vivado/**/example_design/*
