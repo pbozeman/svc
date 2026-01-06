@@ -101,6 +101,13 @@ module svc_rv_soc_bram_icache_bpred_fwd_tb;
       .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
       .AXI_ID_WIDTH  (AXI_ID_WIDTH)
   ) uut (
+      .dbg_urx_valid(1'b0),
+      .dbg_urx_data (8'h0),
+      .dbg_urx_ready(),
+      .dbg_utx_valid(),
+      .dbg_utx_data (),
+      .dbg_utx_ready(1'b1),
+
       .clk  (clk),
       .rst_n(rst_n),
 

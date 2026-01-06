@@ -8,6 +8,7 @@
 `include "svc_cache_axi.sv"
 `include "svc_mem_bram.sv"
 `include "svc_rv.sv"
+`include "svc_rv_dbg_bridge.sv"
 `include "svc_rv_dmem_cache_if.sv"
 `include "svc_rv_imem_cache_if.sv"
 
@@ -44,6 +45,8 @@ module svc_rv_soc_bram_cache #(
     parameter int EXT_M         = 0,
     parameter int PC_REG        = 0,
 
+    parameter int DEBUG_ENABLED = 0,
+
     parameter logic [31:0] RESET_PC = 0,
 
     // verilog_lint: waive explicit-parameter-storage-type
@@ -67,6 +70,17 @@ module svc_rv_soc_bram_cache #(
 ) (
     input logic clk,
     input logic rst_n,
+
+    //
+    // Debug UART interface
+    //
+    input  logic       dbg_urx_valid,
+    input  logic [7:0] dbg_urx_data,
+    output logic       dbg_urx_ready,
+
+    output logic       dbg_utx_valid,
+    output logic [7:0] dbg_utx_data,
+    input  logic       dbg_utx_ready,
 
     //
     // Memory-mapped I/O interface
@@ -165,25 +179,121 @@ module svc_rv_soc_bram_cache #(
   //
   // Instruction memory interface signals
   //
-  logic        imem_ren;
-  logic [31:0] imem_raddr;
-  logic [31:0] imem_rdata;
-  logic        imem_stall;
-  logic [31:0] imem_rdata_bram;
+  logic               imem_ren;
+  logic [       31:0] imem_raddr;
+  logic [       31:0] imem_rdata;
+  logic               imem_stall;
+  logic [       31:0] imem_rdata_bram;
 
   //
   // CPU data memory interface signals
   //
-  logic        dmem_ren;
-  logic [31:0] dmem_raddr;
-  logic [31:0] dmem_rdata;
+  logic               dmem_ren;
+  logic [       31:0] dmem_raddr;
+  logic [       31:0] dmem_rdata;
 
-  logic        dmem_wen;
-  logic [31:0] dmem_waddr;
-  logic [31:0] dmem_wdata;
-  logic [ 3:0] dmem_wstrb;
+  logic               dmem_wen;
+  logic [       31:0] dmem_waddr;
+  logic [       31:0] dmem_wdata;
+  logic [        3:0] dmem_wstrb;
 
-  logic        dmem_stall;
+  logic               dmem_stall;
+
+  //
+  // Debug bridge signals
+  //
+  logic               dbg_stall;
+  logic               dbg_rst_n;
+  logic               dbg_imem_wen;
+  logic [IMEM_AW-1:0] dbg_imem_waddr;
+  logic [       31:0] dbg_imem_wdata;
+  logic [        3:0] dbg_imem_wstrb;
+  logic               dbg_dmem_wen;
+  logic [DMEM_AW-1:0] dbg_dmem_waddr;
+  logic [       31:0] dbg_dmem_wdata;
+  logic [        3:0] dbg_dmem_wstrb;
+  logic               dbg_dmem_busy;
+
+  // CPU control signals (active when debug is enabled)
+  logic               cpu_stall;
+  logic               cpu_rst_n;
+
+  assign cpu_rst_n = rst_n && dbg_rst_n;
+  assign cpu_stall = dbg_stall;
+
+  //
+  // Debug bridge (optional)
+  //
+  // For cache mode, use von Neumann addressing:
+  // - DMEM_BASE_ADDR=0: All writes route to D$ path
+  // - Both I$ and D$ fetch from same external DRAM
+  //
+  if (DEBUG_ENABLED != 0) begin : g_dbg
+    // TODO: drive from cache busy state for flow control
+    assign dbg_dmem_busy = 1'b0;
+
+    svc_rv_dbg_bridge #(
+        .IMEM_ADDR_WIDTH(IMEM_AW),
+        .DMEM_ADDR_WIDTH(DMEM_AW),
+        .IMEM_BASE_ADDR (32'hFFFF_FFFF),
+        .DMEM_BASE_ADDR (32'h0000_0000)
+    ) dbg_bridge (
+        .clk  (clk),
+        .rst_n(rst_n),
+
+        .urx_valid(dbg_urx_valid),
+        .urx_data (dbg_urx_data),
+        .urx_ready(dbg_urx_ready),
+
+        .utx_valid(dbg_utx_valid),
+        .utx_data (dbg_utx_data),
+        .utx_ready(dbg_utx_ready),
+
+        .dbg_stall(dbg_stall),
+        .dbg_rst_n(dbg_rst_n),
+
+        .dbg_imem_wen  (dbg_imem_wen),
+        .dbg_imem_waddr(dbg_imem_waddr),
+        .dbg_imem_wdata(dbg_imem_wdata),
+        .dbg_imem_wstrb(dbg_imem_wstrb),
+
+        .dbg_dmem_wen  (dbg_dmem_wen),
+        .dbg_dmem_waddr(dbg_dmem_waddr),
+        .dbg_dmem_wdata(dbg_dmem_wdata),
+        .dbg_dmem_wstrb(dbg_dmem_wstrb),
+        .dbg_dmem_busy (dbg_dmem_busy)
+    );
+  end else begin : g_no_dbg
+    assign dbg_stall      = 1'b0;
+    assign dbg_rst_n      = 1'b1;
+    assign dbg_imem_wen   = 1'b0;
+    assign dbg_imem_waddr = '0;
+    assign dbg_imem_wdata = '0;
+    assign dbg_imem_wstrb = '0;
+    assign dbg_dmem_wen   = 1'b0;
+    assign dbg_dmem_waddr = '0;
+    assign dbg_dmem_wdata = '0;
+    assign dbg_dmem_wstrb = '0;
+    assign dbg_dmem_busy  = 1'b0;
+    assign dbg_urx_ready  = 1'b0;
+    assign dbg_utx_valid  = 1'b0;
+    assign dbg_utx_data   = 8'h0;
+
+    `SVC_UNUSED({
+                dbg_urx_valid,
+                dbg_urx_data,
+                dbg_utx_ready,
+                dbg_imem_wen,
+                dbg_imem_waddr,
+                dbg_imem_wdata,
+                dbg_imem_wstrb,
+                dbg_dmem_wen,
+                dbg_dmem_waddr,
+                dbg_dmem_wdata,
+                dbg_dmem_wstrb,
+                dbg_dmem_busy
+                })
+  end
 
 `ifdef RISCV_FORMAL
   assign formal_imem_ren   = imem_ren;
@@ -325,7 +435,7 @@ module svc_rv_soc_bram_cache #(
       .RESET_PC   (RESET_PC)
   ) cpu (
       .clk  (clk),
-      .rst_n(rst_n),
+      .rst_n(cpu_rst_n),
 
       .imem_ren  (imem_ren),
       .imem_raddr(imem_raddr),
@@ -340,8 +450,8 @@ module svc_rv_soc_bram_cache #(
       .dmem_wdata(dmem_wdata),
       .dmem_wstrb(dmem_wstrb),
 
-      .dmem_stall(dmem_stall),
-      .imem_stall(imem_stall),
+      .dmem_stall(dmem_stall || cpu_stall),
+      .imem_stall(imem_stall || cpu_stall),
 
 `ifdef RISCV_FORMAL
       .rvfi_valid    (rvfi_valid),
@@ -579,6 +689,20 @@ module svc_rv_soc_bram_cache #(
     assign bram_wen = 1'b0;
 
     //
+    // Mux CPU vs debug writes - debug when CPU stalled
+    //
+    logic        eff_dmem_we;
+    logic [31:0] eff_dmem_waddr;
+    logic [31:0] eff_dmem_wdata;
+    logic [ 3:0] eff_dmem_wstrb;
+
+    assign eff_dmem_we = cpu_stall ? dbg_dmem_wen : dmem_wen;
+    assign
+        eff_dmem_waddr = cpu_stall ? 32'({dbg_dmem_waddr, 2'b00}) : dmem_waddr;
+    assign eff_dmem_wdata = cpu_stall ? dbg_dmem_wdata : dmem_wdata;
+    assign eff_dmem_wstrb = cpu_stall ? dbg_dmem_wstrb : dmem_wstrb;
+
+    //
     // Data cache interface signals
     //
     logic        cache_rd_valid;
@@ -602,10 +726,10 @@ module svc_rv_soc_bram_cache #(
         .dmem_raddr(dmem_raddr),
         .dmem_rdata(dmem_rdata),
 
-        .dmem_we   (dmem_wen),
-        .dmem_waddr(dmem_waddr),
-        .dmem_wdata(dmem_wdata),
-        .dmem_wstrb(dmem_wstrb),
+        .dmem_we   (eff_dmem_we),
+        .dmem_waddr(eff_dmem_waddr),
+        .dmem_wdata(eff_dmem_wdata),
+        .dmem_wstrb(eff_dmem_wstrb),
 
         .dmem_stall(dmem_stall),
 

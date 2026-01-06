@@ -5,6 +5,7 @@
 
 `include "svc_mem_bram.sv"
 `include "svc_rv.sv"
+`include "svc_rv_dbg_bridge.sv"
 
 //
 // RISC-V SoC with BRAM memories
@@ -18,20 +19,21 @@
 // - FWD_REGFILE=1: Enabled to reduce hazards
 //
 module svc_rv_soc_bram #(
-    parameter int XLEN        = 32,
-    parameter int IMEM_DEPTH  = 1024,
-    parameter int DMEM_DEPTH  = 1024,
-    parameter int PIPELINED   = 1,
-    parameter int FWD_REGFILE = 1,
-    parameter int FWD         = 0,
-    parameter int BPRED       = 0,
-    parameter int BTB_ENABLE  = 0,
-    parameter int BTB_ENTRIES = 16,
-    parameter int RAS_ENABLE  = 0,
-    parameter int RAS_DEPTH   = 8,
-    parameter int EXT_ZMMUL   = 0,
-    parameter int EXT_M       = 0,
-    parameter int PC_REG      = 0,
+    parameter int XLEN          = 32,
+    parameter int IMEM_DEPTH    = 1024,
+    parameter int DMEM_DEPTH    = 1024,
+    parameter int PIPELINED     = 1,
+    parameter int FWD_REGFILE   = 1,
+    parameter int FWD           = 0,
+    parameter int BPRED         = 0,
+    parameter int BTB_ENABLE    = 0,
+    parameter int BTB_ENTRIES   = 16,
+    parameter int RAS_ENABLE    = 0,
+    parameter int RAS_DEPTH     = 8,
+    parameter int EXT_ZMMUL     = 0,
+    parameter int EXT_M         = 0,
+    parameter int PC_REG        = 0,
+    parameter int DEBUG_ENABLED = 0,
 
     parameter logic [31:0] RESET_PC = 0,
 
@@ -40,6 +42,17 @@ module svc_rv_soc_bram #(
 ) (
     input logic clk,
     input logic rst_n,
+
+    //
+    // Debug UART interface (active when DEBUG_ENABLED=1)
+    //
+    input  logic       dbg_urx_valid,
+    input  logic [7:0] dbg_urx_data,
+    output logic       dbg_urx_ready,
+
+    output logic       dbg_utx_valid,
+    output logic [7:0] dbg_utx_data,
+    input  logic       dbg_utx_ready,
 
     //
     // Memory-mapped I/O interface
@@ -86,6 +99,29 @@ module svc_rv_soc_bram #(
   localparam int DMEM_AW = $clog2(DMEM_DEPTH);
 
   //
+  // Debug bridge signals
+  //
+  logic               dbg_stall;
+  logic               dbg_rst_n;
+  logic               dbg_imem_wen;
+  logic [IMEM_AW-1:0] dbg_imem_waddr;
+  logic [       31:0] dbg_imem_wdata;
+  logic [        3:0] dbg_imem_wstrb;
+  logic               dbg_dmem_wen;
+  logic [DMEM_AW-1:0] dbg_dmem_waddr;
+  logic [       31:0] dbg_dmem_wdata;
+  logic [        3:0] dbg_dmem_wstrb;
+
+  //
+  // CPU control signals
+  //
+  logic               cpu_rst_n;
+  logic               cpu_stall;
+
+  assign cpu_rst_n = rst_n && dbg_rst_n;
+  assign cpu_stall = dbg_stall;
+
+  //
   // Memory interface signals
   //
   logic [31:0] imem_raddr;
@@ -118,6 +154,59 @@ module svc_rv_soc_bram #(
   `include "svc_rv_defs.svh"
 
   //
+  // Debug bridge (optional)
+  //
+  if (DEBUG_ENABLED != 0) begin : g_dbg
+    svc_rv_dbg_bridge #(
+        .IMEM_ADDR_WIDTH(IMEM_AW),
+        .DMEM_ADDR_WIDTH(DMEM_AW),
+        .IMEM_BASE_ADDR (32'h0000_0000),
+        .DMEM_BASE_ADDR (32'(IMEM_DEPTH) << 2)
+    ) dbg_bridge (
+        .clk  (clk),
+        .rst_n(rst_n),
+
+        .urx_valid(dbg_urx_valid),
+        .urx_data (dbg_urx_data),
+        .urx_ready(dbg_urx_ready),
+
+        .utx_valid(dbg_utx_valid),
+        .utx_data (dbg_utx_data),
+        .utx_ready(dbg_utx_ready),
+
+        .dbg_stall(dbg_stall),
+        .dbg_rst_n(dbg_rst_n),
+
+        .dbg_imem_wen  (dbg_imem_wen),
+        .dbg_imem_waddr(dbg_imem_waddr),
+        .dbg_imem_wdata(dbg_imem_wdata),
+        .dbg_imem_wstrb(dbg_imem_wstrb),
+
+        .dbg_dmem_wen  (dbg_dmem_wen),
+        .dbg_dmem_waddr(dbg_dmem_waddr),
+        .dbg_dmem_wdata(dbg_dmem_wdata),
+        .dbg_dmem_wstrb(dbg_dmem_wstrb),
+        .dbg_dmem_busy (1'b0)
+    );
+  end else begin : g_no_dbg
+    assign dbg_stall      = 1'b0;
+    assign dbg_rst_n      = 1'b1;
+    assign dbg_imem_wen   = 1'b0;
+    assign dbg_imem_waddr = '0;
+    assign dbg_imem_wdata = '0;
+    assign dbg_imem_wstrb = '0;
+    assign dbg_dmem_wen   = 1'b0;
+    assign dbg_dmem_waddr = '0;
+    assign dbg_dmem_wdata = '0;
+    assign dbg_dmem_wstrb = '0;
+    assign dbg_urx_ready  = 1'b0;
+    assign dbg_utx_valid  = 1'b0;
+    assign dbg_utx_data   = 8'h0;
+
+    `SVC_UNUSED({dbg_urx_valid, dbg_urx_data, dbg_utx_ready})
+  end
+
+  //
   // Address decode
   //
   assign io_sel_rd = dmem_raddr[31];
@@ -127,7 +216,7 @@ module svc_rv_soc_bram #(
   // Register read select since we need to use it for the response mux
   //
   always_ff @(posedge clk) begin
-    if (!rst_n) begin
+    if (!cpu_rst_n) begin
       io_sel_rd_p1 <= 1'b0;
     end else if (dmem_ren) begin
       io_sel_rd_p1 <= io_sel_rd;
@@ -173,7 +262,7 @@ module svc_rv_soc_bram #(
       .RESET_PC   (RESET_PC)
   ) cpu (
       .clk  (clk),
-      .rst_n(rst_n),
+      .rst_n(cpu_rst_n),
 
       .imem_ren  (imem_ren),
       .imem_raddr(imem_raddr),
@@ -188,8 +277,8 @@ module svc_rv_soc_bram #(
       .dmem_wdata(dmem_wdata),
       .dmem_wstrb(dmem_wstrb),
 
-      .dmem_stall(1'b0),
-      .imem_stall(1'b0),
+      .dmem_stall(cpu_stall),
+      .imem_stall(cpu_stall),
 
 `ifdef RISCV_FORMAL
       .rvfi_valid    (rvfi_valid),
@@ -222,7 +311,7 @@ module svc_rv_soc_bram #(
   );
 
   //
-  // Instruction memory (BRAM)
+  // Instruction memory (BRAM) with debug write port
   //
   svc_mem_bram #(
       .DW         (32),
@@ -235,15 +324,27 @@ module svc_rv_soc_bram #(
       .rd_en  (imem_ren),
       .rd_addr(imem_raddr),
       .rd_data(imem_rdata),
-      .wr_addr(32'h0),
-      .wr_data(32'h0),
-      .wr_strb(4'h0),
-      .wr_en  (1'b0)
+      .wr_addr(32'({dbg_imem_waddr, 2'b00})),
+      .wr_data(dbg_imem_wdata),
+      .wr_strb(dbg_imem_wstrb),
+      .wr_en  (dbg_imem_wen)
   );
 
   //
-  // Data memory (BRAM)
+  // Data memory (BRAM) with debug write port
   //
+  // CPU writes take priority; debug writes only when CPU not writing
+  //
+  logic        dmem_wr_en;
+  logic [31:0] dmem_wr_addr;
+  logic [31:0] dmem_wr_data;
+  logic [ 3:0] dmem_wr_strb;
+
+  assign dmem_wr_en   = bram_wen || dbg_dmem_wen;
+  assign dmem_wr_addr = bram_wen ? dmem_waddr : 32'({{dbg_dmem_waddr, 2'b00}});
+  assign dmem_wr_data = bram_wen ? dmem_wdata : dbg_dmem_wdata;
+  assign dmem_wr_strb = bram_wen ? dmem_wstrb : dbg_dmem_wstrb;
+
   svc_mem_bram #(
       .DW       (32),
       .DEPTH    (DMEM_DEPTH),
@@ -256,10 +357,10 @@ module svc_rv_soc_bram #(
       .rd_addr(dmem_raddr),
       .rd_data(bram_rdata),
 
-      .wr_en  (bram_wen),
-      .wr_addr(dmem_waddr),
-      .wr_data(dmem_wdata),
-      .wr_strb(dmem_wstrb)
+      .wr_en  (dmem_wr_en),
+      .wr_addr(dmem_wr_addr),
+      .wr_data(dmem_wr_data),
+      .wr_strb(dmem_wr_strb)
   );
 
 endmodule
