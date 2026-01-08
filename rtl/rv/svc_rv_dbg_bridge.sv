@@ -33,9 +33,7 @@
 //      Write memory burst payload:
 //         4 bytes: start address (little-endian)
 //         2 bytes: word count (little-endian, max 65535 words)
-//         N*4 bytes: data words (little-endian)
-//         After each word (except last), bridge sends ACK (0x06)
-//         Host must wait for ACK before sending next word
+//         N*4 bytes: data words (little-endian, streamed back-to-back)
 //
 //   Response:
 //      Magic: 1 byte (0xBD)
@@ -102,7 +100,6 @@ module svc_rv_dbg_bridge #(
 
   localparam logic [7:0] STATUS_OK = 8'h00;
   localparam logic [7:0] STATUS_ERROR = 8'h01;
-  localparam logic [7:0] BURST_ACK = 8'h06;
 
   // State machine
   typedef enum logic [4:0] {
@@ -129,7 +126,6 @@ module svc_rv_dbg_bridge #(
     // Memory write execution
     STATE_MEM_WRITE,
     STATE_MEM_WAIT,
-    STATE_BURST_ACK,
     // Response states
     STATE_RESP_MAGIC,
     STATE_RESP_STATUS,
@@ -464,21 +460,13 @@ module svc_rv_dbg_bridge #(
             if (burst_cnt >= burst_len) begin
               state_next = STATE_RESP_MAGIC;
             end else begin
-              state_next = STATE_BURST_ACK;
+              // Stream next word immediately (no per-word ACK)
+              urx_ready_next = 1'b1;
+              state_next     = STATE_BURST_DATA_0;
             end
           end else begin
             state_next = STATE_RESP_MAGIC;
           end
-        end
-      end
-
-      // Send ACK after each burst word to signal ready for next
-      STATE_BURST_ACK: begin
-        if (!utx_valid || utx_ready) begin
-          utx_valid_next = 1'b1;
-          utx_data_next  = BURST_ACK;
-          urx_ready_next = 1'b1;
-          state_next     = STATE_BURST_DATA_0;
         end
       end
 

@@ -35,7 +35,6 @@ module svc_rv_dbg_bridge_tb;
   // Protocol constants
   localparam logic [7:0] CMD_MAGIC = 8'hDB;
   localparam logic [7:0] RESP_MAGIC = 8'hBD;
-  localparam logic [7:0] BURST_ACK = 8'h06;
   localparam logic [7:0] OP_READ_CTRL = 8'h00;
   localparam logic [7:0] OP_WRITE_CTRL = 8'h01;
   localparam logic [7:0] OP_WRITE_MEM = 8'h02;
@@ -247,10 +246,10 @@ module svc_rv_dbg_bridge_tb;
   endtask
 
   //
-  // Test: Burst write to IMEM
+  // Test: Burst write to IMEM (streamed, no per-word ACK)
   //
   task automatic test_write_burst_imem;
-    logic [7:0] magic, status, ack;
+    logic [7:0] magic, status;
 
     // Address 0x00000000 (IMEM), 3 words
     send_byte(CMD_MAGIC);
@@ -262,15 +261,12 @@ module svc_rv_dbg_bridge_tb;
     send_byte(8'h03);  // count low
     send_byte(8'h00);  // count high
 
+    // Stream all words back-to-back (no ACKs)
     // Word 0: 0x11111111
     send_byte(8'h11);
     send_byte(8'h11);
     send_byte(8'h11);
     send_byte(8'h11);
-
-    // Wait for ACK before next word
-    recv_byte(ack);
-    `CHECK_EQ(ack, BURST_ACK);
 
     // Word 1: 0x22222222
     send_byte(8'h22);
@@ -278,16 +274,13 @@ module svc_rv_dbg_bridge_tb;
     send_byte(8'h22);
     send_byte(8'h22);
 
-    // Wait for ACK before next word
-    recv_byte(ack);
-    `CHECK_EQ(ack, BURST_ACK);
-
-    // Word 2: 0x33333333 (last word - no ACK)
+    // Word 2: 0x33333333
     send_byte(8'h33);
     send_byte(8'h33);
     send_byte(8'h33);
     send_byte(8'h33);
 
+    // Final response
     recv_byte(magic);
     `CHECK_EQ(magic, RESP_MAGIC);
 
