@@ -11,6 +11,7 @@
 `include "svc_rv_dbg_bridge.sv"
 `include "svc_rv_dmem_cache_if.sv"
 `include "svc_rv_imem_cache_if.sv"
+`include "svc_sync_fifo_n.sv"
 
 //
 // RISC-V SoC with optional instruction and data caching
@@ -229,8 +230,54 @@ module svc_rv_soc_bram_cache #(
   // - Both I$ and D$ fetch from same external DRAM
   //
   if (DEBUG_ENABLED != 0) begin : g_dbg
-    // TODO: drive from cache busy state for flow control
-    assign dbg_dmem_busy = 1'b0;
+    // Flow control for debug burst writes.
+    //
+    // When DCACHE_ENABLE=1, debug writes are funneled through svc_rv_dmem_cache_if
+    // and svc_cache_axi, which may deassert ready while an AXI write is in-flight.
+    // If we don't backpressure the debug bridge, it can drop writes (the cache
+    // interface accepts one store at a time).
+    assign dbg_dmem_busy = dmem_stall;
+
+    //
+    // Debug UART RX buffering
+    //
+    // svc_uart_rx has minimal buffering and will drop bytes if the consumer
+    // deasserts ready across byte boundaries. In cache/AXI configurations, the
+    // debug bridge may need to pause between words while stores complete, so add
+    // a small FIFO to absorb UART traffic and avoid protocol desynchronization.
+    //
+    // TODO: eval if this was really needed
+    //
+    localparam int DBG_URX_FIFO_AW = 10;  // 1024 bytes
+    logic       dbg_urx_fifo_w_inc;
+    logic       dbg_urx_fifo_w_full_n;
+    logic       dbg_urx_fifo_r_inc;
+    logic       dbg_urx_fifo_r_empty_n;
+    logic [7:0] dbg_urx_fifo_r_data;
+    logic       dbg_urx_ready_int;
+    logic       dbg_urx_valid_int;
+    logic [7:0] dbg_urx_data_int;
+
+    assign dbg_urx_ready      = dbg_urx_fifo_w_full_n;
+    assign dbg_urx_fifo_w_inc = dbg_urx_valid && dbg_urx_ready;
+    assign dbg_urx_valid_int  = dbg_urx_fifo_r_empty_n;
+    assign dbg_urx_data_int   = dbg_urx_fifo_r_data;
+    assign dbg_urx_fifo_r_inc = dbg_urx_valid_int && dbg_urx_ready_int;
+
+    svc_sync_fifo_n #(
+        .ADDR_WIDTH(DBG_URX_FIFO_AW),
+        .DATA_WIDTH(8)
+    ) dbg_urx_fifo (
+        .clk      (clk),
+        .rst_n    (rst_n),
+        .clr      (1'b0),
+        .w_inc    (dbg_urx_fifo_w_inc),
+        .w_data   (dbg_urx_data),
+        .w_full_n (dbg_urx_fifo_w_full_n),
+        .r_inc    (dbg_urx_fifo_r_inc),
+        .r_empty_n(dbg_urx_fifo_r_empty_n),
+        .r_data   (dbg_urx_fifo_r_data)
+    );
 
     svc_rv_dbg_bridge #(
         .IMEM_ADDR_WIDTH(IMEM_AW),
@@ -241,9 +288,9 @@ module svc_rv_soc_bram_cache #(
         .clk  (clk),
         .rst_n(rst_n),
 
-        .urx_valid(dbg_urx_valid),
-        .urx_data (dbg_urx_data),
-        .urx_ready(dbg_urx_ready),
+        .urx_valid(dbg_urx_valid_int),
+        .urx_data (dbg_urx_data_int),
+        .urx_ready(dbg_urx_ready_int),
 
         .utx_valid(dbg_utx_valid),
         .utx_data (dbg_utx_data),
