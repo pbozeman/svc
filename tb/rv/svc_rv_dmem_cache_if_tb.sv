@@ -133,10 +133,13 @@ module svc_rv_dmem_cache_if_tb;
   // New design: cache_rd_valid is combinational, so it appears
   // in the same cycle as dmem_ren. Hits don't stall.
   //
+  // Note: cache_rd_hit is a *response* qualifier (aligned with
+  // cache_rd_data_valid), not a speculative/combinational "will hit" signal.
+  //
   task automatic test_cache_read_hit;
     dmem_ren     = 1'b1;
     dmem_raddr   = 32'h0000_1000;
-    cache_rd_hit = 1'b1;
+    cache_rd_hit = 1'b0;
 
     // Combinational: cache_rd_valid appears immediately
     `CHECK_TRUE(cache_rd_valid);
@@ -149,7 +152,7 @@ module svc_rv_dmem_cache_if_tb;
 
     // Data arrives from cache (cache_rd_data_valid next cycle after hit)
     dmem_ren            = 1'b0;
-    cache_rd_hit        = 1'b0;
+    cache_rd_hit        = 1'b1;
     cache_rd_data       = 32'hCAFE_BABE;
     cache_rd_data_valid = 1'b1;
 
@@ -321,45 +324,34 @@ module svc_rv_dmem_cache_if_tb;
   // Test address stability during handshake (proper valid/ready protocol)
   //
   // For immediate handshakes (ready high), address is combinational passthrough.
-  // For delayed handshakes, address is registered to maintain stability.
+  // For delayed handshakes (ready low), address is registered to maintain
+  // stability while cache_rd_valid is held high.
   //
   task automatic test_address_passthrough;
-    dmem_ren     = 1'b1;
-    dmem_raddr   = 32'h0000_4000;
-    cache_rd_hit = 1'b0;
+    dmem_ren       = 1'b1;
+    dmem_raddr     = 32'h0000_4000;
+    cache_rd_hit   = 1'b0;
+    cache_rd_ready = 1'b0;
 
     // Combinational passthrough on start
     `CHECK_EQ(cache_rd_addr, 32'h0000_4000);
 
     `TICK(clk);
 
-    // miss_inflight set, cache_rd_valid goes low
-    cache_rd_ready = 1'b0;
-    dmem_ren       = 1'b0;
+    // Hold valid high across backpressure and keep address stable.
+    dmem_ren   = 1'b0;
 
     // Address is registered - maintains original request address for stability
     // (proper valid/ready protocol requires stable address during handshake)
-    dmem_raddr     = 32'h0000_5000;
+    dmem_raddr = 32'h0000_5000;
+    `CHECK_TRUE(cache_rd_valid);
     `CHECK_EQ(cache_rd_addr, 32'h0000_4000);  // still original address
 
-    // Simulate fill latency
-    repeat (2) begin
-      `TICK(clk);
-      `CHECK_TRUE(dmem_stall);
-    end
-
-    // Complete the miss
-    cache_rd_data       = 32'hAAAA_BBBB;
-    cache_rd_data_valid = 1'b1;
-    cache_rd_ready      = 1'b1;
+    // Release backpressure and allow handshake to complete.
+    cache_rd_ready = 1'b1;
     `TICK(clk);
 
-    // miss_returning holds stall for one extra cycle
-    cache_rd_data_valid = 1'b0;
-    `CHECK_TRUE(dmem_stall);
-    `TICK(clk);
-
-    `CHECK_FALSE(dmem_stall);
+    cache_rd_ready = 1'b1;
   endtask
 
   //
@@ -371,7 +363,7 @@ module svc_rv_dmem_cache_if_tb;
   task automatic test_speculative_hit;
     dmem_ren     = 1'b1;
     dmem_raddr   = 32'h0000_1000;
-    cache_rd_hit = 1'b1;
+    cache_rd_hit = 1'b0;
 
     // Combinational: valid and hit use same address
     `CHECK_TRUE(cache_rd_valid);
@@ -382,7 +374,7 @@ module svc_rv_dmem_cache_if_tb;
 
     // Cache returns data
     dmem_ren            = 1'b0;
-    cache_rd_hit        = 1'b0;
+    cache_rd_hit        = 1'b1;
     cache_rd_data       = 32'hDEAD_BEEF;
     cache_rd_data_valid = 1'b1;
 
@@ -402,7 +394,7 @@ module svc_rv_dmem_cache_if_tb;
     // First hit
     dmem_ren     = 1'b1;
     dmem_raddr   = 32'h0000_1000;
-    cache_rd_hit = 1'b1;
+    cache_rd_hit = 1'b0;
 
     `CHECK_TRUE(cache_rd_valid);
     `CHECK_FALSE(dmem_stall);
@@ -455,7 +447,7 @@ module svc_rv_dmem_cache_if_tb;
     // First: speculative hit
     dmem_ren     = 1'b1;
     dmem_raddr   = 32'h0000_1000;
-    cache_rd_hit = 1'b1;
+    cache_rd_hit = 1'b0;
 
     `CHECK_FALSE(dmem_stall);
     `TICK(clk);
@@ -463,7 +455,7 @@ module svc_rv_dmem_cache_if_tb;
     // Second: miss (cache_rd_hit goes low)
     // First hit's data arrives same cycle
     dmem_raddr          = 32'h0000_2000;
-    cache_rd_hit        = 1'b0;
+    cache_rd_hit        = 1'b1;
     cache_rd_data       = 32'hAAAA_AAAA;
     cache_rd_data_valid = 1'b1;
 
@@ -479,6 +471,7 @@ module svc_rv_dmem_cache_if_tb;
     dmem_ren            = 1'b0;
     cache_rd_ready      = 1'b0;
     cache_rd_data_valid = 1'b0;
+    cache_rd_hit        = 1'b0;
     `CHECK_TRUE(dmem_stall);
 
     // Simulate fill latency
@@ -547,14 +540,14 @@ module svc_rv_dmem_cache_if_tb;
     // Now: speculative hit
     dmem_ren     = 1'b1;
     dmem_raddr   = 32'h0000_2000;
-    cache_rd_hit = 1'b1;
+    cache_rd_hit = 1'b0;
 
     `CHECK_TRUE(cache_rd_valid);
     `CHECK_FALSE(dmem_stall);
     `TICK(clk);
 
     dmem_ren            = 1'b0;
-    cache_rd_hit        = 1'b0;
+    cache_rd_hit        = 1'b1;
     cache_rd_data       = 32'hDDDD_DDDD;
     cache_rd_data_valid = 1'b1;
 

@@ -2,7 +2,6 @@
 `define SVC_RV_IMEM_CACHE_IF_SV
 
 `include "svc.sv"
-`include "svc_unused.sv"
 
 //
 // RISC-V Instruction Memory to Cache Interface Bridge
@@ -73,7 +72,12 @@ module svc_rv_imem_cache_if (
   //
   // Cache io start conditions and signals
   //
-  assign cache_miss_detected = (cache_rd_fire_q && !cache_rd_data_valid &&
+  // Detect miss in the cycle immediately after a request is accepted.
+  //
+  // Use cache_rd_hit (rather than cache_rd_data_valid) so miss detection
+  // depends only on the tag compare result, not on the broader rd_data muxing
+  // logic. This helps keep the stall path short without impacting hit latency.
+  assign cache_miss_detected = (cache_rd_fire_q && !cache_rd_hit &&
                                 !cache_miss_inflight);
 
   assign cache_rd_start = ((state == STATE_IDLE) && imem_ren &&
@@ -85,7 +89,11 @@ module svc_rv_imem_cache_if (
   assign imem_stall = ((state == STATE_WAIT) || cache_miss_inflight ||
                        cache_miss_return_hold || cache_miss_detected);
 
-  assign cache_rd_addr = imem_stall ? cache_rd_addr_reg : imem_raddr;
+  // Keep cache_rd_addr stable only when we must hold rd_valid high across
+  // backpressure (STATE_WAIT). Do not select cache_rd_addr based on imem_stall
+  // (or other cache-driven signals), to avoid a combinational timing path from
+  // cache hit/miss determination back into the cache's BRAM address inputs.
+  assign cache_rd_addr = (state == STATE_WAIT) ? cache_rd_addr_reg : imem_raddr;
 
   //
   // State machine for miss tracking
@@ -189,8 +197,6 @@ module svc_rv_imem_cache_if (
       imem_rdata = 32'h0;
     end
   end
-
-  `SVC_UNUSED({cache_rd_hit});
 
 `ifdef FORMAL
 `ifdef FORMAL_SVC_RV_IMEM_CACHE_IF
