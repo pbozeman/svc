@@ -97,6 +97,8 @@ module svc_rv_dbg_bridge #(
   localparam logic [7:0] OP_WRITE_CTRL = 8'h01;
   localparam logic [7:0] OP_WRITE_MEM = 8'h02;
   localparam logic [7:0] OP_WRITE_BURST = 8'h03;
+  localparam logic [7:0] OP_READ_STATS = 8'h04;
+  localparam logic [7:0] OP_CLEAR_STATS = 8'h05;
 
   localparam logic [7:0] STATUS_OK = 8'h00;
   localparam logic [7:0] STATUS_ERROR = 8'h01;
@@ -150,8 +152,12 @@ module svc_rv_dbg_bridge #(
   // Response registers
   logic   [ 7:0] resp_status;
   logic   [ 7:0] resp_status_next;
-  logic   [ 7:0] resp_data;
-  logic   [ 7:0] resp_data_next;
+  logic   [63:0] resp_payload;
+  logic   [63:0] resp_payload_next;
+  logic   [ 3:0] resp_len;
+  logic   [ 3:0] resp_len_next;
+  logic   [ 3:0] resp_idx;
+  logic   [ 3:0] resp_idx_next;
 
   // Control registers (directly output)
   logic          ctrl_stall;
@@ -169,6 +175,11 @@ module svc_rv_dbg_bridge #(
   logic          mem_wen_next;
   logic   [31:0] mem_waddr;
   logic   [31:0] mem_waddr_next;
+
+  // Debug stats (memory writes actually issued)
+  logic   [31:0] stat_wr_count;
+  logic   [31:0] stat_wr_checksum;
+  logic          stat_clear_pulse;
 
   // Address decode (use registered write address for memory outputs)
   logic          imem_select;
@@ -255,26 +266,30 @@ module svc_rv_dbg_bridge #(
 
   // State machine
   always_comb begin
-    state_next       = state;
+    state_next        = state;
 
-    cmd_op_next      = cmd_op;
-    cmd_addr_next    = cmd_addr;
-    cmd_data_next    = cmd_data;
-    burst_len_next   = burst_len;
-    burst_cnt_next   = burst_cnt;
+    cmd_op_next       = cmd_op;
+    cmd_addr_next     = cmd_addr;
+    cmd_data_next     = cmd_data;
+    burst_len_next    = burst_len;
+    burst_cnt_next    = burst_cnt;
 
-    resp_status_next = resp_status;
-    resp_data_next   = resp_data;
+    resp_status_next  = resp_status;
+    resp_payload_next = resp_payload;
+    resp_len_next     = resp_len;
+    resp_idx_next     = resp_idx;
 
-    ctrl_stall_next  = ctrl_stall;
-    ctrl_rst_n_next  = ctrl_rst_n;
+    ctrl_stall_next   = ctrl_stall;
+    ctrl_rst_n_next   = ctrl_rst_n;
 
-    urx_ready_next   = urx_ready;
-    utx_valid_next   = utx_valid && !utx_ready;
-    utx_data_next    = utx_data;
+    urx_ready_next    = urx_ready;
+    utx_valid_next    = utx_valid && !utx_ready;
+    utx_data_next     = utx_data;
 
-    mem_wen_next     = 1'b0;
-    mem_waddr_next   = mem_waddr;
+    mem_wen_next      = 1'b0;
+    mem_waddr_next    = mem_waddr;
+
+    stat_clear_pulse  = 1'b0;
 
     case (state)
       STATE_IDLE: begin
@@ -291,28 +306,58 @@ module svc_rv_dbg_bridge #(
           cmd_op_next = urx_data;
           case (urx_data)
             OP_READ_CTRL: begin
-              urx_ready_next   = 1'b0;
-              resp_status_next = STATUS_OK;
-              resp_data_next   = {6'b0, ~ctrl_rst_n, ctrl_stall};
-              state_next       = STATE_RESP_MAGIC;
+              urx_ready_next    = 1'b0;
+              resp_status_next  = STATUS_OK;
+              resp_payload_next = {56'b0, 6'b0, ~ctrl_rst_n, ctrl_stall};
+              resp_len_next     = 4'd1;
+              resp_idx_next     = 4'd0;
+              state_next        = STATE_RESP_MAGIC;
+            end
+
+            OP_READ_STATS: begin
+              urx_ready_next    = 1'b0;
+              resp_status_next  = STATUS_OK;
+              // Payload is little-endian: count (4 bytes) then checksum (4 bytes).
+              resp_payload_next = {stat_wr_checksum, stat_wr_count};
+              resp_len_next     = 4'd8;
+              resp_idx_next     = 4'd0;
+              state_next        = STATE_RESP_MAGIC;
+            end
+
+            OP_CLEAR_STATS: begin
+              urx_ready_next    = 1'b0;
+              stat_clear_pulse  = 1'b1;
+              resp_status_next  = STATUS_OK;
+              resp_len_next     = 4'd0;
+              resp_idx_next     = 4'd0;
+              resp_payload_next = 64'h0;
+              state_next        = STATE_RESP_MAGIC;
             end
 
             OP_WRITE_CTRL: begin
-              state_next = STATE_CTRL_DATA;
+              resp_len_next = 4'd0;
+              resp_idx_next = 4'd0;
+              state_next    = STATE_CTRL_DATA;
             end
 
             OP_WRITE_MEM: begin
-              state_next = STATE_MEM_ADDR_0;
+              resp_len_next = 4'd0;
+              resp_idx_next = 4'd0;
+              state_next    = STATE_MEM_ADDR_0;
             end
 
             OP_WRITE_BURST: begin
-              state_next = STATE_MEM_ADDR_0;
+              resp_len_next = 4'd0;
+              resp_idx_next = 4'd0;
+              state_next    = STATE_MEM_ADDR_0;
             end
 
             default: begin
               // Unknown op, send error response
               urx_ready_next   = 1'b0;
               resp_status_next = STATUS_ERROR;
+              resp_len_next    = 4'd0;
+              resp_idx_next    = 4'd0;
               state_next       = STATE_RESP_MAGIC;
             end
           endcase
@@ -326,6 +371,8 @@ module svc_rv_dbg_bridge #(
           ctrl_rst_n_next  = ~urx_data_bit1;
           urx_ready_next   = 1'b0;
           resp_status_next = STATUS_OK;
+          resp_len_next    = 4'd0;
+          resp_idx_next    = 4'd0;
           state_next       = STATE_RESP_MAGIC;
         end
       end
@@ -441,16 +488,25 @@ module svc_rv_dbg_bridge #(
 
       // Execute memory write
       STATE_MEM_WRITE: begin
-        mem_wen_next     = 1'b1;
-        mem_waddr_next   = cmd_addr;
         resp_status_next = STATUS_OK;
+        resp_len_next    = 4'd0;
+        resp_idx_next    = 4'd0;
+        mem_waddr_next   = cmd_addr;
 
-        if (cmd_op == OP_WRITE_BURST) begin
-          cmd_addr_next  = cmd_addr + 32'h4;
-          burst_cnt_next = burst_cnt + 16'h1;
+        // Respect downstream backpressure for cache-backed writes. If we assert
+        // mem_wen while dbg_dmem_busy is high, the store can be dropped.
+        if (!dbg_dmem_busy) begin
+          mem_wen_next = 1'b1;
+
+          if (cmd_op == OP_WRITE_BURST) begin
+            cmd_addr_next  = cmd_addr + 32'h4;
+            burst_cnt_next = burst_cnt + 16'h1;
+          end
+
+          state_next = STATE_MEM_WAIT;
+        end else begin
+          state_next = STATE_MEM_WRITE;
         end
-
-        state_next = STATE_MEM_WAIT;
       end
 
       // Wait for memory write to complete (cache mode flow control)
@@ -483,7 +539,7 @@ module svc_rv_dbg_bridge #(
         if (!utx_valid || utx_ready) begin
           utx_valid_next = 1'b1;
           utx_data_next  = resp_status;
-          if (cmd_op == OP_READ_CTRL) begin
+          if (resp_len != 0) begin
             state_next = STATE_RESP_DATA;
           end else begin
             state_next = STATE_IDLE;
@@ -494,8 +550,13 @@ module svc_rv_dbg_bridge #(
       STATE_RESP_DATA: begin
         if (!utx_valid || utx_ready) begin
           utx_valid_next = 1'b1;
-          utx_data_next  = resp_data;
-          state_next     = STATE_IDLE;
+          utx_data_next  = resp_payload[(resp_idx*8)+:8];
+          resp_idx_next  = resp_idx + 4'd1;
+          if ((resp_idx + 4'd1) >= resp_len) begin
+            state_next = STATE_IDLE;
+          end else begin
+            state_next = STATE_RESP_DATA;
+          end
         end
       end
 
@@ -508,35 +569,51 @@ module svc_rv_dbg_bridge #(
   // Sequential logic
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      state      <= STATE_IDLE;
-      ctrl_stall <= 1'b1;
-      ctrl_rst_n <= 1'b0;
-      urx_ready  <= 1'b1;
-      utx_valid  <= 1'b0;
-      utx_data   <= 8'h00;
-      mem_wen    <= 1'b0;
-      mem_waddr  <= 32'h0;
+      state            <= STATE_IDLE;
+      ctrl_stall       <= 1'b1;
+      ctrl_rst_n       <= 1'b0;
+      urx_ready        <= 1'b1;
+      utx_valid        <= 1'b0;
+      utx_data         <= 8'h00;
+      mem_wen          <= 1'b0;
+      mem_waddr        <= 32'h0;
+      resp_status      <= STATUS_OK;
+      resp_payload     <= 64'h0;
+      resp_len         <= 4'd0;
+      resp_idx         <= 4'd0;
+      stat_wr_count    <= 32'h0;
+      stat_wr_checksum <= 32'h0;
     end else begin
-      state      <= state_next;
-      ctrl_stall <= ctrl_stall_next;
-      ctrl_rst_n <= ctrl_rst_n_next;
-      urx_ready  <= urx_ready_next;
-      utx_valid  <= utx_valid_next;
-      utx_data   <= utx_data_next;
-      mem_wen    <= mem_wen_next;
-      mem_waddr  <= mem_waddr_next;
+      state        <= state_next;
+      ctrl_stall   <= ctrl_stall_next;
+      ctrl_rst_n   <= ctrl_rst_n_next;
+      urx_ready    <= urx_ready_next;
+      utx_valid    <= utx_valid_next;
+      utx_data     <= utx_data_next;
+      mem_wen      <= mem_wen_next;
+      mem_waddr    <= mem_waddr_next;
+      resp_status  <= resp_status_next;
+      resp_payload <= resp_payload_next;
+      resp_len     <= resp_len_next;
+      resp_idx     <= resp_idx_next;
+
+      if (stat_clear_pulse) begin
+        stat_wr_count    <= 32'h0;
+        stat_wr_checksum <= 32'h0;
+      end else if (mem_wen_next) begin
+        stat_wr_count    <= stat_wr_count + 32'd1;
+        stat_wr_checksum <= stat_wr_checksum + cmd_addr + cmd_data;
+      end
     end
   end
 
   // Non-reset registers
   always_ff @(posedge clk) begin
-    cmd_op      <= cmd_op_next;
-    cmd_addr    <= cmd_addr_next;
-    cmd_data    <= cmd_data_next;
-    burst_len   <= burst_len_next;
-    burst_cnt   <= burst_cnt_next;
-    resp_status <= resp_status_next;
-    resp_data   <= resp_data_next;
+    cmd_op    <= cmd_op_next;
+    cmd_addr  <= cmd_addr_next;
+    cmd_data  <= cmd_data_next;
+    burst_len <= burst_len_next;
+    burst_cnt <= burst_cnt_next;
   end
 
 endmodule
