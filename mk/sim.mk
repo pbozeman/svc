@@ -199,6 +199,34 @@ $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_sim_rule,$(mod),i,$(BUILD
 $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_sim_rule,$(mod),im,$(BUILD_DIR)/sw/rv32im)))
 $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_sim_rule,$(mod),i_zmmul,$(BUILD_DIR)/sw/rv32i_zmmul)))
 
+# BRAM cache with latency injection simulation build rules
+# Uses svc_axi_mem_latency for DDR3/MIG-like timing stress testing
+define rv_cache_latency_sim_rule
+.PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_cache_latency_$(2)_sim/Vrv_$(1)_sim
+$(SIM_BUILD_DIR)/rv_$(1)_cache_latency_$(2)_sim/Vrv_$(1)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv $(SIM_MAIN_CPP) Makefile | $(SIM_BUILD_DIR)
+	@$$(IVERILOG) -M $(SIM_BUILD_DIR)/rv_$(1)_cache_latency_$(2)_sim.dep -o /dev/null \
+		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) $$(word 2,$$^) 2>/dev/null || true
+	@echo "$$@: $$$$(tr '\n' ' ' < $(SIM_BUILD_DIR)/rv_$(1)_cache_latency_$(2)_sim.dep)" > $(SIM_BUILD_DIR)/rv_$(1)_cache_latency_$(2)_sim.d
+	@$$(VERILATOR_SIM) \
+		-DSVC_MEM_BRAM_CACHE \
+		-DSVC_AXI_LATENCY \
+		-DRV_IMEM_DEPTH=$$(or $$($(1)_RV_IMEM_DEPTH),$$(RV_IMEM_DEPTH)) \
+		-DRV_DMEM_DEPTH=$$(or $$($(1)_RV_DMEM_DEPTH),$$(RV_DMEM_DEPTH)) \
+		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
+		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
+		$(if $(filter im,$(2)),-DRV_ARCH_M) \
+		-I$$(PRJ_RTL_DIR)/rv_$(1) \
+		--Mdir $(SIM_BUILD_DIR)/rv_$(1)_cache_latency_$(2)_sim \
+		--top-module rv_$(1)_sim \
+		-CFLAGS '-DSIM_HEADER=\"Vrv_$(1)_sim.h\" -DSIM_TOP=Vrv_$(1)_sim -DSIM_NAME=\"rv_$(1)_cache_latency_$(2)_sim\"' \
+		$$(word 2,$$^) $(SIM_MAIN_CPP)
+endef
+
+# Generate BRAM cache latency rules for each module x architecture
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_latency_sim_rule,$(mod),i,$(BUILD_DIR)/sw/rv32i)))
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_latency_sim_rule,$(mod),im,$(BUILD_DIR)/sw/rv32im)))
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_latency_sim_rule,$(mod),i_zmmul,$(BUILD_DIR)/sw/rv32i_zmmul)))
+
 # Phony targets for convenience
 # Base RV sims (rv_*_sim without arch suffix) - defaults to rv32i
 RV_BASE_SIMS := $(addprefix rv_,$(addsuffix _sim,$(RV_SIM_MODULES)))
@@ -221,6 +249,11 @@ RV_CACHE_I_SIMS := $(addprefix rv_,$(addsuffix _cache_i_sim,$(RV_SIM_MODULES)))
 RV_CACHE_IM_SIMS := $(addprefix rv_,$(addsuffix _cache_im_sim,$(RV_SIM_MODULES)))
 RV_CACHE_I_ZMMUL_SIMS := $(addprefix rv_,$(addsuffix _cache_i_zmmul_sim,$(RV_SIM_MODULES)))
 
+# BRAM cache with latency injection phony targets
+RV_CACHE_LATENCY_I_SIMS := $(addprefix rv_,$(addsuffix _cache_latency_i_sim,$(RV_SIM_MODULES)))
+RV_CACHE_LATENCY_IM_SIMS := $(addprefix rv_,$(addsuffix _cache_latency_im_sim,$(RV_SIM_MODULES)))
+RV_CACHE_LATENCY_I_ZMMUL_SIMS := $(addprefix rv_,$(addsuffix _cache_latency_i_zmmul_sim,$(RV_SIM_MODULES)))
+
 # Debug flags passed as plusargs to the simulation
 SIM_DBG_FLAGS := \
 	$(if $(SVC_RV_DBG_CPU),+SVC_RV_DBG_CPU=$(SVC_RV_DBG_CPU)) \
@@ -232,7 +265,7 @@ SIM_DBG_FLAGS := \
 	$(if $(SVC_RV_DBG_HAZ),+SVC_RV_DBG_HAZ=$(SVC_RV_DBG_HAZ)) \
 	$(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
 
-.PHONY: $(RV_BASE_SIMS) $(RV_I_SIMS) $(RV_IM_SIMS) $(RV_I_ZMMUL_SIMS) $(RV_SRAM_I_SIMS) $(RV_SRAM_IM_SIMS) $(RV_SRAM_I_ZMMUL_SIMS) $(RV_SRAM_SC_I_SIMS) $(RV_SRAM_SC_IM_SIMS) $(RV_SRAM_SC_I_ZMMUL_SIMS) $(RV_CACHE_I_SIMS) $(RV_CACHE_IM_SIMS) $(RV_CACHE_I_ZMMUL_SIMS)
+.PHONY: $(RV_BASE_SIMS) $(RV_I_SIMS) $(RV_IM_SIMS) $(RV_I_ZMMUL_SIMS) $(RV_SRAM_I_SIMS) $(RV_SRAM_IM_SIMS) $(RV_SRAM_I_ZMMUL_SIMS) $(RV_SRAM_SC_I_SIMS) $(RV_SRAM_SC_IM_SIMS) $(RV_SRAM_SC_I_ZMMUL_SIMS) $(RV_CACHE_I_SIMS) $(RV_CACHE_IM_SIMS) $(RV_CACHE_I_ZMMUL_SIMS) $(RV_CACHE_LATENCY_I_SIMS) $(RV_CACHE_LATENCY_IM_SIMS) $(RV_CACHE_LATENCY_I_ZMMUL_SIMS)
 
 # Execution targets - run the Verilator binary
 # Use explicit path construction because GNU make has issues with multiple % in prerequisites
@@ -316,6 +349,19 @@ $(RV_CACHE_IM_SIMS): rv_%_cache_im_sim:
 $(RV_CACHE_I_ZMMUL_SIMS): rv_%_cache_i_zmmul_sim:
 	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_cache_i_zmmul_sim/Vrv_$*_sim
 	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_cache_i_zmmul_sim/Vrv_$*_sim,$*)
+
+# BRAM cache with latency injection execution targets
+$(RV_CACHE_LATENCY_I_SIMS): rv_%_cache_latency_i_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_cache_latency_i_sim/Vrv_$*_sim
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_cache_latency_i_sim/Vrv_$*_sim,$*)
+
+$(RV_CACHE_LATENCY_IM_SIMS): rv_%_cache_latency_im_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_cache_latency_im_sim/Vrv_$*_sim
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_cache_latency_im_sim/Vrv_$*_sim,$*)
+
+$(RV_CACHE_LATENCY_I_ZMMUL_SIMS): rv_%_cache_latency_i_zmmul_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_cache_latency_i_zmmul_sim/Vrv_$*_sim
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_cache_latency_i_zmmul_sim/Vrv_$*_sim,$*)
 
 # Hex files are built by targeted sw builds (recursive make into sw/<module>)
 # The .d files (included above) provide source dependencies for rebuild detection

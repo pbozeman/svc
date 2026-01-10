@@ -40,7 +40,24 @@
 logic [31:0] MEM[1024];
 `include "svc_rv_asm.svh"
 
-`define CHECK_WAIT_FOR_EBREAK(clk, n = 256) `CHECK_WAIT_FOR(clk, ebreak, n)
+//
+// Post-EBREAK flush cycles for write completion
+//
+// Override before including this file for testbenches with high-latency
+// memory (e.g., DDR3/MIG simulation). This allows writes to complete
+// before memory is checked.
+//
+`ifndef POST_EBREAK_FLUSH_CYCLES
+`define POST_EBREAK_FLUSH_CYCLES 0
+`endif
+
+`ifndef CHECK_WAIT_FOR_EBREAK_TIMEOUT
+`define CHECK_WAIT_FOR_EBREAK_TIMEOUT 256
+`endif
+
+`define CHECK_WAIT_FOR_EBREAK(clk, n = `CHECK_WAIT_FOR_EBREAK_TIMEOUT) \
+  `CHECK_WAIT_FOR(clk, ebreak, n); \
+  repeat (`POST_EBREAK_FLUSH_CYCLES) @(posedge clk)
 
 // CHECK_XXX don't work on strings or reals, so we partially reimplement
 // the checks here. String/Real detection in the core macros would be nice.
@@ -2683,7 +2700,7 @@ task automatic test_fib12;
 
   load_program();
 
-  `CHECK_WAIT_FOR(clk, ebreak, 256);
+  `CHECK_WAIT_FOR(clk, ebreak, 2048);
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[11], 32'd144);
   `CHECK_EQ(uut.cpu.stage_id.regfile.regs[30], 32'd288);
 

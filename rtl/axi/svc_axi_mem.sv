@@ -303,7 +303,9 @@ module svc_axi_mem #(
 
           if (sb_s_wlast) begin
             if (!s_axi_bvalid || s_axi_bready) begin
-              sb_s_awready      = 1'b1;
+              // Don't set sb_s_awready here - if an AW is pending in the
+              // skid buffer, it would be consumed but not processed since
+              // we're still in BURST state. Wait for IDLE to accept next AW.
               write_state_next  = WRITE_STATE_IDLE;
               s_axi_bvalid_next = 1'b1;
               s_axi_bid_next    = w_id;

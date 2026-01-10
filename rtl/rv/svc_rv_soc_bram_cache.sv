@@ -775,7 +775,6 @@ module svc_rv_soc_bram_cache #(
     assign eff_dmem_ren = cpu_stall ? dbg_dmem_ren : dmem_ren;
     assign eff_dmem_raddr = (cpu_stall ? 32'({dbg_dmem_raddr, 2'b00}) :
                              dmem_raddr);
-
     //
     // Route read data back to debug bridge
     //

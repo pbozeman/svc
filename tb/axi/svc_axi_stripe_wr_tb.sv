@@ -436,8 +436,13 @@ module svc_axi_stripe_wr_tb;
     end
     m_axi_awvalid = 1'b0;
 
-    // one cycle of latency to start the writes
-    `CHECK_LTE($time - time_start, 16 * 10 + 10);
+    // Startup latency to accept the first W beat. All 16 transactions target
+    // the same address, so they serialize through one backend. The 6 cycle
+    // overhead comes from:
+    //   - Stripe AW path: skid buffer + register to backend (1-2 cycles)
+    //   - Stripe W path: skid buffer + FIFO + register to backend (2-3 cycles)
+    //   - Backend: AW accepted in IDLE, W processed in BURST, return to IDLE
+    `CHECK_LTE($time - time_start, 16 * 10 + 6 * 10);
     `CHECK_WAIT_FOR(clk, m_axi_bvalid && m_axi_bready);
 
     // This is because of the setup latency. Even though we can submit every

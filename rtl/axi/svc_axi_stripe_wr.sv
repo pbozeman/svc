@@ -266,7 +266,7 @@ module svc_axi_stripe_wr #(
         w_idx_next       = w_idx_start;
 
         if (sb_s_wvalid) begin
-          if (!m_axi_wvalid[w_idx] || m_axi_wready[w_idx]) begin
+          if (!m_axi_wvalid[w_idx_start] || m_axi_wready[w_idx_start]) begin
             sb_s_wready                    = 1'b1;
 
             m_axi_wvalid_next[w_idx_start] = 1'b1;
@@ -347,7 +347,7 @@ module svc_axi_stripe_wr #(
   // keep track of final idx and active subs at the time of aw submission
   svc_sync_fifo #(
       .DATA_WIDTH(S_WIDTH + NUM_S),
-      .ADDR_WIDTH(3)
+      .ADDR_WIDTH(4)
   ) svc_sync_fifo_b_i (
       .clk        (clk),
       .rst_n      (rst_n),
