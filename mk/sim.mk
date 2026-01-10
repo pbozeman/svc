@@ -94,6 +94,11 @@ $(SIM_BUILD_DIR)/rv_%_cache_i_sim/Vrv_%_sim: $(BUILD_DIR)/sw/rv32i/%/%.hex
 $(SIM_BUILD_DIR)/rv_%_cache_im_sim/Vrv_%_sim: $(BUILD_DIR)/sw/rv32im/%/%.hex
 $(SIM_BUILD_DIR)/rv_%_cache_i_zmmul_sim/Vrv_%_sim: $(BUILD_DIR)/sw/rv32i_zmmul/%/%.hex
 
+# PC_REG-enabled simulation pattern rules
+$(SIM_BUILD_DIR)/rv_%_i_reg_sim/Vrv_%_sim: $(BUILD_DIR)/sw/rv32i/%/%.hex
+$(SIM_BUILD_DIR)/rv_%_im_reg_sim/Vrv_%_sim: $(BUILD_DIR)/sw/rv32im/%/%.hex
+$(SIM_BUILD_DIR)/rv_%_i_zmmul_reg_sim/Vrv_%_sim: $(BUILD_DIR)/sw/rv32i_zmmul/%/%.hex
+
 # Verilator build rule for architecture-specific simulations
 # Generate rules for each RV module and architecture combination
 define rv_arch_sim_rule
@@ -119,6 +124,32 @@ endef
 $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_arch_sim_rule,$(mod),i,$(BUILD_DIR)/sw/rv32i)))
 $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_arch_sim_rule,$(mod),im,$(BUILD_DIR)/sw/rv32im)))
 $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_arch_sim_rule,$(mod),i_zmmul,$(BUILD_DIR)/sw/rv32i_zmmul)))
+
+# Verilator build rule for PC_REG-enabled architecture-specific simulations
+define rv_arch_reg_sim_rule
+.PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_$(2)_reg_sim/Vrv_$(1)_sim
+$(SIM_BUILD_DIR)/rv_$(1)_$(2)_reg_sim/Vrv_$(1)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv $(SIM_MAIN_CPP) Makefile | $(SIM_BUILD_DIR)
+	@$$(IVERILOG) -M $(SIM_BUILD_DIR)/rv_$(1)_$(2)_reg_sim.dep -o /dev/null \
+		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) $$(word 2,$$^) 2>/dev/null || true
+	@echo "$$@: $$$$(tr '\n' ' ' < $(SIM_BUILD_DIR)/rv_$(1)_$(2)_reg_sim.dep)" > $(SIM_BUILD_DIR)/rv_$(1)_$(2)_reg_sim.d
+	@$$(VERILATOR_SIM) \
+		-DSVC_PC_REG \
+		-DRV_IMEM_DEPTH=$$(or $$($(1)_RV_IMEM_DEPTH),$$(RV_IMEM_DEPTH)) \
+		-DRV_DMEM_DEPTH=$$(or $$($(1)_RV_DMEM_DEPTH),$$(RV_DMEM_DEPTH)) \
+		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
+		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
+		$(if $(filter im,$(2)),-DRV_ARCH_M) \
+		-I$$(PRJ_RTL_DIR)/rv_$(1) \
+		--Mdir $(SIM_BUILD_DIR)/rv_$(1)_$(2)_reg_sim \
+		--top-module rv_$(1)_sim \
+		-CFLAGS '-DSIM_HEADER=\"Vrv_$(1)_sim.h\" -DSIM_TOP=Vrv_$(1)_sim -DSIM_NAME=\"rv_$(1)_$(2)_reg_sim\"' \
+		$$(word 2,$$^) $(SIM_MAIN_CPP)
+endef
+
+# Generate PC_REG-enabled rules for each module x architecture
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_arch_reg_sim_rule,$(mod),i,$(BUILD_DIR)/sw/rv32i)))
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_arch_reg_sim_rule,$(mod),im,$(BUILD_DIR)/sw/rv32im)))
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_arch_reg_sim_rule,$(mod),i_zmmul,$(BUILD_DIR)/sw/rv32i_zmmul)))
 
 # SRAM pipelined simulation build rules
 define rv_sram_sim_rule
@@ -199,6 +230,33 @@ $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_sim_rule,$(mod),i,$(BUILD
 $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_sim_rule,$(mod),im,$(BUILD_DIR)/sw/rv32im)))
 $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_sim_rule,$(mod),i_zmmul,$(BUILD_DIR)/sw/rv32i_zmmul)))
 
+# BRAM cache + PC_REG simulation build rules
+define rv_cache_reg_sim_rule
+.PRECIOUS: $(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_reg_sim/Vrv_$(1)_sim
+$(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_reg_sim/Vrv_$(1)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv $(SIM_MAIN_CPP) Makefile | $(SIM_BUILD_DIR)
+	@$$(IVERILOG) -M $(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_reg_sim.dep -o /dev/null \
+		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) $$(word 2,$$^) 2>/dev/null || true
+	@echo "$$@: $$$$(tr '\n' ' ' < $(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_reg_sim.dep)" > $(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_reg_sim.d
+	@$$(VERILATOR_SIM) \
+		-DSVC_MEM_BRAM_CACHE \
+		-DSVC_PC_REG \
+		-DRV_IMEM_DEPTH=$$(or $$($(1)_RV_IMEM_DEPTH),$$(RV_IMEM_DEPTH)) \
+		-DRV_DMEM_DEPTH=$$(or $$($(1)_RV_DMEM_DEPTH),$$(RV_DMEM_DEPTH)) \
+		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
+		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
+		$(if $(filter im,$(2)),-DRV_ARCH_M) \
+		-I$$(PRJ_RTL_DIR)/rv_$(1) \
+		--Mdir $(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_reg_sim \
+		--top-module rv_$(1)_sim \
+		-CFLAGS '-DSIM_HEADER=\"Vrv_$(1)_sim.h\" -DSIM_TOP=Vrv_$(1)_sim -DSIM_NAME=\"rv_$(1)_cache_$(2)_reg_sim\"' \
+		$$(word 2,$$^) $(SIM_MAIN_CPP)
+endef
+
+# Generate BRAM cache + PC_REG rules for each module x architecture
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_reg_sim_rule,$(mod),i,$(BUILD_DIR)/sw/rv32i)))
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_reg_sim_rule,$(mod),im,$(BUILD_DIR)/sw/rv32im)))
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_reg_sim_rule,$(mod),i_zmmul,$(BUILD_DIR)/sw/rv32i_zmmul)))
+
 # BRAM cache with latency injection simulation build rules
 # Uses svc_axi_mem_latency for DDR3/MIG-like timing stress testing
 define rv_cache_latency_sim_rule
@@ -249,6 +307,16 @@ RV_CACHE_I_SIMS := $(addprefix rv_,$(addsuffix _cache_i_sim,$(RV_SIM_MODULES)))
 RV_CACHE_IM_SIMS := $(addprefix rv_,$(addsuffix _cache_im_sim,$(RV_SIM_MODULES)))
 RV_CACHE_I_ZMMUL_SIMS := $(addprefix rv_,$(addsuffix _cache_i_zmmul_sim,$(RV_SIM_MODULES)))
 
+# BRAM cache + PC_REG phony targets
+RV_CACHE_REG_I_SIMS := $(addprefix rv_,$(addsuffix _cache_i_reg_sim,$(RV_SIM_MODULES)))
+RV_CACHE_REG_IM_SIMS := $(addprefix rv_,$(addsuffix _cache_im_reg_sim,$(RV_SIM_MODULES)))
+RV_CACHE_REG_I_ZMMUL_SIMS := $(addprefix rv_,$(addsuffix _cache_i_zmmul_reg_sim,$(RV_SIM_MODULES)))
+
+# PC_REG-enabled phony targets
+RV_I_REG_SIMS := $(addprefix rv_,$(addsuffix _i_reg_sim,$(RV_SIM_MODULES)))
+RV_IM_REG_SIMS := $(addprefix rv_,$(addsuffix _im_reg_sim,$(RV_SIM_MODULES)))
+RV_I_ZMMUL_REG_SIMS := $(addprefix rv_,$(addsuffix _i_zmmul_reg_sim,$(RV_SIM_MODULES)))
+
 # BRAM cache with latency injection phony targets
 RV_CACHE_LATENCY_I_SIMS := $(addprefix rv_,$(addsuffix _cache_latency_i_sim,$(RV_SIM_MODULES)))
 RV_CACHE_LATENCY_IM_SIMS := $(addprefix rv_,$(addsuffix _cache_latency_im_sim,$(RV_SIM_MODULES)))
@@ -265,7 +333,7 @@ SIM_DBG_FLAGS := \
 	$(if $(SVC_RV_DBG_HAZ),+SVC_RV_DBG_HAZ=$(SVC_RV_DBG_HAZ)) \
 	$(if $(SVC_SIM_PREFIX),+SVC_SIM_PREFIX=$(SVC_SIM_PREFIX))
 
-.PHONY: $(RV_BASE_SIMS) $(RV_I_SIMS) $(RV_IM_SIMS) $(RV_I_ZMMUL_SIMS) $(RV_SRAM_I_SIMS) $(RV_SRAM_IM_SIMS) $(RV_SRAM_I_ZMMUL_SIMS) $(RV_SRAM_SC_I_SIMS) $(RV_SRAM_SC_IM_SIMS) $(RV_SRAM_SC_I_ZMMUL_SIMS) $(RV_CACHE_I_SIMS) $(RV_CACHE_IM_SIMS) $(RV_CACHE_I_ZMMUL_SIMS) $(RV_CACHE_LATENCY_I_SIMS) $(RV_CACHE_LATENCY_IM_SIMS) $(RV_CACHE_LATENCY_I_ZMMUL_SIMS)
+.PHONY: $(RV_BASE_SIMS) $(RV_I_SIMS) $(RV_IM_SIMS) $(RV_I_ZMMUL_SIMS) $(RV_SRAM_I_SIMS) $(RV_SRAM_IM_SIMS) $(RV_SRAM_I_ZMMUL_SIMS) $(RV_SRAM_SC_I_SIMS) $(RV_SRAM_SC_IM_SIMS) $(RV_SRAM_SC_I_ZMMUL_SIMS) $(RV_CACHE_I_SIMS) $(RV_CACHE_IM_SIMS) $(RV_CACHE_I_ZMMUL_SIMS) $(RV_CACHE_REG_I_SIMS) $(RV_CACHE_REG_IM_SIMS) $(RV_CACHE_REG_I_ZMMUL_SIMS) $(RV_I_REG_SIMS) $(RV_IM_REG_SIMS) $(RV_I_ZMMUL_REG_SIMS) $(RV_CACHE_LATENCY_I_SIMS) $(RV_CACHE_LATENCY_IM_SIMS) $(RV_CACHE_LATENCY_I_ZMMUL_SIMS)
 
 # Execution targets - run the Verilator binary
 # Use explicit path construction because GNU make has issues with multiple % in prerequisites
@@ -311,6 +379,27 @@ $(RV_I_ZMMUL_SIMS): rv_%_i_zmmul_sim:
 	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_i_zmmul_sim/Vrv_$*_sim
 	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_i_zmmul_sim/Vrv_$*_sim,$*)
 
+# PC_REG-enabled execution targets
+$(RV_I_REG_SIMS): rv_%_i_reg_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_i_reg_sim/Vrv_$*_sim
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_i_reg_sim/Vrv_$*_sim,$*)
+
+$(RV_IM_REG_SIMS): rv_%_im_reg_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_im_reg_sim/Vrv_$*_sim
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_im_reg_sim/Vrv_$*_sim,$*)
+
+$(RV_I_ZMMUL_REG_SIMS): rv_%_i_zmmul_reg_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_i_zmmul_reg_sim/Vrv_$*_sim
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_i_zmmul_reg_sim/Vrv_$*_sim,$*)
+
+# Convenience alias: CoreMark requires hardware multiply, so default to RV32IM.
+.PHONY: rv_coremark_reg_sim
+rv_coremark_reg_sim: rv_coremark_im_reg_sim
+
+# Convenience alias: CoreMark cache + PC_REG (defaults to RV32IM).
+.PHONY: rv_coremark_cache_reg_sim
+rv_coremark_cache_reg_sim: rv_coremark_cache_im_reg_sim
+
 # SRAM pipelined execution targets
 $(RV_SRAM_I_SIMS): rv_%_sram_i_sim:
 	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_sram_i_sim/Vrv_$*_sim
@@ -349,6 +438,19 @@ $(RV_CACHE_IM_SIMS): rv_%_cache_im_sim:
 $(RV_CACHE_I_ZMMUL_SIMS): rv_%_cache_i_zmmul_sim:
 	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_cache_i_zmmul_sim/Vrv_$*_sim
 	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_cache_i_zmmul_sim/Vrv_$*_sim,$*)
+
+# BRAM cache + PC_REG execution targets
+$(RV_CACHE_REG_I_SIMS): rv_%_cache_i_reg_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_cache_i_reg_sim/Vrv_$*_sim
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_cache_i_reg_sim/Vrv_$*_sim,$*)
+
+$(RV_CACHE_REG_IM_SIMS): rv_%_cache_im_reg_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_cache_im_reg_sim/Vrv_$*_sim
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_cache_im_reg_sim/Vrv_$*_sim,$*)
+
+$(RV_CACHE_REG_I_ZMMUL_SIMS): rv_%_cache_i_zmmul_reg_sim:
+	@$(MAKE) $(SIM_BUILD_DIR)/rv_$*_cache_i_zmmul_reg_sim/Vrv_$*_sim
+	$(call run_sim,$(SIM_BUILD_DIR)/rv_$*_cache_i_zmmul_reg_sim/Vrv_$*_sim,$*)
 
 # BRAM cache with latency injection execution targets
 $(RV_CACHE_LATENCY_I_SIMS): rv_%_cache_latency_i_sim:
@@ -405,6 +507,9 @@ $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_hex_rules,$(mod))))
 RV_I_SIMIS := $(addprefix rv_,$(addsuffix _i_simi,$(RV_SIM_MODULES)))
 RV_IM_SIMIS := $(addprefix rv_,$(addsuffix _im_simi,$(RV_SIM_MODULES)))
 RV_I_ZMMUL_SIMIS := $(addprefix rv_,$(addsuffix _i_zmmul_simi,$(RV_SIM_MODULES)))
+RV_I_REG_SIMIS := $(addprefix rv_,$(addsuffix _i_reg_simi,$(RV_SIM_MODULES)))
+RV_IM_REG_SIMIS := $(addprefix rv_,$(addsuffix _im_reg_simi,$(RV_SIM_MODULES)))
+RV_I_ZMMUL_REG_SIMIS := $(addprefix rv_,$(addsuffix _i_zmmul_reg_simi,$(RV_SIM_MODULES)))
 RV_SRAM_I_SIMIS := $(addprefix rv_,$(addsuffix _sram_i_simi,$(RV_SIM_MODULES)))
 RV_SRAM_IM_SIMIS := $(addprefix rv_,$(addsuffix _sram_im_simi,$(RV_SIM_MODULES)))
 RV_SRAM_I_ZMMUL_SIMIS := $(addprefix rv_,$(addsuffix _sram_i_zmmul_simi,$(RV_SIM_MODULES)))
@@ -414,11 +519,14 @@ RV_SRAM_SC_I_ZMMUL_SIMIS := $(addprefix rv_,$(addsuffix _sram_sc_i_zmmul_simi,$(
 RV_CACHE_I_SIMIS := $(addprefix rv_,$(addsuffix _cache_i_simi,$(RV_SIM_MODULES)))
 RV_CACHE_IM_SIMIS := $(addprefix rv_,$(addsuffix _cache_im_simi,$(RV_SIM_MODULES)))
 RV_CACHE_I_ZMMUL_SIMIS := $(addprefix rv_,$(addsuffix _cache_i_zmmul_simi,$(RV_SIM_MODULES)))
+RV_CACHE_I_REG_SIMIS := $(addprefix rv_,$(addsuffix _cache_i_reg_simi,$(RV_SIM_MODULES)))
+RV_CACHE_IM_REG_SIMIS := $(addprefix rv_,$(addsuffix _cache_im_reg_simi,$(RV_SIM_MODULES)))
+RV_CACHE_I_ZMMUL_REG_SIMIS := $(addprefix rv_,$(addsuffix _cache_i_zmmul_reg_simi,$(RV_SIM_MODULES)))
 
 # Base RV simi targets (rv_*_simi without arch suffix) default to rv32i
 RV_BASE_SIMIS := $(addprefix rv_,$(addsuffix _simi,$(RV_SIM_MODULES)))
 
-.PHONY: $(RV_BASE_SIMIS) $(RV_I_SIMIS) $(RV_IM_SIMIS) $(RV_I_ZMMUL_SIMIS) $(RV_SRAM_I_SIMIS) $(RV_SRAM_IM_SIMIS) $(RV_SRAM_I_ZMMUL_SIMIS) $(RV_SRAM_SC_I_SIMIS) $(RV_SRAM_SC_IM_SIMIS) $(RV_SRAM_SC_I_ZMMUL_SIMIS) $(RV_CACHE_I_SIMIS) $(RV_CACHE_IM_SIMIS) $(RV_CACHE_I_ZMMUL_SIMIS)
+.PHONY: $(RV_BASE_SIMIS) $(RV_I_SIMIS) $(RV_IM_SIMIS) $(RV_I_ZMMUL_SIMIS) $(RV_I_REG_SIMIS) $(RV_IM_REG_SIMIS) $(RV_I_ZMMUL_REG_SIMIS) $(RV_SRAM_I_SIMIS) $(RV_SRAM_IM_SIMIS) $(RV_SRAM_I_ZMMUL_SIMIS) $(RV_SRAM_SC_I_SIMIS) $(RV_SRAM_SC_IM_SIMIS) $(RV_SRAM_SC_I_ZMMUL_SIMIS) $(RV_CACHE_I_SIMIS) $(RV_CACHE_IM_SIMIS) $(RV_CACHE_I_ZMMUL_SIMIS) $(RV_CACHE_I_REG_SIMIS) $(RV_CACHE_IM_REG_SIMIS) $(RV_CACHE_I_ZMMUL_REG_SIMIS)
 
 # Icarus build rule for base RV simulations (rv_*_simi -> rv32i)
 define rv_base_simi_rule
@@ -455,6 +563,27 @@ endef
 $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_arch_simi_rule,$(mod),i,$(BUILD_DIR)/sw/rv32i)))
 $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_arch_simi_rule,$(mod),im,$(BUILD_DIR)/sw/rv32im)))
 $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_arch_simi_rule,$(mod),i_zmmul,$(BUILD_DIR)/sw/rv32i_zmmul)))
+
+# Icarus build rule for PC_REG-enabled architecture-specific simulations
+define rv_arch_reg_simi_rule
+.PRECIOUS: $(SIM_IV_BUILD_DIR)/rv_$(1)_$(2)_reg_simi
+$(SIM_IV_BUILD_DIR)/rv_$(1)_$(2)_reg_simi: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv Makefile | $(SIM_IV_BUILD_DIR)
+	@$$(IVERILOG) -M $$(@).dep \
+		-DSVC_PC_REG \
+		-DRV_IMEM_DEPTH=$$(or $$($(1)_RV_IMEM_DEPTH),$$(RV_IMEM_DEPTH)) \
+		-DRV_DMEM_DEPTH=$$(or $$($(1)_RV_DMEM_DEPTH),$$(RV_DMEM_DEPTH)) \
+		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
+		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
+		$(if $(filter im,$(2)),-DRV_ARCH_M) \
+		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
+		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
+		exit $$$${PIPESTATUS[0]}
+	@echo "$$@: $$$$(tr '\n' ' ' < $$(@).dep)" > $$(@).d
+endef
+
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_arch_reg_simi_rule,$(mod),i,$(BUILD_DIR)/sw/rv32i)))
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_arch_reg_simi_rule,$(mod),im,$(BUILD_DIR)/sw/rv32im)))
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_arch_reg_simi_rule,$(mod),i_zmmul,$(BUILD_DIR)/sw/rv32i_zmmul)))
 
 # Icarus SRAM pipelined simulation build rules
 define rv_sram_simi_rule
@@ -520,6 +649,28 @@ $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_simi_rule,$(mod),i,$(BUIL
 $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_simi_rule,$(mod),im,$(BUILD_DIR)/sw/rv32im)))
 $(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_simi_rule,$(mod),i_zmmul,$(BUILD_DIR)/sw/rv32i_zmmul)))
 
+# Icarus BRAM cache + PC_REG simulation build rules
+define rv_cache_reg_simi_rule
+.PRECIOUS: $(SIM_IV_BUILD_DIR)/rv_$(1)_cache_$(2)_reg_simi
+$(SIM_IV_BUILD_DIR)/rv_$(1)_cache_$(2)_reg_simi: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)/rv_$(1)_sim.sv Makefile | $(SIM_IV_BUILD_DIR)
+	@$$(IVERILOG) -M $$(@).dep \
+		-DSVC_MEM_BRAM_CACHE \
+		-DSVC_PC_REG \
+		-DRV_IMEM_DEPTH=$$(or $$($(1)_RV_IMEM_DEPTH),$$(RV_IMEM_DEPTH)) \
+		-DRV_DMEM_DEPTH=$$(or $$($(1)_RV_DMEM_DEPTH),$$(RV_DMEM_DEPTH)) \
+		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
+		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
+		$(if $(filter im,$(2)),-DRV_ARCH_M) \
+		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
+		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
+		exit $$$${PIPESTATUS[0]}
+	@echo "$$@: $$$$(tr '\n' ' ' < $$(@).dep)" > $$(@).d
+endef
+
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_reg_simi_rule,$(mod),i,$(BUILD_DIR)/sw/rv32i)))
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_reg_simi_rule,$(mod),im,$(BUILD_DIR)/sw/rv32im)))
+$(foreach mod,$(RV_SIM_MODULES),$(eval $(call rv_cache_reg_simi_rule,$(mod),i_zmmul,$(BUILD_DIR)/sw/rv32i_zmmul)))
+
 # Icarus execution targets - run with VVP
 $(RV_BASE_SIMIS): rv_%_simi:
 	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_simi
@@ -532,6 +683,18 @@ $(RV_I_SIMIS): rv_%_i_simi:
 $(RV_IM_SIMIS): rv_%_im_simi:
 	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_im_simi
 	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_im_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
+
+$(RV_I_REG_SIMIS): rv_%_i_reg_simi:
+	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_i_reg_simi
+	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_i_reg_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
+
+$(RV_IM_REG_SIMIS): rv_%_im_reg_simi:
+	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_im_reg_simi
+	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_im_reg_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
+
+$(RV_I_ZMMUL_REG_SIMIS): rv_%_i_zmmul_reg_simi:
+	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_i_zmmul_reg_simi
+	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_i_zmmul_reg_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
 
 $(RV_I_ZMMUL_SIMIS): rv_%_i_zmmul_simi:
 	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_i_zmmul_simi
@@ -569,9 +732,25 @@ $(RV_CACHE_IM_SIMIS): rv_%_cache_im_simi:
 	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_cache_im_simi
 	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_cache_im_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
 
+$(RV_CACHE_I_REG_SIMIS): rv_%_cache_i_reg_simi:
+	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_cache_i_reg_simi
+	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_cache_i_reg_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
+
+$(RV_CACHE_IM_REG_SIMIS): rv_%_cache_im_reg_simi:
+	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_cache_im_reg_simi
+	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_cache_im_reg_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
+
+$(RV_CACHE_I_ZMMUL_REG_SIMIS): rv_%_cache_i_zmmul_reg_simi:
+	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_cache_i_zmmul_reg_simi
+	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_cache_i_zmmul_reg_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
+
 $(RV_CACHE_I_ZMMUL_SIMIS): rv_%_cache_i_zmmul_simi:
 	@$(MAKE) $(SIM_IV_BUILD_DIR)/rv_$*_cache_i_zmmul_simi
 	@$(VVP) $(SIM_IV_BUILD_DIR)/rv_$*_cache_i_zmmul_simi $(SIM_DBG_FLAGS) $($*_SIM_FLAGS)
+
+# Convenience alias: CoreMark requires hardware multiply, so default to RV32IM.
+.PHONY: rv_coremark_reg_simi
+rv_coremark_reg_simi: rv_coremark_im_reg_simi
 
 endif # RV_SIM_MODULES
 
