@@ -18,6 +18,9 @@
 //         0x01: write control register
 //         0x02: write memory (single word)
 //         0x03: write memory burst (multiple words)
+//         0x04: read stats
+//         0x05: clear stats
+//         0x06: read memory (single word)
 //      Payload: variable
 //
 //      Read control payload:
@@ -35,6 +38,9 @@
 //         2 bytes: word count (little-endian, max 65535 words)
 //         N*4 bytes: data words (little-endian, streamed back-to-back)
 //
+//      Read memory payload:
+//         4 bytes: address (little-endian)
+//
 //   Response:
 //      Magic: 1 byte (0xBD)
 //      Status: 1 byte (0=OK, 1=error)
@@ -42,6 +48,9 @@
 //
 //      Read control response:
 //         1 byte: control value (bit 0: stalled, bit 1: in_reset)
+//
+//      Read memory response:
+//         4 bytes: data (little-endian)
 //
 //      Write responses:
 //         None (just magic + status)
@@ -87,7 +96,13 @@ module svc_rv_dbg_bridge #(
     output logic [                3:0] dbg_dmem_wstrb,
 
     // Flow control for cache mode (optional - tie to 0 for BRAM)
-    input logic dbg_dmem_busy
+    input logic dbg_dmem_busy,
+
+    // DMEM read interface (active when dbg_stall is asserted)
+    output logic                       dbg_dmem_ren,
+    output logic [DMEM_ADDR_WIDTH-1:0] dbg_dmem_raddr,
+    input  logic [               31:0] dbg_dmem_rdata,
+    input  logic                       dbg_dmem_rdata_valid
 );
   // Protocol constants
   localparam logic [7:0] CMD_MAGIC = 8'hDB;
@@ -99,6 +114,7 @@ module svc_rv_dbg_bridge #(
   localparam logic [7:0] OP_WRITE_BURST = 8'h03;
   localparam logic [7:0] OP_READ_STATS = 8'h04;
   localparam logic [7:0] OP_CLEAR_STATS = 8'h05;
+  localparam logic [7:0] OP_READ_MEM = 8'h06;
 
   localparam logic [7:0] STATUS_OK = 8'h00;
   localparam logic [7:0] STATUS_ERROR = 8'h01;
@@ -128,6 +144,13 @@ module svc_rv_dbg_bridge #(
     // Memory write execution
     STATE_MEM_WRITE,
     STATE_MEM_WAIT,
+    // Memory read states
+    STATE_READ_ADDR_0,
+    STATE_READ_ADDR_1,
+    STATE_READ_ADDR_2,
+    STATE_READ_ADDR_3,
+    STATE_READ_EXEC,
+    STATE_READ_WAIT,
     // Response states
     STATE_RESP_MAGIC,
     STATE_RESP_STATUS,
@@ -175,6 +198,12 @@ module svc_rv_dbg_bridge #(
   logic          mem_wen_next;
   logic   [31:0] mem_waddr;
   logic   [31:0] mem_waddr_next;
+
+  // Memory read registers
+  logic          mem_ren;
+  logic          mem_ren_next;
+  logic   [31:0] mem_raddr;
+  logic   [31:0] mem_raddr_next;
 
   // Debug stats (memory writes actually issued)
   logic   [31:0] stat_wr_count;
@@ -227,7 +256,13 @@ module svc_rv_dbg_bridge #(
   assign dbg_dmem_wdata   = cmd_data;
   assign dbg_dmem_wstrb   = 4'hF;
 
-  `SVC_UNUSED({imem_offset_addr, dmem_offset_addr})
+  // Memory read outputs (reads always go to DMEM path for cache/DDR access)
+  logic [31:0] dmem_read_offset_addr;
+  assign dmem_read_offset_addr = mem_raddr - DMEM_BASE_ADDR;
+  assign dbg_dmem_ren          = mem_ren;
+  assign dbg_dmem_raddr        = dmem_read_offset_addr[2+:DMEM_ADDR_WIDTH];
+
+  `SVC_UNUSED({imem_offset_addr, dmem_offset_addr, dmem_read_offset_addr})
 
   // Pre-extract bit slices to avoid Icarus "constant selects" warnings
   logic        urx_data_bit0;
@@ -288,6 +323,9 @@ module svc_rv_dbg_bridge #(
 
     mem_wen_next      = 1'b0;
     mem_waddr_next    = mem_waddr;
+
+    mem_ren_next      = 1'b0;
+    mem_raddr_next    = mem_raddr;
 
     stat_clear_pulse  = 1'b0;
 
@@ -350,6 +388,12 @@ module svc_rv_dbg_bridge #(
               resp_len_next = 4'd0;
               resp_idx_next = 4'd0;
               state_next    = STATE_MEM_ADDR_0;
+            end
+
+            OP_READ_MEM: begin
+              resp_len_next = 4'd0;
+              resp_idx_next = 4'd0;
+              state_next    = STATE_READ_ADDR_0;
             end
 
             default: begin
@@ -526,6 +570,56 @@ module svc_rv_dbg_bridge #(
         end
       end
 
+      // Memory read address reception states
+      STATE_READ_ADDR_0: begin
+        if (urx_valid && urx_ready) begin
+          cmd_addr_next = {cmd_addr_31_8, urx_data};
+          state_next    = STATE_READ_ADDR_1;
+        end
+      end
+
+      STATE_READ_ADDR_1: begin
+        if (urx_valid && urx_ready) begin
+          cmd_addr_next = {cmd_addr_31_16, urx_data, cmd_addr_7_0};
+          state_next    = STATE_READ_ADDR_2;
+        end
+      end
+
+      STATE_READ_ADDR_2: begin
+        if (urx_valid && urx_ready) begin
+          cmd_addr_next = {cmd_addr_31_24, urx_data, cmd_addr_15_0};
+          state_next    = STATE_READ_ADDR_3;
+        end
+      end
+
+      STATE_READ_ADDR_3: begin
+        if (urx_valid && urx_ready) begin
+          cmd_addr_next  = {urx_data, cmd_addr_23_0};
+          urx_ready_next = 1'b0;
+          state_next     = STATE_READ_EXEC;
+        end
+      end
+
+      // Execute memory read
+      STATE_READ_EXEC: begin
+        // Issue read request
+        mem_raddr_next = cmd_addr;
+        mem_ren_next   = 1'b1;
+        state_next     = STATE_READ_WAIT;
+      end
+
+      // Wait for read data
+      STATE_READ_WAIT: begin
+        if (dbg_dmem_rdata_valid) begin
+          // Read complete, prepare response with data
+          resp_status_next  = STATUS_OK;
+          resp_payload_next = {32'b0, dbg_dmem_rdata};
+          resp_len_next     = 4'd4;
+          resp_idx_next     = 4'd0;
+          state_next        = STATE_RESP_MAGIC;
+        end
+      end
+
       // Response states
       STATE_RESP_MAGIC: begin
         if (!utx_valid || utx_ready) begin
@@ -577,6 +671,8 @@ module svc_rv_dbg_bridge #(
       utx_data         <= 8'h00;
       mem_wen          <= 1'b0;
       mem_waddr        <= 32'h0;
+      mem_ren          <= 1'b0;
+      mem_raddr        <= 32'h0;
       resp_status      <= STATUS_OK;
       resp_payload     <= 64'h0;
       resp_len         <= 4'd0;
@@ -592,6 +688,8 @@ module svc_rv_dbg_bridge #(
       utx_data     <= utx_data_next;
       mem_wen      <= mem_wen_next;
       mem_waddr    <= mem_waddr_next;
+      mem_ren      <= mem_ren_next;
+      mem_raddr    <= mem_raddr_next;
       resp_status  <= resp_status_next;
       resp_payload <= resp_payload_next;
       resp_len     <= resp_len_next;

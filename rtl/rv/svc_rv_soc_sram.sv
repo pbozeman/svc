@@ -155,7 +155,13 @@ module svc_rv_soc_sram #(
         .dbg_dmem_waddr(dbg_dmem_waddr),
         .dbg_dmem_wdata(dbg_dmem_wdata),
         .dbg_dmem_wstrb(dbg_dmem_wstrb),
-        .dbg_dmem_busy (1'b0)
+        .dbg_dmem_busy (1'b0),
+
+        // Read interface - not used for SRAM SoC (tie to defaults)
+        .dbg_dmem_ren        (),
+        .dbg_dmem_raddr      (),
+        .dbg_dmem_rdata      (32'h0),
+        .dbg_dmem_rdata_valid(1'b1)
     );
   end else begin : g_no_dbg
     assign dbg_stall      = 1'b0;

@@ -214,6 +214,10 @@ module svc_rv_soc_bram_cache #(
   logic [       31:0] dbg_dmem_wdata;
   logic [        3:0] dbg_dmem_wstrb;
   logic               dbg_dmem_busy;
+  logic               dbg_dmem_ren;
+  logic [DMEM_AW-1:0] dbg_dmem_raddr;
+  logic [       31:0] dbg_dmem_rdata;
+  logic               dbg_dmem_rdata_valid;
 
   // CPU control signals (active when debug is enabled)
   logic               cpu_stall;
@@ -308,7 +312,12 @@ module svc_rv_soc_bram_cache #(
         .dbg_dmem_waddr(dbg_dmem_waddr),
         .dbg_dmem_wdata(dbg_dmem_wdata),
         .dbg_dmem_wstrb(dbg_dmem_wstrb),
-        .dbg_dmem_busy (dbg_dmem_busy)
+        .dbg_dmem_busy (dbg_dmem_busy),
+
+        .dbg_dmem_ren        (dbg_dmem_ren),
+        .dbg_dmem_raddr      (dbg_dmem_raddr),
+        .dbg_dmem_rdata      (dbg_dmem_rdata),
+        .dbg_dmem_rdata_valid(dbg_dmem_rdata_valid)
     );
   end else begin : g_no_dbg
     assign dbg_stall      = 1'b0;
@@ -322,6 +331,8 @@ module svc_rv_soc_bram_cache #(
     assign dbg_dmem_wdata = '0;
     assign dbg_dmem_wstrb = '0;
     assign dbg_dmem_busy  = 1'b0;
+    assign dbg_dmem_ren   = 1'b0;
+    assign dbg_dmem_raddr = '0;
     assign dbg_urx_ready  = 1'b0;
     assign dbg_utx_valid  = 1'b0;
     assign dbg_utx_data   = 8'h0;
@@ -338,7 +349,11 @@ module svc_rv_soc_bram_cache #(
                 dbg_dmem_waddr,
                 dbg_dmem_wdata,
                 dbg_dmem_wstrb,
-                dbg_dmem_busy
+                dbg_dmem_busy,
+                dbg_dmem_ren,
+                dbg_dmem_raddr,
+                dbg_dmem_rdata,
+                dbg_dmem_rdata_valid
                 })
   end
 
@@ -738,16 +753,37 @@ module svc_rv_soc_bram_cache #(
     //
     // Mux CPU vs debug writes - debug when CPU stalled
     //
+    // TOOD: rename these to just dmem_x and change the orig dmem_x to
+    // cpu_dmem_x to match dbg_dmem_x.
     logic        eff_dmem_we;
     logic [31:0] eff_dmem_waddr;
     logic [31:0] eff_dmem_wdata;
     logic [ 3:0] eff_dmem_wstrb;
 
     assign eff_dmem_we = cpu_stall ? dbg_dmem_wen : dmem_wen;
-    assign
-        eff_dmem_waddr = cpu_stall ? 32'({dbg_dmem_waddr, 2'b00}) : dmem_waddr;
+    assign eff_dmem_waddr = (cpu_stall ? 32'({dbg_dmem_waddr, 2'b00}) :
+                             dmem_waddr);
     assign eff_dmem_wdata = cpu_stall ? dbg_dmem_wdata : dmem_wdata;
     assign eff_dmem_wstrb = cpu_stall ? dbg_dmem_wstrb : dmem_wstrb;
+
+    //
+    // Mux CPU vs debug reads - debug when CPU stalled
+    //
+    logic        eff_dmem_ren;
+    logic [31:0] eff_dmem_raddr;
+
+    assign eff_dmem_ren = cpu_stall ? dbg_dmem_ren : dmem_ren;
+    assign eff_dmem_raddr = (cpu_stall ? 32'({dbg_dmem_raddr, 2'b00}) :
+                             dmem_raddr);
+
+    //
+    // Route read data back to debug bridge
+    //
+    // Use cache_rd_data_valid directly - it pulses when cache data is ready
+    // (declared below with the cache interface signals)
+    //
+    assign dbg_dmem_rdata = dmem_rdata;
+    assign dbg_dmem_rdata_valid = cpu_stall && cache_rd_data_valid;
 
     //
     // Data cache interface signals
@@ -769,8 +805,8 @@ module svc_rv_soc_bram_cache #(
         .clk  (clk),
         .rst_n(rst_n),
 
-        .dmem_ren  (dmem_ren),
-        .dmem_raddr(dmem_raddr),
+        .dmem_ren  (eff_dmem_ren),
+        .dmem_raddr(eff_dmem_raddr),
         .dmem_rdata(dmem_rdata),
 
         .dmem_we   (eff_dmem_we),
@@ -869,10 +905,16 @@ module svc_rv_soc_bram_cache #(
     assign io_sel_wr    = 1'b0;
     `SVC_UNUSED({bram_rdata, io_sel_rd, io_sel_rd_p1, io_sel_wr});
   end else begin : g_dmem_bram
-    assign dmem_stall = 1'b0;
+    assign dmem_stall           = 1'b0;
 
-    assign io_sel_rd  = dmem_raddr[31];
-    assign io_sel_wr  = dmem_waddr[31];
+    // Debug reads from BRAM - not typically used (BRAM is internal)
+    // but provide assignments to avoid synthesis errors
+    // BRAM has 1-cycle latency
+    assign dbg_dmem_rdata       = bram_rdata;
+    assign dbg_dmem_rdata_valid = cpu_stall;
+
+    assign io_sel_rd            = dmem_raddr[31];
+    assign io_sel_wr            = dmem_waddr[31];
 
     always_ff @(posedge clk) begin
       if (!rst_n) begin

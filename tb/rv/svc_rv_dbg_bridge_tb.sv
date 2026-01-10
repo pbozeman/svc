@@ -32,6 +32,12 @@ module svc_rv_dbg_bridge_tb;
   logic [31:0] dbg_dmem_wdata;
   logic [ 3:0] dbg_dmem_wstrb;
 
+  // DMEM read interface
+  logic        dbg_dmem_ren;
+  logic [11:0] dbg_dmem_raddr;
+  logic [31:0] dbg_dmem_rdata;
+  logic        dbg_dmem_rdata_valid;
+
   // Protocol constants
   localparam logic [7:0] CMD_MAGIC = 8'hDB;
   localparam logic [7:0] RESP_MAGIC = 8'hBD;
@@ -69,15 +75,22 @@ module svc_rv_dbg_bridge_tb;
       .dbg_dmem_waddr(dbg_dmem_waddr),
       .dbg_dmem_wdata(dbg_dmem_wdata),
       .dbg_dmem_wstrb(dbg_dmem_wstrb),
-      .dbg_dmem_busy (1'b0)
+      .dbg_dmem_busy (1'b0),
+
+      .dbg_dmem_ren        (dbg_dmem_ren),
+      .dbg_dmem_raddr      (dbg_dmem_raddr),
+      .dbg_dmem_rdata      (dbg_dmem_rdata),
+      .dbg_dmem_rdata_valid(dbg_dmem_rdata_valid)
   );
 
   // Initialize signals in reset
   always_ff @(posedge clk) begin
     if (~rst_n) begin
-      urx_valid <= 1'b0;
-      urx_data  <= 8'h00;
-      utx_ready <= 1'b0;
+      urx_valid            <= 1'b0;
+      urx_data             <= 8'h00;
+      utx_ready            <= 1'b0;
+      dbg_dmem_rdata       <= 32'h0;
+      dbg_dmem_rdata_valid <= 1'b0;
     end
   end
 
@@ -302,6 +315,6 @@ module svc_rv_dbg_bridge_tb;
   `TEST_SUITE_END();
 
   `SVC_UNUSED({dbg_imem_wen, dbg_imem_waddr, dbg_imem_wstrb, dbg_dmem_wen,
-               dbg_dmem_waddr, dbg_dmem_wstrb});
+               dbg_dmem_waddr, dbg_dmem_wstrb, dbg_dmem_ren, dbg_dmem_raddr});
 
 endmodule
