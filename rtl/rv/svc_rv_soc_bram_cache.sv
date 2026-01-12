@@ -252,7 +252,7 @@ module svc_rv_soc_bram_cache #(
     //
     // TODO: eval if this was really needed
     //
-    localparam int DBG_URX_FIFO_AW = 10;  // 1024 bytes
+    localparam int DBG_URX_FIFO_AW = 4;
     logic       dbg_urx_fifo_w_inc;
     logic       dbg_urx_fifo_w_full_n;
     logic       dbg_urx_fifo_r_inc;
