@@ -162,15 +162,16 @@ def compare_mem_entries(
 ) -> Optional[tuple]:
     """Compare MEM entries and return divergence info if found"""
 
-    max_entries = max(len(file1_entries), len(file2_entries))
+    #
+    # Compare only the common prefix.
+    #
+    # For timeout-limited runs, one trace may legitimately end earlier while
+    # still matching up to its last committed operation. Treat "trace ended"
+    # as non-divergence and report the length mismatch separately.
+    #
+    max_entries = min(len(file1_entries), len(file2_entries))
 
     for i in range(max_entries):
-        if i >= len(file1_entries):
-            return (i, None, file2_entries[i], file2_entries[i].time)
-
-        if i >= len(file2_entries):
-            return (i, file1_entries[i], None, file1_entries[i].time)
-
         entry1 = file1_entries[i]
         entry2 = file2_entries[i]
 
@@ -195,15 +196,16 @@ def compare_wb_entries(
 ) -> Optional[tuple]:
     """Compare WB entries and return divergence info if found"""
 
-    max_entries = max(len(file1_entries), len(file2_entries))
+    #
+    # Compare only the common prefix.
+    #
+    # For timeout-limited runs, one trace may legitimately end earlier while
+    # still matching up to its last committed instruction. Treat "trace ended"
+    # as non-divergence and report the length mismatch separately.
+    #
+    max_entries = min(len(file1_entries), len(file2_entries))
 
     for i in range(max_entries):
-        if i >= len(file1_entries):
-            return (i, None, file2_entries[i], file2_entries[i].time)
-
-        if i >= len(file2_entries):
-            return (i, file1_entries[i], None, file1_entries[i].time)
-
         entry1 = file1_entries[i]
         entry2 = file2_entries[i]
 
@@ -237,7 +239,13 @@ def find_divergence(file1: str, file2: str, verbose: bool = False):
     wb_div = compare_wb_entries(file1_wb, file2_wb, verbose)
 
     if mem_div is None and wb_div is None:
-        print("No divergence found")
+        suffix = ""
+        if len(file1_mem) != len(file2_mem) or len(file1_wb) != len(file2_wb):
+            suffix = (
+                f" (common prefix match; MEM {len(file1_mem)}/{len(file2_mem)}, "
+                f"WB {len(file1_wb)}/{len(file2_wb)})"
+            )
+        print(f"No divergence found{suffix}")
         return
 
     #
