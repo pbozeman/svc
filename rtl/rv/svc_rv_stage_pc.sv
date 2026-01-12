@@ -236,33 +236,31 @@ module svc_rv_stage_pc #(
   //
   // Pipeline stale bubble (PC_REG only)
   //
-  // With PC_REG=1, pc_if is stale for one cycle in two scenarios:
-  // 1. Stall release: After any stall releases, the registered pc_if still
-  //    has the old value for one cycle before updating.
-  // 2. Reset release: After reset, pc_if has reset garbage for one cycle
-  //    before the first valid PC is registered.
+  // Bubble the special stall-release case where pc_next becomes equal to pc.
   //
-  // We bubble these cycles to prevent duplicate instructions.
-  //
-  // Must use stall_pc (not just stall_cpu) because data hazard stalls also
-  // cause pc_if to become stale when the pipeline register delays updates.
-  //
-  // See docs/pc-regstall-fix.md for details.
+  // This can happen when a redirect occurs during an I$ stall (redir_hold),
+  // causing pc_next to be held at the redirect target. When the stall releases,
+  // pc_next_if would otherwise equal pc_if for one cycle, re-issuing a duplicate
+  // fetch address in BPRED mode (BRAM fetch uses pc_next_if).
   //
   logic pipe_stale;
 
   if (PC_REG != 0) begin : g_pipe_stale
-    logic was_stalled_or_reset;
+    if ((MEM_TYPE == MEM_TYPE_BRAM) && (BPRED != 0)) begin : g_pc_next_stuck
+      logic was_stalled;
 
-    always_ff @(posedge clk) begin
-      if (!rst_n) begin
-        was_stalled_or_reset <= 1'b1;
-      end else begin
-        was_stalled_or_reset <= stall_pc;
+      always_ff @(posedge clk) begin
+        if (!rst_n) begin
+          was_stalled <= 1'b0;
+        end else begin
+          was_stalled <= stall_pc;
+        end
       end
-    end
 
-    assign pipe_stale = was_stalled_or_reset && !stall_pc;
+      assign pipe_stale = was_stalled && !stall_pc && redir_hold;
+    end else begin : g_pc_next_not_stuck
+      assign pipe_stale = 1'b0;
+    end
   end else begin : g_no_pipe_stale
     assign pipe_stale = 1'b0;
   end
@@ -276,13 +274,11 @@ module svc_rv_stage_pc #(
       .valid_o  (m_valid),
       .stall_i  (stall_pc),
       .flush_i  (1'b0),
-      .bubble_i (1'b0),
+      .bubble_i (pipe_stale),
       .advance_o(pipe_advance),
       .flush_o  (pipe_flush),
       .bubble_o (pipe_bubble)
   );
-
-  `SVC_UNUSED({pipe_stale})
 
   //
   // Extended flush for registered PC changes
@@ -322,7 +318,7 @@ module svc_rv_stage_pc #(
   svc_rv_pipe_data #(
       .WIDTH     (2 * XLEN),
       .REG       (PC_REG),
-      .BUBBLE_REG(0),
+      .BUBBLE_REG(1),
       .RESET_VAL (PC_INIT_2X)
   ) pipe_pc (
       .clk    (clk),

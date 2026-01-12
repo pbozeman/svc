@@ -226,12 +226,19 @@ module svc_rv_stage_if_bram #(
   //
   // Instruction validity tracking
   //
-  // Tracks when first valid fetch has been issued. With s_valid gating
-  // imem_ren, we only fetch when PC stage has valid data. The fetch_started
-  // flag accounts for BRAM latency - valid_buf stays 0 for one cycle after
-  // the first fetch because the instruction hasn't arrived yet.
+  // Two-part validity:
+  // 1. fetch_started: Sticky flag for startup - first fetch hasn't completed yet
+  // 2. valid_fetch_buf: Per-cycle tracking - was a valid fetch issued last cycle?
+  //
+  // When PC stage bubbles (valid_if low), imem_ren goes low, so valid_fetch_buf
+  // goes low on the next cycle, preventing the stale instruction from being
+  // marked as valid.
   //
   logic fetch_started;
+  logic valid_fetch_buf;
+  logic hold_fetch_buf;
+
+  assign hold_fetch_buf = !valid_if && (if_id_flush || flush_extend);
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
@@ -243,9 +250,18 @@ module svc_rv_stage_if_bram #(
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
+      valid_fetch_buf <= 1'b0;
+    end else if (advance && !hold_fetch_buf) begin
+      valid_fetch_buf <= imem_ren;
+    end
+  end
+
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
       valid_buf <= 1'b0;
     end else if (advance) begin
-      valid_buf <= fetch_started && !if_id_flush && !flush_extend;
+      valid_buf <=
+          (fetch_started && valid_fetch_buf && !if_id_flush && !flush_extend);
     end
   end
 
@@ -266,4 +282,3 @@ module svc_rv_stage_if_bram #(
 endmodule
 
 `endif
-
