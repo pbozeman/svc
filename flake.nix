@@ -42,6 +42,7 @@
 
         # Base build inputs common to all systems
         baseBuildInputs = with pkgs; [
+          bubblewrap
           boolector
           flock
           gtkwave
