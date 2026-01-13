@@ -54,6 +54,7 @@ module svc_rv #(
     parameter int          RAS_DEPTH   = 8,
     parameter int          EXT_ZMMUL   = 0,
     parameter int          EXT_M       = 0,
+    parameter int          EXT_F       = 0,
     parameter int          PC_REG      = 0,
     parameter logic [31:0] RESET_PC    = 0
 ) (
@@ -157,6 +158,9 @@ module svc_rv #(
     end
     if ((PC_REG == 1) && (PIPELINED == 0)) begin
       $fatal(1, "PC_REG=1 requires PIPELINED=1");
+    end
+    if ((EXT_F == 1) && (PIPELINED == 0)) begin
+      $fatal(1, "EXT_F=1 requires PIPELINED=1");
     end
   end
 
@@ -694,7 +698,8 @@ module svc_rv #(
       .BTB_ENABLE (BTB_ENABLE),
       .RAS_ENABLE (RAS_ENABLE),
       .EXT_ZMMUL  (EXT_ZMMUL),
-      .EXT_M      (EXT_M)
+      .EXT_M      (EXT_M),
+      .EXT_F      (EXT_F)
   ) stage_id (
       .pred_tgt(pred_tgt_id),
       .*
@@ -711,7 +716,8 @@ module svc_rv #(
       .BPRED     (BPRED),
       .BTB_ENABLE(BTB_ENABLE),
       .EXT_ZMMUL (EXT_ZMMUL),
-      .EXT_M     (EXT_M)
+      .EXT_M     (EXT_M),
+      .EXT_F     (EXT_F)
   ) stage_ex (
       .*
   );

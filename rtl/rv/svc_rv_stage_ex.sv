@@ -40,7 +40,11 @@ module svc_rv_stage_ex #(
     parameter int BPRED      = 0,
     parameter int BTB_ENABLE = 0,
     parameter int EXT_ZMMUL  = 0,
-    parameter int EXT_M      = 0
+    parameter int EXT_M      = 0,
+    // verilator lint_off UNUSEDPARAM
+    // Reserved for Phase 3 FPU integration
+    parameter int EXT_F      = 0
+    // verilator lint_on UNUSEDPARAM
 ) (
     input logic clk,
     input logic rst_n,
