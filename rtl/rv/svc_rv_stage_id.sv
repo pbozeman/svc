@@ -301,8 +301,6 @@ module svc_rv_stage_id #(
   ) pipe_ctrl (
       .clk      (clk),
       .rst_n    (rst_n),
-      .valid_i  (instr_valid_id),
-      .valid_o  (),
       .stall_i  (stall_id),
       .flush_i  (id_ex_flush),
       .bubble_i (data_hazard_id),

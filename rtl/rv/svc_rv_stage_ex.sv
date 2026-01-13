@@ -179,12 +179,17 @@ module svc_rv_stage_ex #(
   ex_state_t state;
   ex_state_t state_next;
 
-  // our output is valid (input to pipe_ctrl)
-  logic      m_valid_next;
+  //
+  // Result valid - indicates EX stage has a valid result to output
+  //
+  // For single-cycle ops: valid when input is valid
+  // For multi-cycle ops: valid when operation completes (EX_MC_DONE)
+  //
+  logic      result_valid;
 
   always_comb begin
     state_next   = state;
-    m_valid_next = 1'b0;
+    result_valid = 1'b0;
 
     op_active_ex = 1'b0;
     op_en_ex     = 1'b0;
@@ -193,7 +198,7 @@ module svc_rv_stage_ex #(
       EX_IDLE: begin
         if (instr_valid_ex) begin
           if (!is_mc_ex) begin
-            m_valid_next = 1'b1;
+            result_valid = 1'b1;
           end else begin
             state_next   = EX_MC_EXEC;
             op_en_ex     = 1'b1;
@@ -208,18 +213,18 @@ module svc_rv_stage_ex #(
         if (!m_busy_ex) begin
           op_active_ex = 1'b0;
           state_next   = EX_MC_DONE;
-          m_valid_next = 1'b1;
+          result_valid = 1'b1;
         end
       end
 
       EX_MC_DONE: begin
-        if (pipe_valid_o) begin
+        if (!stall_ex) begin
           if (instr_valid_ex && is_mc_ex) begin
             state_next   = EX_MC_EXEC;
             op_en_ex     = 1'b1;
             op_active_ex = 1'b1;
           end else begin
-            m_valid_next = instr_valid_ex;
+            result_valid = instr_valid_ex;
             state_next   = EX_IDLE;
           end
         end
@@ -227,7 +232,7 @@ module svc_rv_stage_ex #(
 
       default: begin
         state_next   = EX_IDLE;
-        m_valid_next = 1'b0;
+        result_valid = 1'b0;
       end
     endcase
   end
@@ -523,8 +528,6 @@ module svc_rv_stage_ex #(
   // Pipeline reg
   //===========================================================================
 
-  logic pipe_valid_i;
-  logic pipe_valid_o;
   logic pipe_flush_i;
   logic pipe_advance_o;
   logic pipe_flush_o;
@@ -546,13 +549,7 @@ module svc_rv_stage_ex #(
   end else begin : g_passthrough
     assign pipe_flush_i = 1'b0;
 
-    `SVC_UNUSED({ex_mem_flush, m_valid_next});
-  end
-
-  if (PIPELINED != 0) begin : g_pipelined_valid
-    assign pipe_valid_i = m_valid_next;
-  end else begin : g_passthrough_valid
-    assign pipe_valid_i = instr_valid_ex && state != EX_MC_EXEC;
+    `SVC_UNUSED({ex_mem_flush});
   end
 
   svc_rv_pipe_ctrl #(
@@ -560,11 +557,9 @@ module svc_rv_stage_ex #(
   ) pipe_ctrl_inst (
       .clk      (clk),
       .rst_n    (rst_n),
-      .valid_i  (pipe_valid_i),
-      .valid_o  (pipe_valid_o),
       .stall_i  (stall_ex),
       .flush_i  (pipe_flush_i),
-      .bubble_i (!pipe_valid_i),
+      .bubble_i (!result_valid),
       .advance_o(pipe_advance_o),
       .flush_o  (pipe_flush_o),
       .bubble_o (pipe_bubble_o)
@@ -577,10 +572,11 @@ module svc_rv_stage_ex #(
   // they must be cleared when invalid. This allows downstream to use them
   // directly without re-checking valid.
   //
-  // For instr_valid_mem, we use pipe_valid_i rather than instr_valid_ex because
-  // the EX stage has its own state machine for multi-cycle ops. pipe_valid_i
-  // correctly reflects when EX is producing a valid result (accounting for
-  // multi-cycle operations), while instr_valid_ex only reflects the input.
+  // For instr_valid_mem, we use result_valid rather than instr_valid_ex
+  // because the EX stage has its own state machine for multi-cycle ops.
+  // result_valid correctly reflects when EX is producing a valid result
+  // (accounting for multi-cycle operations), while instr_valid_ex only
+  // reflects the input.
   //
   localparam int CTRL_WIDTH = 5;
 
@@ -598,7 +594,7 @@ module svc_rv_stage_ex #(
       .s_ready(1'b1),
 `endif
       .data_i({
-        pipe_valid_i,
+        result_valid,
         reg_write_ex,
         mem_read_ex,
         mem_write_ex,
@@ -718,8 +714,7 @@ module svc_rv_stage_ex #(
       .data_o (m_result_mem)
   );
 
-  `SVC_UNUSED({pipe_valid_o, funct7_ex[6:5], funct7_ex[4:0], is_m_ex, is_csr_ex
-                });
+  `SVC_UNUSED({funct7_ex[6:5], funct7_ex[4:0], is_m_ex, is_csr_ex});
 
 `ifdef FORMAL
 `ifdef FORMAL_SVC_RV_STAGE_EX

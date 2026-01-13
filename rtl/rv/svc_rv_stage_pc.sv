@@ -270,8 +270,6 @@ module svc_rv_stage_pc #(
   ) pipe_ctrl (
       .clk      (clk),
       .rst_n    (rst_n),
-      .valid_i  (!stall_pc),
-      .valid_o  (instr_valid_if),
       .stall_i  (stall_pc),
       .flush_i  (1'b0),
       .bubble_i (pipe_stale),
@@ -279,6 +277,26 @@ module svc_rv_stage_pc #(
       .flush_o  (pipe_flush),
       .bubble_o (pipe_bubble)
   );
+
+  //
+  // Instruction valid output to IF stage
+  //
+  // Valid is set on advance, cleared on bubble/reset.
+  // In passthrough mode (PC_REG=0), always valid.
+  //
+  if (PC_REG != 0) begin : g_instr_valid
+    always_ff @(posedge clk) begin
+      if (!rst_n) begin
+        instr_valid_if <= 1'b0;
+      end else if (pipe_advance) begin
+        instr_valid_if <= 1'b1;
+      end else if (pipe_bubble) begin
+        instr_valid_if <= 1'b0;
+      end
+    end
+  end else begin : g_instr_valid_passthrough
+    assign instr_valid_if = 1'b1;
+  end
 
   //
   // Extended flush for registered PC changes
@@ -307,10 +325,10 @@ module svc_rv_stage_pc #(
   //
   // PC values to IF stage
   //
-  // With s_valid gating in IF stage, we don't fetch during bubbles (reset
-  // release, stall release). So BUBBLE_REG=0 lets the data advance while
-  // the bubble suppresses instr_valid_if. This ensures pc_next_if is correct when
-  // we start fetching.
+  // During bubbles (reset release, stall release), instr_valid_if is low so
+  // IF stage won't fetch. BUBBLE_REG=1 lets the data advance while the bubble
+  // suppresses instr_valid_if. This ensures pc_next_if is correct when we
+  // start fetching.
   //
   // RESET_VAL is set to PC_INIT_2X so formal verification sees consistent
   // values during reset.

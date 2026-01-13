@@ -729,21 +729,10 @@ module svc_rv #(
       .*
   );
 
-  //
   // WB Stage: Write Back
-  //
   svc_rv_stage_wb #(.XLEN(XLEN)) stage_wb (.*);
 
-  //
-  // EX -> MEM ready/valid wiring (direct connection, no skidbuf yet)
-  //
-  // EX stage's m_valid drives MEM stage's s_valid
-  // MEM stage's s_ready drives EX stage's m_ready
-  // (Handled by explicit port connections above)
-
-  //
   // Halt logic
-  //
   assign halt_next = (retired && (ebreak_ret || trap_ret)) || halt;
 
   always_ff @(posedge clk) begin
@@ -780,9 +769,7 @@ module svc_rv #(
   // where the pipeline executes the wrong path.
   //
 
-  //
   // Current commit signals
-  //
   logic [XLEN-1:0] f_commit_pc;
   logic            f_commit_mem_valid;
   logic [     3:0] f_commit_mem_rmask;
@@ -810,16 +797,12 @@ module svc_rv #(
 
   assign f_instr_valid_ret  = (trap_code_ret != TRAP_INSTR_INVALID);
 
-  //
   // rs1/rs2 usage detection for RVFI
-  //
   always_comb begin
-    //
     // Illegal instructions: registers not used
     // Valid instructions: rs1 NOT used by LUI, AUIPC, JAL, CSR immediate
     //
     // See note above as to why we are doing this decoding here.
-    //
     case (f_opcode_ret)
       OP_LUI, OP_AUIPC, OP_JAL: f_instr_reads_rs1_ret = 1'b0;
       OP_SYSTEM:                f_instr_reads_rs1_ret = !f_csr_imm_mode_ret;
@@ -844,10 +827,8 @@ module svc_rv #(
     f_commit_mem_rdata = 32'h0;
     f_commit_mem_wdata = 32'h0;
 
-    //
     // Use _ret signals for memory since they're captured on WB entry
     // and remain stable until retirement
-    //
 
     // Loads (f_dmem_rstrb_ret is non-zero for loads)
     if (|f_dmem_rstrb_ret && !trap_ret) begin

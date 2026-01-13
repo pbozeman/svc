@@ -10,10 +10,8 @@
 //
 // Control hazards are resolved by flushing the pipeline. For data hazards
 // (RAW dependencies), this unit outputs the data_hazard_id signal which the ID
-// stage uses to gate m_valid and s_ready. This implements backpressure-based
-// stalling through the ready/valid interface rather than centralized stall
-// signals. Actual data forwarding, when enabled, is handled by a separate
-// forwarding unit in the EX stage.
+// stage uses to insert bubbles into the pipeline. Actual data forwarding, when
+// enabled, is handled by a separate forwarding unit in the EX stage.
 //
 // FWD parameter controls hazard detection behavior:
 // - FWD=0: Stall on all RAW hazards (EX, MEM, WB stages)
@@ -179,9 +177,9 @@ module svc_rv_hazard #(
   // - FWD=1: Only detect unavoidable hazards (load-use, CSR-use, and WB if
   //          regfile lacks internal forwarding)
   //
-  // The data_hazard_id signal is output to the ID stage, which uses it to:
-  // - Gate m_valid low (don't present dependent instruction to EX)
-  // - Gate s_ready low (backpressure IF to prevent new fetches)
+  // The data_hazard_id signal is output to the ID stage, which uses it to
+  // insert bubbles into the ID/EX pipeline register, stalling the dependent
+  // instruction until the hazard clears.
   //
   // On control flow changes (redirect, misprediction), data_hazard_id is cleared
   // because the instruction causing the hazard is being flushed. This allows
@@ -337,7 +335,7 @@ module svc_rv_hazard #(
   // since the predicted instruction in ID hasn't advanced yet.
   //
   // id_ex_flush: Flush on control flow changes (redirs, mispredictions).
-  // Data hazards no longer cause flush - ID stage gates m_valid instead.
+  // Data hazards use bubbles, not flushes.
   //
   logic pc_predicted;
 

@@ -347,8 +347,6 @@ module svc_rv_stage_mem #(
   ) pipe_ctrl (
       .clk      (clk),
       .rst_n    (rst_n),
-      .valid_i  (instr_valid_mem),
-      .valid_o  (),
       .stall_i  (stall_mem),
       .flush_i  (1'b0),
       .bubble_i (!instr_valid_mem),

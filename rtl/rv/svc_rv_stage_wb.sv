@@ -150,7 +150,6 @@ module svc_rv_stage_wb #(
   //
   // Pipeline control
   //
-  // valid_i/valid_o kept for pipe_ctrl interface but not used for retirement.
   // Retirement uses instr_valid_ret from the pipe_data bundle.
   //
   logic pipe_advance_o;
@@ -160,8 +159,6 @@ module svc_rv_stage_wb #(
   svc_rv_pipe_ctrl pipe_ctrl (
       .clk      (clk),
       .rst_n    (rst_n),
-      .valid_i  (instr_valid_wb),
-      .valid_o  (),
       .stall_i  (stall_wb),
       .flush_i  (1'b0),
       .bubble_i (!instr_valid_wb),
