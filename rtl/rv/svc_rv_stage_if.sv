@@ -71,6 +71,7 @@ module svc_rv_stage_if #(
     // Outputs to ID stage (m_ready removed, stall controls flow)
     //
     output logic m_valid,
+    output logic instr_valid_id,
 
     output logic [    31:0] instr_id,
     output logic [XLEN-1:0] pc_id,
@@ -197,7 +198,11 @@ module svc_rv_stage_if #(
   //
   // Valid output
   //
-  assign m_valid = valid_ram;
+  assign m_valid        = valid_ram;
+
+  // instr_valid_id tracks instruction validity for downstream stages.
+  // For now, sourced from m_valid (will be moved to pipe_data in Phase 5).
+  assign instr_valid_id = m_valid;
 
 `ifdef FORMAL
 `ifdef FORMAL_SVC_RV_STAGE_IF

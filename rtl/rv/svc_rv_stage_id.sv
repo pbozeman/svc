@@ -47,9 +47,8 @@ module svc_rv_stage_id #(
     input logic stall_id,
     input logic dmem_stall,
 
-    // From IF stage (s_ready removed, stall controls upstream flow)
-    input logic s_valid,
-
+    // From IF stage
+    input logic            instr_valid_id,
     input logic [    31:0] instr_id,
     input logic [    31:0] pc_id,
     input logic [    31:0] pc_plus4_id,
@@ -72,7 +71,6 @@ module svc_rv_stage_id #(
     input logic [XLEN-1:0] ld_data_mem,
 
     // Outputs to EX stage
-    output logic            m_valid,
     output logic            instr_valid_ex,
     output logic            reg_write_ex,
     output logic            mem_read_ex,
@@ -303,8 +301,8 @@ module svc_rv_stage_id #(
   ) pipe_ctrl (
       .clk      (clk),
       .rst_n    (rst_n),
-      .valid_i  (s_valid),
-      .valid_o  (m_valid),
+      .valid_i  (instr_valid_id),
+      .valid_o  (),
       .stall_i  (stall_id),
       .flush_i  (id_ex_flush),
       .bubble_i (data_hazard_id),
@@ -313,15 +311,11 @@ module svc_rv_stage_id #(
       .bubble_o (bubble)
   );
 
-  // instr_valid_ex tracks instruction validity for downstream stages.
-  // For now, sourced from m_valid (will be moved to pipe_data in Phase 4).
-  assign instr_valid_ex = m_valid;
-
   //
   // Processor control signals
   //
   svc_rv_pipe_data #(
-      .WIDTH(8),
+      .WIDTH(9),
       .REG  (PIPELINED)
   ) pipe_ctrl_signals (
       .clk(clk),
@@ -330,10 +324,11 @@ module svc_rv_stage_id #(
       .flush(flush),
       .bubble(bubble),
 `ifdef FORMAL
-      .s_valid(s_valid),
+      .s_valid(instr_valid_id),
       .s_ready(!stall_id),
 `endif
       .data_i({
+        instr_valid_id,
         reg_write_id,
         mem_read_id,
         mem_write_id,
@@ -344,6 +339,7 @@ module svc_rv_stage_id #(
         instr_invalid_id
       }),
       .data_o({
+        instr_valid_ex,
         reg_write_ex,
         mem_read_ex,
         mem_write_ex,
@@ -371,7 +367,7 @@ module svc_rv_stage_id #(
       .flush(1'b0),
       .bubble(bubble),
 `ifdef FORMAL
-      .s_valid(s_valid),
+      .s_valid(instr_valid_id),
       .s_ready(!stall_id),
 `endif
       .data_i({
@@ -438,7 +434,7 @@ module svc_rv_stage_id #(
       .bubble (bubble),
 `ifdef FORMAL
       // see note above
-      .s_valid(s_valid),
+      .s_valid(instr_valid_id),
       .s_ready(1'b1),
 `endif
       .data_i (fwd_data_id),
@@ -460,7 +456,7 @@ module svc_rv_stage_id #(
       .flush  (1'b0),
       .bubble (bubble),
 `ifdef FORMAL
-      .s_valid(s_valid),
+      .s_valid(instr_valid_id),
       .s_ready(!stall_id),
 `endif
       .data_i ({imm_id, pc_id, pc_plus4_id}),
@@ -480,7 +476,7 @@ module svc_rv_stage_id #(
       .flush  (1'b0),
       .bubble (bubble),
 `ifdef FORMAL
-      .s_valid(s_valid),
+      .s_valid(instr_valid_id),
       .s_ready(!stall_id),
 `endif
       .data_i (instr_id),
@@ -528,7 +524,7 @@ module svc_rv_stage_id #(
       .flush  (flush),
       .bubble (bubble),
 `ifdef FORMAL
-      .s_valid(s_valid),
+      .s_valid(instr_valid_id),
       .s_ready(!stall_id),
 `endif
       .data_i (final_bpred_taken_id),
@@ -546,7 +542,7 @@ module svc_rv_stage_id #(
       .flush  (flush),
       .bubble (bubble),
 `ifdef FORMAL
-      .s_valid(s_valid),
+      .s_valid(instr_valid_id),
       .s_ready(!stall_id),
 `endif
       .data_i (final_pred_tgt_id),
@@ -579,7 +575,8 @@ module svc_rv_stage_id #(
   // Flushing would corrupt bpred_taken_ex for the valid instruction in EX.
   //
   always_comb begin
-    `FASSUME(a_no_flush_when_stalled, !(m_valid && stall_id && id_ex_flush));
+    `FASSUME(a_no_flush_when_stalled,
+             !(instr_valid_ex && stall_id && id_ex_flush));
   end
 
   //
@@ -596,7 +593,8 @@ module svc_rv_stage_id #(
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
       if ($past(stall_id || data_hazard_id)) begin
-        `FASSUME(a_s_valid_stable, s_valid == $past(s_valid));
+        `FASSUME(a_instr_valid_id_stable, instr_valid_id == $past(instr_valid_id
+                 ));
         `FASSUME(a_instr_id_stable, instr_id == $past(instr_id));
         `FASSUME(a_pc_id_stable, pc_id == $past(pc_id));
         `FASSUME(a_pc_plus4_id_stable, pc_plus4_id == $past(pc_plus4_id));
@@ -636,9 +634,9 @@ module svc_rv_stage_id #(
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      if ($past(m_valid && stall_id && !id_ex_flush)) begin
+      if ($past(instr_valid_ex && stall_id && !id_ex_flush)) begin
         // Valid must remain asserted until unstalled (unless flushed)
-        `FASSERT(a_valid_stable, m_valid || id_ex_flush);
+        `FASSERT(a_valid_stable, instr_valid_ex || id_ex_flush);
 
         //
         // Control signals must remain stable
@@ -693,7 +691,7 @@ module svc_rv_stage_id #(
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      if ($past(m_valid && stall_id)) begin
+      if ($past(instr_valid_ex && stall_id)) begin
         `FASSERT(a_bpred_taken_stable, bpred_taken_ex == $past(bpred_taken_ex));
       end
     end
@@ -705,15 +703,17 @@ module svc_rv_stage_id #(
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
       // Cover back-to-back valid transfers
-      `FCOVER(c_back_to_back, $past(m_valid && !stall_id) && m_valid);
+      `FCOVER(c_back_to_back, $past(instr_valid_ex && !stall_id
+              ) && instr_valid_ex);
 
       // Cover stalled transfer (valid high, stall for a cycle)
-      `FCOVER(c_stalled, $past(m_valid && stall_id) && m_valid && !stall_id);
+      `FCOVER(c_stalled, $past(instr_valid_ex && stall_id
+              ) && instr_valid_ex && !stall_id);
 
       // Cover stalled with taken branch prediction - the scenario that
       // could corrupt bpred_taken_ex if id_ex_flush fired incorrectly
-      `FCOVER(c_stall_bpred_taken, $past(m_valid && stall_id && bpred_taken_ex
-              ));
+      `FCOVER(c_stall_bpred_taken, $past(
+              instr_valid_ex && stall_id && bpred_taken_ex));
     end
   end
 
