@@ -1,0 +1,278 @@
+`include "svc_unit.sv"
+
+`include "svc_cache_axi.sv"
+`include "svc_axi_mem.sv"
+
+module svc_cache_axi_twoway_tbi;
+  localparam CACHE_SIZE_BYTES = 256;
+  localparam CACHE_ADDR_WIDTH = 32;
+  localparam CACHE_LINE_BYTES = 16;
+  localparam AXI_ADDR_WIDTH = 12;
+  localparam AXI_DATA_WIDTH = 32;
+  localparam AXI_ID_WIDTH = 4;
+
+  `TEST_CLK_NS(clk, 10);
+  `TEST_RST_N(clk, rst_n);
+
+  //
+  // CPU interface
+  //
+  logic                      rd_valid_in;
+  logic                      rd_ready;
+  logic [              31:0] rd_addr;
+  logic [              31:0] rd_data;
+  logic                      rd_data_valid;
+  logic                      rd_hit;
+  logic                      wr_valid_in;
+  logic                      wr_ready;
+  logic [              31:0] wr_addr;
+  logic [              31:0] wr_data;
+  logic [               3:0] wr_strb;
+
+  //
+  // AXI interface
+  //
+  logic                      axi_arvalid;
+  logic [  AXI_ID_WIDTH-1:0] axi_arid;
+  logic [AXI_ADDR_WIDTH-1:0] axi_araddr;
+  logic [               7:0] axi_arlen;
+  logic [               2:0] axi_arsize;
+  logic [               1:0] axi_arburst;
+  logic                      axi_arready;
+
+  logic                      axi_rvalid;
+  logic [  AXI_ID_WIDTH-1:0] axi_rid;
+  logic [AXI_DATA_WIDTH-1:0] axi_rdata;
+  logic [               1:0] axi_rresp;
+  logic                      axi_rlast;
+  logic                      axi_rready;
+
+  logic                      axi_awvalid;
+  logic [  AXI_ID_WIDTH-1:0] axi_awid;
+  logic [AXI_ADDR_WIDTH-1:0] axi_awaddr;
+  logic [               7:0] axi_awlen;
+  logic [               2:0] axi_awsize;
+  logic [               1:0] axi_awburst;
+  logic                      axi_awready;
+
+  logic                      axi_wvalid;
+  logic [AXI_DATA_WIDTH-1:0] axi_wdata;
+  logic [               3:0] axi_wstrb;
+  logic                      axi_wlast;
+  logic                      axi_wready;
+
+  logic                      axi_bvalid;
+  logic [  AXI_ID_WIDTH-1:0] axi_bid;
+  logic [               1:0] axi_bresp;
+  logic                      axi_bready;
+
+  //
+  // Cache under test (2-way set associative)
+  //
+  svc_cache_axi #(
+      .CACHE_SIZE_BYTES(CACHE_SIZE_BYTES),
+      .CACHE_ADDR_WIDTH(CACHE_ADDR_WIDTH),
+      .CACHE_LINE_BYTES(CACHE_LINE_BYTES),
+      .TWO_WAY         (1),
+      .AXI_ADDR_WIDTH  (AXI_ADDR_WIDTH),
+      .AXI_DATA_WIDTH  (AXI_DATA_WIDTH),
+      .AXI_ID_WIDTH    (AXI_ID_WIDTH)
+  ) uut (
+      .clk  (clk),
+      .rst_n(rst_n),
+
+      .rd_valid     (rd_valid_in),
+      .rd_ready     (rd_ready),
+      .rd_addr      (rd_addr),
+      .rd_data      (rd_data),
+      .rd_data_valid(rd_data_valid),
+      .rd_hit       (rd_hit),
+      .wr_valid     (wr_valid_in),
+      .wr_ready     (wr_ready),
+      .wr_addr      (wr_addr),
+      .wr_data      (wr_data),
+      .wr_strb      (wr_strb),
+
+      .m_axi_arvalid(axi_arvalid),
+      .m_axi_arid   (axi_arid),
+      .m_axi_araddr (axi_araddr),
+      .m_axi_arlen  (axi_arlen),
+      .m_axi_arsize (axi_arsize),
+      .m_axi_arburst(axi_arburst),
+      .m_axi_arready(axi_arready),
+
+      .m_axi_rvalid(axi_rvalid),
+      .m_axi_rid   (axi_rid),
+      .m_axi_rdata (axi_rdata),
+      .m_axi_rresp (axi_rresp),
+      .m_axi_rlast (axi_rlast),
+      .m_axi_rready(axi_rready),
+
+      .m_axi_awvalid(axi_awvalid),
+      .m_axi_awid   (axi_awid),
+      .m_axi_awaddr (axi_awaddr),
+      .m_axi_awlen  (axi_awlen),
+      .m_axi_awsize (axi_awsize),
+      .m_axi_awburst(axi_awburst),
+      .m_axi_awready(axi_awready),
+
+      .m_axi_wvalid(axi_wvalid),
+      .m_axi_wdata (axi_wdata),
+      .m_axi_wstrb (axi_wstrb),
+      .m_axi_wlast (axi_wlast),
+      .m_axi_wready(axi_wready),
+
+      .m_axi_bvalid(axi_bvalid),
+      .m_axi_bid   (axi_bid),
+      .m_axi_bresp (axi_bresp),
+      .m_axi_bready(axi_bready)
+  );
+
+  //
+  // AXI memory backing store
+  //
+  svc_axi_mem #(
+      .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
+      .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
+      .AXI_ID_WIDTH  (AXI_ID_WIDTH)
+  ) axi_mem (
+      .clk  (clk),
+      .rst_n(rst_n),
+
+      .s_axi_arvalid(axi_arvalid),
+      .s_axi_arid   (axi_arid),
+      .s_axi_araddr (axi_araddr),
+      .s_axi_arlen  (axi_arlen),
+      .s_axi_arsize (axi_arsize),
+      .s_axi_arburst(axi_arburst),
+      .s_axi_arready(axi_arready),
+
+      .s_axi_rvalid(axi_rvalid),
+      .s_axi_rid   (axi_rid),
+      .s_axi_rdata (axi_rdata),
+      .s_axi_rresp (axi_rresp),
+      .s_axi_rlast (axi_rlast),
+      .s_axi_rready(axi_rready),
+
+      .s_axi_awvalid(axi_awvalid),
+      .s_axi_awid   (axi_awid),
+      .s_axi_awaddr (axi_awaddr),
+      .s_axi_awlen  (axi_awlen),
+      .s_axi_awsize (axi_awsize),
+      .s_axi_awburst(axi_awburst),
+      .s_axi_awready(axi_awready),
+
+      .s_axi_wvalid(axi_wvalid),
+      .s_axi_wdata (axi_wdata),
+      .s_axi_wstrb (axi_wstrb),
+      .s_axi_wlast (axi_wlast),
+      .s_axi_wready(axi_wready),
+
+      .s_axi_bvalid(axi_bvalid),
+      .s_axi_bid   (axi_bid),
+      .s_axi_bresp (axi_bresp),
+      .s_axi_bready(axi_bready)
+  );
+
+  `include "svc_cache_axi_test_defs.svh"
+
+  //
+  // Test: Both ways of a set can be cached and hit
+  //
+  task automatic test_twoway_both_cached;
+    // Fill way 0: read 0x400
+    rd_addr     = 32'h400;
+    rd_valid_in = 1;
+    `CHECK_WAIT_FOR(clk, rd_data_valid, 8);
+    `CHECK_EQ(rd_data, 32'h12345678);
+    rd_valid_in = 0;
+    `TICK(clk);
+
+    // Fill way 1: read 0x480 (same set, different tag)
+    rd_addr     = 32'h480;
+    rd_valid_in = 1;
+    `CHECK_WAIT_FOR(clk, rd_data_valid, 8);
+    `CHECK_EQ(rd_data, 32'hFEEDFACE);
+    rd_valid_in = 0;
+    `TICK(clk);
+
+    // Verify both addresses map to same set
+    rd_addr = 32'h400;
+    `CHECK_EQ(uut.addr_set, 3'd0);
+    rd_addr = 32'h480;
+    `CHECK_EQ(uut.addr_set, 3'd0);
+
+    // Now both ways should be cached - verify 2-cycle hits (BRAM tag lookup)
+    // Read way 0 again
+    rd_addr     = 32'h400;
+    rd_valid_in = 1;
+    `CHECK_WAIT_FOR(clk, rd_data_valid, 8);
+    `CHECK_EQ(rd_data, 32'h12345678);
+    rd_valid_in = 0;
+    `TICK(clk);
+
+    // Read way 1 again
+    rd_addr     = 32'h480;
+    rd_valid_in = 1;
+    `CHECK_WAIT_FOR(clk, rd_data_valid, 8);
+    `CHECK_EQ(rd_data, 32'hFEEDFACE);
+    rd_valid_in = 0;
+    `TICK(clk);
+  endtask
+
+  //
+  // Test: LRU eviction - least recently used way gets replaced
+  //
+  task automatic test_lru_eviction;
+    // Fill way 0 with 0x400
+    rd_addr     = 32'h400;
+    rd_valid_in = 1;
+    `CHECK_WAIT_FOR(clk, rd_data_valid, 8);
+    `CHECK_EQ(rd_data, 32'h12345678);
+    `TICK(clk);
+
+    // Fill way 1 with 0x480 (same set)
+    rd_addr     = 32'h480;
+    rd_valid_in = 1;
+    `CHECK_WAIT_FOR(clk, rd_data_valid, 8);
+    `CHECK_EQ(rd_data, 32'hFEEDFACE);
+    `TICK(clk);
+
+    // Access way 0 again - makes way 1 the LRU
+    rd_addr     = 32'h400;
+    rd_valid_in = 1;
+    `CHECK_WAIT_FOR(clk, rd_data_valid, 8);
+    `CHECK_EQ(rd_data, 32'h12345678);
+    rd_valid_in = 0;
+    `TICK(clk);
+
+    // Read 0x800 (same set, third tag) - should evict way 1 (LRU)
+    rd_addr     = 32'h800;
+    rd_valid_in = 1;
+    `CHECK_WAIT_FOR(clk, rd_data_valid, 8);
+    `CHECK_EQ(rd_data, 32'h0E71C7ED);
+    `TICK(clk);
+
+    // Way 0 (0x400) should still be cached
+    rd_addr     = 32'h400;
+    rd_valid_in = 1;
+    `CHECK_WAIT_FOR(clk, rd_data_valid, 8);
+    `CHECK_EQ(rd_data, 32'h12345678);
+    rd_valid_in = 0;
+    `TICK(clk);
+
+    // Way 1 (0x480) was evicted - should miss and refill
+    rd_addr = 32'h480;
+    `CHECK_FALSE(uut.hit);
+    rd_valid_in = 1;
+    `CHECK_WAIT_FOR(clk, rd_data_valid, 8);
+    `CHECK_EQ(rd_data, 32'hFEEDFACE);
+  endtask
+
+  `TEST_SUITE_BEGIN(svc_cache_axi_twoway_tbi);
+  `include "svc_cache_axi_test_list.svh"
+  `TEST_CASE(test_twoway_both_cached);
+  `TEST_CASE(test_lru_eviction);
+  `TEST_SUITE_END();
+
+endmodule

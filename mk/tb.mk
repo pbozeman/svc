@@ -4,63 +4,175 @@ TB_MK := 1
 include mk/dirs.mk
 include mk/format.mk
 include mk/lint.mk
+include mk/iverilog.mk
 
 ICE40_CELLS_SIM := $(shell yosys-config --datdir/ice40/cells_sim.v)
 
-# TB sources and modules
-TB_SV := $(shell find $(PRJ_TB_DIR) -name '*_tb.sv' 2>/dev/null)
-TB_MODULES := $(basename $(notdir $(TB_SV)))
-TB_SUBDIRS := $(shell find $(PRJ_TB_DIR) -type d 2>/dev/null)
+##############################################################################
+#
+# TB Discovery
+#
+# Two types of testbenches:
+#   *_tbi.sv - Icarus Verilog (fast compilation, default)
+#   *_tbv.sv - Verilator (advanced SV features like fpnew)
+#
+##############################################################################
+TBI_SV := $(shell find $(PRJ_TB_DIR) -name '*_tbi.sv' 2>/dev/null)
+TBI_MODULES := $(basename $(notdir $(TBI_SV)))
+TBI_SUBDIRS := $(shell find $(PRJ_TB_DIR) -type d 2>/dev/null)
 
-# Tell Make where to find _tb.sv files
-vpath %_tb.sv $(TB_SUBDIRS)
+TBV_SV := $(shell find $(PRJ_TB_DIR) -name '*_tbv.sv' 2>/dev/null)
+TBV_MODULES := $(basename $(notdir $(TBV_SV)))
+TBV_SUBDIRS := $(shell find $(PRJ_TB_DIR) -type d 2>/dev/null)
 
-# TB output
+# Tell Make where to find tb files
+vpath %_tbi.sv $(TBI_SUBDIRS)
+vpath %_tbv.sv $(TBV_SUBDIRS)
+
+# Build directories
+TBI_BUILD_DIR := $(BUILD_DIR)/tbi
+TBV_BUILD_DIR := $(BUILD_DIR)/tbv
 TB_BUILD_DIR := $(BUILD_DIR)/tb
-TB_PASS_FILE := $(TB_BUILD_DIR)/pass
+
+# C++ wrapper for Verilator TBs
+TB_MAIN_CPP := $(SVC_DIR)/tb/cpp/tb_main.cpp
 
 # Other mk groups can take a dependency on tb_pass
+TB_PASS_FILE := $(TB_BUILD_DIR)/pass
 .PHONY: tb_pass
 tb_pass: $(TB_PASS_FILE)
+
+##############################################################################
+#
+# Shared Verilator Runtime (for tbv)
+#
+# Build verilator support files once and share across all testbenches.
+# This avoids recompiling verilated.cpp, verilated_timing.cpp, etc. for
+# each testbench, significantly reducing build time.
+#
+##############################################################################
+VERILATOR_ROOT := $(shell verilator --getenv VERILATOR_ROOT)
+VERILATOR_INC := $(VERILATOR_ROOT)/include
+VL_RT_DIR := $(BUILD_DIR)/verilator_rt
+
+# Compiler flags matching what Verilator uses
+VL_RT_CXXFLAGS := -I$(VERILATOR_INC) -I$(VERILATOR_INC)/vltstd
+VL_RT_CXXFLAGS += -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=1
+VL_RT_CXXFLAGS += -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0
+VL_RT_CXXFLAGS += -faligned-new -fcf-protection=none
+VL_RT_CXXFLAGS += -Wno-bool-operation -Wno-shadow -Wno-sign-compare
+VL_RT_CXXFLAGS += -Wno-subobject-linkage -Wno-tautological-compare
+VL_RT_CXXFLAGS += -Wno-uninitialized -Wno-unused-but-set-parameter
+VL_RT_CXXFLAGS += -Wno-unused-but-set-variable -Wno-unused-parameter
+VL_RT_CXXFLAGS += -Wno-unused-variable -fcoroutines -Os
+
+# Runtime object files
+VL_RT_OBJS := $(VL_RT_DIR)/verilated.o
+VL_RT_OBJS += $(VL_RT_DIR)/verilated_timing.o
+VL_RT_OBJS += $(VL_RT_DIR)/verilated_threads.o
+
+# Static library for the runtime
+VL_RT_LIB := $(VL_RT_DIR)/libverilated_rt.a
+
+$(VL_RT_DIR):
+	@mkdir -p $@
+
+$(VL_RT_DIR)/verilated.o: | $(VL_RT_DIR)
+	@g++ $(VL_RT_CXXFLAGS) -c -o $@ $(VERILATOR_INC)/verilated.cpp
+
+$(VL_RT_DIR)/verilated_timing.o: | $(VL_RT_DIR)
+	@g++ $(VL_RT_CXXFLAGS) -c -o $@ $(VERILATOR_INC)/verilated_timing.cpp
+
+$(VL_RT_DIR)/verilated_threads.o: | $(VL_RT_DIR)
+	@g++ $(VL_RT_CXXFLAGS) -c -o $@ $(VERILATOR_INC)/verilated_threads.cpp
+
+$(VL_RT_LIB): $(VL_RT_OBJS)
+	@ar rcs $@ $^
+
+.PHONY: verilator_rt
+verilator_rt: $(VL_RT_LIB)
+
+# Verilator TB command (without --build, we do our own build step)
+VERILATOR_TB_FLAGS := --cc --exe --timing
+VERILATOR_TB_FLAGS += -Wall -Wno-PINCONNECTEMPTY -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM
+VERILATOR_TB_FLAGS += -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND
+VERILATOR_TB_FLAGS += -O3
+VERILATOR_TB_FLAGS += $(I_RTL) $(I_EXT) $(I_TB)
+VERILATOR_TB := verilator $(VERILATOR_TB_FLAGS)
 
 ##############################################################################
 #
 # TB Formatting & Linting
 #
 ##############################################################################
-format: format_tb
+format: format_tbi format_tbv
 
-.PHONY: format_tb
-format_tb:
-	@$(FORMATTER) $(TB_SV)
+.PHONY: format_tbi
+format_tbi:
+ifneq ($(TBI_SV),)
+	@$(FORMATTER) $(TBI_SV)
+endif
 
-.PHONY: lint_tb
-lint: lint_tb
+.PHONY: format_tbv
+format_tbv:
+ifneq ($(TBV_SV),)
+	@$(FORMATTER) $(TBV_SV)
+endif
 
-define lint_tb_rule
-lint_tb: lint_$(1)
+.PHONY: lint_tbi lint_tbv
+lint: lint_tbi lint_tbv
+
+define lint_tbi_rule
+lint_tbi: lint_$(1)
 lint_$(1):
-	@$$(LINTER) $(I_TB) -I$(PRJ_RTL_DIR)/$(patsubst %_tb,%, $(notdir $1)) $(1).sv
+	@$$(LINTER) $(I_TB) -I$(PRJ_RTL_DIR)/$(patsubst %_tbi,%, $(notdir $1)) $(1).sv
 endef
 
-$(foreach tb, $(TB_MODULES), $(eval $(call lint_tb_rule,$(tb))))
+# Suppressions for fpnew external library warnings
+FPNEW_LINT_FLAGS := -Wno-UNOPTFLAT -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNSIGNED \
+	-Wno-TIMESCALEMOD -Wno-GENUNNAMED -Wno-ASCRANGE -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL
+
+define lint_tbv_rule
+lint_tbv: lint_$(1)
+lint_$(1):
+	@$$(LINTER) $(I_TB) $(I_EXT) -I$(PRJ_RTL_DIR)/$(patsubst %_tbv,%, $(notdir $1)) \
+		$(FPNEW_LINT_FLAGS) $(FPNEW_CF_PKG) $(FPNEW_PKG) $(1).sv
+endef
+
+$(foreach tb, $(TBI_MODULES), $(eval $(call lint_tbi_rule,$(tb))))
+$(foreach tb, $(TBV_MODULES), $(eval $(call lint_tbv_rule,$(tb))))
 
 ##############################################################################
 #
-# TB Execution
+# TB Pass Files
 #
 ##############################################################################
-TB_PASS_FILES := $(addprefix $(TB_BUILD_DIR)/,$(addsuffix .pass, $(TB_MODULES)))
+TBI_PASS_FILES := $(addprefix $(TBI_BUILD_DIR)/,$(addsuffix .pass, $(TBI_MODULES)))
+TBV_PASS_FILES := $(addprefix $(TBV_BUILD_DIR)/,$(addsuffix .pass, $(TBV_MODULES)))
 
-.PHONY: tb
-tb: SKIP_SLOW_TESTS := 1
-tb: tb_clean_logs $(TB_PASS_FILES)
-	@if [ -s $(TB_BUILD_DIR)/tb_failure.log ] || [ -z "$(SILENT_SUCCESS)" ]; then \
-	  echo "=============================="; \
-	  $(call tb_quick_report)                \
-	  echo "=============================="; \
-	fi
-	@[ ! -s $(TB_BUILD_DIR)/tb_failure.log ] || exit 1;
+##############################################################################
+#
+# TB Execution - Common
+#
+##############################################################################
+
+# run a tb and do results tracking
+# $1 = executable path, $2 = pass file path (optional, defaults to $1.pass)
+define tb_run_test
+	@echo "$1" >> $(TB_BUILD_DIR)/tb_run.log;
+	@$1 +SKIP_SLOW_TESTS=$(SKIP_SLOW_TESTS) +run=$(RUN) +SVC_TB_RPT=$(SVC_TB_RPT) $(if $(SVC_RV_DBG_CPU),+SVC_RV_DBG_CPU=$(SVC_RV_DBG_CPU)) $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) $(if $(SVC_RV_DBG_HAZ),+SVC_RV_DBG_HAZ=$(SVC_RV_DBG_HAZ)) $(if $(SVC_RV_DBG_RVFI),+SVC_RV_DBG_RVFI=$(SVC_RV_DBG_RVFI)) 2>&1 |\
+		grep -v "VCD info:" |\
+		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored"; \
+		status=$${PIPESTATUS[0]}; \
+		if [ $$status -eq 0 ]; then \
+			if [ -z "$(RUN)" ]; then \
+				touch "$(or $2,$1.pass)"; \
+			fi; \
+			echo "$1" >> $(TB_BUILD_DIR)/tb_success.log; \
+		else \
+			echo "make $$(basename $$(dirname $1))" >> $(TB_BUILD_DIR)/tb_failure.log; \
+		fi
+endef
 
 define tb_quick_report
 	echo "TB dirty          : $$(cat $(TB_BUILD_DIR)/tb_run.log 2>/dev/null | wc -l)"; \
@@ -75,7 +187,102 @@ tb_report:
 	@$(call tb_quick_report)
 	@echo "==============================";
 
-# the pass file for the all tests
+##############################################################################
+#
+# Icarus Verilog Testbenches (_tbi)
+#
+##############################################################################
+
+# Generate build and run rules for each Icarus testbench
+define tbi_rules
+# Build rule for $(1)
+.PRECIOUS: $(TBI_BUILD_DIR)/$(1)/$(1)
+$(TBI_BUILD_DIR)/$(1)/$(1): $(1).sv $(ICE40_CELLS_SIM) Makefile | $(TBI_BUILD_DIR)
+	@mkdir -p $(TBI_BUILD_DIR)/$(1)
+	@$$(IVERILOG) -M $(TBI_BUILD_DIR)/$(1).dep $$(I_RTL) $$(I_EXT) $$(I_TB) \
+		-I$(PRJ_RTL_DIR)/$(patsubst %_tbi,%,$(1)) \
+		-o $$@ $$< $(ICE40_CELLS_SIM) 2>&1 | \
+		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
+		test $$$${PIPESTATUS[0]} -eq 0
+	@echo "$$@:" $$$$(cat $(TBI_BUILD_DIR)/$(1).dep) > $(TBI_BUILD_DIR)/$(1).d
+
+# Pass file rule for $(1)
+$(TBI_BUILD_DIR)/$(1).pass: $(TBI_BUILD_DIR)/$(1)/$(1) | $(TB_BUILD_DIR)
+	$$(call tb_run_test,$$<,$$@)
+
+# Phony target to run $(1)
+.PHONY: $(1)
+$(1): $(TBI_BUILD_DIR)/$(1)/$(1) | $(TB_BUILD_DIR)
+	$$(call tb_run_test,$$<)
+endef
+
+$(foreach tb,$(TBI_MODULES),$(eval $(call tbi_rules,$(tb))))
+
+##############################################################################
+#
+# Verilator Testbenches (_tbv)
+#
+##############################################################################
+
+# Generate build and run rules for each Verilator testbench
+define tbv_rules
+# Build rule for $(1)
+.PRECIOUS: $(TBV_BUILD_DIR)/$(1)/V$(1)
+$(TBV_BUILD_DIR)/$(1)/V$(1): $(1).sv $(TB_MAIN_CPP) $(VL_RT_LIB) Makefile | $(TBV_BUILD_DIR)
+	@mkdir -p $(TBV_BUILD_DIR)/$(1)
+	@$$(IVERILOG) -M $(TBV_BUILD_DIR)/$(1).dep -o /dev/null \
+		$$(I_RTL) $$(I_EXT) $$(I_TB) -I$(PRJ_RTL_DIR)/$(patsubst %_tbv,%,$(1)) $$< 2>/dev/null || true
+	@echo "$$@:" $$$$(cat $(TBV_BUILD_DIR)/$(1).dep) > $(TBV_BUILD_DIR)/$(1).d
+	@$$(VERILATOR_TB) \
+		-I$(PRJ_RTL_DIR)/$(patsubst %_tbv,%,$(1)) \
+		--Mdir $(TBV_BUILD_DIR)/$(1) \
+		--top-module $(1) \
+		-CFLAGS '-DTB_HEADER=\\\"V$(1).h\\\" -DTB_TOP=V$(1)' \
+		$$< $(TB_MAIN_CPP)
+	@$$(MAKE) -s -C $(TBV_BUILD_DIR)/$(1) -f V$(1).mk \
+		VK_GLOBAL_OBJS="" \
+		VM_PREFIX=V$(1) \
+		LDLIBS="$(abspath $(VL_RT_LIB))" \
+		V$(1)
+
+# Pass file rule for $(1)
+$(TBV_BUILD_DIR)/$(1).pass: $(TBV_BUILD_DIR)/$(1)/V$(1) | $(TB_BUILD_DIR)
+	$$(call tb_run_test,$$<,$$@)
+
+# Phony target to run $(1)
+.PHONY: $(1)
+$(1): $(TBV_BUILD_DIR)/$(1)/V$(1) | $(TB_BUILD_DIR)
+	$$(call tb_run_test,$$<)
+endef
+
+$(foreach tb,$(TBV_MODULES),$(eval $(call tbv_rules,$(tb))))
+
+# Include generated dependency files
+-include $(wildcard $(TBI_BUILD_DIR)/*.d)
+-include $(wildcard $(TBV_BUILD_DIR)/*.d)
+
+##############################################################################
+#
+# Main Targets
+#
+##############################################################################
+.PHONY: tb tbi tbv
+tb: SKIP_SLOW_TESTS := 1
+tb: tb_clean_logs tbi tbv
+	@if [ -s $(TB_BUILD_DIR)/tb_failure.log ] || [ -z "$(SILENT_SUCCESS)" ]; then \
+	  echo "=============================="; \
+	  $(call tb_quick_report)                \
+	  echo "=============================="; \
+	fi
+	@[ ! -s $(TB_BUILD_DIR)/tb_failure.log ] || exit 1;
+
+tbi: SKIP_SLOW_TESTS := 1
+tbi: tb_clean_logs $(TBI_PASS_FILES)
+
+tbv: SKIP_SLOW_TESTS := 1
+tbv: tb_clean_logs $(TBV_PASS_FILES)
+
+# the pass file for all tests
 $(TB_BUILD_DIR)/pass: tb
 	@if [ ! -s $(TB_BUILD_DIR)/tb_failure.log ]; then \
 	  touch $(TB_BUILD_DIR)/pass; \
@@ -83,46 +290,10 @@ $(TB_BUILD_DIR)/pass: tb
 	  exit 1; \
 	fi
 
-# individual tb pass files
-$(TB_BUILD_DIR)/%.pass: $(TB_BUILD_DIR)/%
-	$(call tb_run_test,$<)
-
-# simulation "synthesis"
-TB_PRJ_INC = $(PRJ_RTL_DIR)/$(patsubst %_tb,%, $(notdir $(*)))
-.PRECIOUS: $(TB_BUILD_DIR)/%
-$(TB_BUILD_DIR)/%: %.sv $(ICE40_CELLS_SIM) Makefile | $(TB_BUILD_DIR)
-	@$(IVERILOG) -M $(@).dep $(I_RTL) $(I_TB) -I$(TB_PRJ_INC) -o $@ $< $(ICE40_CELLS_SIM) 2>&1 | grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
-		test $${PIPESTATUS[0]} -eq 0
-	@echo "$@: $$(tr '\n' ' ' < $(@).dep)" > $(@).d
-
-# run a tb and do results tracking
-define tb_run_test
-	@echo "$1" >> $(TB_BUILD_DIR)/tb_run.log;
-	@$(VVP) $1 +SKIP_SLOW_TESTS=$(SKIP_SLOW_TESTS) +run=$(RUN) +SVC_TB_RPT=$(SVC_TB_RPT) $(if $(SVC_RV_DBG_CPU),+SVC_RV_DBG_CPU=$(SVC_RV_DBG_CPU)) $(if $(SVC_RV_DBG_IF),+SVC_RV_DBG_IF=$(SVC_RV_DBG_IF)) $(if $(SVC_RV_DBG_ID),+SVC_RV_DBG_ID=$(SVC_RV_DBG_ID)) $(if $(SVC_RV_DBG_EX),+SVC_RV_DBG_EX=$(SVC_RV_DBG_EX)) $(if $(SVC_RV_DBG_MEM),+SVC_RV_DBG_MEM=$(SVC_RV_DBG_MEM)) $(if $(SVC_RV_DBG_WB),+SVC_RV_DBG_WB=$(SVC_RV_DBG_WB)) $(if $(SVC_RV_DBG_HAZ),+SVC_RV_DBG_HAZ=$(SVC_RV_DBG_HAZ)) $(if $(SVC_RV_DBG_RVFI),+SVC_RV_DBG_RVFI=$(SVC_RV_DBG_RVFI)) 2>&1 |\
-		grep -v "VCD info:" |\
-		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored"; \
-		status=$${PIPESTATUS[0]}; \
-		if [ $$status -eq 0 ]; then \
-			if [ -z "$(RUN)" ]; then \
-				touch "$1".pass; \
-			fi; \
-			echo "$1" >> $(TB_BUILD_DIR)/tb_success.log; \
-		else \
-			echo "make $(notdir $1)" >> $(TB_BUILD_DIR)/tb_failure.log; \
-		fi
-endef
-
-# Helper to run a _tb, recompiling it first if necessary.
-# Not depending on .pass and forcing a re-run is intentional to allow manual
-# forcing of re-execution, mainly during tb_full.
-.PHONY: $(TB_MODULES)
-$(TB_MODULES): % : $(TB_BUILD_DIR)/%
-	$(call tb_run_test,$<)
-
 # Run all test benches sequentially and show summary
 .PHONY: tb_run
 tb_run: SKIP_SLOW_TESTS := 1
-tb_run: lint_tb tb_clean_logs $(TB_MODULES)
+tb_run: lint_tbi lint_tbv tb_clean_logs $(TBI_MODULES) $(TBV_MODULES)
 
 define tb_full_report
 	@echo "TB passed         : $$(cat $(TB_BUILD_DIR)/tb_success.log 2>/dev/null | wc -l)"
@@ -151,8 +322,17 @@ unit_full: tb_full
 # Build Maintenance
 #
 ##############################################################################
+$(TBI_BUILD_DIR):
+	@mkdir -p $(@)
+
+$(TBV_BUILD_DIR):
+	@mkdir -p $(@)
+
 $(TB_BUILD_DIR):
 	@mkdir -p $(@)
+	@touch $(TB_BUILD_DIR)/tb_run.log
+	@touch $(TB_BUILD_DIR)/tb_success.log
+	@touch $(TB_BUILD_DIR)/tb_failure.log
 
 clean_logs: tb_clean_logs
 
@@ -170,10 +350,17 @@ tb_clean_logs: | $(TB_BUILD_DIR)
 # Help
 #
 ##############################################################################
-.PHONY: list_tb
-list_tb:
-	@echo "Available tb targets:"
-	@$(foreach t,$(TB_MODULES),echo " $t";)
+.PHONY: list_tb list_tbi list_tbv
+list_tb: list_tbi list_tbv
+
+list_tbi:
+	@echo "Available Icarus (tbi) targets:"
+	@$(foreach t,$(TBI_MODULES),echo " $t";)
+	@echo
+
+list_tbv:
+	@echo "Available Verilator (tbv) targets:"
+	@$(foreach t,$(TBV_MODULES),echo " $t";)
 	@echo
 
 endif

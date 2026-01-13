@@ -144,7 +144,9 @@
   task reset_``rst_n``();                                                    \
     rst_n = 0;                                                               \
     repeat (cycles) @(posedge clk);                                          \
-`ifndef VERILATOR                                                            \
+`ifdef VERILATOR                                                             \
+    rst_n = 1;                                                               \
+`else                                                                        \
     rst_n <= 1;                                                              \
 `endif                                                                       \
     #0.1;                                                                    \

@@ -1,0 +1,358 @@
+`include "svc_unit.sv"
+
+`include "svc_axi_arbiter_wr.sv"
+`include "svc_unused.sv"
+
+// This is just a quick smoke test. The real testing is via formal of the
+// combined rw module.
+
+module svc_axi_arbiter_wr_tbi;
+  parameter NUM_M = 3;
+  parameter AW = 20;
+  parameter DW = 16;
+  parameter IDW = 4;
+  parameter S_IDW = IDW + $clog2(NUM_M);
+
+  `TEST_CLK_NS(clk, 10);
+  `TEST_RST_N(clk, rst_n);
+
+  logic [NUM_M-1:0]           m_axi_awvalid;
+  logic [NUM_M-1:0][ IDW-1:0] m_axi_awid;
+  logic [NUM_M-1:0][  AW-1:0] m_axi_awaddr;
+  logic [NUM_M-1:0][     7:0] m_axi_awlen;
+  logic [NUM_M-1:0][     2:0] m_axi_awsize;
+  logic [NUM_M-1:0][     1:0] m_axi_awburst;
+  logic [NUM_M-1:0]           m_axi_awready;
+
+  logic [NUM_M-1:0]           m_axi_wvalid;
+  logic [NUM_M-1:0][  DW-1:0] m_axi_wdata;
+  logic [NUM_M-1:0][DW/8-1:0] m_axi_wstrb;
+  logic [NUM_M-1:0]           m_axi_wlast;
+  logic [NUM_M-1:0]           m_axi_wready;
+
+  logic [NUM_M-1:0]           m_axi_bvalid;
+  logic [NUM_M-1:0][ IDW-1:0] m_axi_bid;
+  logic [NUM_M-1:0][     1:0] m_axi_bresp;
+  logic [NUM_M-1:0]           m_axi_bready;
+
+  logic                       s_axi_awvalid;
+  logic [S_IDW-1:0]           s_axi_awid;
+  logic [   AW-1:0]           s_axi_awaddr;
+  logic [      7:0]           s_axi_awlen;
+  logic [      2:0]           s_axi_awsize;
+  logic [      1:0]           s_axi_awburst;
+  logic                       s_axi_awready;
+
+  logic                       s_axi_wvalid;
+  logic [   DW-1:0]           s_axi_wdata;
+  logic [ DW/8-1:0]           s_axi_wstrb;
+  logic                       s_axi_wlast;
+  logic                       s_axi_wready;
+
+  logic                       s_axi_bvalid;
+  logic [S_IDW-1:0]           s_axi_bid;
+  logic [      1:0]           s_axi_bresp;
+  logic                       s_axi_bready;
+
+  svc_axi_arbiter_wr #(
+      .NUM_M         (NUM_M),
+      .AXI_ADDR_WIDTH(AW),
+      .AXI_DATA_WIDTH(DW),
+      .AXI_ID_WIDTH  (IDW)
+  ) uut (
+      .clk  (clk),
+      .rst_n(rst_n),
+
+      .s_axi_awvalid(m_axi_awvalid),
+      .s_axi_awid   (m_axi_awid),
+      .s_axi_awaddr (m_axi_awaddr),
+      .s_axi_awlen  (m_axi_awlen),
+      .s_axi_awsize (m_axi_awsize),
+      .s_axi_awburst(m_axi_awburst),
+      .s_axi_awready(m_axi_awready),
+
+      .s_axi_wvalid(m_axi_wvalid),
+      .s_axi_wdata (m_axi_wdata),
+      .s_axi_wstrb (m_axi_wstrb),
+      .s_axi_wlast (m_axi_wlast),
+      .s_axi_wready(m_axi_wready),
+
+      .s_axi_bvalid(m_axi_bvalid),
+      .s_axi_bid   (m_axi_bid),
+      .s_axi_bresp (m_axi_bresp),
+      .s_axi_bready(m_axi_bready),
+
+      .m_axi_awvalid(s_axi_awvalid),
+      .m_axi_awid   (s_axi_awid),
+      .m_axi_awaddr (s_axi_awaddr),
+      .m_axi_awlen  (s_axi_awlen),
+      .m_axi_awsize (s_axi_awsize),
+      .m_axi_awburst(s_axi_awburst),
+      .m_axi_awready(s_axi_awready),
+
+      .m_axi_wvalid(s_axi_wvalid),
+      .m_axi_wdata (s_axi_wdata),
+      .m_axi_wstrb (s_axi_wstrb),
+      .m_axi_wlast (s_axi_wlast),
+      .m_axi_wready(s_axi_wready),
+
+      .m_axi_bvalid(s_axi_bvalid),
+      .m_axi_bid   (s_axi_bid),
+      .m_axi_bresp (s_axi_bresp),
+      .m_axi_bready(s_axi_bready)
+  );
+
+  always_ff @(posedge clk) begin
+    if (~rst_n) begin
+      m_axi_awvalid <= '0;
+      m_axi_awid    <= '0;
+      m_axi_awaddr  <= '0;
+      m_axi_awlen   <= '0;
+      m_axi_awsize  <= '0;
+      m_axi_awburst <= '0;
+
+      m_axi_wvalid  <= '0;
+      m_axi_wdata   <= '0;
+      m_axi_wstrb   <= '0;
+      m_axi_wlast   <= '0;
+
+      m_axi_bready  <= '0;
+
+      s_axi_awready <= 1'b0;
+      s_axi_wready  <= 1'b0;
+      s_axi_bvalid  <= 1'b0;
+      s_axi_bid     <= '0;
+      s_axi_bresp   <= 2'b00;
+    end
+  end
+
+  always_ff @(posedge clk) begin
+    for (int i = 0; i < NUM_M; i++) begin
+      if (m_axi_awvalid[i] && m_axi_awready[i]) begin
+        m_axi_awvalid[i] <= 1'b0;
+      end
+    end
+  end
+
+  task automatic test_initial;
+    `CHECK_FALSE(s_axi_awvalid);
+    `CHECK_FALSE(s_axi_wvalid);
+    `CHECK_FALSE(m_axi_bvalid);
+  endtask
+
+  // Basic smoke test
+  task automatic test_basic;
+    logic [   AW-1:0] addr = AW'(16'hA000);
+    logic [   DW-1:0] data = DW'(16'hD000);
+    logic [S_IDW-1:0] awid;
+
+
+    m_axi_awvalid    = '0;
+    m_axi_wvalid     = '0;
+    m_axi_bready     = '1;
+
+    // Set up a burst from 0
+    // length 2, INCR, 2 byte stride
+    m_axi_awvalid[0] = 1'b1;
+    m_axi_awaddr[0]  = addr;
+    m_axi_awid[0]    = 4'h1;
+    m_axi_awlen[0]   = 8'h01;
+    m_axi_awburst[0] = 2'b01;
+    m_axi_awsize[0]  = 3'b001;
+
+    s_axi_awready    = 1'b1;
+    s_axi_wready     = 1'b1;
+
+    // First clock - check arbitration and address phase
+    `CHECK_TRUE(m_axi_awvalid[0] && m_axi_awready[0]);
+    `CHECK_FALSE(s_axi_awvalid);
+    `TICK(clk);
+    `CHECK_FALSE(m_axi_awvalid[0]);
+
+    `CHECK_TRUE(s_axi_awvalid);
+    `CHECK_EQ(s_axi_awaddr, addr);
+    `CHECK_EQ(s_axi_awlen, 8'h01);
+    `CHECK_EQ(s_axi_awsize, 3'b001);
+    `CHECK_EQ(s_axi_awburst, 2'b01);
+    awid            = s_axi_awid;
+
+    // Send first data beat
+    m_axi_wvalid[0] = 1'b1;
+    m_axi_wdata[0]  = data;
+    m_axi_wstrb[0]  = '1;
+    m_axi_wlast[0]  = 1'b0;
+
+    `CHECK_TRUE(m_axi_wvalid[0] && m_axi_wready[0]);
+    `CHECK_TRUE(s_axi_wvalid && s_axi_wready);
+    `CHECK_EQ(s_axi_wdata, data);
+    `CHECK_EQ(s_axi_wstrb, '1);
+    `CHECK_FALSE(s_axi_wlast);
+
+    `TICK(clk);
+    // Second/last data beat
+    m_axi_wdata[0] = data + DW'(1);
+    m_axi_wlast[0] = 1'b1;
+
+    `CHECK_TRUE(s_axi_wvalid && s_axi_wready);
+    `CHECK_EQ(s_axi_wdata, data + DW'(1));
+    `CHECK_EQ(s_axi_wstrb, '1);
+    `CHECK_TRUE(s_axi_wlast);
+
+    // Response phase
+    `TICK(clk);
+    s_axi_bvalid = 1'b1;
+    s_axi_bid    = awid;
+    s_axi_bresp  = 2'b00;
+
+    `TICK(clk);
+    `CHECK_TRUE(s_axi_bvalid && s_axi_bready);
+    `CHECK_EQ(m_axi_bvalid, 3'b001);
+    `CHECK_EQ(m_axi_bid[0], 4'h1);
+    `CHECK_EQ(m_axi_bresp[0], 2'b00);
+
+    // Clear signals
+    m_axi_awvalid = '0;
+    m_axi_wvalid  = '0;
+    s_axi_bvalid  = 1'b0;
+
+    `TICK(clk);
+    `CHECK_FALSE(s_axi_awvalid);
+    `CHECK_FALSE(s_axi_wvalid);
+    `CHECK_EQ(m_axi_bvalid, 3'b000);
+  endtask
+
+  // The release tests are here from a time when we used to allow
+  // aw ready to go high even when writes were still outstanding.
+  //
+  // The zipcpu formal verification didn't allow that, despite it being
+  // allowed by the protocol, so we had to SV assume it to be the case.
+  // This over-constrained the verifier, so these tests were added to
+  // make sure grants were handled correctly. Since then, the implementation
+  // changed, but there didn't seem to be any reason to throw these tests
+  // away. They run much faster than formal.
+
+  task automatic test_grant_release_w_first;
+    logic [AW-1:0] addr = AW'(16'hA000);
+    logic [DW-1:0] data = DW'(16'hD000);
+
+    // Block both AW and W channels initially
+    s_axi_awready    = 1'b0;
+    s_axi_wready     = 1'b0;
+
+    // Set up a transfer from 0
+    m_axi_awvalid[0] = 1'b1;
+    m_axi_awaddr[0]  = addr;
+    m_axi_awid[0]    = 4'h1;
+    m_axi_awlen[0]   = 8'h00;
+    m_axi_awburst[0] = 2'b01;
+    m_axi_awsize[0]  = 3'b001;
+
+    `TICK(clk);
+
+    // Verify grant is given to 0 but AW is blocked
+    `CHECK_TRUE(uut.grant_valid);
+    `CHECK_EQ(uut.grant_idx, 0);
+    `CHECK_TRUE(s_axi_awvalid);
+    `CHECK_FALSE(s_axi_awready);
+
+    // Send W data
+    m_axi_wvalid[0] = 1'b1;
+    m_axi_wdata[0]  = data;
+    m_axi_wstrb[0]  = '1;
+    m_axi_wlast[0]  = 1'b1;
+
+    `TICK(clk);
+    `CHECK_TRUE(uut.grant_valid);
+    `CHECK_EQ(uut.grant_idx, 0);
+
+    // Now allow W to complete while keeping AW blocked
+    s_axi_wready = 1'b1;
+
+    // The grant should stay valid because we haven't released AW
+    repeat (10) begin
+      `CHECK_TRUE(uut.grant_valid);
+      `CHECK_EQ(uut.grant_idx, 0);
+      `TICK(clk);
+    end
+
+    // Now allow AW to complete
+    s_axi_awready = 1'b1;
+    `CHECK_WAIT_FOR(clk, s_axi_awvalid && s_axi_awready);
+    `TICK(clk);
+    `TICK(clk);
+    `CHECK_FALSE(uut.grant_valid);
+  endtask
+
+  task automatic test_grant_release_aw_first;
+    logic [AW-1:0] addr = AW'(16'hA000);
+    logic [DW-1:0] data = DW'(16'hD000);
+
+    // Block both AW and W channels initially
+    s_axi_awready    = 1'b0;
+    s_axi_wready     = 1'b0;
+
+    // Set up a transfer from 0
+    m_axi_awvalid[0] = 1'b1;
+    m_axi_awaddr[0]  = addr;
+    m_axi_awid[0]    = 4'h1;
+    m_axi_awlen[0]   = 8'h00;
+    m_axi_awburst[0] = 2'b01;
+    m_axi_awsize[0]  = 3'b001;
+
+    `TICK(clk);
+
+    // Verify grant is given to 0 but blocked
+    `CHECK_TRUE(uut.grant_valid);
+    `CHECK_EQ(uut.grant_idx, 0);
+    `CHECK_TRUE(s_axi_awvalid);
+    `CHECK_FALSE(s_axi_awready);
+
+    // Allow AW to complete while keeping W blocked
+    s_axi_awready = 1'b1;
+
+    // Wait for AW handshake
+    `CHECK_WAIT_FOR(clk, s_axi_awvalid && s_axi_awready);
+
+    // The grant should still be valid because we haven't completed W yet
+    `CHECK_TRUE(uut.grant_valid);
+    `CHECK_EQ(uut.grant_idx, 0);
+
+    // Now send W data
+    m_axi_wvalid[0] = 1'b1;
+    m_axi_wdata[0]  = data;
+    m_axi_wstrb[0]  = '1;
+    m_axi_wlast[0]  = 1'b1;
+
+    // The grant should stay valid because we haven't released W
+    repeat (10) begin
+      `CHECK_TRUE(uut.grant_valid);
+      `CHECK_EQ(uut.grant_idx, 0);
+      `TICK(clk);
+    end
+
+    // Verify W is valid but stalled
+    `CHECK_TRUE(s_axi_wvalid);
+    `CHECK_FALSE(s_axi_wready);
+
+    // Now allow W to complete
+    s_axi_wready = 1'b1;
+
+    // Wait for W handshake
+    `CHECK_WAIT_FOR(clk, m_axi_wvalid[0] && m_axi_wready[0]);
+    `CHECK_FALSE(s_axi_wvalid);
+
+    // Grant should be released after W completes with wlast
+    `CHECK_FALSE(uut.grant_valid);
+  endtask
+
+  `SVC_UNUSED({m_axi_wready[NUM_M-1:1], m_axi_bid[NUM_M-1:1],
+               m_axi_bresp[NUM_M-1:1]});
+
+  `TEST_SUITE_BEGIN(svc_axi_arbiter_wr_tbi);
+  `TEST_CASE(test_initial);
+  `TEST_CASE(test_basic);
+  `TEST_CASE(test_grant_release_w_first);
+  `TEST_CASE(test_grant_release_aw_first);
+  `TEST_SUITE_END();
+
+endmodule
