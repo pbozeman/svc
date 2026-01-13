@@ -51,10 +51,8 @@ module svc_rv_stage_ex #(
     // Stall
     input logic stall_ex,
 
-    // Valid interface from ID stage
-    input logic s_valid,
-
     // From ID stage
+    input logic            instr_valid_ex,
     input logic            reg_write_ex,
     input logic            mem_read_ex,
     input logic            mem_write_ex,
@@ -100,9 +98,7 @@ module svc_rv_stage_ex #(
     output logic            mispredicted_ex,
 
     // Outputs to MEM stage
-    output logic m_valid,
-    output logic instr_valid_mem,
-
+    output logic            instr_valid_mem,
     output logic            reg_write_mem,
     output logic            mem_read_mem,
     output logic            mem_write_mem,
@@ -195,7 +191,7 @@ module svc_rv_stage_ex #(
 
     case (state)
       EX_IDLE: begin
-        if (s_valid) begin
+        if (instr_valid_ex) begin
           if (!is_mc_ex) begin
             m_valid_next = 1'b1;
           end else begin
@@ -217,13 +213,13 @@ module svc_rv_stage_ex #(
       end
 
       EX_MC_DONE: begin
-        if (m_valid) begin
-          if (s_valid && is_mc_ex) begin
+        if (pipe_valid_o) begin
+          if (instr_valid_ex && is_mc_ex) begin
             state_next   = EX_MC_EXEC;
             op_en_ex     = 1'b1;
             op_active_ex = 1'b1;
           end else begin
-            m_valid_next = s_valid;
+            m_valid_next = instr_valid_ex;
             state_next   = EX_IDLE;
           end
         end
@@ -433,7 +429,7 @@ module svc_rv_stage_ex #(
       .BPRED     (BPRED),
       .BTB_ENABLE(BTB_ENABLE)
   ) bpred (
-      .en(s_valid && !op_active_ex),
+      .en(instr_valid_ex && !op_active_ex),
       .*
   );
 
@@ -503,7 +499,7 @@ module svc_rv_stage_ex #(
   //
   always_comb begin
     if ((pc_sel_branch_or_jump || mispredicted_ex) &&
-        (s_valid && !stall_ex)) begin
+        (instr_valid_ex && !stall_ex)) begin
       pc_sel_ex = PC_SEL_REDIRECT;
     end else begin
       pc_sel_ex = PC_SEL_SEQUENTIAL;
@@ -528,6 +524,7 @@ module svc_rv_stage_ex #(
   //===========================================================================
 
   logic pipe_valid_i;
+  logic pipe_valid_o;
   logic pipe_flush_i;
   logic pipe_advance_o;
   logic pipe_flush_o;
@@ -555,7 +552,7 @@ module svc_rv_stage_ex #(
   if (PIPELINED != 0) begin : g_pipelined_valid
     assign pipe_valid_i = m_valid_next;
   end else begin : g_passthrough_valid
-    assign pipe_valid_i = s_valid && state != EX_MC_EXEC;
+    assign pipe_valid_i = instr_valid_ex && state != EX_MC_EXEC;
   end
 
   svc_rv_pipe_ctrl #(
@@ -564,7 +561,7 @@ module svc_rv_stage_ex #(
       .clk      (clk),
       .rst_n    (rst_n),
       .valid_i  (pipe_valid_i),
-      .valid_o  (m_valid),
+      .valid_o  (pipe_valid_o),
       .stall_i  (stall_ex),
       .flush_i  (pipe_flush_i),
       .bubble_i (!pipe_valid_i),
@@ -573,10 +570,6 @@ module svc_rv_stage_ex #(
       .bubble_o (pipe_bubble_o)
   );
 
-  // instr_valid_mem tracks instruction validity for downstream stages.
-  // For now, sourced from m_valid (will be moved to pipe_data in Phase 3).
-  assign instr_valid_mem = m_valid;
-
   //
   // Control signals (WITH bubble)
   //
@@ -584,7 +577,12 @@ module svc_rv_stage_ex #(
   // they must be cleared when invalid. This allows downstream to use them
   // directly without re-checking valid.
   //
-  localparam int CTRL_WIDTH = 4;
+  // For instr_valid_mem, we use pipe_valid_i rather than instr_valid_ex because
+  // the EX stage has its own state machine for multi-cycle ops. pipe_valid_i
+  // correctly reflects when EX is producing a valid result (accounting for
+  // multi-cycle operations), while instr_valid_ex only reflects the input.
+  //
+  localparam int CTRL_WIDTH = 5;
 
   svc_rv_pipe_data #(
       .WIDTH(CTRL_WIDTH),
@@ -600,9 +598,15 @@ module svc_rv_stage_ex #(
       .s_ready(1'b1),
 `endif
       .data_i({
-        reg_write_ex, mem_read_ex, mem_write_ex, trap_ex | misalign_trap
+        pipe_valid_i,
+        reg_write_ex,
+        mem_read_ex,
+        mem_write_ex,
+        trap_ex | misalign_trap
       }),
-      .data_o({reg_write_mem, mem_read_mem, mem_write_mem, trap_mem})
+      .data_o({
+        instr_valid_mem, reg_write_mem, mem_read_mem, mem_write_mem, trap_mem
+      })
   );
 
   //
@@ -714,7 +718,8 @@ module svc_rv_stage_ex #(
       .data_o (m_result_mem)
   );
 
-  `SVC_UNUSED({funct7_ex[6:5], funct7_ex[4:0], is_m_ex, is_csr_ex});
+  `SVC_UNUSED({pipe_valid_o, funct7_ex[6:5], funct7_ex[4:0], is_m_ex, is_csr_ex
+                });
 
 `ifdef FORMAL
 `ifdef FORMAL_SVC_RV_STAGE_EX
@@ -745,9 +750,9 @@ module svc_rv_stage_ex #(
   end
 
   //
-  // s_valid assumptions (input interface)
+  // instr_valid_ex assumptions (input interface)
   //
-  // s_valid stability is controlled by upstream (ID stage) based on
+  // instr_valid_ex stability is controlled by upstream (ID stage) based on
   // op_active_ex. No handshake assumptions needed here since s_ready
   // was removed.
   //
@@ -758,7 +763,7 @@ module svc_rv_stage_ex #(
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
       // Cover back-to-back valid outputs
-      `FCOVER(c_back_to_back, $past(m_valid) && m_valid);
+      `FCOVER(c_back_to_back, $past(instr_valid_mem) && instr_valid_mem);
     end
   end
 
@@ -770,11 +775,11 @@ module svc_rv_stage_ex #(
       if (f_past_valid && $past(rst_n) && rst_n) begin
         `FCOVER(c_mc_starts, $rose(op_active_ex) && is_mc_ex);
         `FCOVER(c_mc_complete, $past(state == EX_MC_EXEC
-                ) && state == EX_MC_DONE && m_valid);
+                ) && state == EX_MC_DONE && instr_valid_mem);
         `FCOVER(c_mc_back_to_back, $past(state == EX_MC_DONE
                 ) && state == EX_MC_EXEC);
         `FCOVER(c_mc_then_normal, $past(state == EX_MC_DONE
-                ) && state == EX_IDLE && s_valid);
+                ) && state == EX_IDLE && instr_valid_ex);
       end
     end
   end
@@ -808,7 +813,7 @@ module svc_rv_stage_ex #(
 
         //
         // After stall releases following a completed division,
-        // m_valid must eventually assert
+        // instr_valid_mem must eventually assert
         //
         // (This is a liveness property - covered by the cover above)
         //

@@ -72,8 +72,8 @@ module svc_rv_stage_id #(
     input logic [XLEN-1:0] ld_data_mem,
 
     // Outputs to EX stage
-    output logic m_valid,
-
+    output logic            m_valid,
+    output logic            instr_valid_ex,
     output logic            reg_write_ex,
     output logic            mem_read_ex,
     output logic            mem_write_ex,
@@ -312,6 +312,10 @@ module svc_rv_stage_id #(
       .flush_o  (flush),
       .bubble_o (bubble)
   );
+
+  // instr_valid_ex tracks instruction validity for downstream stages.
+  // For now, sourced from m_valid (will be moved to pipe_data in Phase 4).
+  assign instr_valid_ex = m_valid;
 
   //
   // Processor control signals

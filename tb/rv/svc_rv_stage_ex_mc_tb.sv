@@ -7,7 +7,7 @@
 //
 // Tests the interaction between multi-cycle operations (div/rem) and the
 // pipeline register valid signal in PIPELINED mode. Specifically verifies
-// that m_valid is correctly asserted when a multi-cycle operation completes.
+// that instr_valid_mem is correctly asserted when a multi-cycle operation completes.
 //
 module svc_rv_stage_ex_mc_tb;
   `include "svc_rv_defs.svh"
@@ -54,7 +54,7 @@ module svc_rv_stage_ex_mc_tb;
   logic            bpred_taken_ex;
   logic [XLEN-1:0] pred_tgt_ex;
 
-  logic            s_valid;
+  logic            instr_valid_ex;
 
   logic [XLEN-1:0] result_mem;
   logic [XLEN-1:0] ld_data_mem;
@@ -102,7 +102,6 @@ module svc_rv_stage_ex_mc_tb;
   logic            btb_update_is_ret;
   logic            btb_update_is_jal;
   logic            is_ebreak_mem;
-  logic            m_valid;
   logic            instr_valid_mem;
   // verilator lint_on UNUSEDSIGNAL
 
@@ -157,7 +156,7 @@ module svc_rv_stage_ex_mc_tb;
       .pc_plus4_ex      (pc_plus4_ex),
       .bpred_taken_ex   (bpred_taken_ex),
       .pred_tgt_ex      (pred_tgt_ex),
-      .s_valid          (s_valid),
+      .instr_valid_ex   (instr_valid_ex),
       .result_mem       (result_mem),
       .ld_data_mem      (ld_data_mem),
       .retired          (retired),
@@ -192,7 +191,6 @@ module svc_rv_stage_ex_mc_tb;
       .trap_mem         (trap_mem),
       .trap_code_mem    (trap_code_mem),
       .is_ebreak_mem    (is_ebreak_mem),
-      .m_valid          (m_valid),
       .instr_valid_mem  (instr_valid_mem),
       .op_active_ex     (op_active_ex),
       .btb_update_en    (btb_update_en),
@@ -239,7 +237,7 @@ module svc_rv_stage_ex_mc_tb;
     pc_plus4_ex    = 32'd4;
     bpred_taken_ex = 1'b0;
     pred_tgt_ex    = 32'd0;
-    s_valid        = 1'b0;
+    instr_valid_ex = 1'b0;
     result_mem     = 32'd0;
     ld_data_mem    = 32'd0;
     retired        = 1'b0;
@@ -254,16 +252,16 @@ module svc_rv_stage_ex_mc_tb;
   task automatic setup_div(input logic [31:0] dividend,
                            input logic [31:0] divisor,
                            input logic [4:0] dest_reg);
-    reg_write_ex = 1'b1;
-    res_src_ex   = RES_M;
-    is_mc_ex     = 1'b1;
-    is_m_ex      = 1'b1;
-    rd_ex        = dest_reg;
-    funct3_ex    = 3'b100;
-    funct7_ex    = 7'b0000001;
-    rs1_data_ex  = dividend;
-    rs2_data_ex  = divisor;
-    s_valid      = 1'b1;
+    reg_write_ex   = 1'b1;
+    res_src_ex     = RES_M;
+    is_mc_ex       = 1'b1;
+    is_m_ex        = 1'b1;
+    rd_ex          = dest_reg;
+    funct3_ex      = 3'b100;
+    funct7_ex      = 7'b0000001;
+    rs1_data_ex    = dividend;
+    rs2_data_ex    = divisor;
+    instr_valid_ex = 1'b1;
   endtask
 
   //
@@ -273,7 +271,7 @@ module svc_rv_stage_ex_mc_tb;
     init_inputs();
     `TICK(clk);
 
-    `CHECK_EQ(m_valid, 1'b0);
+    `CHECK_EQ(instr_valid_mem, 1'b0);
     `CHECK_EQ(op_active_ex, 1'b0);
   endtask
 
@@ -287,19 +285,19 @@ module svc_rv_stage_ex_mc_tb;
     //
     // Present a simple ALU instruction
     //
-    reg_write_ex = 1'b1;
-    res_src_ex   = RES_ALU;
-    rd_ex        = 5'd10;
-    rs1_data_ex  = 32'd100;
-    rs2_data_ex  = 32'd50;
-    s_valid      = 1'b1;
+    reg_write_ex   = 1'b1;
+    res_src_ex     = RES_ALU;
+    rd_ex          = 5'd10;
+    rs1_data_ex    = 32'd100;
+    rs2_data_ex    = 32'd50;
+    instr_valid_ex = 1'b1;
 
     `TICK(clk);
 
     //
     // Should be valid on the next cycle
     //
-    `CHECK_EQ(m_valid, 1'b1);
+    `CHECK_EQ(instr_valid_mem, 1'b1);
     `CHECK_EQ(op_active_ex, 1'b0);
     `CHECK_EQ(reg_write_mem, 1'b1);
     `CHECK_EQ(rd_mem, 5'd10);
@@ -308,13 +306,13 @@ module svc_rv_stage_ex_mc_tb;
   //
   // Test multi-cycle DIV operation
   //
-  // This is the key test: verify that after a DIV completes, m_valid is
+  // This is the key test: verify that after a DIV completes, instr_valid_mem is
   // correctly asserted and the result is available.
   //
   // BUG SCENARIO (what we're testing for):
   // When a multi-cycle op starts, op_active_ex=1 causes ex_mem_flush=1
   // (from hazard unit). In the pipelined EX stage, this clears valid_reg to 0.
-  // When the div completes, if valid_reg stays 0, m_valid will never assert.
+  // When the div completes, if valid_reg stays 0, instr_valid_mem will never assert.
   //
   task automatic test_div_completes_with_valid;
     int cycle_count;
@@ -342,12 +340,12 @@ module svc_rv_stage_ex_mc_tb;
     //
     // Clear flush and wait for division to complete
     //
-    ex_mem_flush = 1'b0;
-    s_valid      = 1'b0;
-    is_mc_ex     = 1'b0;
-    is_m_ex      = 1'b0;
+    ex_mem_flush   = 1'b0;
+    instr_valid_ex = 1'b0;
+    is_mc_ex       = 1'b0;
+    is_m_ex        = 1'b0;
 
-    cycle_count  = 0;
+    cycle_count    = 0;
     while (op_active_ex && cycle_count < 50) begin
       `TICK(clk);
       cycle_count++;
@@ -359,11 +357,11 @@ module svc_rv_stage_ex_mc_tb;
     `CHECK_TRUE(cycle_count < 40);
 
     //
-    // KEY CHECK: After div completes, m_valid MUST be asserted
+    // KEY CHECK: After div completes, instr_valid_mem MUST be asserted
     // This is the bug we're testing for - if valid_reg was incorrectly
-    // cleared by ex_mem_flush, m_valid will be 0
+    // cleared by ex_mem_flush, instr_valid_mem will be 0
     //
-    `CHECK_EQ(m_valid, 1'b1);
+    `CHECK_EQ(instr_valid_mem, 1'b1);
     `CHECK_EQ(reg_write_mem, 1'b1);
     `CHECK_EQ(rd_mem, 5'd19);
 
@@ -389,33 +387,33 @@ module svc_rv_stage_ex_mc_tb;
 
     ex_mem_flush = 1'b1;
     `TICK(clk);
-    ex_mem_flush = 1'b0;
+    ex_mem_flush   = 1'b0;
 
-    s_valid      = 1'b0;
-    is_mc_ex     = 1'b0;
-    is_m_ex      = 1'b0;
+    instr_valid_ex = 1'b0;
+    is_mc_ex       = 1'b0;
+    is_m_ex        = 1'b0;
 
     //
     // Wait for division to complete
     //
-    cycle_count  = 0;
+    cycle_count    = 0;
     while (op_active_ex && cycle_count < 50) begin
       `TICK(clk);
       cycle_count++;
     end
 
     //
-    // m_valid should be asserted with result ready
+    // instr_valid_mem should be asserted with result ready
     //
-    `CHECK_EQ(m_valid, 1'b1);
+    `CHECK_EQ(instr_valid_mem, 1'b1);
     `CHECK_EQ(m_result_mem, 32'd5);
 
     //
-    // Now assert stall and verify m_valid stays high
+    // Now assert stall and verify instr_valid_mem stays high
     //
     stall_ex = 1'b1;
     `TICK(clk);
-    `CHECK_EQ(m_valid, 1'b1);
+    `CHECK_EQ(instr_valid_mem, 1'b1);
     `CHECK_EQ(m_result_mem, 32'd5);
 
     //
@@ -445,18 +443,18 @@ module svc_rv_stage_ex_mc_tb;
     setup_div(32'd100, 32'd10, 5'd1);
     ex_mem_flush = 1'b1;
     `TICK(clk);
-    ex_mem_flush = 1'b0;
-    s_valid      = 1'b0;
-    is_mc_ex     = 1'b0;
-    is_m_ex      = 1'b0;
+    ex_mem_flush   = 1'b0;
+    instr_valid_ex = 1'b0;
+    is_mc_ex       = 1'b0;
+    is_m_ex        = 1'b0;
 
-    cycle_count  = 0;
+    cycle_count    = 0;
     while (op_active_ex && cycle_count < 50) begin
       `TICK(clk);
       cycle_count++;
     end
 
-    `CHECK_EQ(m_valid, 1'b1);
+    `CHECK_EQ(instr_valid_mem, 1'b1);
     `CHECK_EQ(m_result_mem, 32'd10);
 
     //
@@ -470,18 +468,18 @@ module svc_rv_stage_ex_mc_tb;
     setup_div(32'd50, 32'd5, 5'd2);
     ex_mem_flush = 1'b1;
     `TICK(clk);
-    ex_mem_flush = 1'b0;
-    s_valid      = 1'b0;
-    is_mc_ex     = 1'b0;
-    is_m_ex      = 1'b0;
+    ex_mem_flush   = 1'b0;
+    instr_valid_ex = 1'b0;
+    is_mc_ex       = 1'b0;
+    is_m_ex        = 1'b0;
 
-    cycle_count  = 0;
+    cycle_count    = 0;
     while (op_active_ex && cycle_count < 50) begin
       `TICK(clk);
       cycle_count++;
     end
 
-    `CHECK_EQ(m_valid, 1'b1);
+    `CHECK_EQ(instr_valid_mem, 1'b1);
     `CHECK_EQ(m_result_mem, 32'd10);
     `CHECK_EQ(rd_mem, 5'd2);
   endtask
@@ -499,10 +497,10 @@ module svc_rv_stage_ex_mc_tb;
     setup_div(32'd42, 32'd0, 5'd5);
     ex_mem_flush = 1'b1;
     `TICK(clk);
-    ex_mem_flush = 1'b0;
-    s_valid      = 1'b0;
-    is_mc_ex     = 1'b0;
-    is_m_ex      = 1'b0;
+    ex_mem_flush   = 1'b0;
+    instr_valid_ex = 1'b0;
+    is_mc_ex       = 1'b0;
+    is_m_ex        = 1'b0;
 
     //
     // Divide by zero should complete after 1 cycle
@@ -511,9 +509,9 @@ module svc_rv_stage_ex_mc_tb;
     `TICK(clk);
 
     //
-    // m_valid should now be asserted with the result
+    // instr_valid_mem should now be asserted with the result
     //
-    `CHECK_EQ(m_valid, 1'b1);
+    `CHECK_EQ(instr_valid_mem, 1'b1);
     `CHECK_EQ(m_result_mem, 32'hFFFFFFFF);
   endtask
 
@@ -535,21 +533,21 @@ module svc_rv_stage_ex_mc_tb;
     setup_div(32'd20, 32'd4, 5'd3);
     ex_mem_flush = 1'b1;
     `TICK(clk);
-    ex_mem_flush = 1'b0;
-    s_valid      = 1'b0;
-    is_mc_ex     = 1'b0;
-    is_m_ex      = 1'b0;
+    ex_mem_flush   = 1'b0;
+    instr_valid_ex = 1'b0;
+    is_mc_ex       = 1'b0;
+    is_m_ex        = 1'b0;
 
     //
     // Wait for division to complete
     //
-    cycle_count  = 0;
+    cycle_count    = 0;
     while (op_active_ex && cycle_count < 50) begin
       `TICK(clk);
       cycle_count++;
     end
 
-    `CHECK_EQ(m_valid, 1'b1);
+    `CHECK_EQ(instr_valid_mem, 1'b1);
     `CHECK_EQ(m_result_mem, 32'd5);
     `CHECK_EQ(rd_mem, 5'd3);
 
@@ -557,17 +555,17 @@ module svc_rv_stage_ex_mc_tb;
     // Now the next instruction (ADDI x4, x3, 100) should be able to enter
     // Present it as a simple ALU op (simulating that hazard is resolved)
     //
-    reg_write_ex = 1'b1;
-    res_src_ex   = RES_ALU;
-    rd_ex        = 5'd4;
-    s_valid      = 1'b1;
+    reg_write_ex   = 1'b1;
+    res_src_ex     = RES_ALU;
+    rd_ex          = 5'd4;
+    instr_valid_ex = 1'b1;
 
     `TICK(clk);
 
     //
     // The ALU instruction should now be valid
     //
-    `CHECK_EQ(m_valid, 1'b1);
+    `CHECK_EQ(instr_valid_mem, 1'b1);
     `CHECK_EQ(rd_mem, 5'd4);
     `CHECK_EQ(op_active_ex, 1'b0);
   endtask
