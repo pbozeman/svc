@@ -29,7 +29,7 @@ module svc_rv_stage_wb #(
     input logic stall_wb,
 
     // From MEM stage
-    input logic            s_valid,
+    input logic            instr_valid_wb,
     input logic [     2:0] res_src_wb,
     input logic [    31:0] instr_wb,
     input logic [XLEN-1:0] alu_result_wb,
@@ -60,10 +60,8 @@ module svc_rv_stage_wb #(
     input logic            f_branch_taken_wb,
 `endif
 
-    // Manager interface to svc_rv
-    output logic m_valid,
-
     // Retired instruction outputs
+    output logic            instr_valid_ret,
     output logic [    31:0] instr_ret,
     output logic [XLEN-1:0] pc_ret,
     output logic [XLEN-1:0] rs1_data_ret,
@@ -152,6 +150,9 @@ module svc_rv_stage_wb #(
   //
   // Pipeline control
   //
+  // valid_i/valid_o kept for pipe_ctrl interface but not used for retirement.
+  // Retirement uses instr_valid_ret from the pipe_data bundle.
+  //
   logic pipe_advance_o;
   logic pipe_flush_o;
   logic pipe_bubble_o;
@@ -159,11 +160,11 @@ module svc_rv_stage_wb #(
   svc_rv_pipe_ctrl pipe_ctrl (
       .clk      (clk),
       .rst_n    (rst_n),
-      .valid_i  (s_valid),
-      .valid_o  (m_valid),
+      .valid_i  (instr_valid_wb),
+      .valid_o  (),
       .stall_i  (stall_wb),
       .flush_i  (1'b0),
-      .bubble_i (1'b0),
+      .bubble_i (!instr_valid_wb),
       .advance_o(pipe_advance_o),
       .flush_o  (pipe_flush_o),
       .bubble_o (pipe_bubble_o)
@@ -172,7 +173,9 @@ module svc_rv_stage_wb #(
   //
   // Pipeline data register
   //
-  localparam int PIPE_WIDTH = 32 + 4 * XLEN + 1 + 2 + 1 + 1;
+  // instr_valid tracks instruction validity for instret CSR counting
+  //
+  localparam int PIPE_WIDTH = 1 + 32 + 4 * XLEN + 1 + 2 + 1 + 1;
 
   svc_rv_pipe_data #(
       .WIDTH(PIPE_WIDTH)
@@ -183,10 +186,11 @@ module svc_rv_stage_wb #(
       .flush(pipe_flush_o),
       .bubble(pipe_bubble_o),
 `ifdef FORMAL
-      .s_valid(s_valid),
+      .s_valid(instr_valid_wb),
       .s_ready(1'b1),
 `endif
       .data_i({
+        instr_valid_wb,
         instr_wb,
         pc_wb,
         rs1_data_wb,
@@ -198,6 +202,7 @@ module svc_rv_stage_wb #(
         is_ebreak_wb
       }),
       .data_o({
+        instr_valid_ret,
         instr_ret,
         pc_ret,
         rs1_data_ret,
@@ -225,7 +230,7 @@ module svc_rv_stage_wb #(
       .flush(pipe_flush_o),
       .bubble(pipe_bubble_o),
 `ifdef FORMAL
-      .s_valid(s_valid),
+      .s_valid(instr_valid_wb),
       .s_ready(1'b1),
 `endif
       .data_i({
@@ -290,7 +295,7 @@ module svc_rv_stage_wb #(
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
       // back-to-back valid outputs
-      `FCOVER(c_back_to_back, $past(m_valid) && m_valid);
+      `FCOVER(c_back_to_back, $past(instr_valid_ret) && instr_valid_ret);
 
       // halt conditions in retiring instruction
       `FCOVER(c_ebreak_ret, ebreak_ret);

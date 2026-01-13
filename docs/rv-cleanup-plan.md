@@ -199,11 +199,50 @@ Similar pattern:
 
 ---
 
-## Phase 6: Cleanup
+## Phase 6: Simplify pipe_ctrl
 
-1. Remove `valid_i`/`valid_o` from `pipe_ctrl` (now unused)
-2. Update formal properties
-3. Final test
+Remove `valid_i`/`valid_o` ports from `pipe_ctrl` entirely.
+
+**Changes to `svc_rv_pipe_ctrl.sv`:**
+
+1. Remove `valid_i` input port
+2. Remove `valid_o` output port
+3. Simplify `advance_o` logic:
+
+```systemverilog
+// Before
+assign advance_o = can_accept && valid_i && !bubble_i && !flush_i;
+
+// After
+assign advance_o = can_accept && !bubble_i && !flush_i;
+```
+
+4. Remove `valid_o` register logic
+
+**Potential difficulties:**
+
+- Some stages may rely on `valid_i` for advance gating in ways not covered by
+  `bubble_i`. Need to audit each stage's `bubble_i` source.
+- The `advance_o` semantics change: previously "advance when valid input", now
+  "advance when not bubbling". Stages must ensure `bubble_i` is set correctly
+  when there's no valid input.
+- Formal properties in `pipe_ctrl` reference `valid_i`/`valid_o` - need update.
+
+**Update all stages:**
+
+Remove `.valid_i()` and `.valid_o()` connections from all `pipe_ctrl`
+instantiations.
+
+**Test thoroughly** - this is the riskiest change.
+
+---
+
+## Phase 7: Final Cleanup
+
+1. Update formal properties in `pipe_ctrl` and all stages
+2. Remove any remaining `SVC_UNUSED` for valid signals
+3. Update comments/documentation
+4. Final test
 
 ---
 

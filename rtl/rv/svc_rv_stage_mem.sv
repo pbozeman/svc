@@ -91,6 +91,7 @@ module svc_rv_stage_mem #(
     //
     // Outputs to WB stage
     //
+    output logic            instr_valid_wb,
     output logic            reg_write_wb,
     output logic [     2:0] res_src_wb,
     output logic [    31:0] instr_wb,
@@ -383,7 +384,7 @@ module svc_rv_stage_mem #(
   // without re-checking valid.
   //
   svc_rv_pipe_data #(
-      .WIDTH(2),
+      .WIDTH(3),
       .REG  (PIPELINED)
   ) pipe_ctrl_data (
       .clk    (clk),
@@ -395,8 +396,8 @@ module svc_rv_stage_mem #(
       .s_valid(1'b0),
       .s_ready(1'b1),
 `endif
-      .data_i ({reg_write_mem && !misalign_trap, misalign_trap}),
-      .data_o ({reg_write_wb, trap_wb})
+      .data_i ({s_valid, reg_write_mem && !misalign_trap, misalign_trap}),
+      .data_o ({instr_valid_wb, reg_write_wb, trap_wb})
   );
 
   //

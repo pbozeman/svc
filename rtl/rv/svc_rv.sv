@@ -264,10 +264,10 @@ module svc_rv #(
 
   // MEM -> WB
   logic            mem_m_valid;
-  logic            wb_s_valid;
+  logic            instr_valid_wb;
 
   // WB -> svc_rv
-  logic            wb_m_valid;
+  logic            instr_valid_ret;
   logic            reg_write_wb;
   logic [     2:0] res_src_wb;
   logic [    31:0] instr_wb;
@@ -431,7 +431,7 @@ module svc_rv #(
   // Retired signal (for instruction counting)
   // An instruction retires when WB has valid output and is not stalled
   logic retired;
-  assign retired = wb_m_valid && !stall_wb;
+  assign retired = instr_valid_ret && !stall_wb;
 
   //
   // Global stall
@@ -740,13 +740,7 @@ module svc_rv #(
   //
   // WB Stage: Write Back
   //
-  svc_rv_stage_wb #(
-      .XLEN(XLEN)
-  ) stage_wb (
-      .s_valid(wb_s_valid),
-      .m_valid(wb_m_valid),
-      .*
-  );
+  svc_rv_stage_wb #(.XLEN(XLEN)) stage_wb (.*);
 
   //
   // EX -> MEM ready/valid wiring (direct connection, no skidbuf yet)
@@ -756,16 +750,9 @@ module svc_rv #(
   // (Handled by explicit port connections above)
 
   //
-  // MEM -> WB wiring
-  //
-  // WB always accepts (s_ready removed), stall handles flow control
-  //
-  assign wb_s_valid = mem_m_valid;
-
-  //
   // Halt logic
   //
-  assign halt_next  = (retired && (ebreak_ret || trap_ret)) || halt;
+  assign halt_next = (retired && (ebreak_ret || trap_ret)) || halt;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
@@ -782,11 +769,11 @@ module svc_rv #(
 `ifndef RISCV_FORMAL
   // verilog_format: off
   `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, trap_code_wb,
-               wb_m_valid, instr_ret, pc_ret, rs1_data_ret, rs2_data_ret,
+               mem_m_valid, instr_ret, pc_ret, rs1_data_ret, rs2_data_ret,
                rd_data_ret, trap_ret, trap_code_ret, reg_write_ret});
   // verilog_format: on
 `else
-  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, wb_m_valid});
+  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, mem_m_valid});
 `endif
 
   `include "svc_rv_dbg.svh"
