@@ -1,3 +1,6 @@
 [submodule "tb/riscv-formal"]
 	path = tb/riscv-formal
 	url = git@github.com:pbozeman/riscv-formal.git
+[submodule "external/fpnew"]
+	path = external/fpnew
+	url = https://github.com/openhwgroup/cvfpu.git

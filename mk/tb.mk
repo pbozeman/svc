@@ -95,10 +95,20 @@ verilator_rt: $(VL_RT_LIB)
 # Verilator TB command (without --build, we do our own build step)
 VERILATOR_TB_FLAGS := --cc --exe --timing
 VERILATOR_TB_FLAGS += -Wall -Wno-PINCONNECTEMPTY -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM
-VERILATOR_TB_FLAGS += -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND
+VERILATOR_TB_FLAGS += -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-TIMESCALEMOD -Wno-GENUNNAMED
+VERILATOR_TB_FLAGS += -Wno-ASCRANGE -Wno-UNSIGNED -Wno-UNOPTFLAT
 VERILATOR_TB_FLAGS += -O3
 VERILATOR_TB_FLAGS += $(I_RTL) $(I_EXT) $(I_TB)
 VERILATOR_TB := verilator $(VERILATOR_TB_FLAGS)
+
+# fpnew source files for Verilator builds (in dependency order)
+# Packages must come first in correct order
+FPNEW_CF_PKG := $(SVC_DIR)/external/common_cells/src/cf_math_pkg.sv
+FPNEW_PKG := $(SVC_DIR)/external/fpnew/src/fpnew_pkg.sv
+FPNEW_COMMON := $(filter-out %cf_math_pkg.sv,$(wildcard $(SVC_DIR)/external/common_cells/src/*.sv))
+FPNEW_SRC := $(filter-out %fpnew_pkg.sv,$(wildcard $(SVC_DIR)/external/fpnew/src/*.sv))
+FPNEW_VENDOR := $(wildcard $(SVC_DIR)/external/fpnew/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/*.v)
+FPNEW_SRCS := $(FPNEW_CF_PKG) $(FPNEW_PKG) $(FPNEW_COMMON) $(FPNEW_VENDOR) $(FPNEW_SRC)
 
 ##############################################################################
 #
@@ -237,8 +247,8 @@ $(TBV_BUILD_DIR)/$(1)/V$(1): $(1).sv $(TB_MAIN_CPP) $(VL_RT_LIB) Makefile | $(TB
 		-I$(PRJ_RTL_DIR)/$(patsubst %_tbv,%,$(1)) \
 		--Mdir $(TBV_BUILD_DIR)/$(1) \
 		--top-module $(1) \
-		-CFLAGS '-DTB_HEADER=\\\"V$(1).h\\\" -DTB_TOP=V$(1)' \
-		$$< $(TB_MAIN_CPP)
+		-CFLAGS '-DTB_HEADER=\"V$(1).h\" -DTB_TOP=V$(1)' \
+		$(FPNEW_SRCS) $$< $(TB_MAIN_CPP)
 	@$$(MAKE) -s -C $(TBV_BUILD_DIR)/$(1) -f V$(1).mk \
 		VK_GLOBAL_OBJS="" \
 		VM_PREFIX=V$(1) \

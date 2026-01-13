@@ -327,89 +327,12 @@ end
 - Test rounding mode extraction (static vs dynamic)
 - Test invalid instruction detection (wrong fmt, reserved encodings)
 
-### Phase 2: FPU Core Integration
+### Phase 2: FPU Core Integration ✅ COMPLETE
 
-#### 2a. Set Up External Dependencies
-
-**Directory Structure:**
-
-```
-svc/external/
-├── fpnew/                    # git submodule
-├── common_cells/             # fetched files (not submodule)
-│   ├── lzc.sv
-│   ├── rr_arb_tree.sv
-│   ├── cf_math_pkg.sv
-│   ├── assertions.svh
-│   └── VERSION               # tracks source commit/tag
-└── fetch_common_cells.sh     # fetch script
-```
-
-**Tasks:**
-
-1. Create `svc/external/` directory
-2. Add fpnew as git submodule:
-   `git submodule add https://github.com/openhwgroup/cvfpu.git svc/external/fpnew`
-3. Create `svc/external/fetch_common_cells.sh` script to fetch only needed
-   files:
-   - `src/lzc.sv` - Leading zero counter
-   - `src/rr_arb_tree.sv` - Round-robin arbiter (uses lzc)
-   - `src/cf_math_pkg.sv` - Math utilities (idx_width, etc.)
-   - `include/common_cells/assertions.svh` - Assertion macros
-4. Run fetch script to populate `svc/external/common_cells/`
-5. Update `svc/Makefile` include paths for external deps
-
-#### 2b. Create FPU Wrapper Module
-
-**File:** `svc/rtl/rv/svc_rv_ext_fp_ex.sv`
-
-**Interface:**
-
-```systemverilog
-module svc_rv_ext_fp_ex #(
-    parameter int XLEN = 32
-) (
-    input  logic        clk,
-    input  logic        rst_n,
-
-    // Operation control
-    input  logic        op_valid,
-    output logic        op_ready,
-    input  logic [3:0]  op,           // fpnew operation code
-    input  logic [2:0]  rm,           // rounding mode
-
-    // Operands (up to 3 for FMA)
-    input  logic [31:0] operand_a,
-    input  logic [31:0] operand_b,
-    input  logic [31:0] operand_c,
-
-    // Result
-    output logic        result_valid,
-    input  logic        result_ready,
-    output logic [31:0] result,
-    output logic [4:0]  fflags        // exception flags
-);
-```
-
-**Responsibilities:**
-
-- Instantiate `fpnew_top` with FP32-only configuration
-- Map svc instruction encoding to fpnew operation codes
-- Handle valid/ready handshaking
-- Extract fflags from fpnew status output
-
-#### 2c. Test Basic Operations
-
-1. Create `svc/tb/rv/svc_rv_ext_fp_ex_tb.sv`
-2. Test FADD.S, FSUB.S, FMUL.S with known values
-3. Verify fflags for edge cases (overflow, underflow, inexact)
-4. Test rounding mode variations
-
-#### 2d. Multi-cycle Operation Support
-
-1. Configure fpnew for FDIV/FSQRT (uses internal divider)
-2. Wire `op_valid`/`op_ready` to pipeline stall via `op_active_ex`
-3. Test FDIV.S, FSQRT.S latency and correctness
+1. ✅ Set up external dependencies (fpnew submodule, common_cells)
+2. ✅ Create `svc_rv_ext_fp_ex.sv` FPU wrapper module
+3. ✅ Create verilator testbench `svc_rv_ext_fp_ex_tbv.sv`
+4. ✅ Update Makefile include paths for external deps
 
 ### Phase 3: Pipeline Integration
 
@@ -452,8 +375,10 @@ svc/external/
 
 Phase 1 modules (COMPLETE):
   svc_rv_fp_regfile.sv  \
-  svc_rv_fp_csr.sv       > svc_rv_ext_fp_ex.sv -> svc_rv_stage_ex.sv
+  svc_rv_fp_csr.sv       > Phase 2 (COMPLETE): svc_rv_ext_fp_ex.sv
   svc_rv_fp_idec.sv     /
+
+Phase 3 (NEXT): Pipeline integration -> svc_rv_stage_*.sv
 ```
 
 ## Critical Files
@@ -465,19 +390,24 @@ Phase 1 modules (COMPLETE):
 - `svc/rtl/rv/svc_rv_fp_csr.sv` - fflags, frm, fcsr CSRs
 - `svc/rtl/rv/svc_rv_fp_idec.sv` - FP instruction decoder
 
-**Phase 2 (Next):**
+**Phase 2 (Complete):**
 
 - `svc/external/fetch_common_cells.sh` - Dependency fetch script
 - `svc/external/fpnew/` - FPU submodule
 - `svc/external/common_cells/` - Fetched utility modules
-- `svc/rtl/rv/svc_rv_ext_fp_ex.sv` - fpnew wrapper (to create)
-- `svc/tb/rv/svc_rv_ext_fp_ex_tb.sv` - FPU wrapper testbench (to create)
-- `svc/Makefile` - Update include paths
+- `svc/rtl/rv/svc_rv_ext_fp_ex.sv` - fpnew wrapper
+- `svc/tb/rv/svc_rv_ext_fp_ex_tbv.sv` - FPU wrapper testbench (verilator)
+
+**Phase 3 (Next):**
+
+- `svc/rtl/rv/svc_rv_stage_id.sv` - FP decode and regfile read
+- `svc/rtl/rv/svc_rv_stage_ex.sv` - FPU instance integration
+- `svc/rtl/rv/svc_rv_stage_mem.sv` - FP data path
+- `svc/rtl/rv/svc_rv_stage_wb.sv` - FP result mux, regfile write
 
 **Reference (existing patterns):**
 
 - `svc/rtl/rv/svc_rv_ext_div.sv` - Pattern for multi-cycle ops
-- `svc/rtl/rv/svc_rv_stage_ex.sv` - Where FPU will integrate
 
 ## Resource Estimates (Artix-7)
 
