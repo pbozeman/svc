@@ -31,19 +31,13 @@ module svc_rv_stage_mem #(
     input logic clk,
     input logic rst_n,
 
-    //
     // Valid interface from EX stage
-    //
-    input logic s_valid,
+    input logic instr_valid_mem,
 
-    //
     // Stall
-    //
     input logic stall_mem,
 
-    //
     // From EX stage
-    //
     input logic            reg_write_mem,
     input logic            mem_read_mem,
     input logic            mem_write_mem,
@@ -72,9 +66,7 @@ module svc_rv_stage_mem #(
     input logic [     1:0] trap_code_mem,
     input logic            is_ebreak_mem,
 
-    //
     // Data memory interface
-    //
     output logic        dmem_ren,
     output logic [31:0] dmem_raddr,
     input  logic [31:0] dmem_rdata,
@@ -83,14 +75,7 @@ module svc_rv_stage_mem #(
     output logic [31:0] dmem_wdata,
     output logic [ 3:0] dmem_wstrb,
 
-    //
-    // Ready/valid interface to WB stage
-    //
-    output logic m_valid,
-
-    //
     // Outputs to WB stage
-    //
     output logic            instr_valid_wb,
     output logic            reg_write_wb,
     output logic [     2:0] res_src_wb,
@@ -123,15 +108,11 @@ module svc_rv_stage_mem #(
     output logic            f_branch_taken_wb,
 `endif
 
-    //
     // Outputs for forwarding (MEM stage result)
-    //
     output logic [XLEN-1:0] result_mem,
     output logic [XLEN-1:0] ld_data_mem,
 
-    //
     // RAS update outputs
-    //
     output logic            ras_push_en,
     output logic [XLEN-1:0] ras_push_addr,
     output logic            ras_pop_en,
@@ -145,7 +126,7 @@ module svc_rv_stage_mem #(
 
   // Instruction accepted into stage (MEM always accepts, stall handles flow)
   logic s_accept;
-  assign s_accept = s_valid;
+  assign s_accept = instr_valid_mem;
 
   //===========================================================================
   // Store data formatting
@@ -366,11 +347,11 @@ module svc_rv_stage_mem #(
   ) pipe_ctrl (
       .clk      (clk),
       .rst_n    (rst_n),
-      .valid_i  (s_valid),
-      .valid_o  (m_valid),
+      .valid_i  (instr_valid_mem),
+      .valid_o  (),
       .stall_i  (stall_mem),
       .flush_i  (1'b0),
-      .bubble_i (!s_valid),
+      .bubble_i (!instr_valid_mem),
       .advance_o(pipe_advance_o),
       .flush_o  (pipe_flush_o),
       .bubble_o (pipe_bubble_o)
@@ -387,17 +368,19 @@ module svc_rv_stage_mem #(
       .WIDTH(3),
       .REG  (PIPELINED)
   ) pipe_ctrl_data (
-      .clk    (clk),
-      .rst_n  (rst_n),
+      .clk(clk),
+      .rst_n(rst_n),
       .advance(pipe_advance_o),
-      .flush  (pipe_flush_o),
-      .bubble (pipe_bubble_o),
+      .flush(pipe_flush_o),
+      .bubble(pipe_bubble_o),
 `ifdef FORMAL
       .s_valid(1'b0),
       .s_ready(1'b1),
 `endif
-      .data_i ({s_valid, reg_write_mem && !misalign_trap, misalign_trap}),
-      .data_o ({instr_valid_wb, reg_write_wb, trap_wb})
+      .data_i({
+        instr_valid_mem, reg_write_mem && !misalign_trap, misalign_trap
+      }),
+      .data_o({instr_valid_wb, reg_write_wb, trap_wb})
   );
 
   //
@@ -658,21 +641,14 @@ module svc_rv_stage_mem #(
   end
 
   //
-  // s_valid assumptions (input interface)
+  // instr_valid_wb stability during stall
   //
-  // MEM stage always accepts (no backpressure), so no stability assumptions
-  // needed. Stall handles flow control at the pipeline level.
-  //
-
-  //
-  // m_valid stability during stall
-  //
-  // When stalled, m_valid must stay stable (unless flushed)
+  // When stalled, instr_valid_wb must stay stable (unless flushed)
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      if ($past(stall_mem && m_valid)) begin
-        `FASSERT(a_m_valid_stable_stall, m_valid);
+      if ($past(stall_mem && instr_valid_wb)) begin
+        `FASSERT(a_instr_valid_stable_stall, instr_valid_wb);
       end
     end
   end
@@ -683,10 +659,10 @@ module svc_rv_stage_mem #(
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
       // back-to-back valid transfers
-      `FCOVER(c_back_to_back, $past(m_valid) && m_valid);
+      `FCOVER(c_back_to_back, $past(instr_valid_wb) && instr_valid_wb);
 
       // stalled transfer (stall_mem active)
-      `FCOVER(c_stalled, $past(stall_mem && m_valid) && m_valid);
+      `FCOVER(c_stalled, $past(stall_mem && instr_valid_wb) && instr_valid_wb);
 
       // redirect triggered (only reachable with BPRED enabled)
       if (BPRED != 0) begin

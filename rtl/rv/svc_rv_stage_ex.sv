@@ -101,6 +101,7 @@ module svc_rv_stage_ex #(
 
     // Outputs to MEM stage
     output logic m_valid,
+    output logic instr_valid_mem,
 
     output logic            reg_write_mem,
     output logic            mem_read_mem,
@@ -571,6 +572,10 @@ module svc_rv_stage_ex #(
       .flush_o  (pipe_flush_o),
       .bubble_o (pipe_bubble_o)
   );
+
+  // instr_valid_mem tracks instruction validity for downstream stages.
+  // For now, sourced from m_valid (will be moved to pipe_data in Phase 3).
+  assign instr_valid_mem = m_valid;
 
   //
   // Control signals (WITH bubble)

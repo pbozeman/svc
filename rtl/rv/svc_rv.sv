@@ -233,6 +233,7 @@ module svc_rv #(
 
   // EX -> MEM
   logic            ex_m_valid;
+  logic            instr_valid_mem;
   logic            reg_write_mem;
   logic            mem_read_mem;
   logic            mem_write_mem;
@@ -263,7 +264,6 @@ module svc_rv #(
   logic [XLEN-1:0] mul_hh_mem;
 
   // MEM -> WB
-  logic            mem_m_valid;
   logic            instr_valid_wb;
 
   // WB -> svc_rv
@@ -732,8 +732,6 @@ module svc_rv #(
       .BPRED     (BPRED),
       .RAS_ENABLE(RAS_ENABLE)
   ) stage_mem (
-      .s_valid(ex_m_valid),
-      .m_valid(mem_m_valid),
       .*
   );
 
@@ -769,11 +767,11 @@ module svc_rv #(
 `ifndef RISCV_FORMAL
   // verilog_format: off
   `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, trap_code_wb,
-               mem_m_valid, instr_ret, pc_ret, rs1_data_ret, rs2_data_ret,
+               ex_m_valid, instr_ret, pc_ret, rs1_data_ret, rs2_data_ret,
                rd_data_ret, trap_ret, trap_code_ret, reg_write_ret});
   // verilog_format: on
 `else
-  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, mem_m_valid});
+  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, ex_m_valid});
 `endif
 
   `include "svc_rv_dbg.svh"

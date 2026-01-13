@@ -102,9 +102,9 @@ module svc_rv_stage_ex_mc_tb;
   logic            btb_update_is_ret;
   logic            btb_update_is_jal;
   logic            is_ebreak_mem;
-  // verilator lint_on UNUSEDSIGNAL
-
   logic            m_valid;
+  logic            instr_valid_mem;
+  // verilator lint_on UNUSEDSIGNAL
 
   logic            stall_ex;
   logic            op_active_ex;
@@ -193,6 +193,7 @@ module svc_rv_stage_ex_mc_tb;
       .trap_code_mem    (trap_code_mem),
       .is_ebreak_mem    (is_ebreak_mem),
       .m_valid          (m_valid),
+      .instr_valid_mem  (instr_valid_mem),
       .op_active_ex     (op_active_ex),
       .btb_update_en    (btb_update_en),
       .btb_update_pc    (btb_update_pc),
