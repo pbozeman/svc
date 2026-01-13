@@ -54,9 +54,9 @@ module svc_rv_stage_pc #(
     input logic [XLEN-1:0] ras_tgt_pc,
 
     //
-    // Valid output to IF stage (ready removed, stall controls flow)
+    // Valid output to IF stage
     //
-    output logic m_valid,
+    output logic instr_valid_if,
 
     //
     // Stall signal
@@ -271,7 +271,7 @@ module svc_rv_stage_pc #(
       .clk      (clk),
       .rst_n    (rst_n),
       .valid_i  (!stall_pc),
-      .valid_o  (m_valid),
+      .valid_o  (instr_valid_if),
       .stall_i  (stall_pc),
       .flush_i  (1'b0),
       .bubble_i (pipe_stale),
@@ -309,7 +309,7 @@ module svc_rv_stage_pc #(
   //
   // With s_valid gating in IF stage, we don't fetch during bubbles (reset
   // release, stall release). So BUBBLE_REG=0 lets the data advance while
-  // the bubble suppresses m_valid. This ensures pc_next_if is correct when
+  // the bubble suppresses instr_valid_if. This ensures pc_next_if is correct when
   // we start fetching.
   //
   // RESET_VAL is set to PC_INIT_2X so formal verification sees consistent
@@ -442,7 +442,7 @@ module svc_rv_stage_pc #(
       if (f_past_valid && $past(rst_n) && rst_n) begin
         if ($past(stall_pc)) begin
           // Valid must remain stable when stalled
-          `FASSERT(a_valid_stable, m_valid == $past(m_valid));
+          `FASSERT(a_valid_stable, instr_valid_if == $past(instr_valid_if));
 
           // Payload signals must remain stable when stalled
           `FASSERT(a_pc_stable, pc_if == $past(pc_if));

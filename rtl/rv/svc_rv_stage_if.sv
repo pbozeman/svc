@@ -25,52 +25,31 @@ module svc_rv_stage_if #(
     input logic clk,
     input logic rst_n,
 
-    //
-    // Hazard control
-    //
+    // Hazard & stall control
     input logic if_id_flush,
-
-    //
-    // Valid from PC stage (ready removed, stall controls flow)
-    //
-    input logic s_valid,
-
-    //
-    // Stall input (replaces ready-based flow control)
-    //
     input logic stall_i,
 
-    //
-    // PC inputs from stage_pc
-    //
+    // inputs from stage_pc
+    input logic            instr_valid_if,
     input logic [XLEN-1:0] pc_if,
     input logic [XLEN-1:0] pc_next_if,
 
-    //
     // BTB prediction signals
-    //
     input logic            btb_hit_if,
     input logic            btb_pred_taken_if,
     input logic [XLEN-1:0] btb_tgt_if,
     input logic            btb_is_return_if,
 
-    //
     // RAS prediction signals
-    //
     input logic            ras_valid_if,
     input logic [XLEN-1:0] ras_tgt_if,
 
-    //
     // Instruction memory interface
-    //
     output logic        imem_ren,
     output logic [31:0] imem_raddr,
     input  logic [31:0] imem_rdata,
 
-    //
-    // Outputs to ID stage (m_ready removed, stall controls flow)
-    //
-    output logic m_valid,
+    // Outputs to ID stage
     output logic instr_valid_id,
 
     output logic [    31:0] instr_id,
@@ -86,22 +65,16 @@ module svc_rv_stage_if #(
 
   `include "svc_rv_defs.svh"
 
-  //
   // Internal signals from RAM submodule
-  //
   logic [XLEN-1:0] pc_ram;
   logic [XLEN-1:0] pc_plus4_ram;
   logic            valid_ram;
 
-  //
   // Pipeline advance signal
-  //
   (* max_fanout = 32 *)logic            advance;
   assign advance = !stall_i;
 
-  //
   // Memory-type specific fetch logic
-  //
   if (MEM_TYPE == MEM_TYPE_BRAM) begin : g_bram
     svc_rv_stage_if_bram #(
         .XLEN (XLEN),
@@ -109,7 +82,7 @@ module svc_rv_stage_if #(
     ) stage (
         .clk              (clk),
         .rst_n            (rst_n),
-        .valid_if         (s_valid),
+        .valid_if         (instr_valid_if),
         .pc               (pc_if),
         .pc_next          (pc_next_if),
         .if_id_flush      (if_id_flush),
@@ -142,7 +115,7 @@ module svc_rv_stage_if #(
     ) stage (
         .clk              (clk),
         .rst_n            (rst_n),
-        .valid_if         (s_valid),
+        .valid_if         (instr_valid_if),
         .pc               (pc_if),
         .if_id_flush      (if_id_flush),
         .advance          (advance),
@@ -170,9 +143,7 @@ module svc_rv_stage_if #(
     `SVC_UNUSED({pc_next_if})
   end
 
-  //
-  // IF/ID Pipeline Register (PC only, instruction buffered in submodule)
-  //
+  // IF/ID Pipeline Register
   if (PIPELINED != 0) begin : g_registered
     logic [XLEN-1:0] pc_id_buf;
     logic [XLEN-1:0] pc_plus4_id_buf;
@@ -195,14 +166,8 @@ module svc_rv_stage_if #(
     assign pc_plus4_id = pc_plus4_ram;
   end
 
-  //
   // Valid output
-  //
-  assign m_valid        = valid_ram;
-
-  // instr_valid_id tracks instruction validity for downstream stages.
-  // For now, sourced from m_valid (will be moved to pipe_data in Phase 5).
-  assign instr_valid_id = m_valid;
+  assign instr_valid_id = valid_ram;
 
 `ifdef FORMAL
 `ifdef FORMAL_SVC_RV_STAGE_IF
@@ -233,16 +198,16 @@ module svc_rv_stage_if #(
   //
   // Stall behavior assertions (output interface)
   //
-  // Pipeline flush is allowed to drop m_valid even when stalled.
+  // Pipeline flush is allowed to drop instr_valid_id even when stalled.
   // This is intentional - flush creates bubbles.
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      if ($past(m_valid && stall_i && !if_id_flush)) begin
+      if ($past(instr_valid_id && stall_i && !if_id_flush)) begin
         //
         // Valid must remain asserted until not stalled (unless flushed)
         //
-        `FASSERT(a_valid_stable, m_valid || if_id_flush);
+        `FASSERT(a_valid_stable, instr_valid_id || if_id_flush);
 
         //
         // Payload signals must remain stable
@@ -304,19 +269,15 @@ module svc_rv_stage_if #(
   //
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      //
       // Cover back-to-back valid transfers (not stalled)
-      //
-      `FCOVER(c_back_to_back, $past(m_valid && !stall_i) && m_valid);
+      `FCOVER(c_back_to_back, $past(instr_valid_id && !stall_i
+              ) && instr_valid_id);
 
-      //
       // Cover stalled cycle followed by non-stalled cycle
-      //
-      `FCOVER(c_stalled, $past(m_valid && stall_i) && m_valid && !stall_i);
+      `FCOVER(c_stalled, $past(instr_valid_id && stall_i
+              ) && instr_valid_id && !stall_i);
 
-      //
       // Cover stall condition
-      //
       `FCOVER(c_stall, $past(stall_i));
     end
   end

@@ -174,8 +174,8 @@ module svc_rv #(
   logic [XLEN-1:0] pc_if;
   logic [XLEN-1:0] pc_next_if;
 
-  // PC -> IF valid interface (ready removed, stall controls flow)
-  logic            pc_m_valid;
+  // PC -> IF
+  logic            instr_valid_if;
 
   //
   // Redirect from MEM stage (misprediction)
@@ -226,7 +226,6 @@ module svc_rv #(
   logic            is_mc_id;
 
   // IF -> ID
-  logic            if_m_valid;
   logic            instr_valid_id;
 
   // ID -> EX
@@ -652,7 +651,7 @@ module svc_rv #(
       .btb_is_return_pc (btb_is_return_pc),
       .ras_valid_pc     (ras_valid_pc),
       .ras_tgt_pc       (ras_tgt_pc),
-      .m_valid          (pc_m_valid),
+      .instr_valid_if   (instr_valid_if),
       .stall_pc         (stall_pc),
       .imem_stall       (imem_stall),
       .pc               (pc),
@@ -676,11 +675,10 @@ module svc_rv #(
       .MEM_TYPE (MEM_TYPE),
       .BPRED    (BPRED)
   ) stage_if (
-      .s_valid   (pc_m_valid),
-      .stall_i   (stall_if),
-      .pc_if     (pc_if),
-      .pc_next_if(pc_next_if),
-      .m_valid   (if_m_valid),
+      .instr_valid_if(instr_valid_if),
+      .stall_i       (stall_if),
+      .pc_if         (pc_if),
+      .pc_next_if    (pc_next_if),
       .*
   );
 
@@ -763,11 +761,11 @@ module svc_rv #(
 `ifndef RISCV_FORMAL
   // verilog_format: off
   `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, trap_code_wb,
-               if_m_valid, instr_ret, pc_ret, rs1_data_ret, rs2_data_ret,
-               rd_data_ret, trap_ret, trap_code_ret, reg_write_ret});
+               instr_ret, pc_ret, rs1_data_ret, rs2_data_ret, rd_data_ret,
+               trap_ret, trap_code_ret, reg_write_ret});
   // verilog_format: on
 `else
-  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, if_m_valid});
+  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id});
 `endif
 
   `include "svc_rv_dbg.svh"
