@@ -336,30 +336,386 @@ end
 
 ### Phase 3: Pipeline Integration
 
-1. Modify `svc_rv_stage_id.sv` - FP decode and regfile read
-2. Modify `svc_rv_stage_ex.sv` - FPU instance
-3. Modify `svc_rv_stage_mem.sv` - FP data path
-4. Modify `svc_rv_stage_wb.sv` - FP result mux, regfile write
+#### 3a. ID Stage Modifications (`svc_rv_stage_id.sv`)
 
-### Phase 4: Memory Operations
+**New Signals (outputs to EX):**
 
-1. Extend decoder for FLW/FSW
-2. Wire FP source data for FSW
-3. Route load data to FP regfile for FLW
+```systemverilog
+// FP instruction classification
+output logic       is_fp_ex,         // Any FP instruction
+output logic       is_fp_load_ex,    // FLW
+output logic       is_fp_store_ex,   // FSW
+output logic       is_fp_compute_ex, // FP arithmetic
+output logic       is_fp_mc_ex,      // Multi-cycle FP (FDIV/FSQRT)
+output logic       fp_reg_write_ex,  // Write to FP regfile
+output logic       fp_int_reg_write_ex, // FP instr writes INT regfile
 
-### Phase 5: Hazards and Forwarding
+// FP register data (3 read ports)
+output logic [XLEN-1:0] frs1_data_ex,
+output logic [XLEN-1:0] frs2_data_ex,
+output logic [XLEN-1:0] frs3_data_ex,
 
-1. Create `svc_rv_fp_hazard.sv`
-2. Create `svc_rv_fp_fwd_ex.sv`
-3. Integrate with existing hazard unit
-4. Handle cross-file hazards (INT<->FP)
+// FP register indices (for hazard detection)
+output logic [4:0] frs1_ex,
+output logic [4:0] frs2_ex,
+output logic [4:0] frs3_ex,
+output logic [4:0] frd_ex,
 
-### Phase 6: CSR and Testing
+// FP register usage flags (for hazard detection)
+output logic       frs1_used_ex,
+output logic       frs2_used_ex,
+output logic       frs3_used_ex,
 
-1. Wire FP CSR to CSR interface
-2. Connect frm to FPU, accumulate fflags
-3. Create test programs (`-march=rv32imf`)
-4. Run riscv-tests F extension suite
+// Rounding mode
+output logic [2:0] fp_rm_ex,
+output logic       fp_rm_dyn_ex,
+```
+
+**Changes:**
+
+1. **Instantiate FP decoder** (guarded by `EXT_F`):
+
+   ```systemverilog
+   if (EXT_F != 0) begin : g_fp_idec
+     svc_rv_fp_idec fp_idec (
+       .instr(instr_id),
+       .is_fp(is_fp_id),
+       .is_fp_load(is_fp_load_id),
+       .is_fp_store(is_fp_store_id),
+       .is_fp_compute(is_fp_compute_id),
+       .is_fp_mc(is_fp_mc_id),
+       .fp_reg_write(fp_reg_write_id),
+       .int_reg_write(fp_int_reg_write_id),
+       .frs1(frs1_id), .frs2(frs2_id), .frs3(frs3_id), .frd(frd_id),
+       .frs1_used(frs1_used_id), .frs2_used(frs2_used_id),
+       .frs3_used(frs3_used_id), .int_rs1_used(fp_int_rs1_used_id),
+       .fp_rm(fp_rm_id), .fp_rm_dyn(fp_rm_dyn_id),
+       .fp_instr_invalid(fp_instr_invalid_id)
+     );
+   end
+   ```
+
+2. **Instantiate FP register file** (guarded by `EXT_F`):
+
+   ```systemverilog
+   if (EXT_F != 0) begin : g_fp_regfile
+     svc_rv_fp_regfile #(.XLEN(XLEN), .FWD_REGFILE(FWD_REGFILE)) fp_regfile (
+       .clk(clk),
+       .frs1_addr(frs1_id), .frs1_data(frs1_data_id),
+       .frs2_addr(frs2_id), .frs2_data(frs2_data_id),
+       .frs3_addr(frs3_id), .frs3_data(frs3_data_id),
+       .frd_en(fp_reg_write_wb && !dmem_stall),
+       .frd_addr(frd_wb),
+       .frd_data(frd_data_wb)
+     );
+   end
+   ```
+
+3. **Update multi-cycle detection**:
+
+   ```systemverilog
+   // Extend is_mc_id to include FP multi-cycle ops
+   if (EXT_F != 0) begin : g_fp_mc
+     assign is_mc_id = (EXT_M != 0 && is_m_id && funct3_id[2]) || is_fp_mc_id;
+   end
+   ```
+
+4. **Add FP signals to ID/EX pipeline registers**
+
+#### 3b. EX Stage Modifications (`svc_rv_stage_ex.sv`)
+
+**New Inputs (from ID):**
+
+```systemverilog
+input logic       is_fp_ex,
+input logic       is_fp_load_ex,
+input logic       is_fp_store_ex,
+input logic       is_fp_compute_ex,
+input logic       is_fp_mc_ex,
+input logic       fp_reg_write_ex,
+input logic       fp_int_reg_write_ex,
+input logic [XLEN-1:0] frs1_data_ex,
+input logic [XLEN-1:0] frs2_data_ex,
+input logic [XLEN-1:0] frs3_data_ex,
+input logic [4:0] frd_ex,
+input logic [2:0] fp_rm_ex,
+input logic       fp_rm_dyn_ex,
+```
+
+**New Outputs (to MEM):**
+
+```systemverilog
+output logic [XLEN-1:0] fp_result_mem,
+output logic [4:0]      fflags_mem,
+output logic            fp_reg_write_mem,
+output logic [4:0]      frd_mem,
+output logic            is_fp_load_mem,
+output logic            is_fp_store_mem,
+output logic [XLEN-1:0] frs2_data_mem, // For FSW store data
+```
+
+**Changes:**
+
+1. **Instantiate FPU wrapper** (guarded by `EXT_F`):
+
+   ```systemverilog
+   if (EXT_F != 0) begin : g_fpu
+     logic [2:0] frm_csr;  // From FP CSR module
+
+     svc_rv_ext_fp_ex fpu (
+       .clk(clk),
+       .rst_n(rst_n),
+       .op_valid(s_valid && is_fp_compute_ex && !op_active_ex),
+       .instr(instr_ex),
+       .frm_csr(frm_csr),
+       .frs1(fwd_frs1_ex),  // Forwarded FP operands
+       .frs2(fwd_frs2_ex),
+       .frs3(fwd_frs3_ex),
+       .rs1(fwd_rs1_ex),    // Integer source for FCVT.S.W/FMV.W.X
+       .result_valid(fp_result_valid),
+       .result(fp_result_ex),
+       .fflags(fflags_ex),
+       .busy(fp_busy_ex)
+     );
+   end
+   ```
+
+2. **Extend multi-cycle state machine**:
+
+   ```systemverilog
+   // m_busy_ex includes FP busy
+   if (EXT_F != 0) begin : g_fp_busy
+     assign m_busy_ex = div_busy || fp_busy_ex;
+   end
+   ```
+
+3. **Add FP signals to EX/MEM pipeline registers**
+
+#### 3c. MEM Stage Modifications (`svc_rv_stage_mem.sv`)
+
+**New Inputs (from EX):**
+
+```systemverilog
+input logic [XLEN-1:0] fp_result_mem,
+input logic [4:0]      fflags_mem,
+input logic            fp_reg_write_mem,
+input logic [4:0]      frd_mem,
+input logic            is_fp_load_mem,
+input logic            is_fp_store_mem,
+input logic [XLEN-1:0] frs2_data_mem,
+```
+
+**New Outputs (to WB):**
+
+```systemverilog
+output logic [XLEN-1:0] fp_result_wb,
+output logic [4:0]      fflags_wb,
+output logic            fp_reg_write_wb,
+output logic [4:0]      frd_wb,
+output logic            is_fp_load_wb,
+```
+
+**Changes:**
+
+1. **FSW store data**: Use `frs2_data_mem` instead of `rs2_data_mem` when
+   `is_fp_store_mem`:
+
+   ```systemverilog
+   logic [XLEN-1:0] store_data;
+   assign store_data = is_fp_store_mem ? frs2_data_mem : rs2_data_mem;
+   ```
+
+2. **FP result forwarding**: Add `fp_result_mem` to forwarding mux for FP
+   hazards
+
+3. **Pass FP signals through MEM/WB pipeline registers**
+
+#### 3d. WB Stage Modifications (`svc_rv_stage_wb.sv`)
+
+**New Inputs (from MEM):**
+
+```systemverilog
+input logic [XLEN-1:0] fp_result_wb,
+input logic [4:0]      fflags_wb,
+input logic            fp_reg_write_wb,
+input logic [4:0]      frd_wb,
+input logic            is_fp_load_wb,
+```
+
+**New Outputs:**
+
+```systemverilog
+// To FP regfile (in ID stage)
+output logic [XLEN-1:0] frd_data_wb,
+output logic [4:0]      frd_addr_wb,
+output logic            frd_en_wb,
+
+// To FP CSR (for fflags accumulation)
+output logic [4:0]      fflags_set,
+output logic            fflags_set_en,
+```
+
+**Changes:**
+
+1. **Extend result mux** (add `RES_FP = 3'b110`):
+
+   ```systemverilog
+   svc_muxn #(.WIDTH(XLEN), .N(7)) mux_res (
+     .sel(res_src_wb),
+     .data({
+       fp_result_wb,      // RES_FP (6)
+       m_ext_result_wb,   // RES_M (5)
+       csr_rdata_wb,      // RES_CSR (4)
+       jb_tgt_wb,         // RES_TGT (3)
+       pc_plus4_wb,       // RES_PC4 (2)
+       ld_data_wb,        // RES_MEM (1)
+       alu_result_wb      // RES_ALU (0)
+     }),
+     .out(rd_data_wb)
+   );
+   ```
+
+2. **FP load result selection**: When `is_fp_load_wb`, route `ld_data_wb` to FP
+   regfile:
+
+   ```systemverilog
+   assign frd_data_wb = is_fp_load_wb ? ld_data_wb : fp_result_wb;
+   assign frd_en_wb = fp_reg_write_wb;
+   assign frd_addr_wb = frd_wb;
+   ```
+
+3. **fflags accumulation**:
+   ```systemverilog
+   assign fflags_set = fflags_wb;
+   assign fflags_set_en = fp_reg_write_wb && (|fflags_wb);
+   ```
+
+---
+
+### Phase 4: Hazards and Forwarding
+
+#### 4a. FP Hazard Detection (`svc_rv_fp_hazard.sv`)
+
+**FP-specific hazards to detect:**
+
+| Hazard Type    | Condition                           | Resolution             |
+| -------------- | ----------------------------------- | ---------------------- |
+| FP RAW (EX)    | frs\* matches frd in EX/MEM/WB      | Forward or stall       |
+| FP Load-Use    | FLW in EX, consumer in ID           | Stall 1 cycle          |
+| INT<->FP RAW   | FMV.W.X/FCVT.S.W uses INT rs1       | Use INT forwarding     |
+| FP->INT RAW    | FCVT.W.S/FMV.X.W result used by INT | Forward to INT regfile |
+| FP Multi-cycle | FDIV/FSQRT in progress              | Stall via op_active_ex |
+
+**Interface:**
+
+```systemverilog
+module svc_rv_fp_hazard #(parameter int XLEN = 32) (
+  // FP register usage (from ID)
+  input logic [4:0] frs1_id, frs2_id, frs3_id,
+  input logic       frs1_used_id, frs2_used_id, frs3_used_id,
+
+  // FP destinations in flight
+  input logic [4:0] frd_ex, frd_mem, frd_wb,
+  input logic       fp_reg_write_ex, fp_reg_write_mem, fp_reg_write_wb,
+
+  // Load detection
+  input logic       is_fp_load_ex,
+
+  // Hazard outputs
+  output logic      fp_data_hazard_id,
+  output logic      fp_load_hazard_id
+);
+```
+
+#### 4b. FP Forwarding (`svc_rv_fp_fwd_ex.sv`)
+
+**Forwarding paths:**
+
+- EX→EX: From `fp_result_mem` (bypass MEM stage)
+- MEM→EX: From `fp_result_wb`
+- WB→ID: Internal regfile forwarding (existing `FWD_REGFILE` mechanism)
+
+**Interface:**
+
+```systemverilog
+module svc_rv_fp_fwd_ex #(parameter int XLEN = 32) (
+  // FP operands from ID
+  input logic [XLEN-1:0] frs1_data_ex, frs2_data_ex, frs3_data_ex,
+  input logic [4:0]      frs1_ex, frs2_ex, frs3_ex,
+
+  // FP results from later stages
+  input logic [4:0]      frd_mem, frd_wb,
+  input logic            fp_reg_write_mem, fp_reg_write_wb,
+  input logic [XLEN-1:0] fp_result_mem, frd_data_wb,
+
+  // Forwarded outputs
+  output logic [XLEN-1:0] fwd_frs1_ex, fwd_frs2_ex, fwd_frs3_ex
+);
+```
+
+#### 4c. Integration with Existing Hazard Unit
+
+Modify `svc_rv_hazard.sv`:
+
+- OR `fp_data_hazard_id` with existing `data_hazard_id`
+- OR `fp_load_hazard_id` with existing `load_hazard_id`
+- Ensure `op_active_ex` covers FP multi-cycle ops
+
+---
+
+### Phase 5: FP CSR Integration
+
+1. **Wire FP CSR module** in EX stage (or dedicated location):
+
+   ```systemverilog
+   svc_rv_fp_csr fp_csr (
+     .clk(clk), .rst_n(rst_n),
+     .csr_addr(imm_ex[11:0]),
+     .csr_op(funct3_ex),
+     .csr_wdata(rs1_data_ex),  // or zimm
+     .csr_rdata(fp_csr_rdata),
+     .csr_hit(fp_csr_hit),
+     .frm(frm_csr),
+     .fflags_set_en(fflags_set_en),
+     .fflags_set(fflags_set)
+   );
+   ```
+
+2. **Route CSR access**: When `csr_addr` matches FP CSRs (0x001-0x003), use
+   `fp_csr_rdata` instead of main CSR
+
+3. **Connect fflags accumulation**: Wire `fflags_set_en` and `fflags_set` from
+   WB stage
+
+---
+
+### Phase 6: Testing
+
+1. **Unit tests** for modified stages (extend existing testbenches)
+2. **Integration test**: Simple FP program (FADD, FMUL, FLW, FSW)
+3. **riscv-tests**: Run `rv32uf-p-*` tests
+4. **Torture test**: Random FP instruction sequences
+
+---
+
+## Phase 3 Detailed Signal Flow
+
+```
+ID Stage                    EX Stage                  MEM Stage               WB Stage
+=========                   =========                 ==========              =========
+instr_id ──┬──> idec        instr_ex ──> fpu         fp_result_mem ──────────> fp_result_wb
+           │                             │                                          │
+           └──> fp_idec ───────────────> │                                          v
+                    │                    v                                    result mux
+                    v              fp_result_ex ──────>                            │
+              fp_regfile                                                           v
+              ┌───┼───┐                                                      frd_data_wb
+              │   │   │                                                           │
+           frs1 frs2 frs3 ────────> fwd ────────> operands                        │
+                                                                                  │
+                                                                                  v
+              <─────────────────────────────────────────────────────────── frd_en_wb
+```
 
 ## Key Dependencies
 
@@ -373,41 +729,124 @@ svc/external/
     ├── cf_math_pkg.sv
     └── assertions.svh
 
-Phase 1 modules (COMPLETE):
-  svc_rv_fp_regfile.sv  \
-  svc_rv_fp_csr.sv       > Phase 2 (COMPLETE): svc_rv_ext_fp_ex.sv
-  svc_rv_fp_idec.sv     /
+Phase 1 (COMPLETE):
+  svc_rv_fp_regfile.sv, svc_rv_fp_csr.sv, svc_rv_fp_idec.sv
 
-Phase 3 (NEXT): Pipeline integration -> svc_rv_stage_*.sv
+Phase 2 (COMPLETE):
+  svc_rv_ext_fp_ex.sv (fpnew wrapper)
+
+Phase 3 (NEXT):
+  svc_rv_stage_id.sv, svc_rv_stage_ex.sv, svc_rv_stage_mem.sv, svc_rv_stage_wb.sv
+
+Phase 4:
+  svc_rv_fp_hazard.sv, svc_rv_fp_fwd_ex.sv, svc_rv_hazard.sv (modify)
+
+Phase 5:
+  FP CSR integration
+
+Phase 6:
+  Testing (rv32uf-p-* tests)
 ```
 
 ## Critical Files
 
 **Phase 1 (Complete):**
 
-- `svc/rtl/rv/svc_rv_defs.svh` - FP opcodes, CSR addresses, rounding modes
-- `svc/rtl/rv/svc_rv_fp_regfile.sv` - 32-entry FP register file
-- `svc/rtl/rv/svc_rv_fp_csr.sv` - fflags, frm, fcsr CSRs
-- `svc/rtl/rv/svc_rv_fp_idec.sv` - FP instruction decoder
+- `rtl/rv/svc_rv_defs.svh` - FP opcodes, CSR addresses, rounding modes
+- `rtl/rv/svc_rv_fp_regfile.sv` - 32-entry FP register file
+- `rtl/rv/svc_rv_fp_csr.sv` - fflags, frm, fcsr CSRs
+- `rtl/rv/svc_rv_fp_idec.sv` - FP instruction decoder
 
 **Phase 2 (Complete):**
 
-- `svc/external/fetch_common_cells.sh` - Dependency fetch script
-- `svc/external/fpnew/` - FPU submodule
-- `svc/external/common_cells/` - Fetched utility modules
-- `svc/rtl/rv/svc_rv_ext_fp_ex.sv` - fpnew wrapper
-- `svc/tb/rv/svc_rv_ext_fp_ex_tbv.sv` - FPU wrapper testbench (verilator)
+- `external/fetch_common_cells.sh` - Dependency fetch script
+- `external/fpnew/` - FPU submodule
+- `external/common_cells/` - Fetched utility modules
+- `rtl/rv/svc_rv_ext_fp_ex.sv` - fpnew wrapper
+- `tb/rv/svc_rv_ext_fp_ex_tbv.sv` - FPU wrapper testbench (verilator)
 
 **Phase 3 (Next):**
 
-- `svc/rtl/rv/svc_rv_stage_id.sv` - FP decode and regfile read
-- `svc/rtl/rv/svc_rv_stage_ex.sv` - FPU instance integration
-- `svc/rtl/rv/svc_rv_stage_mem.sv` - FP data path
-- `svc/rtl/rv/svc_rv_stage_wb.sv` - FP result mux, regfile write
+- `rtl/rv/svc_rv_stage_id.sv` - FP decode, regfile read, ID/EX pipe
+- `rtl/rv/svc_rv_stage_ex.sv` - FPU instance, multi-cycle control
+- `rtl/rv/svc_rv_stage_mem.sv` - FP data path, FSW store data
+- `rtl/rv/svc_rv_stage_wb.sv` - FP result mux (7-way), FP regfile write
+
+**Phase 4:**
+
+- `rtl/rv/svc_rv_fp_hazard.sv` - FP hazard detection (new)
+- `rtl/rv/svc_rv_fp_fwd_ex.sv` - FP forwarding (new)
+- `rtl/rv/svc_rv_hazard.sv` - Integrate FP hazards (modify)
 
 **Reference (existing patterns):**
 
-- `svc/rtl/rv/svc_rv_ext_div.sv` - Pattern for multi-cycle ops
+- `rtl/rv/svc_rv_ext_div.sv` - Pattern for multi-cycle ops
+- `rtl/rv/svc_rv_fwd_ex.sv` - Pattern for forwarding
+- `rtl/rv/svc_rv_hazard.sv` - Pattern for hazard detection
+
+## FPU Latency Configuration
+
+fpnew's `PipeRegs` parameter controls internal pipeline registers, separate from
+our CPU stage registers. This is tunable for timing closure.
+
+**Current configuration** (`svc_rv_ext_fp_ex.sv`):
+
+```systemverilog
+PipeRegs: '{default: 0}  // Combinational - result same cycle
+```
+
+**Operation latencies with PipeRegs=0:**
+
+| Operation                     | Cycles | Notes                         |
+| ----------------------------- | ------ | ----------------------------- |
+| FADD, FSUB, FMUL, FMADD, etc. | 1      | Combinational through fpnew   |
+| FMIN, FMAX, FSGNJ, FCMP       | 1      | NONCOMP unit, simple logic    |
+| FCVT, FCLASS                  | 1      | CONV unit                     |
+| FMV.X.W, FMV.W.X              | 1      | Bypasses fpnew entirely       |
+| FDIV, FSQRT                   | ~28    | T-Head E906 iterative divider |
+
+**If EX stage timing fails**, increase PipeRegs:
+
+```systemverilog
+PipeRegs: '{
+    '{default: 1},  // ADDMUL: +1 cycle (FADD/FMUL/FMADD become 2-cycle)
+    '{default: 0},  // DIVSQRT: already multi-cycle
+    '{default: 0},  // NONCOMP: keep combinational (simple ops)
+    '{default: 0}   // CONV: keep combinational
+}
+```
+
+With PipeRegs=1 for ADDMUL, FADD/FMUL/FMADD become 2-cycle operations. The
+existing `op_active_ex` stall mechanism (used for FDIV/FSQRT) handles this
+automatically - no architectural changes needed, just a config tweak.
+
+**FP Forwarding considerations:**
+
+FP forwarding should be controlled separately from integer forwarding because:
+
+1. With `PipeRegs=0`: FP result available in EX, can forward EX→EX (like INT)
+2. With `PipeRegs=1`: FP result available in MEM, cannot forward EX→EX (must
+   stall)
+
+Add parameter to control this:
+
+```systemverilog
+parameter int FWD_FP = 1  // 0=stall on FP RAW, 1=forward FP results
+```
+
+When `PipeRegs > 0`, set `FWD_FP = 0` to force stalls instead of attempting
+impossible forwarding. The hazard unit must account for this:
+
+```systemverilog
+// FP hazard with forwarding disabled - must stall
+assign fp_data_hazard_id = (FWD_FP == 0) ?
+    (frs_matches_frd_ex || frs_matches_frd_mem) :  // Stall for EX and MEM
+    (is_fp_load_ex && frs_matches_frd_ex);         // Only load-use stall
+```
+
+**Recommendation**: Start with PipeRegs=0, check timing after synthesis. If EX
+stage is critical path, bump ADDMUL to 1. FPGA DSP slices are fast, so
+combinational may work.
 
 ## Resource Estimates (Artix-7)
 
