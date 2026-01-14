@@ -1,0 +1,9 @@
+`verilator_config
+
+// FP ports added to stages but testbenches don't use them (EXT_F=0)
+// These are safe to ignore in testbenches that don't test FP functionality
+lint_off -rule PINMISSING -file "*_tbi.sv" -match "*is_fp*"
+lint_off -rule PINMISSING -file "*_tbi.sv" -match "*fp_*"
+lint_off -rule PINMISSING -file "*_tbi.sv" -match "*frs*"
+lint_off -rule PINMISSING -file "*_tbi.sv" -match "*frd*"
+lint_off -rule PINMISSING -file "*_tbi.sv" -match "*fflags*"

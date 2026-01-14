@@ -47,6 +47,13 @@ module svc_rv_stage_wb #(
     input logic            is_ebreak_wb,
     input logic            reg_write_wb,
 
+    // FP inputs from MEM stage
+    input logic            is_fp_load_wb,
+    input logic            fp_reg_write_wb,
+    input logic [     4:0] fp_rd_wb,
+    input logic [XLEN-1:0] fp_result_wb,
+    input logic [     4:0] fflags_wb,
+
 `ifdef RISCV_FORMAL
     input logic            f_mem_write_wb,
     input logic [XLEN-1:0] f_dmem_waddr_wb,
@@ -88,7 +95,16 @@ module svc_rv_stage_wb #(
 `endif
 
     // Output to register file in ID stage (combinational, for same-cycle write)
-    output logic [XLEN-1:0] rd_data_wb
+    output logic [XLEN-1:0] rd_data_wb,
+
+    // FP outputs to ID stage (for FP regfile writeback)
+    output logic [XLEN-1:0] fp_rd_data_wb,
+    output logic [     4:0] fp_rd_addr_wb,
+    output logic            fp_rd_en_wb,
+
+    // FP fflags accumulation (to FP CSR)
+    output logic [4:0] fflags_set,
+    output logic       fflags_set_en
 );
   `include "svc_rv_defs.svh"
 
@@ -139,6 +155,20 @@ module svc_rv_stage_wb #(
       }),
       .out(rd_data_wb)
   );
+
+  //
+  // FP result selection
+  //
+  // For FLW: use load data (ld_data_wb)
+  // For FP compute: use FP result (fp_result_wb)
+  //
+  assign fp_rd_data_wb = is_fp_load_wb ? ld_data_wb : fp_result_wb;
+  assign fp_rd_addr_wb = fp_rd_wb;
+  assign fp_rd_en_wb   = fp_reg_write_wb;
+
+  // fflags accumulation - set when FP operation produces flags
+  assign fflags_set    = fflags_wb;
+  assign fflags_set_en = fp_reg_write_wb && (|fflags_wb);
 
   //
   // Computed input values

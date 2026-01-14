@@ -19,34 +19,34 @@ module svc_rv_fp_regfile #(
     input logic clk,
 
     // FP register source 1
-    input  logic [     4:0] frs1_addr,
-    output logic [XLEN-1:0] frs1_data,
+    input  logic [     4:0] fp_rs1_addr,
+    output logic [XLEN-1:0] fp_rs1_data,
 
     // FP register source 2
-    input  logic [     4:0] frs2_addr,
-    output logic [XLEN-1:0] frs2_data,
+    input  logic [     4:0] fp_rs2_addr,
+    output logic [XLEN-1:0] fp_rs2_data,
 
     // FP register source 3 (for FMA instructions)
-    input  logic [     4:0] frs3_addr,
-    output logic [XLEN-1:0] frs3_data,
+    input  logic [     4:0] fp_rs3_addr,
+    output logic [XLEN-1:0] fp_rs3_data,
 
     // FP register destination (with en)
-    input logic            frd_en,
-    input logic [     4:0] frd_addr,
-    input logic [XLEN-1:0] frd_data
+    input logic            fp_rd_en,
+    input logic [     4:0] fp_rd_addr,
+    input logic [XLEN-1:0] fp_rd_data
 );
-  logic [XLEN-1:0] regs          [32];
+  logic [XLEN-1:0] regs            [32];
 
-  logic [XLEN-1:0] frs1_data_raw;
-  logic [XLEN-1:0] frs2_data_raw;
-  logic [XLEN-1:0] frs3_data_raw;
+  logic [XLEN-1:0] fp_rs1_data_raw;
+  logic [XLEN-1:0] fp_rs2_data_raw;
+  logic [XLEN-1:0] fp_rs3_data_raw;
 
   //
   // Read ports (no hardwired zero - all 32 registers readable)
   //
-  assign frs1_data_raw = regs[frs1_addr];
-  assign frs2_data_raw = regs[frs2_addr];
-  assign frs3_data_raw = regs[frs3_addr];
+  assign fp_rs1_data_raw = regs[fp_rs1_addr];
+  assign fp_rs2_data_raw = regs[fp_rs2_addr];
+  assign fp_rs3_data_raw = regs[fp_rs3_addr];
 
   //
   // Internal forwarding (only for pipelined designs)
@@ -57,23 +57,23 @@ module svc_rv_fp_regfile #(
   // be disabled.
   //
   if (FWD_REGFILE != 0) begin : g_forward
-    assign frs1_data = ((frd_en && (frd_addr == frs1_addr)) ? frd_data :
-                        frs1_data_raw);
+    assign fp_rs1_data = ((fp_rd_en && (fp_rd_addr == fp_rs1_addr)) ?
+                          fp_rd_data : fp_rs1_data_raw);
 
-    assign frs2_data = ((frd_en && (frd_addr == frs2_addr)) ? frd_data :
-                        frs2_data_raw);
+    assign fp_rs2_data = ((fp_rd_en && (fp_rd_addr == fp_rs2_addr)) ?
+                          fp_rd_data : fp_rs2_data_raw);
 
-    assign frs3_data = ((frd_en && (frd_addr == frs3_addr)) ? frd_data :
-                        frs3_data_raw);
+    assign fp_rs3_data = ((fp_rd_en && (fp_rd_addr == fp_rs3_addr)) ?
+                          fp_rd_data : fp_rs3_data_raw);
   end else begin : g_no_forward
-    assign frs1_data = frs1_data_raw;
-    assign frs2_data = frs2_data_raw;
-    assign frs3_data = frs3_data_raw;
+    assign fp_rs1_data = fp_rs1_data_raw;
+    assign fp_rs2_data = fp_rs2_data_raw;
+    assign fp_rs3_data = fp_rs3_data_raw;
   end
 
   always_ff @(posedge clk) begin
-    if (frd_en) begin
-      regs[frd_addr] <= frd_data;
+    if (fp_rd_en) begin
+      regs[fp_rd_addr] <= fp_rd_data;
     end
   end
 

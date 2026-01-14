@@ -1,0 +1,22 @@
+`verilator_config
+
+// External fpnew package - suppress warnings for third-party code
+lint_off -rule TIMESCALEMOD -file "*external/fpnew/*"
+lint_off -rule ASCRANGE -file "*external/fpnew/*"
+lint_off -rule UNUSEDPARAM -file "*external/fpnew/*"
+lint_off -rule WIDTHEXPAND -file "*external/fpnew/*"
+lint_off -rule WIDTHTRUNC -file "*external/fpnew/*"
+lint_off -rule GENUNNAMED -file "*external/fpnew/*"
+lint_off -rule UNUSEDSIGNAL -file "*external/fpnew/*"
+lint_off -rule UNOPTFLAT -file "*external/fpnew/*"
+
+// External common_cells - suppress warnings for third-party code
+lint_off -rule TIMESCALEMOD -file "*external/common_cells/*"
+lint_off -rule ASCRANGE -file "*external/common_cells/*"
+lint_off -rule UNUSEDPARAM -file "*external/common_cells/*"
+lint_off -rule GENUNNAMED -file "*external/common_cells/*"
+lint_off -rule UNUSEDSIGNAL -file "*external/common_cells/*"
+lint_off -rule UNOPTFLAT -file "*external/common_cells/*"
+lint_off -rule WIDTHTRUNC -file "*external/common_cells/*"
+lint_off -rule UNSIGNED -file "*external/common_cells/*"
+lint_off -rule SYNCASYNCNET -file "*external/common_cells/*"

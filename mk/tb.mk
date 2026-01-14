@@ -93,7 +93,8 @@ $(VL_RT_LIB): $(VL_RT_OBJS)
 verilator_rt: $(VL_RT_LIB)
 
 # Verilator TB command (without --build, we do our own build step)
-VERILATOR_TB_FLAGS := --cc --exe --timing
+# tbv tests enable EXT_F=1 since they're for advanced SV features like fpnew
+VERILATOR_TB_FLAGS := --cc --exe --timing -DEXT_F=1
 VERILATOR_TB_FLAGS += -Wall -Wno-PINCONNECTEMPTY -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM
 VERILATOR_TB_FLAGS += -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-TIMESCALEMOD -Wno-GENUNNAMED
 VERILATOR_TB_FLAGS += -Wno-ASCRANGE -Wno-UNSIGNED -Wno-UNOPTFLAT
@@ -135,7 +136,7 @@ lint: lint_tbi lint_tbv
 define lint_tbi_rule
 lint_tbi: lint_$(1)
 lint_$(1):
-	@$$(LINTER) $(I_TB) -I$(PRJ_RTL_DIR)/$(patsubst %_tbi,%, $(notdir $1)) $(1).sv
+	@$$(LINTER) $(SVC_TB_DIR)/verilator.vlt $(I_TB) -I$(PRJ_RTL_DIR)/$(patsubst %_tbi,%, $(notdir $1)) $(1).sv
 endef
 
 # Suppressions for fpnew external library warnings
@@ -145,8 +146,8 @@ FPNEW_LINT_FLAGS := -Wno-UNOPTFLAT -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNSIGNE
 define lint_tbv_rule
 lint_tbv: lint_$(1)
 lint_$(1):
-	@$$(LINTER) $(I_TB) $(I_EXT) -I$(PRJ_RTL_DIR)/$(patsubst %_tbv,%, $(notdir $1)) \
-		$(FPNEW_LINT_FLAGS) $(FPNEW_CF_PKG) $(FPNEW_PKG) $(1).sv
+	@$$(LINTER) $(SVC_TB_DIR)/verilator.vlt $(I_TB) $(I_EXT) -I$(PRJ_RTL_DIR)/$(patsubst %_tbv,%, $(notdir $1)) \
+		$(FPNEW_LINT_FLAGS) $(1).sv
 endef
 
 $(foreach tb, $(TBI_MODULES), $(eval $(call lint_tbi_rule,$(tb))))

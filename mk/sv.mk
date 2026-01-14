@@ -5,6 +5,11 @@ MAKEFLAGS += -I$(dir $(realpath $(lastword $(MAKEFILE_LIST))))/..
 # see comment in svc.sv for why may want to allow default nets (tldr: vivado)
 SYNTH_DEFS := -DSVC_DEF_NET_NONE
 
+# Extension enables (e.g., EXT_F=1 for RV32F floating-point)
+ifdef EXT_F
+SYNTH_DEFS += -DEXT_F=$(EXT_F)
+endif
+
 include mk/formal.mk
 include mk/format.mk
 include mk/iverilog.mk

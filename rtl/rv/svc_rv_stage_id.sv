@@ -7,10 +7,12 @@
 
 `include "svc_rv_bpred_id.sv"
 `include "svc_rv_idec.sv"
+`include "svc_rv_fp_idec.sv"
 `include "svc_rv_fwd_id.sv"
 `include "svc_rv_pipe_ctrl.sv"
 `include "svc_rv_pipe_data.sv"
 `include "svc_rv_regfile.sv"
+`include "svc_rv_fp_regfile.sv"
 
 //
 // RISC-V Instruction Decode (ID) Stage
@@ -35,10 +37,8 @@ module svc_rv_stage_id #(
     parameter int RAS_ENABLE  = 0,
     parameter int EXT_ZMMUL   = 0,
     parameter int EXT_M       = 0,
-    // verilator lint_off UNUSEDPARAM
-    // Reserved for Phase 3 FPU integration
-    parameter int EXT_F       = 0
-    // verilator lint_on UNUSEDPARAM
+    parameter int EXT_F       = 0,
+    parameter int FWD_FP      = 1
 ) (
     input logic clk,
     input logic rst_n,
@@ -62,10 +62,15 @@ module svc_rv_stage_id #(
     input logic            ras_valid_id,
     input logic [XLEN-1:0] ras_tgt_id,
 
-    // Write-back from WB stage
+    // Write-back from WB stage (integer)
     input logic        reg_write_wb,
     input logic [ 4:0] rd_wb,
     input logic [31:0] rd_data_wb,
+
+    // Write-back from WB stage (FP)
+    input logic            fp_reg_write_wb,
+    input logic [     4:0] fp_rd_wb,
+    input logic [XLEN-1:0] fp_rd_data_wb,
 
     // MEM stage forwarding inputs
     input logic [     4:0] rd_mem,
@@ -115,6 +120,32 @@ module svc_rv_stage_id #(
     output logic       rs2_used_id,
     output logic       is_mc_id,
 
+    // FP outputs to EX stage
+    output logic            is_fp_ex,
+    output logic            is_fp_load_ex,
+    output logic            is_fp_store_ex,
+    output logic            is_fp_compute_ex,
+    output logic            is_fp_mc_ex,
+    output logic            fp_reg_write_ex,
+    output logic [XLEN-1:0] fp_rs1_data_ex,
+    output logic [XLEN-1:0] fp_rs2_data_ex,
+    output logic [XLEN-1:0] fp_rs3_data_ex,
+    output logic [     4:0] fp_rs1_ex,
+    output logic [     4:0] fp_rs2_ex,
+    output logic [     4:0] fp_rs3_ex,
+    output logic [     4:0] fp_rd_ex,
+
+    // FP outputs to hazard unit
+    output logic [4:0] fp_rs1_id,
+    output logic [4:0] fp_rs2_id,
+    output logic [4:0] fp_rs3_id,
+    output logic [4:0] fp_rd_id,
+    output logic       fp_rs1_used_id,
+    output logic       fp_rs2_used_id,
+    output logic       fp_rs3_used_id,
+    output logic       is_fp_load_id,
+    output logic       is_fp_mc_id,
+
     // Branch prediction outputs to IF stage
     output logic [     1:0] pc_sel_id,
     output logic [XLEN-1:0] pred_tgt,
@@ -155,6 +186,22 @@ module svc_rv_stage_id #(
   logic [XLEN-1:0] rs1_data_id;
   logic [XLEN-1:0] rs2_data_id;
   logic            bpred_taken_id;
+
+  //
+  // FP ID stage signals
+  //
+  // Note: is_fp_mc_id is an output port (to hazard unit), not declared here
+  //
+  logic            is_fp_id;
+  logic            is_fp_store_id;
+  logic            is_fp_compute_id;
+  logic            fp_reg_write_id;
+  logic            fp_int_reg_write_id;
+  logic            fp_int_rs1_used_id;
+  logic [XLEN-1:0] fp_rs1_data_id;
+  logic [XLEN-1:0] fp_rs2_data_id;
+  logic [XLEN-1:0] fp_rs3_data_id;
+  logic            fp_instr_invalid_id;
 
   //
   // Instruction Decoder
@@ -208,21 +255,70 @@ module svc_rv_stage_id #(
   );
 
   //
-  // Multi-cycle operation detection
+  // FP Instruction Decoder
   //
-  // Identifies operations that require multiple cycles to complete.
-  // Currently: DIV/REM (funct3[2]=1) from M extension (not ZMMUL)
-  //
-  // M-extension detection: R-type instruction with funct7[0]=1
-  //
-  if (EXT_M != 0) begin : g_ext_m_mc
-    assign is_mc_id = is_m_id && funct3_id[2];
-  end else begin : g_not_ext_m_mc
-    assign is_mc_id = 1'b0;
+  if (EXT_F != 0) begin : g_fp_idec
+    svc_rv_fp_idec #(
+        .XLEN(XLEN)
+    ) fp_idec (
+        .instr           (instr_id),
+        .is_fp           (is_fp_id),
+        .is_fp_load      (is_fp_load_id),
+        .is_fp_store     (is_fp_store_id),
+        .is_fp_compute   (is_fp_compute_id),
+        .is_fp_mc        (is_fp_mc_id),
+        .fp_reg_write    (fp_reg_write_id),
+        .int_reg_write   (fp_int_reg_write_id),
+        .fp_rs1          (fp_rs1_id),
+        .fp_rs2          (fp_rs2_id),
+        .fp_rs3          (fp_rs3_id),
+        .fp_rd           (fp_rd_id),
+        .fp_rs1_used     (fp_rs1_used_id),
+        .fp_rs2_used     (fp_rs2_used_id),
+        .fp_rs3_used     (fp_rs3_used_id),
+        .int_rs1_used    (fp_int_rs1_used_id),
+        .fp_rm           (),                     // Passed via instr_ex to FPU
+        .fp_rm_dyn       (),                     // Passed via instr_ex to FPU
+        .fp_instr_invalid(fp_instr_invalid_id)
+    );
+  end else begin : g_no_fp_idec
+    assign is_fp_id            = 1'b0;
+    assign is_fp_load_id       = 1'b0;
+    assign is_fp_store_id      = 1'b0;
+    assign is_fp_compute_id    = 1'b0;
+    assign is_fp_mc_id         = 1'b0;
+    assign fp_reg_write_id     = 1'b0;
+    assign fp_int_reg_write_id = 1'b0;
+    assign fp_rs1_id           = 5'b0;
+    assign fp_rs2_id           = 5'b0;
+    assign fp_rs3_id           = 5'b0;
+    assign fp_rd_id            = 5'b0;
+    assign fp_rs1_used_id      = 1'b0;
+    assign fp_rs2_used_id      = 1'b0;
+    assign fp_rs3_used_id      = 1'b0;
+    assign fp_int_rs1_used_id  = 1'b0;
+    assign fp_instr_invalid_id = 1'b0;
   end
 
   //
-  // Register File
+  // Multi-cycle operation detection
+  //
+  // Identifies operations that require multiple cycles to complete:
+  // - DIV/REM (funct3[2]=1) from M extension (not ZMMUL)
+  // - FDIV/FSQRT from F extension
+  //
+  logic is_int_mc_id;
+
+  if (EXT_M != 0) begin : g_ext_m_mc
+    assign is_int_mc_id = is_m_id && funct3_id[2];
+  end else begin : g_not_ext_m_mc
+    assign is_int_mc_id = 1'b0;
+  end
+
+  assign is_mc_id = is_int_mc_id || is_fp_mc_id;
+
+  //
+  // Register File (Integer)
   //
   svc_rv_regfile #(
       .XLEN       (XLEN),
@@ -239,7 +335,43 @@ module svc_rv_stage_id #(
   );
 
   //
-  // ID Stage Forwarding Unit
+  // Register File (FP)
+  //
+  if (EXT_F != 0) begin : g_fp_regfile
+    svc_rv_fp_regfile #(
+        .XLEN       (XLEN),
+        .FWD_REGFILE(FWD_REGFILE)
+    ) fp_regfile (
+        .clk        (clk),
+        .fp_rs1_addr(fp_rs1_id),
+        .fp_rs1_data(fp_rs1_data_id),
+        .fp_rs2_addr(fp_rs2_id),
+        .fp_rs2_data(fp_rs2_data_id),
+        .fp_rs3_addr(fp_rs3_id),
+        .fp_rs3_data(fp_rs3_data_id),
+        .fp_rd_en   (fp_reg_write_wb && !dmem_stall),
+        .fp_rd_addr (fp_rd_wb),
+        .fp_rd_data (fp_rd_data_wb)
+    );
+  end else begin : g_no_fp_regfile
+    assign fp_rs1_data_id = '0;
+    assign fp_rs2_data_id = '0;
+    assign fp_rs3_data_id = '0;
+
+    `SVC_UNUSED({fp_reg_write_wb, fp_rd_wb, fp_rd_data_wb});
+  end
+
+  // FP signals not yet fully integrated (hazards, traps)
+  // TODO: Wire these in Phase 4 (hazards) and for trap handling
+  `SVC_UNUSED({fp_int_reg_write_id, fp_int_rs1_used_id, fp_instr_invalid_id});
+
+  // FWD_FP parameter used in future FP forwarding implementation
+  if (FWD_FP == 0) begin : g_fwd_fp_unused
+    // Placeholder - FP forwarding will stall instead of forward
+  end
+
+  //
+  // ID Stage Forwarding Unit (Integer)
   //
   logic [XLEN-1:0] fwd_rs1_id;
   logic [XLEN-1:0] fwd_rs2_id;
@@ -462,6 +594,69 @@ module svc_rv_stage_id #(
       .bubble (bubble),
       .data_i (instr_id),
       .data_o (instr_ex)
+  );
+
+  //
+  // FP control signals
+  //
+  // is_fp, is_fp_load, is_fp_store, is_fp_compute, is_fp_mc, fp_reg_write,
+  // fp_rs1, fp_rs2, fp_rs3, fp_rd
+  //
+  localparam int FP_CTRL_W = 1 + 1 + 1 + 1 + 1 + 1 + 5 + 5 + 5 + 5;
+
+  svc_rv_pipe_data #(
+      .WIDTH(FP_CTRL_W),
+      .REG  (PIPELINED)
+  ) pipe_fp_ctrl (
+      .clk(clk),
+      .rst_n(rst_n),
+      .advance(advance),
+      .flush(flush),
+      .bubble(bubble),
+      .data_i({
+        is_fp_id,
+        is_fp_load_id,
+        is_fp_store_id,
+        is_fp_compute_id,
+        is_fp_mc_id,
+        fp_reg_write_id,
+        fp_rs1_id,
+        fp_rs2_id,
+        fp_rs3_id,
+        fp_rd_id
+      }),
+      .data_o({
+        is_fp_ex,
+        is_fp_load_ex,
+        is_fp_store_ex,
+        is_fp_compute_ex,
+        is_fp_mc_ex,
+        fp_reg_write_ex,
+        fp_rs1_ex,
+        fp_rs2_ex,
+        fp_rs3_ex,
+        fp_rd_ex
+      })
+  );
+
+  //
+  // FP register data: fp_rs1_data, fp_rs2_data, fp_rs3_data
+  //
+  // TODO: Add FP forwarding when FWD_FP is implemented
+  //
+  localparam int FP_DATA_W = 3 * XLEN;
+
+  svc_rv_pipe_data #(
+      .WIDTH(FP_DATA_W),
+      .REG  (PIPELINED)
+  ) pipe_fp_data (
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .advance(advance),
+      .flush  (1'b0),
+      .bubble (bubble),
+      .data_i ({fp_rs1_data_id, fp_rs2_data_id, fp_rs3_data_id}),
+      .data_o ({fp_rs1_data_ex, fp_rs2_data_ex, fp_rs3_data_ex})
   );
 
   //

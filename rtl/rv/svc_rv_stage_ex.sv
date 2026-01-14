@@ -14,7 +14,15 @@
 `include "svc_rv_csr.sv"
 `include "svc_rv_ext_mul_ex.sv"
 `include "svc_rv_ext_div.sv"
+`include "svc_rv_ext_fp_ex.sv"
+`include "svc_rv_fp_csr.sv"
 `include "svc_rv_fwd_ex.sv"
+`include "svc_rv_fp_fwd_ex.sv"
+
+// Provide defaults for extension parameters (can be overridden via -D flags)
+`ifndef EXT_F
+`define EXT_F 0
+`endif
 
 //
 // RISC-V Execute (EX) Stage
@@ -41,10 +49,8 @@ module svc_rv_stage_ex #(
     parameter int BTB_ENABLE = 0,
     parameter int EXT_ZMMUL  = 0,
     parameter int EXT_M      = 0,
-    // verilator lint_off UNUSEDPARAM
-    // Reserved for Phase 3 FPU integration
-    parameter int EXT_F      = 0
-    // verilator lint_on UNUSEDPARAM
+    parameter int EXT_F      = `EXT_F,
+    parameter int FWD_FP     = 1
 ) (
     input logic clk,
     input logic rst_n,
@@ -89,6 +95,21 @@ module svc_rv_stage_ex #(
     input logic            bpred_taken_ex,
     input logic [XLEN-1:0] pred_tgt_ex,
 
+    // FP inputs from ID stage
+    input logic            is_fp_ex,
+    input logic            is_fp_load_ex,
+    input logic            is_fp_store_ex,
+    input logic            is_fp_compute_ex,
+    input logic            is_fp_mc_ex,
+    input logic            fp_reg_write_ex,
+    input logic [XLEN-1:0] fp_rs1_data_ex,
+    input logic [XLEN-1:0] fp_rs2_data_ex,
+    input logic [XLEN-1:0] fp_rs3_data_ex,
+    input logic [     4:0] fp_rs1_ex,
+    input logic [     4:0] fp_rs2_ex,
+    input logic [     4:0] fp_rs3_ex,
+    input logic [     4:0] fp_rd_ex,
+
     // Forwarding from MEM stage
     input logic [XLEN-1:0] result_mem,
     input logic [XLEN-1:0] ld_data_mem,
@@ -132,6 +153,15 @@ module svc_rv_stage_ex #(
     output logic [     1:0] trap_code_mem,
     output logic            is_ebreak_mem,
 
+    // FP outputs to MEM stage
+    output logic            is_fp_load_mem,
+    output logic            is_fp_store_mem,
+    output logic            fp_reg_write_mem,
+    output logic [     4:0] fp_rd_mem,
+    output logic [XLEN-1:0] fp_result_mem,
+    output logic [     4:0] fflags_mem,
+    output logic [XLEN-1:0] fp_rs2_data_mem,
+
     // Outputs to hazard unit
     output logic op_active_ex,
 
@@ -156,6 +186,7 @@ module svc_rv_stage_ex #(
   // Multi-cycle operation control
   logic            op_en_ex;
   logic [XLEN-1:0] m_result_ex;
+  logic            div_busy_ex;
   logic            m_busy_ex;
 
   // M extension partial products (for 2-stage multiply)
@@ -169,6 +200,13 @@ module svc_rv_stage_ex #(
 
   // CSR signals
   logic [XLEN-1:0] csr_rdata_ex;
+
+  // FP signals
+  logic [XLEN-1:0] fp_result_ex;
+  logic [     4:0] fflags_ex;
+  logic            fp_busy_ex;
+  logic            fp_result_valid_ex;
+  logic [     2:0] frm_csr;
 
   //===========================================================================
   // EX statemachine for single and multi-cycle ops
@@ -352,12 +390,12 @@ module svc_rv_stage_ex #(
           .result(m_result_ex)
       );
 
-      assign m_busy_ex = div_busy;
+      assign div_busy_ex = div_busy;
 
     end else begin : g_no_div
       // ZMMUL: no division unit
       assign m_result_ex = '0;
-      assign m_busy_ex   = 1'b0;
+      assign div_busy_ex = 1'b0;
 
       `SVC_UNUSED({op_en_ex, op_active_ex});
     end
@@ -365,7 +403,7 @@ module svc_rv_stage_ex #(
   end else begin : g_no_m_ext
     // No M extension
     assign m_result_ex = '0;
-    assign m_busy_ex   = 1'b0;
+    assign div_busy_ex = 1'b0;
     assign mul_ll_ex   = '0;
     assign mul_lh_ex   = '0;
     assign mul_hl_ex   = '0;
@@ -373,6 +411,115 @@ module svc_rv_stage_ex #(
 
     `SVC_UNUSED({op_en_ex, op_active_ex});
   end
+
+  //===========================================================================
+  // F Extension Unit
+  //===========================================================================
+
+  // FP forwarded operand wires (declared outside generate for visibility)
+  logic [XLEN-1:0] fwd_fp_rs1_ex;
+  logic [XLEN-1:0] fwd_fp_rs2_ex;
+  logic [XLEN-1:0] fwd_fp_rs3_ex;
+
+  if (EXT_F != 0) begin : g_fp_ext
+    // FP data forwarding unit
+    svc_rv_fp_fwd_ex #(
+        .XLEN    (XLEN),
+        .FWD_FP  ((PIPELINED != 0 && FWD_FP != 0) ? 1 : 0),
+        .MEM_TYPE(MEM_TYPE)
+    ) fp_forward (
+        .fp_rs1_ex       (fp_rs1_ex),
+        .fp_rs2_ex       (fp_rs2_ex),
+        .fp_rs3_ex       (fp_rs3_ex),
+        .fp_rs1_data_ex  (fp_rs1_data_ex),
+        .fp_rs2_data_ex  (fp_rs2_data_ex),
+        .fp_rs3_data_ex  (fp_rs3_data_ex),
+        .is_fp_mc_ex     (is_fp_mc_ex),
+        .fp_rd_mem       (fp_rd_mem),
+        .fp_reg_write_mem(fp_reg_write_mem),
+        .is_fp_load_mem  (is_fp_load_mem),
+        .fp_result_mem   (fp_result_mem),
+        .ld_data_mem     (ld_data_mem),
+        .fwd_fp_rs1_ex   (fwd_fp_rs1_ex),
+        .fwd_fp_rs2_ex   (fwd_fp_rs2_ex),
+        .fwd_fp_rs3_ex   (fwd_fp_rs3_ex)
+    );
+
+    svc_rv_ext_fp_ex fpu (
+        .clk(clk),
+        .rst_n(rst_n),
+        .op_valid(instr_valid_ex && is_fp_compute_ex && !op_active_ex),
+        .instr(instr_ex),
+        .frm_csr(frm_csr),
+        .fp_rs1(fwd_fp_rs1_ex),
+        .fp_rs2(fwd_fp_rs2_ex),
+        .fp_rs3(fwd_fp_rs3_ex),
+        .rs1(fwd_rs1_ex),  // Integer source for FCVT.S.W/FMV.W.X
+        .result_valid(fp_result_valid_ex),
+        .result(fp_result_ex),
+        .fflags(fflags_ex),
+        .busy(fp_busy_ex)
+    );
+
+    // FP CSR module for frm and fflags
+    // TODO: Wire fflags accumulation from WB stage
+    svc_rv_fp_csr fp_csr (
+        .clk          (clk),
+        .rst_n        (rst_n),
+        .csr_addr     (imm_ex[11:0]),
+        .csr_op       (funct3_ex),
+        .csr_wdata    (fwd_rs1_ex),
+        .csr_en       (is_csr_ex),
+        .csr_rdata    (),              // TODO: Mux with main CSR rdata
+        .csr_hit      (),              // TODO: Use for CSR address decode
+        .frm          (frm_csr),
+        .fflags_set   (5'b0),          // TODO: Wire from WB stage
+        .fflags_set_en(1'b0)           // TODO: Wire from WB stage
+    );
+
+  end else begin : g_no_fp_ext
+    assign fp_result_ex       = '0;
+    assign fflags_ex          = '0;
+    assign fp_busy_ex         = 1'b0;
+    assign fp_result_valid_ex = 1'b0;
+    assign fwd_fp_rs1_ex      = '0;
+    assign fwd_fp_rs2_ex      = '0;
+    assign fwd_fp_rs3_ex      = '0;
+
+    // verilog_format: off
+    `SVC_UNUSED({
+                is_fp_ex,
+                is_fp_load_ex,
+                is_fp_store_ex,
+                is_fp_compute_ex,
+                is_fp_mc_ex,
+                fp_reg_write_ex,
+                fp_rs1_data_ex,
+                fp_rs2_data_ex,
+                fp_rs3_data_ex,
+                fp_rs1_ex,
+                fp_rs2_ex,
+                fp_rs3_ex,
+                fp_rd_ex,
+                fwd_fp_rs1_ex,
+                fwd_fp_rs2_ex,
+                fwd_fp_rs3_ex,
+                is_csr_ex,
+                FWD_FP
+                });
+    // verilog_format: on
+  end
+
+  // frm_csr only used in g_fp_ext, unused in g_no_fp_ext
+  if (EXT_F == 0) begin : g_no_fp_frm
+    assign frm_csr = '0;
+    `SVC_UNUSED(frm_csr);
+  end
+
+  // Combined multi-cycle busy signal (division + FP FDIV/FSQRT)
+  assign m_busy_ex = div_busy_ex || fp_busy_ex;
+
+  // fp_result_valid_ex: TODO: Use for FP result valid
 
   //===========================================================================
   // Jump/Branch target calculation
@@ -706,7 +853,46 @@ module svc_rv_stage_ex #(
       .data_o (m_result_mem)
   );
 
-  `SVC_UNUSED({funct7_ex[6:5], funct7_ex[4:0], is_m_ex, is_csr_ex});
+  //
+  // FP control signals (WITH bubble)
+  //
+  localparam int FP_CTRL_WIDTH = 1 + 1 + 1 +
+      5;  // is_fp_load, is_fp_store, fp_reg_write, fp_rd
+
+  svc_rv_pipe_data #(
+      .WIDTH(FP_CTRL_WIDTH),
+      .REG  (PIPELINED)
+  ) pipe_fp_ctrl_data (
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .advance(pipe_advance_o),
+      .flush  (pipe_flush_o),
+      .bubble (pipe_bubble_o),
+      .data_i ({is_fp_load_ex, is_fp_store_ex, fp_reg_write_ex, fp_rd_ex}),
+      .data_o ({is_fp_load_mem, is_fp_store_mem, fp_reg_write_mem, fp_rd_mem})
+  );
+
+  //
+  // FP result and flags (NO bubble) - payload
+  //
+  localparam
+      int FP_RESULT_WIDTH = XLEN + 5 + XLEN;  // fp_result, fflags, fp_rs2_data
+
+  svc_rv_pipe_data #(
+      .WIDTH(FP_RESULT_WIDTH),
+      .REG  (PIPELINED)
+  ) pipe_fp_result_data (
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .advance(pipe_advance_o),
+      .flush  (1'b0),
+      .bubble (1'b0),
+      .data_i ({fp_result_ex, fflags_ex, fp_rs2_data_ex}),
+      .data_o ({fp_result_mem, fflags_mem, fp_rs2_data_mem})
+  );
+
+  `SVC_UNUSED({funct7_ex[6:5], funct7_ex[4:0], is_m_ex, fp_result_valid_ex,
+               is_fp_ex});
 
 `ifdef FORMAL
 `ifdef FORMAL_SVC_RV_STAGE_EX

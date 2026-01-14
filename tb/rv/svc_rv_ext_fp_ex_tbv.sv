@@ -13,9 +13,9 @@ module svc_rv_ext_fp_ex_tbv;
   logic        op_valid;
   logic [31:0] instr;
   logic [ 2:0] frm_csr;
-  logic [31:0] frs1;
-  logic [31:0] frs2;
-  logic [31:0] frs3;
+  logic [31:0] fp_rs1;
+  logic [31:0] fp_rs2;
+  logic [31:0] fp_rs3;
   logic [31:0] rs1;
   logic        result_valid;
   logic [31:0] result;
@@ -31,9 +31,9 @@ module svc_rv_ext_fp_ex_tbv;
       .op_valid    (op_valid),
       .instr       (instr),
       .frm_csr     (frm_csr),
-      .frs1        (frs1),
-      .frs2        (frs2),
-      .frs3        (frs3),
+      .fp_rs1      (fp_rs1),
+      .fp_rs2      (fp_rs2),
+      .fp_rs3      (fp_rs3),
       .rs1         (rs1),
       .result_valid(result_valid),
       .result      (result),
@@ -87,12 +87,21 @@ module svc_rv_ext_fp_ex_tbv;
   //
   // Helper to run operation and wait for result
   //
+  localparam int TIMEOUT_CYCLES = 1000;
+
   task automatic run_op();
-    op_valid = 1'b1;
+    int cycle_count;
+    op_valid    = 1'b1;
+    cycle_count = 0;
     // Keep op_valid high until result is ready
-    while (!result_valid) begin
+    while (!result_valid && cycle_count < TIMEOUT_CYCLES) begin
       `TICK(clk);
+      cycle_count++;
     end
+    if (cycle_count >= TIMEOUT_CYCLES) begin
+      $error("run_op timed out waiting for result_valid");
+    end
+    `CHECK_TRUE(result_valid);
     // Capture results while still valid
     captured_result = result;
     captured_fflags = fflags;
@@ -111,9 +120,9 @@ module svc_rv_ext_fp_ex_tbv;
     op_valid = 1'b0;
     instr    = 32'h0;
     frm_csr  = FRM_RNE;
-    frs1     = FP_ZERO;
-    frs2     = FP_ZERO;
-    frs3     = FP_ZERO;
+    fp_rs1   = FP_ZERO;
+    fp_rs2   = FP_ZERO;
+    fp_rs3   = FP_ZERO;
     rs1      = 32'h0;
   endtask
 
@@ -121,9 +130,9 @@ module svc_rv_ext_fp_ex_tbv;
   // Test: FADD.S - 1.0 + 2.0 = 3.0
   //
   task automatic test_fadd_basic();
-    instr = make_fp_r(FP7_FADD, 5'd0, 5'd0, FRM_RNE, 5'd0);
-    frs1  = FP_ONE;
-    frs2  = FP_TWO;
+    instr  = make_fp_r(FP7_FADD, 5'd0, 5'd0, FRM_RNE, 5'd0);
+    fp_rs1 = FP_ONE;
+    fp_rs2 = FP_TWO;
 
     run_op();
 
@@ -135,9 +144,9 @@ module svc_rv_ext_fp_ex_tbv;
   // Test: FSUB.S - 5.0 - 2.0 = 3.0
   //
   task automatic test_fsub_basic();
-    instr = make_fp_r(FP7_FSUB, 5'd0, 5'd0, FRM_RNE, 5'd0);
-    frs1  = FP_FIVE;
-    frs2  = FP_TWO;
+    instr  = make_fp_r(FP7_FSUB, 5'd0, 5'd0, FRM_RNE, 5'd0);
+    fp_rs1 = FP_FIVE;
+    fp_rs2 = FP_TWO;
 
     run_op();
 
@@ -150,9 +159,9 @@ module svc_rv_ext_fp_ex_tbv;
   // Test: FMUL.S - 2.0 * 3.0 = 6.0
   //
   task automatic test_fmul_basic();
-    instr = make_fp_r(FP7_FMUL, 5'd0, 5'd0, FRM_RNE, 5'd0);
-    frs1  = FP_TWO;
-    frs2  = FP_THREE;
+    instr  = make_fp_r(FP7_FMUL, 5'd0, 5'd0, FRM_RNE, 5'd0);
+    fp_rs1 = FP_TWO;
+    fp_rs2 = FP_THREE;
 
     run_op();
 
@@ -165,9 +174,9 @@ module svc_rv_ext_fp_ex_tbv;
   // Test: FDIV.S - 6.0 / 2.0 = 3.0 (multi-cycle)
   //
   task automatic test_fdiv_basic();
-    instr = make_fp_r(FP7_FDIV, 5'd0, 5'd0, FRM_RNE, 5'd0);
-    frs1  = FP_SIX;
-    frs2  = FP_TWO;
+    instr  = make_fp_r(FP7_FDIV, 5'd0, 5'd0, FRM_RNE, 5'd0);
+    fp_rs1 = FP_SIX;
+    fp_rs2 = FP_TWO;
 
     run_mc_op();
 
@@ -180,9 +189,9 @@ module svc_rv_ext_fp_ex_tbv;
   // Test: FSQRT.S - sqrt(4.0) = 2.0 (multi-cycle)
   //
   task automatic test_fsqrt_basic();
-    instr = make_fp_r(FP7_FSQRT, 5'd0, 5'd0, FRM_RNE, 5'd0);
-    frs1  = FP_FOUR;
-    frs2  = FP_ZERO;
+    instr  = make_fp_r(FP7_FSQRT, 5'd0, 5'd0, FRM_RNE, 5'd0);
+    fp_rs1 = FP_FOUR;
+    fp_rs2 = FP_ZERO;
 
     run_mc_op();
 
@@ -195,9 +204,9 @@ module svc_rv_ext_fp_ex_tbv;
   // Test: FMIN.S - min(3.0, 5.0) = 3.0
   //
   task automatic test_fmin_basic();
-    instr = make_fp_r(FP7_FMINMAX, 5'd0, 5'd0, FP3_FMIN, 5'd0);
-    frs1  = FP_THREE;
-    frs2  = FP_FIVE;
+    instr  = make_fp_r(FP7_FMINMAX, 5'd0, 5'd0, FP3_FMIN, 5'd0);
+    fp_rs1 = FP_THREE;
+    fp_rs2 = FP_FIVE;
 
     run_op();
 
@@ -210,9 +219,9 @@ module svc_rv_ext_fp_ex_tbv;
   // Test: FMAX.S - max(3.0, 5.0) = 5.0
   //
   task automatic test_fmax_basic();
-    instr = make_fp_r(FP7_FMINMAX, 5'd0, 5'd0, FP3_FMAX, 5'd0);
-    frs1  = FP_THREE;
-    frs2  = FP_FIVE;
+    instr  = make_fp_r(FP7_FMINMAX, 5'd0, 5'd0, FP3_FMAX, 5'd0);
+    fp_rs1 = FP_THREE;
+    fp_rs2 = FP_FIVE;
 
     run_op();
 
@@ -225,8 +234,8 @@ module svc_rv_ext_fp_ex_tbv;
   // Test: FMV.X.W - move float bits to integer (bypass FPU)
   //
   task automatic test_fmv_x_w();
-    instr = make_fp_r(FP7_FMVXW, 5'd0, 5'd0, FP3_FMV, 5'd0);
-    frs1  = FP_PI;
+    instr  = make_fp_r(FP7_FMVXW, 5'd0, 5'd0, FP3_FMV, 5'd0);
+    fp_rs1 = FP_PI;
 
     run_op();
 
@@ -256,8 +265,8 @@ module svc_rv_ext_fp_ex_tbv;
   //
   task automatic test_fcvt_w_s();
     // rs2[0] = 0 for signed
-    instr = make_fp_r(FP7_FCVTWS, 5'd0, 5'd0, FRM_RNE, 5'd0);
-    frs1  = FP_THREE;
+    instr  = make_fp_r(FP7_FCVTWS, 5'd0, 5'd0, FRM_RNE, 5'd0);
+    fp_rs1 = FP_THREE;
 
     run_op();
 
@@ -285,10 +294,10 @@ module svc_rv_ext_fp_ex_tbv;
   // Test: FMADD.S - (2.0 * 3.0) + 1.0 = 7.0
   //
   task automatic test_fmadd_basic();
-    instr = make_fma(OP_FMADD, 5'd0, 5'd0, 5'd0, FRM_RNE, 5'd0);
-    frs1  = FP_TWO;
-    frs2  = FP_THREE;
-    frs3  = FP_ONE;
+    instr  = make_fma(OP_FMADD, 5'd0, 5'd0, 5'd0, FRM_RNE, 5'd0);
+    fp_rs1 = FP_TWO;
+    fp_rs2 = FP_THREE;
+    fp_rs3 = FP_ONE;
 
     run_op();
 
@@ -301,10 +310,10 @@ module svc_rv_ext_fp_ex_tbv;
   // Test: FMSUB.S - (2.0 * 3.0) - 1.0 = 5.0
   //
   task automatic test_fmsub_basic();
-    instr = make_fma(OP_FMSUB, 5'd0, 5'd0, 5'd0, FRM_RNE, 5'd0);
-    frs1  = FP_TWO;
-    frs2  = FP_THREE;
-    frs3  = FP_ONE;
+    instr  = make_fma(OP_FMSUB, 5'd0, 5'd0, 5'd0, FRM_RNE, 5'd0);
+    fp_rs1 = FP_TWO;
+    fp_rs2 = FP_THREE;
+    fp_rs3 = FP_ONE;
 
     run_op();
 
@@ -314,33 +323,33 @@ module svc_rv_ext_fp_ex_tbv;
   endtask
 
   //
-  // Test: FSGNJ.S - copy sign from frs2
+  // Test: FSGNJ.S - copy sign from fp_rs2
   //
   task automatic test_fsgnj_basic();
-    instr = make_fp_r(FP7_FSGNJ, 5'd0, 5'd0, FP3_FSGNJ, 5'd0);
-    frs1  = FP_THREE;
-    frs2  = FP_NEG_ONE;
+    instr  = make_fp_r(FP7_FSGNJ, 5'd0, 5'd0, FP3_FSGNJ, 5'd0);
+    fp_rs1 = FP_THREE;
+    fp_rs2 = FP_NEG_ONE;
 
     run_op();
 
 
-    // Result should be -3.0 (magnitude of frs1, sign of frs2)
+    // Result should be -3.0 (magnitude of fp_rs1, sign of fp_rs2)
     `CHECK_EQ(captured_result, FP_NEG_THREE);
     `CHECK_EQ(captured_fflags, 5'b0);
   endtask
 
   //
-  // Test: FSGNJN.S - copy negated sign from frs2
+  // Test: FSGNJN.S - copy negated sign from fp_rs2
   //
   task automatic test_fsgnjn_basic();
-    instr = make_fp_r(FP7_FSGNJ, 5'd0, 5'd0, FP3_FSGNJN, 5'd0);
-    frs1  = FP_THREE;
-    frs2  = FP_NEG_ONE;
+    instr  = make_fp_r(FP7_FSGNJ, 5'd0, 5'd0, FP3_FSGNJN, 5'd0);
+    fp_rs1 = FP_THREE;
+    fp_rs2 = FP_NEG_ONE;
 
     run_op();
 
 
-    // Result should be +3.0 (magnitude of frs1, negated sign of frs2)
+    // Result should be +3.0 (magnitude of fp_rs1, negated sign of fp_rs2)
     `CHECK_EQ(captured_result, FP_THREE);
     `CHECK_EQ(captured_fflags, 5'b0);
   endtask
@@ -349,9 +358,9 @@ module svc_rv_ext_fp_ex_tbv;
   // Test: FEQ.S - 3.0 == 3.0 -> 1
   //
   task automatic test_feq_equal();
-    instr = make_fp_r(FP7_FCMP, 5'd0, 5'd0, FP3_FEQ, 5'd0);
-    frs1  = FP_THREE;
-    frs2  = FP_THREE;
+    instr  = make_fp_r(FP7_FCMP, 5'd0, 5'd0, FP3_FEQ, 5'd0);
+    fp_rs1 = FP_THREE;
+    fp_rs2 = FP_THREE;
 
     run_op();
 
@@ -364,9 +373,9 @@ module svc_rv_ext_fp_ex_tbv;
   // Test: FEQ.S - 3.0 == 5.0 -> 0
   //
   task automatic test_feq_not_equal();
-    instr = make_fp_r(FP7_FCMP, 5'd0, 5'd0, FP3_FEQ, 5'd0);
-    frs1  = FP_THREE;
-    frs2  = FP_FIVE;
+    instr  = make_fp_r(FP7_FCMP, 5'd0, 5'd0, FP3_FEQ, 5'd0);
+    fp_rs1 = FP_THREE;
+    fp_rs2 = FP_FIVE;
 
     run_op();
 
@@ -379,9 +388,9 @@ module svc_rv_ext_fp_ex_tbv;
   // Test: FLT.S - 3.0 < 5.0 -> 1
   //
   task automatic test_flt_true();
-    instr = make_fp_r(FP7_FCMP, 5'd0, 5'd0, FP3_FLT, 5'd0);
-    frs1  = FP_THREE;
-    frs2  = FP_FIVE;
+    instr  = make_fp_r(FP7_FCMP, 5'd0, 5'd0, FP3_FLT, 5'd0);
+    fp_rs1 = FP_THREE;
+    fp_rs2 = FP_FIVE;
 
     run_op();
 
@@ -394,9 +403,9 @@ module svc_rv_ext_fp_ex_tbv;
   // Test: FLE.S - 3.0 <= 3.0 -> 1
   //
   task automatic test_fle_equal();
-    instr = make_fp_r(FP7_FCMP, 5'd0, 5'd0, FP3_FLE, 5'd0);
-    frs1  = FP_THREE;
-    frs2  = FP_THREE;
+    instr  = make_fp_r(FP7_FCMP, 5'd0, 5'd0, FP3_FLE, 5'd0);
+    fp_rs1 = FP_THREE;
+    fp_rs2 = FP_THREE;
 
     run_op();
 
@@ -409,9 +418,9 @@ module svc_rv_ext_fp_ex_tbv;
   // Test: FDIV.S by zero raises DZ flag
   //
   task automatic test_fdiv_zero();
-    instr = make_fp_r(FP7_FDIV, 5'd0, 5'd0, FRM_RNE, 5'd0);
-    frs1  = FP_ONE;
-    frs2  = FP_ZERO;
+    instr  = make_fp_r(FP7_FDIV, 5'd0, 5'd0, FRM_RNE, 5'd0);
+    fp_rs1 = FP_ONE;
+    fp_rs2 = FP_ZERO;
 
     run_mc_op();
 
@@ -424,8 +433,8 @@ module svc_rv_ext_fp_ex_tbv;
   // Test: FSQRT.S of negative raises NV flag
   //
   task automatic test_fsqrt_neg();
-    instr = make_fp_r(FP7_FSQRT, 5'd0, 5'd0, FRM_RNE, 5'd0);
-    frs1  = FP_NEG_ONE;
+    instr  = make_fp_r(FP7_FSQRT, 5'd0, 5'd0, FRM_RNE, 5'd0);
+    fp_rs1 = FP_NEG_ONE;
 
     run_mc_op();
 
@@ -440,9 +449,9 @@ module svc_rv_ext_fp_ex_tbv;
   // Test: FADD.S with inexact result (1.0 + PI)
   //
   task automatic test_fadd_inexact();
-    instr = make_fp_r(FP7_FADD, 5'd0, 5'd0, FRM_RNE, 5'd0);
-    frs1  = FP_ONE;
-    frs2  = FP_PI;
+    instr  = make_fp_r(FP7_FADD, 5'd0, 5'd0, FRM_RNE, 5'd0);
+    fp_rs1 = FP_ONE;
+    fp_rs2 = FP_PI;
 
     run_op();
 
@@ -458,8 +467,8 @@ module svc_rv_ext_fp_ex_tbv;
     // Use dynamic rounding (rm = 111)
     instr   = make_fp_r(FP7_FADD, 5'd0, 5'd0, FRM_DYN, 5'd0);
     frm_csr = FRM_RTZ;  // Round towards zero
-    frs1    = FP_ONE;
-    frs2    = FP_PI;
+    fp_rs1  = FP_ONE;
+    fp_rs2  = FP_PI;
 
     run_op();
 

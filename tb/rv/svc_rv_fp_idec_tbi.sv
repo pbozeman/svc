@@ -16,13 +16,13 @@ module svc_rv_fp_idec_tbi;
   logic        is_fp_mc;
   logic        fp_reg_write;
   logic        int_reg_write;
-  logic [ 4:0] frs1;
-  logic [ 4:0] frs2;
-  logic [ 4:0] frs3;
-  logic [ 4:0] frd;
-  logic        frs1_used;
-  logic        frs2_used;
-  logic        frs3_used;
+  logic [ 4:0] fp_rs1;
+  logic [ 4:0] fp_rs2;
+  logic [ 4:0] fp_rs3;
+  logic [ 4:0] fp_rd;
+  logic        fp_rs1_used;
+  logic        fp_rs2_used;
+  logic        fp_rs3_used;
   logic        int_rs1_used;
   logic [ 2:0] fp_rm;
   logic        fp_rm_dyn;
@@ -42,13 +42,13 @@ module svc_rv_fp_idec_tbi;
       .is_fp_mc        (is_fp_mc),
       .fp_reg_write    (fp_reg_write),
       .int_reg_write   (int_reg_write),
-      .frs1            (frs1),
-      .frs2            (frs2),
-      .frs3            (frs3),
-      .frd             (frd),
-      .frs1_used       (frs1_used),
-      .frs2_used       (frs2_used),
-      .frs3_used       (frs3_used),
+      .fp_rs1          (fp_rs1),
+      .fp_rs2          (fp_rs2),
+      .fp_rs3          (fp_rs3),
+      .fp_rd           (fp_rd),
+      .fp_rs1_used     (fp_rs1_used),
+      .fp_rs2_used     (fp_rs2_used),
+      .fp_rs3_used     (fp_rs3_used),
       .int_rs1_used    (int_rs1_used),
       .fp_rm           (fp_rm),
       .fp_rm_dyn       (fp_rm_dyn),
@@ -100,9 +100,9 @@ module svc_rv_fp_idec_tbi;
     `CHECK_EQ(is_fp_compute, 1'b0);
     `CHECK_EQ(fp_reg_write, 1'b1);
     `CHECK_EQ(int_reg_write, 1'b0);
-    `CHECK_EQ(frd, 5'd5);
+    `CHECK_EQ(fp_rd, 5'd5);
     `CHECK_EQ(int_rs1_used, 1'b1);
-    `CHECK_EQ(frs1_used, 1'b0);
+    `CHECK_EQ(fp_rs1_used, 1'b0);
     `CHECK_EQ(fp_instr_invalid, 1'b0);
   endtask
 
@@ -119,9 +119,9 @@ module svc_rv_fp_idec_tbi;
     `CHECK_EQ(is_fp_compute, 1'b0);
     `CHECK_EQ(fp_reg_write, 1'b0);
     `CHECK_EQ(int_reg_write, 1'b0);
-    `CHECK_EQ(frs2, 5'd7);
+    `CHECK_EQ(fp_rs2, 5'd7);
     `CHECK_EQ(int_rs1_used, 1'b1);
-    `CHECK_EQ(frs2_used, 1'b1);
+    `CHECK_EQ(fp_rs2_used, 1'b1);
     `CHECK_EQ(fp_instr_invalid, 1'b0);
   endtask
 
@@ -138,12 +138,12 @@ module svc_rv_fp_idec_tbi;
     `CHECK_EQ(is_fp_mc, 1'b0);
     `CHECK_EQ(fp_reg_write, 1'b1);
     `CHECK_EQ(int_reg_write, 1'b0);
-    `CHECK_EQ(frs1, 5'd1);
-    `CHECK_EQ(frs2, 5'd2);
-    `CHECK_EQ(frd, 5'd3);
-    `CHECK_EQ(frs1_used, 1'b1);
-    `CHECK_EQ(frs2_used, 1'b1);
-    `CHECK_EQ(frs3_used, 1'b0);
+    `CHECK_EQ(fp_rs1, 5'd1);
+    `CHECK_EQ(fp_rs2, 5'd2);
+    `CHECK_EQ(fp_rd, 5'd3);
+    `CHECK_EQ(fp_rs1_used, 1'b1);
+    `CHECK_EQ(fp_rs2_used, 1'b1);
+    `CHECK_EQ(fp_rs3_used, 1'b0);
     `CHECK_EQ(fp_rm, FRM_RNE);
     `CHECK_EQ(fp_rm_dyn, 1'b0);
     `CHECK_EQ(fp_instr_invalid, 1'b0);
@@ -207,8 +207,8 @@ module svc_rv_fp_idec_tbi;
     `CHECK_EQ(is_fp_compute, 1'b1);
     `CHECK_EQ(is_fp_mc, 1'b1);
     `CHECK_EQ(fp_reg_write, 1'b1);
-    `CHECK_EQ(frs1_used, 1'b1);
-    `CHECK_EQ(frs2_used, 1'b0);
+    `CHECK_EQ(fp_rs1_used, 1'b1);
+    `CHECK_EQ(fp_rs2_used, 1'b0);
     `CHECK_EQ(fp_instr_invalid, 1'b0);
   endtask
 
@@ -223,13 +223,13 @@ module svc_rv_fp_idec_tbi;
     `CHECK_EQ(is_fp, 1'b1);
     `CHECK_EQ(is_fp_compute, 1'b1);
     `CHECK_EQ(fp_reg_write, 1'b1);
-    `CHECK_EQ(frs1, 5'd1);
-    `CHECK_EQ(frs2, 5'd2);
-    `CHECK_EQ(frs3, 5'd3);
-    `CHECK_EQ(frd, 5'd4);
-    `CHECK_EQ(frs1_used, 1'b1);
-    `CHECK_EQ(frs2_used, 1'b1);
-    `CHECK_EQ(frs3_used, 1'b1);
+    `CHECK_EQ(fp_rs1, 5'd1);
+    `CHECK_EQ(fp_rs2, 5'd2);
+    `CHECK_EQ(fp_rs3, 5'd3);
+    `CHECK_EQ(fp_rd, 5'd4);
+    `CHECK_EQ(fp_rs1_used, 1'b1);
+    `CHECK_EQ(fp_rs2_used, 1'b1);
+    `CHECK_EQ(fp_rs3_used, 1'b1);
     `CHECK_EQ(fp_instr_invalid, 1'b0);
   endtask
 
@@ -241,21 +241,21 @@ module svc_rv_fp_idec_tbi;
     instr = make_fma(OP_FMSUB, 5'd6, 5'd5, 5'd4, FRM_RNE, 5'd7);
     `TICK(clk);
     `CHECK_EQ(is_fp, 1'b1);
-    `CHECK_EQ(frs3_used, 1'b1);
+    `CHECK_EQ(fp_rs3_used, 1'b1);
     `CHECK_EQ(fp_instr_invalid, 1'b0);
 
     // FNMSUB.S
     instr = make_fma(OP_FNMSUB, 5'd9, 5'd8, 5'd7, FRM_RNE, 5'd10);
     `TICK(clk);
     `CHECK_EQ(is_fp, 1'b1);
-    `CHECK_EQ(frs3_used, 1'b1);
+    `CHECK_EQ(fp_rs3_used, 1'b1);
     `CHECK_EQ(fp_instr_invalid, 1'b0);
 
     // FNMADD.S
     instr = make_fma(OP_FNMADD, 5'd12, 5'd11, 5'd10, FRM_RNE, 5'd13);
     `TICK(clk);
     `CHECK_EQ(is_fp, 1'b1);
-    `CHECK_EQ(frs3_used, 1'b1);
+    `CHECK_EQ(fp_rs3_used, 1'b1);
     `CHECK_EQ(fp_instr_invalid, 1'b0);
   endtask
 
@@ -271,7 +271,7 @@ module svc_rv_fp_idec_tbi;
     `CHECK_EQ(is_fp_compute, 1'b1);
     `CHECK_EQ(fp_reg_write, 1'b0);
     `CHECK_EQ(int_reg_write, 1'b1);
-    `CHECK_EQ(frs1_used, 1'b1);
+    `CHECK_EQ(fp_rs1_used, 1'b1);
     `CHECK_EQ(int_rs1_used, 1'b0);
     `CHECK_EQ(fp_instr_invalid, 1'b0);
 
@@ -296,7 +296,7 @@ module svc_rv_fp_idec_tbi;
     `CHECK_EQ(is_fp_compute, 1'b1);
     `CHECK_EQ(fp_reg_write, 1'b1);
     `CHECK_EQ(int_reg_write, 1'b0);
-    `CHECK_EQ(frs1_used, 1'b0);
+    `CHECK_EQ(fp_rs1_used, 1'b0);
     `CHECK_EQ(int_rs1_used, 1'b1);
     `CHECK_EQ(fp_instr_invalid, 1'b0);
 
@@ -321,7 +321,7 @@ module svc_rv_fp_idec_tbi;
     `CHECK_EQ(is_fp, 1'b1);
     `CHECK_EQ(fp_reg_write, 1'b0);
     `CHECK_EQ(int_reg_write, 1'b1);
-    `CHECK_EQ(frs1_used, 1'b1);
+    `CHECK_EQ(fp_rs1_used, 1'b1);
     `CHECK_EQ(fp_instr_invalid, 1'b0);
   endtask
 
@@ -336,7 +336,7 @@ module svc_rv_fp_idec_tbi;
     `CHECK_EQ(is_fp, 1'b1);
     `CHECK_EQ(fp_reg_write, 1'b1);
     `CHECK_EQ(int_reg_write, 1'b0);
-    `CHECK_EQ(frs1_used, 1'b0);
+    `CHECK_EQ(fp_rs1_used, 1'b0);
     `CHECK_EQ(int_rs1_used, 1'b1);
     `CHECK_EQ(fp_instr_invalid, 1'b0);
   endtask
@@ -352,7 +352,7 @@ module svc_rv_fp_idec_tbi;
     `CHECK_EQ(is_fp, 1'b1);
     `CHECK_EQ(fp_reg_write, 1'b0);
     `CHECK_EQ(int_reg_write, 1'b1);
-    `CHECK_EQ(frs1_used, 1'b1);
+    `CHECK_EQ(fp_rs1_used, 1'b1);
     `CHECK_EQ(fp_instr_invalid, 1'b0);
   endtask
 
@@ -367,8 +367,8 @@ module svc_rv_fp_idec_tbi;
     `CHECK_EQ(is_fp, 1'b1);
     `CHECK_EQ(fp_reg_write, 1'b0);
     `CHECK_EQ(int_reg_write, 1'b1);
-    `CHECK_EQ(frs1_used, 1'b1);
-    `CHECK_EQ(frs2_used, 1'b1);
+    `CHECK_EQ(fp_rs1_used, 1'b1);
+    `CHECK_EQ(fp_rs2_used, 1'b1);
     `CHECK_EQ(fp_instr_invalid, 1'b0);
 
     // FLT.S

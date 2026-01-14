@@ -66,6 +66,15 @@ module svc_rv_stage_mem #(
     input logic [     1:0] trap_code_mem,
     input logic            is_ebreak_mem,
 
+    // FP inputs from EX stage
+    input logic            is_fp_load_mem,
+    input logic            is_fp_store_mem,
+    input logic            fp_reg_write_mem,
+    input logic [     4:0] fp_rd_mem,
+    input logic [XLEN-1:0] fp_result_mem,
+    input logic [     4:0] fflags_mem,
+    input logic [XLEN-1:0] fp_rs2_data_mem,
+
     // Data memory interface
     output logic        dmem_ren,
     output logic [31:0] dmem_raddr,
@@ -94,6 +103,13 @@ module svc_rv_stage_mem #(
     output logic            trap_wb,
     output logic [     1:0] trap_code_wb,
     output logic            is_ebreak_wb,
+
+    // FP outputs to WB stage
+    output logic            is_fp_load_wb,
+    output logic            fp_reg_write_wb,
+    output logic [     4:0] fp_rd_wb,
+    output logic [XLEN-1:0] fp_result_wb,
+    output logic [     4:0] fflags_wb,
 
 `ifdef RISCV_FORMAL
     output logic            f_mem_write_wb,
@@ -131,12 +147,16 @@ module svc_rv_stage_mem #(
   //===========================================================================
   // Store data formatting
   //===========================================================================
-  logic [3:0] st_fmt_wstrb;
+  logic [     3:0] st_fmt_wstrb;
+
+  // Select store data source: FP register for FSW, integer register otherwise
+  logic [XLEN-1:0] store_data;
+  assign store_data = is_fp_store_mem ? fp_rs2_data_mem : rs2_data_mem;
 
   svc_rv_fmt_st #(
       .XLEN(XLEN)
   ) st_fmt (
-      .data_in (rs2_data_mem),
+      .data_in (store_data),
       .addr    (alu_result_mem[1:0]),
       .funct3  (funct3_mem),
       .data_out(dmem_wdata),
@@ -424,6 +444,44 @@ module svc_rv_stage_mem #(
         trap_code_wb
       })
   );
+
+  //
+  // FP control signals (WITH bubble)
+  //
+  localparam int FP_CTRL_WIDTH = 1 + 1 + 5;  // is_fp_load, fp_reg_write, fp_rd
+
+  svc_rv_pipe_data #(
+      .WIDTH(FP_CTRL_WIDTH),
+      .REG  (PIPELINED)
+  ) pipe_fp_ctrl_data (
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .advance(pipe_advance_o),
+      .flush  (pipe_flush_o),
+      .bubble (pipe_bubble_o),
+      .data_i ({is_fp_load_mem, fp_reg_write_mem && !misalign_trap, fp_rd_mem}),
+      .data_o ({is_fp_load_wb, fp_reg_write_wb, fp_rd_wb})
+  );
+
+  //
+  // FP result and flags (NO bubble) - payload
+  //
+  localparam int FP_RESULT_WIDTH = XLEN + 5;  // fp_result, fflags
+
+  svc_rv_pipe_data #(
+      .WIDTH(FP_RESULT_WIDTH),
+      .REG  (PIPELINED)
+  ) pipe_fp_result_data (
+      .clk    (clk),
+      .rst_n  (rst_n),
+      .advance(pipe_advance_o),
+      .flush  (1'b0),
+      .bubble (1'b0),
+      .data_i ({fp_result_mem, fflags_mem}),
+      .data_o ({fp_result_wb, fflags_wb})
+  );
+
+  // is_fp_store_mem used in store_data selection above
 
   //===========================================================================
   // Load data to WB stage

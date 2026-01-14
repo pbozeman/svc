@@ -34,17 +34,17 @@ module svc_rv_fp_idec #(
     //
     // FP register indices
     //
-    output logic [4:0] frs1,
-    output logic [4:0] frs2,
-    output logic [4:0] frs3,  // For FMA (instr[31:27])
-    output logic [4:0] frd,
+    output logic [4:0] fp_rs1,
+    output logic [4:0] fp_rs2,
+    output logic [4:0] fp_rs3,  // For FMA (instr[31:27])
+    output logic [4:0] fp_rd,
 
     //
     // Register usage (for hazard detection)
     //
-    output logic frs1_used,
-    output logic frs2_used,
-    output logic frs3_used,
+    output logic fp_rs1_used,
+    output logic fp_rs2_used,
+    output logic fp_rs3_used,
     output logic int_rs1_used, // Integer rs1 (FSW addr, FMV.W.X, FCVT.S.W)
 
     //
@@ -85,10 +85,10 @@ module svc_rv_fp_idec #(
   //
   // FP register indices
   //
-  assign frs1      = rs1;
-  assign frs2      = rs2;
-  assign frs3      = rs3;
-  assign frd       = rd;
+  assign fp_rs1    = rs1;
+  assign fp_rs2    = rs2;
+  assign fp_rs3    = rs3;
+  assign fp_rd     = rd;
 
   //
   // Rounding mode extraction
@@ -172,25 +172,25 @@ module svc_rv_fp_idec #(
   //
   // Register usage for hazard detection
   //
-  // frs1_used: Most FP compute instructions use frs1
+  // fp_rs1_used: Most FP compute instructions use fp_rs1
   //   - NOT used by: FCVT.S.W, FCVT.S.WU, FMV.W.X (use int rs1)
   //
-  // frs2_used: Two-operand FP instructions
+  // fp_rs2_used: Two-operand FP instructions
   //   - FMA (rs2), FADD, FSUB, FMUL, FDIV, FSGNJ, FMINMAX, FCMP, FSW
   //
-  // frs3_used: Only FMA instructions use rs3
+  // fp_rs3_used: Only FMA instructions use rs3
   //
   // int_rs1_used: Integer rs1 as address or source
   //   - FLW, FSW (base address), FCVT.S.W, FCVT.S.WU, FMV.W.X
   //
-  assign frs1_used = (is_fma || is_fadd || is_fsub || is_fmul || is_fdiv ||
-                      is_fsqrt || is_fsgnj || is_fminmax || is_fcvtws ||
-                      is_fmvxw || is_fcmp);
+  assign fp_rs1_used = (is_fma || is_fadd || is_fsub || is_fmul || is_fdiv ||
+                        is_fsqrt || is_fsgnj || is_fminmax || is_fcvtws ||
+                        is_fmvxw || is_fcmp);
 
-  assign frs2_used = (is_fma || is_fadd || is_fsub || is_fmul || is_fdiv ||
-                      is_fsgnj || is_fminmax || is_fcmp || is_fp_store);
+  assign fp_rs2_used = (is_fma || is_fadd || is_fsub || is_fmul || is_fdiv ||
+                        is_fsgnj || is_fminmax || is_fcmp || is_fp_store);
 
-  assign frs3_used = is_fma;
+  assign fp_rs3_used = is_fma;
 
   assign int_rs1_used = (is_fp_load || is_fp_store || is_fcvtsw || is_fmvwx);
 

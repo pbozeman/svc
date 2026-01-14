@@ -13,6 +13,9 @@
 // Multi-cycle operations (FDIV, FSQRT) use valid/ready handshaking
 // integrated with the pipeline's op_active_ex stall mechanism.
 //
+// NOTE: This module requires EXT_F to be defined. When EXT_F=0, a stub
+// implementation is provided to avoid iverilog parsing fpnew code.
+//
 module svc_rv_ext_fp_ex (
     input logic clk,
     input logic rst_n,
@@ -27,10 +30,10 @@ module svc_rv_ext_fp_ex (
     //
     // Operands
     //
-    input logic [31:0] frs1,  // FP source 1
-    input logic [31:0] frs2,  // FP source 2
-    input logic [31:0] frs3,  // FP source 3 (FMA only)
-    input logic [31:0] rs1,   // Integer source (for FCVT.S.W, FMV.W.X)
+    input logic [31:0] fp_rs1,  // FP source 1
+    input logic [31:0] fp_rs2,  // FP source 2
+    input logic [31:0] fp_rs3,  // FP source 3 (FMA only)
+    input logic [31:0] rs1,     // Integer source (for FCVT.S.W, FMV.W.X)
 
     //
     // Results
@@ -45,7 +48,8 @@ module svc_rv_ext_fp_ex (
     output logic busy  // Multi-cycle op in progress
 );
 
-  // Import fpnew types
+`ifdef EXT_F
+  // Import fpnew types (only when EXT_F is enabled)
   import fpnew_pkg::*;
 
   //
@@ -194,8 +198,8 @@ module svc_rv_ext_fp_ex (
   //
   // fpnew operand usage varies by operation:
   // - FMADD/FNMSUB: a*b+c where a=op[0], b=op[1], c=op[2]
-  // - ADD/SUB: 1.0*b+c (a is replaced with 1.0), so we need b=frs1, c=frs2
-  // - MUL: a*b+0 (c is replaced with 0), so a=frs1, b=frs2
+  // - ADD/SUB: 1.0*b+c (a is replaced with 1.0), so we need b=fp_rs1, c=fp_rs2
+  // - MUL: a*b+0 (c is replaced with 0), so a=fp_rs1, b=fp_rs2
   // - Other ops: a=op[0], b=op[1]
   //
   logic [2:0][31:0] operands;
@@ -209,14 +213,14 @@ module svc_rv_ext_fp_ex (
     end else if (is_fadd || is_fsub) begin
       // ADD computes 1.0 * operands[1] + operands[2]
       // So for FADD rd,rs1,rs2: result = rs1 + rs2
-      // We need operands[1]=frs1, operands[2]=frs2
+      // We need operands[1]=fp_rs1, operands[2]=fp_rs2
       operands[0] = '0;  // unused (replaced with 1.0)
-      operands[1] = frs1;  // first addend
-      operands[2] = frs2;  // second addend
+      operands[1] = fp_rs1;  // first addend
+      operands[2] = fp_rs2;  // second addend
     end else begin
-      operands[0] = frs1;
-      operands[1] = frs2;
-      operands[2] = frs3;
+      operands[0] = fp_rs1;
+      operands[1] = fp_rs2;
+      operands[2] = fp_rs3;
     end
   end
 
@@ -290,7 +294,7 @@ module svc_rv_ext_fp_ex (
     if (is_fmv) begin
       // FMV: direct bit copy
       if (is_fmvxw) begin
-        result = frs1;  // FMV.X.W: FP -> INT
+        result = fp_rs1;  // FMV.X.W: FP -> INT
       end else begin
         result = rs1;  // FMV.W.X: INT -> FP
       end
@@ -331,7 +335,22 @@ module svc_rv_ext_fp_ex (
     end
   end
 
-  `SVC_UNUSED({fpu_in_ready});
+  // Unused instruction fields (rd, rs1 handled externally)
+  // Unused rs2_field bits (only [0] used for signed/unsigned in FCVT)
+  `SVC_UNUSED({fpu_in_ready, instr[19:15], instr[11:7], rs2_field[4:1]});
+
+`else
+  // Stub implementation when EXT_F is not defined
+  // This module should never be instantiated without EXT_F, but we need
+  // a valid module body for iverilog to parse the include.
+  assign result_valid = 1'b0;
+  assign result       = 32'h0;
+  assign fflags       = 5'h0;
+  assign busy         = 1'b0;
+
+  `SVC_UNUSED(
+      {clk, rst_n, op_valid, instr, frm_csr, fp_rs1, fp_rs2, fp_rs3, rs1});
+`endif
 
 endmodule
 

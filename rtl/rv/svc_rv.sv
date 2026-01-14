@@ -10,6 +10,7 @@
 `include "svc_rv_bpred_ex.sv"
 `include "svc_rv_pc_sel.sv"
 `include "svc_rv_hazard.sv"
+`include "svc_rv_fp_hazard.sv"
 `include "svc_rv_stage_pc.sv"
 `include "svc_rv_stage_if.sv"
 `include "svc_rv_stage_id.sv"
@@ -46,6 +47,7 @@ module svc_rv #(
     parameter int          PIPELINED   = 0,
     parameter int          FWD_REGFILE = PIPELINED,
     parameter int          FWD         = 0,
+    parameter int          FWD_FP      = 0,
     parameter int          MEM_TYPE    = 0,
     parameter int          BPRED       = 0,
     parameter int          BTB_ENABLE  = 0,
@@ -222,12 +224,38 @@ module svc_rv #(
   logic            bpred_taken_ex;
   logic [XLEN-1:0] pred_tgt_ex;
 
+  // FP: ID -> EX
+  logic            is_fp_ex;
+  logic            is_fp_load_ex;
+  logic            is_fp_store_ex;
+  logic            is_fp_compute_ex;
+  logic            is_fp_mc_ex;
+  logic            fp_reg_write_ex;
+  logic [XLEN-1:0] fp_rs1_data_ex;
+  logic [XLEN-1:0] fp_rs2_data_ex;
+  logic [XLEN-1:0] fp_rs3_data_ex;
+  logic [     4:0] fp_rs1_ex;
+  logic [     4:0] fp_rs2_ex;
+  logic [     4:0] fp_rs3_ex;
+  logic [     4:0] fp_rd_ex;
+
   // ID -> Hazard
   logic [     4:0] rs1_id;
   logic [     4:0] rs2_id;
   logic            rs1_used_id;
   logic            rs2_used_id;
   logic            is_mc_id;
+
+  // FP: ID -> Hazard
+  logic [     4:0] fp_rs1_id;
+  logic [     4:0] fp_rs2_id;
+  logic [     4:0] fp_rs3_id;
+  logic [     4:0] fp_rd_id;
+  logic            fp_rs1_used_id;
+  logic            fp_rs2_used_id;
+  logic            fp_rs3_used_id;
+  logic            is_fp_load_id;
+  logic            is_fp_mc_id;
 
   // IF -> ID
   logic            instr_valid_id;
@@ -266,6 +294,15 @@ module svc_rv #(
   logic [XLEN-1:0] mul_hl_mem;
   logic [XLEN-1:0] mul_hh_mem;
 
+  // FP: EX -> MEM
+  logic            is_fp_load_mem;
+  logic            is_fp_store_mem;
+  logic            fp_reg_write_mem;
+  logic [     4:0] fp_rd_mem;
+  logic [XLEN-1:0] fp_result_mem;
+  logic [     4:0] fflags_mem;
+  logic [XLEN-1:0] fp_rs2_data_mem;
+
   // MEM -> WB
   logic            instr_valid_wb;
 
@@ -288,6 +325,21 @@ module svc_rv #(
   logic            trap_wb;
   logic [     1:0] trap_code_wb;
   logic            is_ebreak_wb;
+
+  // FP: MEM -> WB
+  logic            is_fp_load_wb;
+  logic            fp_reg_write_wb;
+  logic [     4:0] fp_rd_wb;
+  logic [XLEN-1:0] fp_result_wb;
+  logic [     4:0] fflags_wb;
+
+  // FP: WB -> ID (regfile writeback)
+  logic [XLEN-1:0] fp_rd_data_wb;
+  logic [     4:0] fp_rd_addr_wb;
+  logic            fp_rd_en_wb;
+  logic [     4:0] fflags_set;
+  logic            fflags_set_en;
+
 `ifdef RISCV_FORMAL
   logic            f_mem_write_wb;
   logic [XLEN-1:0] f_dmem_waddr_wb;
@@ -367,11 +419,13 @@ module svc_rv #(
   // Hazard control signals
   // verilog_format: off
   (* max_fanout = 32 *)logic data_hazard_id_raw;
+  (* max_fanout = 32 *)logic fp_data_hazard_id;
   (* max_fanout = 32 *)logic data_hazard_id;
   (* max_fanout = 32 *)logic if_id_flush;
   (* max_fanout = 32 *)logic id_ex_flush;
   (* max_fanout = 32 *)logic ex_mem_flush;
   // verilog_format: on
+  logic control_flush;
 
   //
   // BTB prediction signals
@@ -440,12 +494,15 @@ module svc_rv #(
   // Global stall
   //
   logic stall_cpu;
-  assign stall_cpu      = halt || dmem_stall;
+  assign stall_cpu = halt || dmem_stall;
 
   //
   // Front-end stall/bubble (data hazards + instruction fetch stalls)
   //
-  assign data_hazard_id = data_hazard_id_raw || imem_stall;
+  // control_flush: used by FP hazard unit to suppress hazards during redirects
+  // (defined early because pc_redir is defined later in original order)
+  //
+  assign data_hazard_id = data_hazard_id_raw || fp_data_hazard_id || imem_stall;
 
   //
   // Per-stage stall signals
@@ -469,6 +526,7 @@ module svc_rv #(
   //
   logic pc_redir;
   assign pc_redir = (pc_sel == PC_SEL_REDIRECT);
+  assign control_flush = pc_redir || redir_valid_mem;
   assign stall_pc = ((stall_cpu || data_hazard_id || op_active_ex) &&
                      !redir_valid_mem && !pc_redir);
 
@@ -547,6 +605,40 @@ module svc_rv #(
                 mispredicted_ex, is_csr_ex, is_m_ex, op_active_ex, btb_pred_taken,
                 redir_pending_if, ras_pred_taken});
     // verilog_format: on
+  end
+
+  //
+  // FP Hazard Detection Unit
+  //
+  if (EXT_F != 0 && PIPELINED == 1) begin : g_fp_hazard
+    svc_rv_fp_hazard #(
+        .XLEN       (XLEN),
+        .FWD_FP     (FWD_FP),
+        .FWD_REGFILE(FWD_REGFILE),
+        .MEM_TYPE   (MEM_TYPE)
+    ) fp_hazard (
+        .fp_rs1_id        (fp_rs1_id),
+        .fp_rs2_id        (fp_rs2_id),
+        .fp_rs3_id        (fp_rs3_id),
+        .fp_rs1_used_id   (fp_rs1_used_id),
+        .fp_rs2_used_id   (fp_rs2_used_id),
+        .fp_rs3_used_id   (fp_rs3_used_id),
+        .fp_rd_ex         (fp_rd_ex),
+        .fp_reg_write_ex  (fp_reg_write_ex),
+        .is_fp_load_ex    (is_fp_load_ex),
+        .is_fp_compute_ex (is_fp_compute_ex),
+        .fp_rd_mem        (fp_rd_mem),
+        .fp_reg_write_mem (fp_reg_write_mem),
+        .is_fp_load_mem   (is_fp_load_mem),
+        .fp_rd_wb         (fp_rd_wb),
+        .fp_reg_write_wb  (fp_reg_write_wb),
+        .control_flush    (control_flush),
+        .fp_data_hazard_id(fp_data_hazard_id)
+    );
+  end else begin : g_no_fp_hazard
+    assign fp_data_hazard_id = 1'b0;
+
+    `SVC_UNUSED(control_flush);
   end
 
   //
@@ -756,11 +848,17 @@ module svc_rv #(
 `ifndef RISCV_FORMAL
   // verilog_format: off
   `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, trap_code_wb,
-               instr_ret, pc_ret, rs1_data_ret, rs2_data_ret, rd_data_ret,
-               trap_ret, trap_code_ret, reg_write_ret});
+               instr_ret, pc_ret, rs1_data_ret, rs2_data_ret,
+               rd_data_ret, trap_ret, trap_code_ret, reg_write_ret,
+               fp_rs1_id, fp_rs2_id, fp_rs3_id, fp_rd_id,
+               fp_rs1_used_id, fp_rs2_used_id, fp_rs3_used_id, is_fp_load_id,
+               is_fp_mc_id, fp_rd_addr_wb, fp_rd_en_wb, fflags_set, fflags_set_en});
   // verilog_format: on
 `else
-  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id});
+  `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, fp_rs1_id,
+               fp_rs2_id, fp_rs3_id, fp_rd_id, fp_rs1_used_id, fp_rs2_used_id,
+               fp_rs3_used_id, is_fp_load_id, is_fp_mc_id, fp_rd_addr_wb,
+               fp_rd_en_wb, fflags_set, fflags_set_en});
 `endif
 
   `include "svc_rv_dbg.svh"

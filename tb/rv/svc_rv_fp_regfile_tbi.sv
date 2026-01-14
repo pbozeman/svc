@@ -7,18 +7,18 @@ module svc_rv_fp_regfile_tbi;
   `TEST_CLK_NS(clk, 10);
   `TEST_RST_N(clk, rst_n);
 
-  logic [     4:0] frs1_addr;
-  logic [XLEN-1:0] frs1_data;
+  logic [     4:0] fp_rs1_addr;
+  logic [XLEN-1:0] fp_rs1_data;
 
-  logic [     4:0] frs2_addr;
-  logic [XLEN-1:0] frs2_data;
+  logic [     4:0] fp_rs2_addr;
+  logic [XLEN-1:0] fp_rs2_data;
 
-  logic [     4:0] frs3_addr;
-  logic [XLEN-1:0] frs3_data;
+  logic [     4:0] fp_rs3_addr;
+  logic [XLEN-1:0] fp_rs3_data;
 
-  logic            frd_en;
-  logic [     4:0] frd_addr;
-  logic [XLEN-1:0] frd_data;
+  logic            fp_rd_en;
+  logic [     4:0] fp_rd_addr;
+  logic [XLEN-1:0] fp_rd_data;
 
   //
   // DUT instantiation
@@ -27,16 +27,16 @@ module svc_rv_fp_regfile_tbi;
       .XLEN       (XLEN),
       .FWD_REGFILE(1)
   ) uut (
-      .clk      (clk),
-      .frs1_addr(frs1_addr),
-      .frs1_data(frs1_data),
-      .frs2_addr(frs2_addr),
-      .frs2_data(frs2_data),
-      .frs3_addr(frs3_addr),
-      .frs3_data(frs3_data),
-      .frd_en   (frd_en),
-      .frd_addr (frd_addr),
-      .frd_data (frd_data)
+      .clk        (clk),
+      .fp_rs1_addr(fp_rs1_addr),
+      .fp_rs1_data(fp_rs1_data),
+      .fp_rs2_addr(fp_rs2_addr),
+      .fp_rs2_data(fp_rs2_data),
+      .fp_rs3_addr(fp_rs3_addr),
+      .fp_rs3_data(fp_rs3_data),
+      .fp_rd_en   (fp_rd_en),
+      .fp_rd_addr (fp_rd_addr),
+      .fp_rd_data (fp_rd_data)
   );
 
   //
@@ -44,12 +44,12 @@ module svc_rv_fp_regfile_tbi;
   //
   always_ff @(posedge clk) begin
     if (~rst_n) begin
-      frs1_addr <= '0;
-      frs2_addr <= '0;
-      frs3_addr <= '0;
-      frd_en    <= '0;
-      frd_addr  <= '0;
-      frd_data  <= '0;
+      fp_rs1_addr <= '0;
+      fp_rs2_addr <= '0;
+      fp_rs3_addr <= '0;
+      fp_rd_en    <= '0;
+      fp_rd_addr  <= '0;
+      fp_rd_data  <= '0;
     end
   end
 
@@ -57,24 +57,24 @@ module svc_rv_fp_regfile_tbi;
   // Test: f0 is NOT hardwired (unlike x0)
   //
   task automatic test_f0_writable();
-    frd_en   = 1'b1;
-    frd_addr = 5'h0;
-    frd_data = 32'hDEADBEEF;
+    fp_rd_en   = 1'b1;
+    fp_rd_addr = 5'h0;
+    fp_rd_data = 32'hDEADBEEF;
     `TICK(clk);
-    frd_en = 1'b0;
+    fp_rd_en = 1'b0;
     `TICK(clk);
 
-    frs1_addr = 5'h0;
+    fp_rs1_addr = 5'h0;
     `TICK(clk);
-    `CHECK_EQ(frs1_data, 32'hDEADBEEF);
+    `CHECK_EQ(fp_rs1_data, 32'hDEADBEEF);
 
-    frs2_addr = 5'h0;
+    fp_rs2_addr = 5'h0;
     `TICK(clk);
-    `CHECK_EQ(frs2_data, 32'hDEADBEEF);
+    `CHECK_EQ(fp_rs2_data, 32'hDEADBEEF);
 
-    frs3_addr = 5'h0;
+    fp_rs3_addr = 5'h0;
     `TICK(clk);
-    `CHECK_EQ(frs3_data, 32'hDEADBEEF);
+    `CHECK_EQ(fp_rs3_data, 32'hDEADBEEF);
   endtask
 
   //
@@ -82,16 +82,16 @@ module svc_rv_fp_regfile_tbi;
   //
   task automatic test_write_read();
     for (int i = 0; i < 32; i++) begin
-      frd_en   = 1'b1;
-      frd_addr = 5'(i);
-      frd_data = 32'hA0000000 | i;
+      fp_rd_en   = 1'b1;
+      fp_rd_addr = 5'(i);
+      fp_rd_data = 32'hA0000000 | i;
       `TICK(clk);
-      frd_en = 1'b0;
+      fp_rd_en = 1'b0;
       `TICK(clk);
 
-      frs1_addr = 5'(i);
+      fp_rs1_addr = 5'(i);
       `TICK(clk);
-      `CHECK_EQ(frs1_data, 32'hA0000000 | i);
+      `CHECK_EQ(fp_rs1_data, 32'hA0000000 | i);
     end
   endtask
 
@@ -99,72 +99,72 @@ module svc_rv_fp_regfile_tbi;
   // Test: Triple read ports
   //
   task automatic test_triple_read();
-    frd_en   = 1'b1;
-    frd_addr = 5'd5;
-    frd_data = 32'h12345678;
+    fp_rd_en   = 1'b1;
+    fp_rd_addr = 5'd5;
+    fp_rd_data = 32'h12345678;
     `TICK(clk);
-    frd_addr = 5'd10;
-    frd_data = 32'h9ABCDEF0;
+    fp_rd_addr = 5'd10;
+    fp_rd_data = 32'h9ABCDEF0;
     `TICK(clk);
-    frd_addr = 5'd15;
-    frd_data = 32'hFEDCBA98;
+    fp_rd_addr = 5'd15;
+    fp_rd_data = 32'hFEDCBA98;
     `TICK(clk);
-    frd_en = 1'b0;
+    fp_rd_en = 1'b0;
     `TICK(clk);
 
-    frs1_addr = 5'd5;
-    frs2_addr = 5'd10;
-    frs3_addr = 5'd15;
+    fp_rs1_addr = 5'd5;
+    fp_rs2_addr = 5'd10;
+    fp_rs3_addr = 5'd15;
     `TICK(clk);
-    `CHECK_EQ(frs1_data, 32'h12345678);
-    `CHECK_EQ(frs2_data, 32'h9ABCDEF0);
-    `CHECK_EQ(frs3_data, 32'hFEDCBA98);
+    `CHECK_EQ(fp_rs1_data, 32'h12345678);
+    `CHECK_EQ(fp_rs2_data, 32'h9ABCDEF0);
+    `CHECK_EQ(fp_rs3_data, 32'hFEDCBA98);
   endtask
 
   //
   // Test: Read same register on all three ports
   //
   task automatic test_triple_read_same();
-    frd_en   = 1'b1;
-    frd_addr = 5'd20;
-    frd_data = 32'hCAFEBABE;
+    fp_rd_en   = 1'b1;
+    fp_rd_addr = 5'd20;
+    fp_rd_data = 32'hCAFEBABE;
     `TICK(clk);
-    frd_en = 1'b0;
+    fp_rd_en = 1'b0;
     `TICK(clk);
 
-    frs1_addr = 5'd20;
-    frs2_addr = 5'd20;
-    frs3_addr = 5'd20;
+    fp_rs1_addr = 5'd20;
+    fp_rs2_addr = 5'd20;
+    fp_rs3_addr = 5'd20;
     `TICK(clk);
-    `CHECK_EQ(frs1_data, 32'hCAFEBABE);
-    `CHECK_EQ(frs2_data, 32'hCAFEBABE);
-    `CHECK_EQ(frs3_data, 32'hCAFEBABE);
+    `CHECK_EQ(fp_rs1_data, 32'hCAFEBABE);
+    `CHECK_EQ(fp_rs2_data, 32'hCAFEBABE);
+    `CHECK_EQ(fp_rs3_data, 32'hCAFEBABE);
   endtask
 
   //
   // Test: Write disabled
   //
   task automatic test_write_disabled();
-    frd_en   = 1'b1;
-    frd_addr = 5'd7;
-    frd_data = 32'h11111111;
+    fp_rd_en   = 1'b1;
+    fp_rd_addr = 5'd7;
+    fp_rd_data = 32'h11111111;
     `TICK(clk);
-    frd_en = 1'b0;
-    `TICK(clk);
-
-    frs1_addr = 5'd7;
-    `TICK(clk);
-    `CHECK_EQ(frs1_data, 32'h11111111);
-
-    frd_en   = 1'b0;
-    frd_addr = 5'd7;
-    frd_data = 32'h22222222;
-    `TICK(clk);
+    fp_rd_en = 1'b0;
     `TICK(clk);
 
-    frs1_addr = 5'd7;
+    fp_rs1_addr = 5'd7;
     `TICK(clk);
-    `CHECK_EQ(frs1_data, 32'h11111111);
+    `CHECK_EQ(fp_rs1_data, 32'h11111111);
+
+    fp_rd_en   = 1'b0;
+    fp_rd_addr = 5'd7;
+    fp_rd_data = 32'h22222222;
+    `TICK(clk);
+    `TICK(clk);
+
+    fp_rs1_addr = 5'd7;
+    `TICK(clk);
+    `CHECK_EQ(fp_rs1_data, 32'h11111111);
   endtask
 
   //
@@ -172,18 +172,18 @@ module svc_rv_fp_regfile_tbi;
   //
   task automatic test_all_independent();
     for (int i = 0; i < 32; i++) begin
-      frd_en   = 1'b1;
-      frd_addr = 5'(i);
-      frd_data = 32'hB0000000 | (i << 16) | i;
+      fp_rd_en   = 1'b1;
+      fp_rd_addr = 5'(i);
+      fp_rd_data = 32'hB0000000 | (i << 16) | i;
       `TICK(clk);
     end
-    frd_en = 1'b0;
+    fp_rd_en = 1'b0;
     `TICK(clk);
 
     for (int i = 0; i < 32; i++) begin
-      frs1_addr = 5'(i);
+      fp_rs1_addr = 5'(i);
       `TICK(clk);
-      `CHECK_EQ(frs1_data, 32'hB0000000 | (i << 16) | i);
+      `CHECK_EQ(fp_rs1_data, 32'hB0000000 | (i << 16) | i);
     end
   endtask
 
@@ -191,24 +191,24 @@ module svc_rv_fp_regfile_tbi;
   // Test: Internal forwarding (write and read same cycle)
   //
   task automatic test_forwarding();
-    frd_en    = 1'b1;
-    frd_addr  = 5'd25;
-    frd_data  = 32'hFACEFACE;
-    frs1_addr = 5'd25;
-    frs2_addr = 5'd25;
-    frs3_addr = 5'd25;
+    fp_rd_en    = 1'b1;
+    fp_rd_addr  = 5'd25;
+    fp_rd_data  = 32'hFACEFACE;
+    fp_rs1_addr = 5'd25;
+    fp_rs2_addr = 5'd25;
+    fp_rs3_addr = 5'd25;
 
     // With FWD_REGFILE=1, read should see write data same cycle
     `TICK(clk);
-    `CHECK_EQ(frs1_data, 32'hFACEFACE);
-    `CHECK_EQ(frs2_data, 32'hFACEFACE);
-    `CHECK_EQ(frs3_data, 32'hFACEFACE);
+    `CHECK_EQ(fp_rs1_data, 32'hFACEFACE);
+    `CHECK_EQ(fp_rs2_data, 32'hFACEFACE);
+    `CHECK_EQ(fp_rs3_data, 32'hFACEFACE);
 
-    frd_en = 1'b0;
+    fp_rd_en = 1'b0;
     `TICK(clk);
 
     // Value should persist after write disabled
-    `CHECK_EQ(frs1_data, 32'hFACEFACE);
+    `CHECK_EQ(fp_rs1_data, 32'hFACEFACE);
   endtask
 
   //
