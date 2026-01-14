@@ -247,17 +247,27 @@ module svc_rv_stage_pc #(
 
   if (PC_REG != 0) begin : g_pipe_stale
     if ((MEM_TYPE == MEM_TYPE_BRAM) && (BPRED != 0)) begin : g_pc_next_stuck
+      //
+      // Use front-end stall (stall_pc || imem_stall) rather than stall_pc.
+      //
+      // stall_pc can be overridden during redirects to allow the PC register to
+      // update even while the I$ is stalled. In that case, the IF stage is still
+      // stalled (imem_stall=1), and the stale pc_next_if==pc_if case occurs on the
+      // *release* of the I$ stall. Track that combined stall so we bubble the
+      // correct cycle.
+      //
       logic was_stalled;
 
       always_ff @(posedge clk) begin
         if (!rst_n) begin
           was_stalled <= 1'b0;
         end else begin
-          was_stalled <= stall_pc;
+          was_stalled <= stall_pc || imem_stall;
         end
       end
 
-      assign pipe_stale = was_stalled && !stall_pc && redir_hold;
+      assign
+          pipe_stale = (was_stalled && redir_hold && !(stall_pc || imem_stall));
     end else begin : g_pc_next_not_stuck
       assign pipe_stale = 1'b0;
     end
