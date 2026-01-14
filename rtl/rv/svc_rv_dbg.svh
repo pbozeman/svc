@@ -467,6 +467,21 @@ always @(posedge clk) begin
             stage_ex.alu_b_ex,
             stage_ex.alu_result_ex
         );
+      end else if (is_fp_compute_ex) begin
+        //
+        // FP compute ops: show FP operands and result
+        //
+        ex_str = $sformatf(
+            "EX %s  %08x  %-30s   %08x %08x -> %08x     ",
+            op_active_ex ? "s" : (ex_mem_flush ? "f" : " "),
+            pc_ex,
+            dasm_inst(
+              instr_ex
+            ),
+            stage_ex.fwd_fp_rs1_ex,
+            stage_ex.fwd_fp_rs2_ex,
+            stage_ex.fp_result_ex
+        );
       end else begin
         //
         // Other ops: show ALU operation
@@ -550,6 +565,14 @@ always @(posedge clk) begin
             pc_plus4_wb - 4,
             stage_wb.rd_data_wb,
             rd_wb
+        );
+      end else if (!stall_wb && fp_rd_en_wb) begin
+        wb_str = $sformatf(
+            "WB %s%08x %08x -> f%02d",
+            stall_str,
+            pc_plus4_wb - 4,
+            stage_wb.fp_rd_data_wb,
+            fp_rd_addr_wb
         );
       end else begin
         wb_str = $sformatf("WB %s%08x", stall_str, pc_plus4_wb - 4);
