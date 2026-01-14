@@ -486,6 +486,38 @@ module svc_rv_ext_fp_ex_tbv;
     `CHECK_EQ(captured_fflags & FLAG_NX, FLAG_NX);
   endtask
 
+  //
+  // Test: Single-cycle op after multi-cycle op uses correct result
+  //
+  // Regression test: mc_result_valid_reg could stay high after a multi-cycle
+  // op completed, causing subsequent single-cycle ops to incorrectly use the
+  // stale mc_result_reg instead of fpu_result.
+  //
+  task automatic test_single_cycle_after_multicycle();
+    // First: run a multi-cycle FSQRT: sqrt(9.0) = 3.0
+    instr  = make_fp_r(FP7_FSQRT, 5'd0, 5'd0, FRM_RNE, 5'd0);
+    fp_rs1 = 32'h41100000;  // 9.0
+    fp_rs2 = FP_ZERO;
+
+    run_mc_op();
+    `CHECK_EQ(captured_result, FP_THREE);
+
+    // Wait one more cycle for mc_result_valid_reg to be set (as it would be
+    // in the real pipeline when the next instruction arrives)
+    `TICK(clk);
+
+    // Now run a single-cycle FADD: 1.0 + 1.0 = 2.0
+    // Bug: without the is_multicycle check, this would return 3.0 (the stale
+    // mc_result_reg from FSQRT) instead of 2.0
+    instr  = make_fp_r(FP7_FADD, 5'd0, 5'd0, FRM_RNE, 5'd0);
+    fp_rs1 = FP_ONE;
+    fp_rs2 = FP_ONE;
+
+    run_op();
+
+    `CHECK_EQ(captured_result, FP_TWO);
+  endtask
+
   // =========================================================================
   // Test Suite
   // =========================================================================
@@ -515,6 +547,7 @@ module svc_rv_ext_fp_ex_tbv;
   `TEST_CASE(test_fsqrt_neg);
   `TEST_CASE(test_fadd_inexact);
   `TEST_CASE(test_dynamic_rm);
+  `TEST_CASE(test_single_cycle_after_multicycle);
 
   `TEST_SUITE_END();
 

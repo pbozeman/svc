@@ -324,8 +324,8 @@ module svc_rv_ext_fp_ex (
       end else begin
         result = rs1;  // FMV.W.X: INT -> FP
       end
-    end else if (mc_result_valid_reg) begin
-      // Use registered result for multi-cycle ops
+    end else if (is_multicycle && mc_result_valid_reg) begin
+      // Use registered result for multi-cycle ops (only when executing MC op)
       result = mc_result_reg;
     end else begin
       result = fpu_result;
