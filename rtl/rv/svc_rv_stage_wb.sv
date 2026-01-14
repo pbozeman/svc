@@ -182,10 +182,6 @@ module svc_rv_stage_wb #(
       .advance(pipe_advance_o),
       .flush(pipe_flush_o),
       .bubble(pipe_bubble_o),
-`ifdef FORMAL
-      .s_valid(instr_valid_wb),
-      .s_ready(1'b1),
-`endif
       .data_i({
         instr_valid_wb,
         instr_wb,
@@ -226,10 +222,6 @@ module svc_rv_stage_wb #(
       .advance(pipe_advance_o),
       .flush(pipe_flush_o),
       .bubble(pipe_bubble_o),
-`ifdef FORMAL
-      .s_valid(instr_valid_wb),
-      .s_ready(1'b1),
-`endif
       .data_i({
         f_mem_write_wb,
         f_dmem_waddr_wb,

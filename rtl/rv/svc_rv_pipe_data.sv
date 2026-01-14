@@ -30,11 +30,6 @@ module svc_rv_pipe_data #(
     input logic flush,
     input logic bubble,
 
-`ifdef FORMAL
-    input logic s_valid,
-    input logic s_ready,
-`endif
-
                           input  logic [WIDTH-1:0] data_i,
     (* max_fanout = 32 *) output logic [WIDTH-1:0] data_o
 );
@@ -106,17 +101,6 @@ module svc_rv_pipe_data #(
     f_past_valid <= 1'b1;
   end
 
-  //
-  // Input assumption: data_i stable when upstream has valid data we didn't accept
-  //
-  always_ff @(posedge clk) begin
-    if (f_past_valid && $past(rst_n) && rst_n) begin
-      if ($past(s_valid && !s_ready)) begin
-        `FASSUME(a_data_i_stable, data_i == $past(data_i));
-      end
-    end
-  end
-
   // Reset behavior
   always_ff @(posedge clk) begin
     if (f_past_valid && !$past(rst_n)) begin
@@ -149,7 +133,6 @@ module svc_rv_pipe_data #(
       `FCOVER(c_hold, $past(!flush && !bubble && !advance));
       `FCOVER(c_flush, $past(flush));
       `FCOVER(c_bubble, $past(bubble));
-      `FCOVER(c_backpressure, $past(s_valid && !s_ready));
     end
   end
 

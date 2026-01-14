@@ -321,10 +321,6 @@ module svc_rv_stage_id #(
       .advance(advance),
       .flush(flush),
       .bubble(bubble),
-`ifdef FORMAL
-      .s_valid(instr_valid_id),
-      .s_ready(!stall_id),
-`endif
       .data_i({
         instr_valid_id,
         reg_write_id,
@@ -364,10 +360,6 @@ module svc_rv_stage_id #(
       .advance(advance),
       .flush(1'b0),
       .bubble(bubble),
-`ifdef FORMAL
-      .s_valid(instr_valid_id),
-      .s_ready(!stall_id),
-`endif
       .data_i({
         alu_a_src_id,
         alu_b_src_id,
@@ -430,11 +422,6 @@ module svc_rv_stage_id #(
       .advance(advance),
       .flush  (1'b0),
       .bubble (bubble),
-`ifdef FORMAL
-      // see note above
-      .s_valid(instr_valid_id),
-      .s_ready(1'b1),
-`endif
       .data_i (fwd_data_id),
       .data_o ({rs1_data_ex, rs2_data_ex})
   );
@@ -453,10 +440,6 @@ module svc_rv_stage_id #(
       .advance(advance),
       .flush  (1'b0),
       .bubble (bubble),
-`ifdef FORMAL
-      .s_valid(instr_valid_id),
-      .s_ready(!stall_id),
-`endif
       .data_i ({imm_id, pc_id, pc_plus4_id}),
       .data_o ({imm_ex, pc_ex, pc_plus4_ex})
   );
@@ -473,10 +456,6 @@ module svc_rv_stage_id #(
       .advance(advance),
       .flush  (1'b0),
       .bubble (bubble),
-`ifdef FORMAL
-      .s_valid(instr_valid_id),
-      .s_ready(!stall_id),
-`endif
       .data_i (instr_id),
       .data_o (instr_ex)
   );
@@ -521,10 +500,6 @@ module svc_rv_stage_id #(
       .advance(advance),
       .flush  (flush),
       .bubble (bubble),
-`ifdef FORMAL
-      .s_valid(instr_valid_id),
-      .s_ready(!stall_id),
-`endif
       .data_i (final_bpred_taken_id),
       .data_o (bpred_taken_ex)
   );
@@ -539,10 +514,6 @@ module svc_rv_stage_id #(
       .advance(advance),
       .flush  (flush),
       .bubble (bubble),
-`ifdef FORMAL
-      .s_valid(instr_valid_id),
-      .s_ready(!stall_id),
-`endif
       .data_i (final_pred_tgt_id),
       .data_o (pred_tgt_ex)
   );

@@ -371,10 +371,6 @@ module svc_rv_stage_mem #(
       .advance(pipe_advance_o),
       .flush(pipe_flush_o),
       .bubble(pipe_bubble_o),
-`ifdef FORMAL
-      .s_valid(1'b0),
-      .s_ready(1'b1),
-`endif
       .data_i({
         instr_valid_mem, reg_write_mem && !misalign_trap, misalign_trap
       }),
@@ -395,10 +391,6 @@ module svc_rv_stage_mem #(
       .advance(pipe_advance_o),
       .flush(1'b0),
       .bubble(1'b0),
-`ifdef FORMAL
-      .s_valid(1'b0),
-      .s_ready(1'b1),
-`endif
       .data_i({
         res_src_mem,
         instr_mem,
@@ -451,12 +443,6 @@ module svc_rv_stage_mem #(
       .advance(pipe_advance_o),
       .flush  (1'b0),
       .bubble (pipe_bubble_o),
-`ifdef FORMAL
-      // Note: No s_valid/s_ready for formal - ld_fmt_out comes from dmem_rdata
-      // (external memory) which isn't guaranteed stable during backpressure.
-      .s_valid(1'b0),
-      .s_ready(1'b1),
-`endif
       .data_i (ld_fmt_out),
       .data_o (ld_data_wb)
   );
@@ -589,10 +575,6 @@ module svc_rv_stage_mem #(
       .advance(pipe_advance_o),
       .flush  (pipe_flush_o),
       .bubble (pipe_bubble_o),
-`ifdef FORMAL
-      .s_valid(1'b0),
-      .s_ready(1'b1),
-`endif
       .data_i ({dmem_rdata, f_is_load_for_rstrb ? f_ld_fmt_rstrb : 4'b0}),
       .data_o ({f_dmem_rdata_wb, f_dmem_rstrb_wb})
   );
@@ -609,10 +591,6 @@ module svc_rv_stage_mem #(
       .advance(pipe_advance_o),
       .flush  (pipe_flush_o),
       .bubble (pipe_bubble_o),
-`ifdef FORMAL
-      .s_valid(1'b0),
-      .s_ready(1'b1),
-`endif
       .data_i ({is_branch_mem, is_jmp_mem, branch_taken_mem}),
       .data_o ({f_is_branch_wb, f_is_jmp_wb, f_branch_taken_wb})
   );

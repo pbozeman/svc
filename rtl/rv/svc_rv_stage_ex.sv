@@ -589,10 +589,6 @@ module svc_rv_stage_ex #(
       .advance(pipe_advance_o),
       .flush(pipe_flush_o),
       .bubble(pipe_bubble_o),
-`ifdef FORMAL
-      .s_valid(1'b0),
-      .s_ready(1'b1),
-`endif
       .data_i({
         result_valid,
         reg_write_ex,
@@ -638,10 +634,6 @@ module svc_rv_stage_ex #(
       .advance(pipe_advance_o),
       .flush(1'b0),
       .bubble(1'b0),
-`ifdef FORMAL
-      .s_valid(1'b0),
-      .s_ready(1'b1),
-`endif
       .data_i({
         is_branch_ex,
         is_jalr_ex,
@@ -706,10 +698,6 @@ module svc_rv_stage_ex #(
       .advance(pipe_advance_o),
       .flush  (1'b0),
       .bubble (1'b0),
-`ifdef FORMAL
-      .s_valid(1'b0),
-      .s_ready(1'b1),
-`endif
       .data_i (m_result_ex),
       .data_o (m_result_mem)
   );

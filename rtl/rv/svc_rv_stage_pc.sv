@@ -344,10 +344,6 @@ module svc_rv_stage_pc #(
       .advance(pipe_advance),
       .flush  (pipe_flush),
       .bubble (pipe_bubble),
-`ifdef FORMAL
-      .s_valid(1'b1),
-      .s_ready(1'b1),
-`endif
       .data_i ({pc, pc_next}),
       .data_o ({pc_if, pc_next_if})
   );
@@ -365,10 +361,6 @@ module svc_rv_stage_pc #(
       .advance(pipe_advance),
       .flush(pipe_flush),
       .bubble(pipe_bubble),
-`ifdef FORMAL
-      .s_valid(1'b1),
-      .s_ready(1'b1),
-`endif
       .data_i({
         redir_pending_next,
         btb_hit_pc,
@@ -398,10 +390,6 @@ module svc_rv_stage_pc #(
       .advance(pipe_advance),
       .flush  (1'b0),
       .bubble (pipe_bubble),
-`ifdef FORMAL
-      .s_valid(1'b1),
-      .s_ready(1'b1),
-`endif
       .data_i ({btb_tgt_pc, ras_tgt_pc}),
       .data_o ({btb_tgt_if, ras_tgt_if})
   );
