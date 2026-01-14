@@ -134,6 +134,8 @@ module svc_rv_stage_id #(
     output logic [     4:0] fp_rs2_ex,
     output logic [     4:0] fp_rs3_ex,
     output logic [     4:0] fp_rd_ex,
+    output logic [     2:0] fp_rm_ex,
+    output logic            fp_rm_dyn_ex,
 
     // FP outputs to hazard unit
     output logic [4:0] fp_rs1_id,
@@ -202,6 +204,8 @@ module svc_rv_stage_id #(
   logic [XLEN-1:0] fp_rs2_data_id;
   logic [XLEN-1:0] fp_rs3_data_id;
   logic            fp_instr_invalid_id;
+  logic [     2:0] fp_rm_id;
+  logic            fp_rm_dyn_id;
 
   //
   // Instruction Decoder
@@ -277,8 +281,8 @@ module svc_rv_stage_id #(
         .fp_rs2_used     (fp_rs2_used_id),
         .fp_rs3_used     (fp_rs3_used_id),
         .int_rs1_used    (fp_int_rs1_used_id),
-        .fp_rm           (),                     // Passed via instr_ex to FPU
-        .fp_rm_dyn       (),                     // Passed via instr_ex to FPU
+        .fp_rm           (fp_rm_id),
+        .fp_rm_dyn       (fp_rm_dyn_id),
         .fp_instr_invalid(fp_instr_invalid_id)
     );
   end else begin : g_no_fp_idec
@@ -298,6 +302,8 @@ module svc_rv_stage_id #(
     assign fp_rs3_used_id      = 1'b0;
     assign fp_int_rs1_used_id  = 1'b0;
     assign fp_instr_invalid_id = 1'b0;
+    assign fp_rm_id            = 3'b0;
+    assign fp_rm_dyn_id        = 1'b0;
   end
 
   //
@@ -600,9 +606,9 @@ module svc_rv_stage_id #(
   // FP control signals
   //
   // is_fp, is_fp_load, is_fp_store, is_fp_compute, is_fp_mc, fp_reg_write,
-  // fp_rs1, fp_rs2, fp_rs3, fp_rd
+  // fp_rs1, fp_rs2, fp_rs3, fp_rd, fp_rm, fp_rm_dyn
   //
-  localparam int FP_CTRL_W = 1 + 1 + 1 + 1 + 1 + 1 + 5 + 5 + 5 + 5;
+  localparam int FP_CTRL_W = 1 + 1 + 1 + 1 + 1 + 1 + 5 + 5 + 5 + 5 + 3 + 1;
 
   svc_rv_pipe_data #(
       .WIDTH(FP_CTRL_W),
@@ -623,7 +629,9 @@ module svc_rv_stage_id #(
         fp_rs1_id,
         fp_rs2_id,
         fp_rs3_id,
-        fp_rd_id
+        fp_rd_id,
+        fp_rm_id,
+        fp_rm_dyn_id
       }),
       .data_o({
         is_fp_ex,
@@ -635,7 +643,9 @@ module svc_rv_stage_id #(
         fp_rs1_ex,
         fp_rs2_ex,
         fp_rs3_ex,
-        fp_rd_ex
+        fp_rd_ex,
+        fp_rm_ex,
+        fp_rm_dyn_ex
       })
   );
 

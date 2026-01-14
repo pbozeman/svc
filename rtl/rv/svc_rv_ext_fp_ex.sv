@@ -23,9 +23,11 @@ module svc_rv_ext_fp_ex (
     //
     // Operation control
     //
-    input logic        op_valid,  // Start new operation
-    input logic [31:0] instr,     // Full instruction for decode
-    input logic [ 2:0] frm_csr,   // Dynamic rounding mode from fcsr
+    input logic        op_valid,   // Start new operation
+    input logic [31:0] instr,      // Full instruction for decode
+    input logic [ 2:0] fp_rm,      // Rounding mode from ID stage
+    input logic        fp_rm_dyn,  // Use dynamic rounding mode
+    input logic [ 2:0] frm_csr,    // Dynamic rounding mode from fcsr
 
     //
     // Operands
@@ -183,13 +185,15 @@ module svc_rv_ext_fp_ex (
   //
   // Rounding mode selection
   //
-  roundmode_e fp_rm;
+  // Use pipelined rounding mode from ID stage for shorter combo path.
+  //
+  roundmode_e rnd_mode;
 
   always_comb begin
-    if (funct3 == FRM_DYN) begin
-      fp_rm = roundmode_e'(frm_csr);
+    if (fp_rm_dyn) begin
+      rnd_mode = roundmode_e'(frm_csr);
     end else begin
-      fp_rm = roundmode_e'(funct3);
+      rnd_mode = roundmode_e'(fp_rm);
     end
   end
 
@@ -266,7 +270,7 @@ module svc_rv_ext_fp_ex (
       .clk_i         (clk),
       .rst_ni        (rst_n),
       .operands_i    (operands),
-      .rnd_mode_i    (fp_rm),
+      .rnd_mode_i    (rnd_mode),
       .op_i          (fp_op),
       .op_mod_i      (fp_op_mod),
       .src_fmt_i     (FP32),

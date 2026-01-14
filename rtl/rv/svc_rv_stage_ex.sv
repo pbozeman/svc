@@ -109,6 +109,8 @@ module svc_rv_stage_ex #(
     input logic [     4:0] fp_rs2_ex,
     input logic [     4:0] fp_rs3_ex,
     input logic [     4:0] fp_rd_ex,
+    input logic [     2:0] fp_rm_ex,
+    input logic            fp_rm_dyn_ex,
 
     // Forwarding from MEM stage
     input logic [XLEN-1:0] result_mem,
@@ -116,6 +118,10 @@ module svc_rv_stage_ex #(
 
     // Instruction retirement (for CSR)
     input logic retired,
+
+    // FP fflags accumulation (from WB stage)
+    input logic [4:0] fflags_set,
+    input logic       fflags_set_en,
 
     // PC control outputs to IF
     output logic [     1:0] pc_sel_ex,
@@ -199,6 +205,9 @@ module svc_rv_stage_ex #(
   logic            branch_taken_ex;
 
   // CSR signals
+  logic [XLEN-1:0] int_csr_rdata;
+  logic [XLEN-1:0] fp_csr_rdata;
+  logic            fp_csr_sel;
   logic [XLEN-1:0] csr_rdata_ex;
 
   // FP signals
@@ -450,6 +459,8 @@ module svc_rv_stage_ex #(
         .rst_n(rst_n),
         .op_valid(instr_valid_ex && is_fp_compute_ex && !op_active_ex),
         .instr(instr_ex),
+        .fp_rm(fp_rm_ex),
+        .fp_rm_dyn(fp_rm_dyn_ex),
         .frm_csr(frm_csr),
         .fp_rs1(fwd_fp_rs1_ex),
         .fp_rs2(fwd_fp_rs2_ex),
@@ -462,7 +473,6 @@ module svc_rv_stage_ex #(
     );
 
     // FP CSR module for frm and fflags
-    // TODO: Wire fflags accumulation from WB stage
     svc_rv_fp_csr fp_csr (
         .clk          (clk),
         .rst_n        (rst_n),
@@ -470,11 +480,11 @@ module svc_rv_stage_ex #(
         .csr_op       (funct3_ex),
         .csr_wdata    (fwd_rs1_ex),
         .csr_en       (is_csr_ex),
-        .csr_rdata    (),              // TODO: Mux with main CSR rdata
-        .csr_hit      (),              // TODO: Use for CSR address decode
+        .csr_rdata    (fp_csr_rdata),
+        .csr_hit      (fp_csr_sel),
         .frm          (frm_csr),
-        .fflags_set   (5'b0),          // TODO: Wire from WB stage
-        .fflags_set_en(1'b0)           // TODO: Wire from WB stage
+        .fflags_set   (fflags_set),
+        .fflags_set_en(fflags_set_en)
     );
 
   end else begin : g_no_fp_ext
@@ -485,6 +495,8 @@ module svc_rv_stage_ex #(
     assign fwd_fp_rs1_ex      = '0;
     assign fwd_fp_rs2_ex      = '0;
     assign fwd_fp_rs3_ex      = '0;
+    assign fp_csr_rdata       = '0;
+    assign fp_csr_sel         = 1'b0;
 
     // verilog_format: off
     `SVC_UNUSED({
@@ -501,9 +513,13 @@ module svc_rv_stage_ex #(
                 fp_rs2_ex,
                 fp_rs3_ex,
                 fp_rd_ex,
+                fp_rm_ex,
+                fp_rm_dyn_ex,
                 fwd_fp_rs1_ex,
                 fwd_fp_rs2_ex,
                 fwd_fp_rs3_ex,
+                fflags_set,
+                fflags_set_en,
                 is_csr_ex,
                 FWD_FP
                 });
@@ -671,9 +687,12 @@ module svc_rv_stage_ex #(
       .clk        (clk),
       .rst_n      (rst_n),
       .csr_addr   (imm_ex[11:0]),
-      .csr_rdata  (csr_rdata_ex),
+      .csr_rdata  (int_csr_rdata),
       .instret_inc(retired)
   );
+
+  // Mux FP CSR rdata with main CSR rdata
+  assign csr_rdata_ex = fp_csr_sel ? fp_csr_rdata : int_csr_rdata;
 
   //===========================================================================
   // Pipeline reg

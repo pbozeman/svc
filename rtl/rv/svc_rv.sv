@@ -238,6 +238,8 @@ module svc_rv #(
   logic [     4:0] fp_rs2_ex;
   logic [     4:0] fp_rs3_ex;
   logic [     4:0] fp_rd_ex;
+  logic [     2:0] fp_rm_ex;
+  logic            fp_rm_dyn_ex;
 
   // ID -> Hazard
   logic [     4:0] rs1_id;
@@ -852,13 +854,13 @@ module svc_rv #(
                rd_data_ret, trap_ret, trap_code_ret, reg_write_ret,
                fp_rs1_id, fp_rs2_id, fp_rs3_id, fp_rd_id,
                fp_rs1_used_id, fp_rs2_used_id, fp_rs3_used_id, is_fp_load_id,
-               is_fp_mc_id, fp_rd_addr_wb, fp_rd_en_wb, fflags_set, fflags_set_en});
+               is_fp_mc_id, fp_rd_addr_wb, fp_rd_en_wb});
   // verilog_format: on
 `else
   `SVC_UNUSED({IMEM_AW, DMEM_AW, rs2_mem, pred_taken_id, fp_rs1_id,
                fp_rs2_id, fp_rs3_id, fp_rd_id, fp_rs1_used_id, fp_rs2_used_id,
                fp_rs3_used_id, is_fp_load_id, is_fp_mc_id, fp_rd_addr_wb,
-               fp_rd_en_wb, fflags_set, fflags_set_en});
+               fp_rd_en_wb});
 `endif
 
   `include "svc_rv_dbg.svh"

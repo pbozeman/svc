@@ -12,6 +12,8 @@ module svc_rv_ext_fp_ex_tbv;
   //
   logic        op_valid;
   logic [31:0] instr;
+  logic [ 2:0] fp_rm;
+  logic        fp_rm_dyn;
   logic [ 2:0] frm_csr;
   logic [31:0] fp_rs1;
   logic [31:0] fp_rs2;
@@ -30,6 +32,8 @@ module svc_rv_ext_fp_ex_tbv;
       .rst_n       (rst_n),
       .op_valid    (op_valid),
       .instr       (instr),
+      .fp_rm       (fp_rm),
+      .fp_rm_dyn   (fp_rm_dyn),
       .frm_csr     (frm_csr),
       .fp_rs1      (fp_rs1),
       .fp_rs2      (fp_rs2),
@@ -91,6 +95,9 @@ module svc_rv_ext_fp_ex_tbv;
 
   task automatic run_op();
     int cycle_count;
+    // Extract rounding mode from instruction (like ID stage)
+    fp_rm       = instr[14:12];
+    fp_rm_dyn   = (instr[14:12] == FRM_DYN);
     op_valid    = 1'b1;
     cycle_count = 0;
     // Keep op_valid high until result is ready
@@ -117,13 +124,15 @@ module svc_rv_ext_fp_ex_tbv;
   // Setup
   //
   task automatic setup();
-    op_valid = 1'b0;
-    instr    = 32'h0;
-    frm_csr  = FRM_RNE;
-    fp_rs1   = FP_ZERO;
-    fp_rs2   = FP_ZERO;
-    fp_rs3   = FP_ZERO;
-    rs1      = 32'h0;
+    op_valid  = 1'b0;
+    instr     = 32'h0;
+    fp_rm     = FRM_RNE;
+    fp_rm_dyn = 1'b0;
+    frm_csr   = FRM_RNE;
+    fp_rs1    = FP_ZERO;
+    fp_rs2    = FP_ZERO;
+    fp_rs3    = FP_ZERO;
+    rs1       = 32'h0;
   endtask
 
   //
