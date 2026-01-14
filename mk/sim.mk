@@ -5,6 +5,14 @@ include mk/dirs.mk
 include mk/format.mk
 include mk/iverilog.mk
 
+# fpnew source files for RV32F simulations (in dependency order)
+FPNEW_CF_PKG := $(SVC_DIR)/external/common_cells/src/cf_math_pkg.sv
+FPNEW_PKG := $(SVC_DIR)/external/fpnew/src/fpnew_pkg.sv
+FPNEW_COMMON := $(filter-out %cf_math_pkg.sv,$(wildcard $(SVC_DIR)/external/common_cells/src/*.sv))
+FPNEW_SRC := $(filter-out %fpnew_pkg.sv,$(wildcard $(SVC_DIR)/external/fpnew/src/*.sv))
+FPNEW_VENDOR := $(wildcard $(SVC_DIR)/external/fpnew/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/*.v)
+FPNEW_SRCS := $(FPNEW_CF_PKG) $(FPNEW_PKG) $(FPNEW_COMMON) $(FPNEW_VENDOR) $(FPNEW_SRC)
+
 # Verilator simulation command
 VERILATOR_SIM_FLAGS := --cc --exe --build --timing
 VERILATOR_SIM_FLAGS += -Wall -Wno-PINCONNECTEMPTY -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM
@@ -119,12 +127,12 @@ $(SIM_BUILD_DIR)/rv_$(1)_$(2)_sim/Vrv_$(1)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR
 		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
 		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
 		$(if $(filter im imf,$(2)),-DRV_ARCH_M) \
-		$(if $(filter imf,$(2)),-DRV_ARCH_F) \
+		$(if $(filter imf,$(2)),-DRV_ARCH_F -DEXT_F=1) \
 		-I$$(PRJ_RTL_DIR)/rv_$(1) \
 		--Mdir $(SIM_BUILD_DIR)/rv_$(1)_$(2)_sim \
 		--top-module rv_$(1)_sim \
 		-CFLAGS '-DSIM_HEADER=\"Vrv_$(1)_sim.h\" -DSIM_TOP=Vrv_$(1)_sim -DSIM_NAME=\"rv_$(1)_$(2)_sim\"' \
-		$$(word 2,$$^) $(SIM_MAIN_CPP)
+		$(if $(filter imf,$(2)),$$(SVC_DIR)/external/verilator.vlt $$(FPNEW_SRCS)) $$(word 2,$$^) $(SIM_MAIN_CPP)
 endef
 
 # Generate rules for each module x architecture
@@ -147,12 +155,12 @@ $(SIM_BUILD_DIR)/rv_$(1)_$(2)_reg_sim/Vrv_$(1)_sim: $(3)/$(1)/$(1).hex $(PRJ_RTL
 		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
 		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
 		$(if $(filter im imf,$(2)),-DRV_ARCH_M) \
-		$(if $(filter imf,$(2)),-DRV_ARCH_F) \
+		$(if $(filter imf,$(2)),-DRV_ARCH_F -DEXT_F=1) \
 		-I$$(PRJ_RTL_DIR)/rv_$(1) \
 		--Mdir $(SIM_BUILD_DIR)/rv_$(1)_$(2)_reg_sim \
 		--top-module rv_$(1)_sim \
 		-CFLAGS '-DSIM_HEADER=\"Vrv_$(1)_sim.h\" -DSIM_TOP=Vrv_$(1)_sim -DSIM_NAME=\"rv_$(1)_$(2)_reg_sim\"' \
-		$$(word 2,$$^) $(SIM_MAIN_CPP)
+		$(if $(filter imf,$(2)),$$(SVC_DIR)/external/verilator.vlt $$(FPNEW_SRCS)) $$(word 2,$$^) $(SIM_MAIN_CPP)
 endef
 
 # Generate PC_REG-enabled rules for each module x architecture
@@ -175,12 +183,12 @@ $(SIM_BUILD_DIR)/rv_$(1)_sram_$(2)_sim/Vrv_$(1)_sim: $(3)/$(1)/$(1).hex $(PRJ_RT
 		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
 		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
 		$(if $(filter im imf,$(2)),-DRV_ARCH_M) \
-		$(if $(filter imf,$(2)),-DRV_ARCH_F) \
+		$(if $(filter imf,$(2)),-DRV_ARCH_F -DEXT_F=1) \
 		-I$$(PRJ_RTL_DIR)/rv_$(1) \
 		--Mdir $(SIM_BUILD_DIR)/rv_$(1)_sram_$(2)_sim \
 		--top-module rv_$(1)_sim \
 		-CFLAGS '-DSIM_HEADER=\"Vrv_$(1)_sim.h\" -DSIM_TOP=Vrv_$(1)_sim -DSIM_NAME=\"rv_$(1)_sram_$(2)_sim\"' \
-		$$(word 2,$$^) $(SIM_MAIN_CPP)
+		$(if $(filter imf,$(2)),$$(SVC_DIR)/external/verilator.vlt $$(FPNEW_SRCS)) $$(word 2,$$^) $(SIM_MAIN_CPP)
 endef
 
 # Generate SRAM pipelined rules for each module x architecture
@@ -204,7 +212,7 @@ $(SIM_BUILD_DIR)/rv_$(1)_sram_sc_$(2)_sim/Vrv_$(1)_sim: $(3)/$(1)/$(1).hex $(PRJ
 		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
 		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
 		$(if $(filter im imf,$(2)),-DRV_ARCH_M) \
-		$(if $(filter imf,$(2)),-DRV_ARCH_F) \
+		$(if $(filter imf,$(2)),-DRV_ARCH_F -DEXT_F=1) \
 		-I$$(PRJ_RTL_DIR)/rv_$(1) \
 		--Mdir $(SIM_BUILD_DIR)/rv_$(1)_sram_sc_$(2)_sim \
 		--top-module rv_$(1)_sim \
@@ -232,12 +240,12 @@ $(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_sim/Vrv_$(1)_sim: $(3)/$(1)/$(1).hex $(PRJ_R
 		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
 		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
 		$(if $(filter im imf,$(2)),-DRV_ARCH_M) \
-		$(if $(filter imf,$(2)),-DRV_ARCH_F) \
+		$(if $(filter imf,$(2)),-DRV_ARCH_F -DEXT_F=1) \
 		-I$$(PRJ_RTL_DIR)/rv_$(1) \
 		--Mdir $(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_sim \
 		--top-module rv_$(1)_sim \
 		-CFLAGS '-DSIM_HEADER=\"Vrv_$(1)_sim.h\" -DSIM_TOP=Vrv_$(1)_sim -DSIM_NAME=\"rv_$(1)_cache_$(2)_sim\"' \
-		$$(word 2,$$^) $(SIM_MAIN_CPP)
+		$(if $(filter imf,$(2)),$$(SVC_DIR)/external/verilator.vlt $$(FPNEW_SRCS)) $$(word 2,$$^) $(SIM_MAIN_CPP)
 endef
 
 # Generate BRAM cache rules for each module x architecture
@@ -261,12 +269,12 @@ $(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_reg_sim/Vrv_$(1)_sim: $(3)/$(1)/$(1).hex $(P
 		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
 		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
 		$(if $(filter im imf,$(2)),-DRV_ARCH_M) \
-		$(if $(filter imf,$(2)),-DRV_ARCH_F) \
+		$(if $(filter imf,$(2)),-DRV_ARCH_F -DEXT_F=1) \
 		-I$$(PRJ_RTL_DIR)/rv_$(1) \
 		--Mdir $(SIM_BUILD_DIR)/rv_$(1)_cache_$(2)_reg_sim \
 		--top-module rv_$(1)_sim \
 		-CFLAGS '-DSIM_HEADER=\"Vrv_$(1)_sim.h\" -DSIM_TOP=Vrv_$(1)_sim -DSIM_NAME=\"rv_$(1)_cache_$(2)_reg_sim\"' \
-		$$(word 2,$$^) $(SIM_MAIN_CPP)
+		$(if $(filter imf,$(2)),$$(SVC_DIR)/external/verilator.vlt $$(FPNEW_SRCS)) $$(word 2,$$^) $(SIM_MAIN_CPP)
 endef
 
 # Generate BRAM cache + PC_REG rules for each module x architecture
@@ -291,12 +299,12 @@ $(SIM_BUILD_DIR)/rv_$(1)_cache_latency_$(2)_sim/Vrv_$(1)_sim: $(3)/$(1)/$(1).hex
 		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
 		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
 		$(if $(filter im imf,$(2)),-DRV_ARCH_M) \
-		$(if $(filter imf,$(2)),-DRV_ARCH_F) \
+		$(if $(filter imf,$(2)),-DRV_ARCH_F -DEXT_F=1) \
 		-I$$(PRJ_RTL_DIR)/rv_$(1) \
 		--Mdir $(SIM_BUILD_DIR)/rv_$(1)_cache_latency_$(2)_sim \
 		--top-module rv_$(1)_sim \
 		-CFLAGS '-DSIM_HEADER=\"Vrv_$(1)_sim.h\" -DSIM_TOP=Vrv_$(1)_sim -DSIM_NAME=\"rv_$(1)_cache_latency_$(2)_sim\"' \
-		$$(word 2,$$^) $(SIM_MAIN_CPP)
+		$(if $(filter imf,$(2)),$$(SVC_DIR)/external/verilator.vlt $$(FPNEW_SRCS)) $$(word 2,$$^) $(SIM_MAIN_CPP)
 endef
 
 # Generate BRAM cache latency rules for each module x architecture
@@ -621,7 +629,7 @@ $(SIM_IV_BUILD_DIR)/rv_$(1)_$(2)_simi: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_$(1)
 		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
 		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
 		$(if $(filter im imf,$(2)),-DRV_ARCH_M) \
-		$(if $(filter imf,$(2)),-DRV_ARCH_F) \
+		$(if $(filter imf,$(2)),-DRV_ARCH_F -DEXT_F=1) \
 		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
 		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
 		exit $$$${PIPESTATUS[0]}
@@ -644,7 +652,7 @@ $(SIM_IV_BUILD_DIR)/rv_$(1)_$(2)_reg_simi: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv_
 		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
 		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
 		$(if $(filter im imf,$(2)),-DRV_ARCH_M) \
-		$(if $(filter imf,$(2)),-DRV_ARCH_F) \
+		$(if $(filter imf,$(2)),-DRV_ARCH_F -DEXT_F=1) \
 		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
 		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
 		exit $$$${PIPESTATUS[0]}
@@ -667,7 +675,7 @@ $(SIM_IV_BUILD_DIR)/rv_$(1)_sram_$(2)_simi: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/rv
 		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
 		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
 		$(if $(filter im imf,$(2)),-DRV_ARCH_M) \
-		$(if $(filter imf,$(2)),-DRV_ARCH_F) \
+		$(if $(filter imf,$(2)),-DRV_ARCH_F -DEXT_F=1) \
 		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
 		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
 		exit $$$${PIPESTATUS[0]}
@@ -691,7 +699,7 @@ $(SIM_IV_BUILD_DIR)/rv_$(1)_sram_sc_$(2)_simi: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)
 		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
 		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
 		$(if $(filter im imf,$(2)),-DRV_ARCH_M) \
-		$(if $(filter imf,$(2)),-DRV_ARCH_F) \
+		$(if $(filter imf,$(2)),-DRV_ARCH_F -DEXT_F=1) \
 		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
 		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
 		exit $$$${PIPESTATUS[0]}
@@ -714,7 +722,7 @@ $(SIM_IV_BUILD_DIR)/rv_$(1)_cache_$(2)_simi: $(3)/$(1)/$(1).hex $(PRJ_RTL_DIR)/r
 		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
 		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
 		$(if $(filter im imf,$(2)),-DRV_ARCH_M) \
-		$(if $(filter imf,$(2)),-DRV_ARCH_F) \
+		$(if $(filter imf,$(2)),-DRV_ARCH_F -DEXT_F=1) \
 		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
 		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
 		exit $$$${PIPESTATUS[0]}
@@ -738,7 +746,7 @@ $(SIM_IV_BUILD_DIR)/rv_$(1)_cache_$(2)_reg_simi: $(3)/$(1)/$(1).hex $(PRJ_RTL_DI
 		-DRV_SIM_HEX='"$(3)/$(1)/$(1).hex"' \
 		$(if $(filter i_zmmul,$(2)),-DRV_ARCH_ZMMUL) \
 		$(if $(filter im imf,$(2)),-DRV_ARCH_M) \
-		$(if $(filter imf,$(2)),-DRV_ARCH_F) \
+		$(if $(filter imf,$(2)),-DRV_ARCH_F -DEXT_F=1) \
 		$$(I_RTL) -I$$(PRJ_TB_DIR) -I$$(PRJ_RTL_DIR)/rv_$(1) -o $$@ $$(word 2,$$^) 2>&1 | \
 		grep -v "vvp.tgt sorry: Case unique/unique0 qualities are ignored" >&2; \
 		exit $$$${PIPESTATUS[0]}
