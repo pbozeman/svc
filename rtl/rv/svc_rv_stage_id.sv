@@ -160,14 +160,18 @@ module svc_rv_stage_id #(
   //
   // ID stage signals
   //
-  logic            reg_write_id;
+  logic            int_reg_write_id;
   logic            mem_read_id;
   logic            mem_write_id;
   logic [     1:0] alu_a_src_id;
   logic            alu_b_src_id;
   logic [     1:0] alu_instr_id;
-  logic [     2:0] res_src_id;
+  logic [     1:0] int_alu_a_src_id;
+  logic            int_alu_b_src_id;
+  logic [     1:0] int_alu_instr_id;
+  logic [     2:0] int_res_src_id;
   logic [     2:0] imm_type;
+  logic [     2:0] int_imm_type;
   logic            is_branch_id;
   logic            is_jmp_id;
   logic            jb_tgt_src_id;
@@ -200,12 +204,21 @@ module svc_rv_stage_id #(
   logic            fp_reg_write_id;
   logic            fp_int_reg_write_id;
   logic            fp_int_rs1_used_id;
+  logic            int_rs1_used_id;
   logic [XLEN-1:0] fp_rs1_data_id;
   logic [XLEN-1:0] fp_rs2_data_id;
   logic [XLEN-1:0] fp_rs3_data_id;
   logic            fp_instr_invalid_id;
   logic [     2:0] fp_rm_id;
   logic            fp_rm_dyn_id;
+
+  //
+  // Instruction invalid for trap generation
+  //
+  // Integer decoder marks FP opcodes as invalid, but we only trap if
+  // it's truly invalid: integer invalid on non-FP, or FP decoder invalid.
+  //
+  logic            trap_invalid_id;
 
   //
   // Instruction Decoder
@@ -215,14 +228,14 @@ module svc_rv_stage_id #(
       .EXT_M(EXT_ZMMUL | EXT_M)
   ) idec (
       .instr        (instr_id),
-      .reg_write    (reg_write_id),
+      .reg_write    (int_reg_write_id),
       .mem_read     (mem_read_id),
       .mem_write    (mem_write_id),
-      .alu_a_src    (alu_a_src_id),
-      .alu_b_src    (alu_b_src_id),
-      .alu_instr    (alu_instr_id),
-      .res_src      (res_src_id),
-      .imm_type     (imm_type),
+      .alu_a_src    (int_alu_a_src_id),
+      .alu_b_src    (int_alu_b_src_id),
+      .alu_instr    (int_alu_instr_id),
+      .res_src      (int_res_src_id),
+      .imm_type     (int_imm_type),
       .is_branch    (is_branch_id),
       .is_jmp       (is_jmp_id),
       .jb_tgt_src   (jb_tgt_src_id),
@@ -237,7 +250,7 @@ module svc_rv_stage_id #(
       .rs2          (rs2_id),
       .funct3       (funct3_id),
       .funct7       (funct7_id),
-      .rs1_used     (rs1_used_id),
+      .rs1_used     (int_rs1_used_id),
       .rs2_used     (rs2_used_id),
       .imm_i        (imm_i),
       .imm_s        (imm_s),
@@ -307,6 +320,54 @@ module svc_rv_stage_id #(
   end
 
   //
+  // Integer rs1 hazard detection includes FP instructions using int regs
+  //
+  // FP instructions like FLW, FSW, FMV.W.X, FCVT.S.W use integer rs1.
+  // These must be included in hazard detection so the pipeline stalls
+  // if there's a RAW dependency on an integer register.
+  //
+  assign rs1_used_id = int_rs1_used_id || fp_int_rs1_used_id;
+
+  assign trap_invalid_id = (instr_invalid_id && !is_fp_id) ||
+      (is_fp_id && fp_instr_invalid_id);
+
+  //
+  // Integer register write enable (includes FP-to-int writes)
+  //
+  // FP instructions like FMV.X.W, FEQ.S, FLT.S, FCVT.W.S write to integer
+  // registers. The integer decoder doesn't recognize these, so we OR in
+  // the FP decoder's int_reg_write signal.
+  //
+  logic reg_write_id;
+  assign reg_write_id = int_reg_write_id || fp_int_reg_write_id;
+
+  //
+  // Result source override for FP-to-int operations
+  //
+  // FP-to-int operations (FMV.X.W, FEQ, FLT, FCVT.W.S) write to integer
+  // registers using the FP result. Use RES_FP to route fp_result to rd.
+  //
+  logic [2:0] res_src_id;
+  assign res_src_id = fp_int_reg_write_id ? RES_FP : int_res_src_id;
+
+  //
+  // ALU and immediate type overrides for FP load/store
+  //
+  // FLW/FSW need to compute address = rs1 + imm
+  // - FLW: I-type immediate (offset in instr[31:20])
+  // - FSW: S-type immediate (offset in instr[31:25], instr[11:7])
+  // The integer decoder doesn't know about FP opcodes, so we override here.
+  //
+  logic is_fp_mem_id;
+  assign is_fp_mem_id = is_fp_load_id || is_fp_store_id;
+
+  assign alu_a_src_id = is_fp_mem_id ? ALU_A_RS1 : int_alu_a_src_id;
+  assign alu_b_src_id = is_fp_mem_id ? ALU_B_IMM : int_alu_b_src_id;
+  assign alu_instr_id = is_fp_mem_id ? ALU_INSTR_ADD : int_alu_instr_id;
+  assign
+      imm_type = is_fp_load_id ? IMM_I : is_fp_store_id ? IMM_S : int_imm_type;
+
+  //
   // Multi-cycle operation detection
   //
   // Identifies operations that require multiple cycles to complete:
@@ -367,9 +428,6 @@ module svc_rv_stage_id #(
     `SVC_UNUSED({fp_reg_write_wb, fp_rd_wb, fp_rd_data_wb});
   end
 
-  // FP signals not yet fully integrated (hazards, traps)
-  // TODO: Wire these in Phase 4 (hazards) and for trap handling
-  `SVC_UNUSED({fp_int_reg_write_id, fp_int_rs1_used_id, fp_instr_invalid_id});
 
   // FWD_FP parameter used in future FP forwarding implementation
   if (FWD_FP == 0) begin : g_fwd_fp_unused
@@ -472,7 +530,7 @@ module svc_rv_stage_id #(
         is_jmp_id,
         is_jal_id,
         is_jalr_id,
-        instr_invalid_id
+        trap_invalid_id
       }),
       .data_o({
         instr_valid_ex,
@@ -512,7 +570,7 @@ module svc_rv_stage_id #(
         is_m_id,
         is_csr_id,
         is_ebreak_id,
-        instr_invalid_id ? TRAP_INSTR_INVALID : TRAP_NONE,
+        trap_invalid_id ? TRAP_INSTR_INVALID : TRAP_NONE,
         rd_id,
         rs1_id,
         rs2_id,

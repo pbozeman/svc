@@ -207,7 +207,7 @@ module svc_rv_stage_ex #(
   // CSR signals
   logic [XLEN-1:0] int_csr_rdata;
   logic [XLEN-1:0] fp_csr_rdata;
-  logic            fp_csr_sel;
+  logic            fp_csr_valid;
   logic [XLEN-1:0] csr_rdata_ex;
 
   // FP signals
@@ -457,7 +457,8 @@ module svc_rv_stage_ex #(
     svc_rv_ext_fp_ex fpu (
         .clk(clk),
         .rst_n(rst_n),
-        .op_valid(instr_valid_ex && is_fp_compute_ex && !op_active_ex),
+        .op_valid((instr_valid_ex && is_fp_compute_ex && !is_fp_mc_ex) ||
+                  (op_en_ex && is_fp_mc_ex)),
         .instr(instr_ex),
         .fp_rm(fp_rm_ex),
         .fp_rm_dyn(fp_rm_dyn_ex),
@@ -481,7 +482,7 @@ module svc_rv_stage_ex #(
         .csr_wdata    (fwd_rs1_ex),
         .csr_en       (is_csr_ex),
         .csr_rdata    (fp_csr_rdata),
-        .csr_hit      (fp_csr_sel),
+        .csr_valid    (fp_csr_valid),
         .frm          (frm_csr),
         .fflags_set   (fflags_set),
         .fflags_set_en(fflags_set_en)
@@ -496,7 +497,7 @@ module svc_rv_stage_ex #(
     assign fwd_fp_rs2_ex      = '0;
     assign fwd_fp_rs3_ex      = '0;
     assign fp_csr_rdata       = '0;
-    assign fp_csr_sel         = 1'b0;
+    assign fp_csr_valid       = 1'b0;
 
     // verilog_format: off
     `SVC_UNUSED({
@@ -692,7 +693,7 @@ module svc_rv_stage_ex #(
   );
 
   // Mux FP CSR rdata with main CSR rdata
-  assign csr_rdata_ex = fp_csr_sel ? fp_csr_rdata : int_csr_rdata;
+  assign csr_rdata_ex = fp_csr_valid ? fp_csr_rdata : int_csr_rdata;
 
   //===========================================================================
   // Pipeline reg

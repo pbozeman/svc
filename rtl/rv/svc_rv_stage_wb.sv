@@ -138,14 +138,16 @@ module svc_rv_stage_wb #(
   //
   // Result mux
   //
-  // Selects final result to write back to register file based on instruction type
+  // Selects final result to write back to register file based on instruction type.
+  // RES_FP is used for FP-to-int operations (FMV.X.W, FEQ, FLT, FCVT.W.S).
   //
   svc_muxn #(
       .WIDTH(XLEN),
-      .N    (6)
+      .N    (7)
   ) mux_res (
       .sel(res_src_wb),
       .data({
+        fp_result_wb,
         m_ext_result_wb,
         csr_rdata_wb,
         jb_tgt_wb,
@@ -305,8 +307,8 @@ module svc_rv_stage_wb #(
 
   always_ff @(posedge clk) begin
     if (f_past_valid && $past(rst_n) && rst_n) begin
-      // res_src_wb must be valid (0-5 for 6-way mux)
-      `FASSUME(a_res_src_valid, res_src_wb < 3'd6);
+      // res_src_wb must be valid (0-6 for 7-way mux)
+      `FASSUME(a_res_src_valid, res_src_wb < 3'd7);
     end
   end
 

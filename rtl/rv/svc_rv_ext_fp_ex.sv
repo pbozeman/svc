@@ -292,6 +292,28 @@ module svc_rv_ext_fp_ex (
   );
 
   //
+  // Result capture for multi-cycle operations
+  //
+  // fpnew clears its result after one cycle (since out_ready_i=1).
+  // For multi-cycle ops, we register the result when it becomes valid.
+  //
+  logic [31:0] mc_result_reg;
+  logic        mc_result_valid_reg;
+
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+      mc_result_reg       <= '0;
+      mc_result_valid_reg <= 1'b0;
+    end else if (is_multicycle && fpu_out_valid) begin
+      mc_result_reg       <= fpu_result;
+      mc_result_valid_reg <= 1'b1;
+    end else if (op_valid && is_multicycle) begin
+      // Clear when starting new multi-cycle op
+      mc_result_valid_reg <= 1'b0;
+    end
+  end
+
+  //
   // Result selection
   //
   always_comb begin
@@ -302,6 +324,9 @@ module svc_rv_ext_fp_ex (
       end else begin
         result = rs1;  // FMV.W.X: INT -> FP
       end
+    end else if (mc_result_valid_reg) begin
+      // Use registered result for multi-cycle ops
+      result = mc_result_reg;
     end else begin
       result = fpu_result;
     end

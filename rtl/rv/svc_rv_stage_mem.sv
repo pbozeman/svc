@@ -179,7 +179,8 @@ module svc_rv_stage_mem #(
   always_comb begin
     mem_misalign = 1'b0;
 
-    if (mem_read_mem || mem_write_mem) begin
+    if (mem_read_mem || mem_write_mem || is_fp_load_mem ||
+        is_fp_store_mem) begin
       case (funct3_size)
         2'b01:   mem_misalign = halfword_misalign;
         2'b10:   mem_misalign = word_misalign;
@@ -204,12 +205,15 @@ module svc_rv_stage_mem #(
   logic mem_req_en;
   assign mem_req_en = s_accept && !stall_mem;
 
-  assign dmem_ren   = mem_req_en && mem_read_mem && !misalign_trap;
+  assign dmem_ren = mem_req_en && (mem_read_mem || is_fp_load_mem) &&
+      !misalign_trap;
   assign dmem_raddr = {alu_result_mem[31:2], 2'b00};
 
-  assign dmem_we    = mem_req_en && mem_write_mem && !misalign_trap;
+  assign dmem_we = mem_req_en && (mem_write_mem || is_fp_store_mem) &&
+      !misalign_trap;
   assign dmem_waddr = {alu_result_mem[31:2], 2'b00};
-  assign dmem_wstrb = mem_write_mem ? st_fmt_wstrb : 4'b0000;
+  assign
+      dmem_wstrb = (mem_write_mem || is_fp_store_mem) ? st_fmt_wstrb : 4'b0000;
 
   //===========================================================================
   // Load data extension

@@ -13,7 +13,7 @@ module svc_rv_fp_csr_tbi;
   logic [31:0] csr_wdata;
   logic        csr_en;
   logic [31:0] csr_rdata;
-  logic        csr_hit;
+  logic        csr_valid;
   logic [ 2:0] frm;
   logic        fflags_set_en;
   logic [ 4:0] fflags_set;
@@ -29,7 +29,7 @@ module svc_rv_fp_csr_tbi;
       .csr_wdata    (csr_wdata),
       .csr_en       (csr_en),
       .csr_rdata    (csr_rdata),
-      .csr_hit      (csr_hit),
+      .csr_valid    (csr_valid),
       .frm          (frm),
       .fflags_set_en(fflags_set_en),
       .fflags_set   (fflags_set)
@@ -75,24 +75,24 @@ module svc_rv_fp_csr_tbi;
   task automatic test_address_hit();
     csr_addr = CSR_FFLAGS;
     `TICK(clk);
-    `CHECK_EQ(csr_hit, 1'b1);
+    `CHECK_EQ(csr_valid, 1'b1);
 
     csr_addr = CSR_FRM;
     `TICK(clk);
-    `CHECK_EQ(csr_hit, 1'b1);
+    `CHECK_EQ(csr_valid, 1'b1);
 
     csr_addr = CSR_FCSR;
     `TICK(clk);
-    `CHECK_EQ(csr_hit, 1'b1);
+    `CHECK_EQ(csr_valid, 1'b1);
 
     // Non-FP CSR should not hit
     csr_addr = CSR_CYCLE;
     `TICK(clk);
-    `CHECK_EQ(csr_hit, 1'b0);
+    `CHECK_EQ(csr_valid, 1'b0);
 
     csr_addr = 12'hFFF;
     `TICK(clk);
-    `CHECK_EQ(csr_hit, 1'b0);
+    `CHECK_EQ(csr_valid, 1'b0);
   endtask
 
   //

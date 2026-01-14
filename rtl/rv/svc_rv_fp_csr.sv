@@ -29,7 +29,7 @@ module svc_rv_fp_csr (
     input  logic [31:0] csr_wdata,  // Write data (rs1 or zimm)
     input  logic        csr_en,     // CSR operation enable
     output logic [31:0] csr_rdata,
-    output logic        csr_hit,    // Address matches FP CSR
+    output logic        csr_valid,  // Address matches FP CSR
 
     //
     // Dynamic rounding mode output (to FPU)
@@ -63,7 +63,7 @@ module svc_rv_fp_csr (
   assign addr_fflags = (csr_addr == CSR_FFLAGS);
   assign addr_frm    = (csr_addr == CSR_FRM);
   assign addr_fcsr   = (csr_addr == CSR_FCSR);
-  assign csr_hit     = addr_fflags || addr_frm || addr_fcsr;
+  assign csr_valid   = addr_fflags || addr_frm || addr_fcsr;
 
   //
   // CSR read mux
@@ -113,7 +113,7 @@ module svc_rv_fp_csr (
     fflags_next = fflags;
     frm_next    = frm_reg;
 
-    if (csr_en && csr_hit) begin
+    if (csr_en && csr_valid) begin
       if (addr_fflags) begin
         fflags_we = 1'b1;
         if (is_write_op) begin

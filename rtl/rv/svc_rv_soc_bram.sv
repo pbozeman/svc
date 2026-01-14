@@ -32,6 +32,7 @@ module svc_rv_soc_bram #(
     parameter int RAS_DEPTH     = 8,
     parameter int EXT_ZMMUL     = 0,
     parameter int EXT_M         = 0,
+    parameter int EXT_F         = 0,
     parameter int PC_REG        = 0,
     parameter int DEBUG_ENABLED = 0,
 
@@ -115,7 +116,9 @@ module svc_rv_soc_bram #(
   //
   // CPU control signals
   //
+  // verilator lint_off SYNCASYNCNET
   logic               cpu_rst_n;
+  // verilator lint_on SYNCASYNCNET
   logic               cpu_stall;
 
   assign cpu_rst_n = rst_n && dbg_rst_n;
@@ -264,6 +267,7 @@ module svc_rv_soc_bram #(
       .RAS_DEPTH  (RAS_DEPTH),
       .EXT_ZMMUL  (EXT_ZMMUL),
       .EXT_M      (EXT_M),
+      .EXT_F      (EXT_F),
       .PC_REG     (PC_REG),
       .RESET_PC   (RESET_PC)
   ) cpu (

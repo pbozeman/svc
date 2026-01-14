@@ -51,11 +51,12 @@
   $fatal;
 
 // Tiny tick lets async logic propagate after a clock before asserts.
-// The initial #0 makes sure other clocked blocks run first, and then,
-// we do a #0.1 on the first check so that async logic can propagate and
-// before we start doing assertion checks.
+// For Verilator with --timing, use a small delay to trigger re-evaluation.
+// For Icarus, we use the original logic with #0.1 for async propagation.
 `define SVC_TINY_TICK                                                         \
-`ifndef VERILATOR                                                             \
+`ifdef VERILATOR                                                              \
+  #0.01;                                                                      \
+`else                                                                         \
   #0;                                                                         \
   if (!svc_tiny_ticked) begin                                                 \
     svc_tiny_ticked = 1'b1;                                                   \
@@ -130,8 +131,13 @@
 `endif
 
 `define TICK(clk)                                                            \
+`ifdef VERILATOR                                                             \
   @(posedge clk);                                                            \
-  #0;
+  #0.1;                                                                      \
+`else                                                                        \
+  @(posedge clk);                                                            \
+  #0;                                                                        \
+`endif
 
 `define TEST_RST_N(clk, rst_n, cycles = 5)                                   \
   logic rst_n;                                                               \
@@ -145,6 +151,7 @@
     rst_n = 0;                                                               \
     repeat (cycles) @(posedge clk);                                          \
 `ifdef VERILATOR                                                             \
+    @(negedge clk);                                                          \
     rst_n = 1;                                                               \
 `else                                                                        \
     rst_n <= 1;                                                              \
@@ -154,7 +161,17 @@
   `define TEST_RESET_TASK reset_``rst_n``();
 
 `define CHECK_WAIT_FOR(clk, signal, max_cnt = 16)                            \
-`ifndef VERILATOR                                                            \
+`ifdef VERILATOR                                                             \
+    begin                                                                    \
+      int __wait_cnt = 0;                                                    \
+      `SVC_TINY_TICK;                                                        \
+      while ((signal) === 0 && __wait_cnt < max_cnt) begin                   \
+        @(posedge clk);                                                      \
+        __wait_cnt = __wait_cnt + 1;                                         \
+        `SVC_TINY_TICK;                                                      \
+      end                                                                    \
+    end                                                                      \
+`else                                                                        \
     svc_wait_cnt = 0;                                                        \
     `SVC_TINY_TICK;                                                          \
     while ((signal) === 0 && svc_wait_cnt < max_cnt) begin                   \
