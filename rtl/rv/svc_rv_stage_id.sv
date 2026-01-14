@@ -328,8 +328,8 @@ module svc_rv_stage_id #(
   //
   assign rs1_used_id = int_rs1_used_id || fp_int_rs1_used_id;
 
-  assign trap_invalid_id = (instr_invalid_id && !is_fp_id) ||
-      (is_fp_id && fp_instr_invalid_id);
+  assign trap_invalid_id = ((instr_invalid_id && !is_fp_id) ||
+                            (is_fp_id && fp_instr_invalid_id));
 
   //
   // Integer register write enable (includes FP-to-int writes)
@@ -364,8 +364,8 @@ module svc_rv_stage_id #(
   assign alu_a_src_id = is_fp_mem_id ? ALU_A_RS1 : int_alu_a_src_id;
   assign alu_b_src_id = is_fp_mem_id ? ALU_B_IMM : int_alu_b_src_id;
   assign alu_instr_id = is_fp_mem_id ? ALU_INSTR_ADD : int_alu_instr_id;
-  assign
-      imm_type = is_fp_load_id ? IMM_I : is_fp_store_id ? IMM_S : int_imm_type;
+  assign imm_type = (is_fp_load_id ? IMM_I :
+                     is_fp_store_id ? IMM_S : int_imm_type);
 
   //
   // Multi-cycle operation detection
@@ -648,8 +648,9 @@ module svc_rv_stage_id #(
   // Instruction register: garbage OK when invalid
   //
   svc_rv_pipe_data #(
-      .WIDTH(32),
-      .REG  (PIPELINED)
+      .WIDTH     (32),
+      .REG       (PIPELINED),
+      .BUBBLE_VAL(I_NOP)
   ) pipe_instr (
       .clk    (clk),
       .rst_n  (rst_n),
