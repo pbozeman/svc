@@ -14,7 +14,6 @@
 // linting, so just disable it.
 //
 `ifndef SYNTHESIS
-`ifndef VERILATOR
 `include "svc_rv_dasm.svh"
 
 //
@@ -22,7 +21,6 @@
 //
 localparam int DBG_IF_MIN_WIDTH = 30;
 localparam int DBG_ID_PRED_WIDTH = 13;
-localparam int DBG_EX_FLAGS_WIDTH = 5;
 localparam int DBG_WB_WIDTH = 29;
 localparam int DBG_MEM_WIDTH = 24;
 
@@ -326,6 +324,7 @@ always @(posedge clk) begin
   string if_str;
   string id_str;
   string ex_str;
+  // verilator lint_off UNUSEDSIGNAL
   string haz_str;
   int    if_width;
   int    id_width;
@@ -333,6 +332,7 @@ always @(posedge clk) begin
   int    mem_width;
   int    wb_width;
   int    haz_width;
+  // verilator lint_on UNUSEDSIGNAL
 
   //
   // Combined debug output
@@ -565,6 +565,7 @@ always @(posedge clk) begin
     //
     // Hazard information
     //
+`ifndef LINT
     if (PIPELINED == 1) begin
       if (dbg_haz) begin
         string rs1_str;
@@ -619,6 +620,7 @@ always @(posedge clk) begin
         haz_width = haz_str.len();
       end
     end
+`endif
 
     //
     // Only print main pipeline line if there's content
@@ -689,5 +691,4 @@ always @(posedge clk) begin
 `endif
   end
 end
-`endif
 `endif

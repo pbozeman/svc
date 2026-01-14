@@ -22,6 +22,13 @@ function automatic string reg_name(input logic [4:0] reg_num);
 endfunction
 
 //
+// FP register name lookup
+//
+function automatic string fp_reg_name(input logic [4:0] reg_num);
+  return $sformatf("f%0d", reg_num);
+endfunction
+
+//
 // CSR name lookup
 //
 function automatic string csr_name(input logic [11:0] csr_addr);
@@ -301,6 +308,125 @@ function automatic string dasm_inst(input logic [31:0] instr);
         default: ;
       endcase
     end
+
+    // FP Load (FLW)
+    7'b0000111: begin
+      if (funct3 == 3'b010) begin
+        return $sformatf("%6s %3s, %0d(%s)", "flw", fp_reg_name(rd), imm_i, reg_name(rs1));
+      end
+    end
+
+    // FP Store (FSW)
+    7'b0100111: begin
+      if (funct3 == 3'b010) begin
+        return $sformatf("%6s %3s, %0d(%s)", "fsw", fp_reg_name(rs2), imm_s, reg_name(rs1));
+      end
+    end
+
+    // FMADD.S
+    7'b1000011: begin
+      return $sformatf("%6s %3s, %3s, %3s, %3s", "fmadd.s", fp_reg_name(rd),
+                       fp_reg_name(rs1), fp_reg_name(rs2), fp_reg_name(instr[31:27]));
+    end
+
+    // FMSUB.S
+    7'b1000111: begin
+      return $sformatf("%6s %3s, %3s, %3s, %3s", "fmsub.s", fp_reg_name(rd),
+                       fp_reg_name(rs1), fp_reg_name(rs2), fp_reg_name(instr[31:27]));
+    end
+
+    // FNMSUB.S
+    7'b1001011: begin
+      return $sformatf("%6s %3s, %3s, %3s, %3s", "fnmsub.s", fp_reg_name(rd),
+                       fp_reg_name(rs1), fp_reg_name(rs2), fp_reg_name(instr[31:27]));
+    end
+
+    // FNMADD.S
+    7'b1001111: begin
+      return $sformatf("%6s %3s, %3s, %3s, %3s", "fnmadd.s", fp_reg_name(rd),
+                       fp_reg_name(rs1), fp_reg_name(rs2), fp_reg_name(instr[31:27]));
+    end
+
+    // OP-FP (floating-point operations)
+    7'b1010011: begin
+      case (funct7)
+        7'b0000000: return $sformatf("%6s %3s, %3s, %3s", "fadd.s", fp_reg_name(rd),
+                                     fp_reg_name(rs1), fp_reg_name(rs2));
+        7'b0000100: return $sformatf("%6s %3s, %3s, %3s", "fsub.s", fp_reg_name(rd),
+                                     fp_reg_name(rs1), fp_reg_name(rs2));
+        7'b0001000: return $sformatf("%6s %3s, %3s, %3s", "fmul.s", fp_reg_name(rd),
+                                     fp_reg_name(rs1), fp_reg_name(rs2));
+        7'b0001100: return $sformatf("%6s %3s, %3s, %3s", "fdiv.s", fp_reg_name(rd),
+                                     fp_reg_name(rs1), fp_reg_name(rs2));
+        7'b0101100: return $sformatf("%6s %3s, %3s", "fsqrt.s", fp_reg_name(rd),
+                                     fp_reg_name(rs1));
+        7'b0010000: begin
+          case (funct3)
+            3'b000: return $sformatf("%6s %3s, %3s, %3s", "fsgnj.s", fp_reg_name(rd),
+                                     fp_reg_name(rs1), fp_reg_name(rs2));
+            3'b001: return $sformatf("%6s %3s, %3s, %3s", "fsgnjn.s", fp_reg_name(rd),
+                                     fp_reg_name(rs1), fp_reg_name(rs2));
+            3'b010: return $sformatf("%6s %3s, %3s, %3s", "fsgnjx.s", fp_reg_name(rd),
+                                     fp_reg_name(rs1), fp_reg_name(rs2));
+            default: ;
+          endcase
+        end
+        7'b0010100: begin
+          case (funct3)
+            3'b000: return $sformatf("%6s %3s, %3s, %3s", "fmin.s", fp_reg_name(rd),
+                                     fp_reg_name(rs1), fp_reg_name(rs2));
+            3'b001: return $sformatf("%6s %3s, %3s, %3s", "fmax.s", fp_reg_name(rd),
+                                     fp_reg_name(rs1), fp_reg_name(rs2));
+            default: ;
+          endcase
+        end
+        7'b1100000: begin
+          case (rs2)
+            5'b00000: return $sformatf("%6s %3s, %3s", "fcvt.w.s", reg_name(rd),
+                                       fp_reg_name(rs1));
+            5'b00001: return $sformatf("%6s %3s, %3s", "fcvt.wu.s", reg_name(rd),
+                                       fp_reg_name(rs1));
+            default: ;
+          endcase
+        end
+        7'b1110000: begin
+          case (funct3)
+            3'b000: return $sformatf("%6s %3s, %3s", "fmv.x.w", reg_name(rd),
+                                     fp_reg_name(rs1));
+            3'b001: return $sformatf("%6s %3s, %3s", "fclass.s", reg_name(rd),
+                                     fp_reg_name(rs1));
+            default: ;
+          endcase
+        end
+        7'b1010000: begin
+          case (funct3)
+            3'b010: return $sformatf("%6s %3s, %3s, %3s", "feq.s", reg_name(rd),
+                                     fp_reg_name(rs1), fp_reg_name(rs2));
+            3'b001: return $sformatf("%6s %3s, %3s, %3s", "flt.s", reg_name(rd),
+                                     fp_reg_name(rs1), fp_reg_name(rs2));
+            3'b000: return $sformatf("%6s %3s, %3s, %3s", "fle.s", reg_name(rd),
+                                     fp_reg_name(rs1), fp_reg_name(rs2));
+            default: ;
+          endcase
+        end
+        7'b1101000: begin
+          case (rs2)
+            5'b00000: return $sformatf("%6s %3s, %3s", "fcvt.s.w", fp_reg_name(rd),
+                                       reg_name(rs1));
+            5'b00001: return $sformatf("%6s %3s, %3s", "fcvt.s.wu", fp_reg_name(rd),
+                                       reg_name(rs1));
+            default: ;
+          endcase
+        end
+        7'b1111000: begin
+          if (funct3 == 3'b000 && rs2 == 5'b00000) begin
+            return $sformatf("%6s %3s, %3s", "fmv.w.x", fp_reg_name(rd), reg_name(rs1));
+          end
+        end
+        default: ;
+      endcase
+    end
+
     default: ;
   endcase
 
