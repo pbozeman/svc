@@ -113,7 +113,7 @@ extern "C" void svc_pty_putc(int c) {
   if (pty_master_fd < 0)
     return;
   unsigned char ch = (unsigned char)c;
-  write(pty_master_fd, &ch, 1);
+  [[maybe_unused]] ssize_t result = write(pty_master_fd, &ch, 1);
 }
 
 // DPI function to check if PTY has data
