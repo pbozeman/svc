@@ -182,6 +182,32 @@ module svc_rv_stage_ex #(
 
   `include "svc_rv_defs.svh"
 
+  //===========================================================================
+  // FP instruction classification (for FPU interface timing)
+  //===========================================================================
+
+  logic is_fp_fmv;
+  logic is_fp_mc;
+
+  if (EXT_F != 0) begin : g_fp_classify
+    logic [6:0] opcode;
+    assign opcode = instr_ex[6:0];
+
+    // FMV.X.W and FMV.W.X bypass the FPU and are effectively single-cycle.
+    // All other FP compute ops (including FCLASS/FCVT/compare/arithmetic)
+    // have latency due to fpnew PipeRegs.
+    assign is_fp_fmv = (opcode == OP_FP) &&
+        ((funct7_ex == FP7_FMVXW && funct3_ex == FP3_FMV) ||
+         (funct7_ex == FP7_FMVWX && funct3_ex == FP3_FMV));
+
+    // FPnew is configured with PipeRegs >= 1, so *all* FP compute ops have
+    // latency (not just FDIV/FSQRT). Stall EX until fp_result_valid_ex.
+    assign is_fp_mc = is_fp_compute_ex && !is_fp_fmv;
+  end else begin : g_no_fp_classify
+    assign is_fp_fmv = 1'b0;
+    assign is_fp_mc  = 1'b0;
+  end
+
   // EX stage internal signals
   logic [     3:0] alu_op_ex;
   logic [XLEN-1:0] alu_a_ex;
@@ -230,13 +256,30 @@ module svc_rv_stage_ex #(
   ex_state_t state;
   ex_state_t state_next;
 
+  // One-cycle issue pulse for fpnew-backed FP compute ops.
+  // (FMV.* bypasses fpnew and uses instr_valid_ex directly.)
+  logic      fp_issue;
+  assign fp_issue = (is_fp_mc && instr_valid_ex && !stall_ex &&
+                     ((state == EX_IDLE) || (state == EX_MC_DONE)));
+
   //
   // Result valid - indicates EX stage has a valid result to output
   //
   // For single-cycle ops: valid when input is valid
   // For multi-cycle ops: valid when operation completes (EX_MC_DONE)
   //
-  logic      result_valid;
+  logic result_valid;
+
+  logic op_done;
+  always_comb begin
+    // For FP ops, completion is indicated by fp_result_valid_ex (valid/ready).
+    // For integer multi-cycle ops (DIV/REM), completion is when busy deasserts.
+    if (is_fp_mc) begin
+      op_done = fp_result_valid_ex;
+    end else begin
+      op_done = !m_busy_ex;
+    end
+  end
 
   always_comb begin
     state_next   = state;
@@ -248,7 +291,7 @@ module svc_rv_stage_ex #(
     case (state)
       EX_IDLE: begin
         if (instr_valid_ex) begin
-          if (!is_mc_ex) begin
+          if (!(is_mc_ex || is_fp_mc)) begin
             result_valid = 1'b1;
           end else begin
             state_next   = EX_MC_EXEC;
@@ -261,7 +304,7 @@ module svc_rv_stage_ex #(
       EX_MC_EXEC: begin
         op_active_ex = 1'b1;
 
-        if (!m_busy_ex) begin
+        if (op_done) begin
           op_active_ex = 1'b0;
           state_next   = EX_MC_DONE;
           result_valid = 1'b1;
@@ -270,7 +313,7 @@ module svc_rv_stage_ex #(
 
       EX_MC_DONE: begin
         if (!stall_ex) begin
-          if (instr_valid_ex && is_mc_ex) begin
+          if (instr_valid_ex && (is_mc_ex || is_fp_mc)) begin
             state_next   = EX_MC_EXEC;
             op_en_ex     = 1'b1;
             op_active_ex = 1'b1;
@@ -386,7 +429,7 @@ module svc_rv_stage_ex #(
       logic div_en;
       logic div_busy;
 
-      assign div_en = op_en_ex && funct3_ex[2];
+      assign div_en = op_en_ex && is_m_ex && funct3_ex[2];
 
       svc_rv_ext_div ext_div (
           .clk   (clk),
@@ -457,8 +500,8 @@ module svc_rv_stage_ex #(
     svc_rv_ext_fp_ex fpu (
         .clk(clk),
         .rst_n(rst_n),
-        .op_valid((instr_valid_ex && is_fp_compute_ex && !is_fp_mc_ex) ||
-                  (op_en_ex && is_fp_mc_ex)),
+        .op_valid((instr_valid_ex && is_fp_compute_ex && is_fp_fmv) ||
+                  fp_issue),
         .instr(instr_ex),
         .fp_rm(fp_rm_ex),
         .fp_rm_dyn(fp_rm_dyn_ex),
@@ -522,6 +565,8 @@ module svc_rv_stage_ex #(
                 fflags_set,
                 fflags_set_en,
                 is_csr_ex,
+                is_fp_fmv,
+                fp_issue,
                 FWD_FP
                 });
     // verilog_format: on
@@ -536,7 +581,7 @@ module svc_rv_stage_ex #(
   // Combined multi-cycle busy signal (division + FP FDIV/FSQRT)
   assign m_busy_ex = div_busy_ex || fp_busy_ex;
 
-  // fp_result_valid_ex: TODO: Use for FP result valid
+  // FP result valid is handled by EX state machine (is_fp_mc).
 
   //===========================================================================
   // Jump/Branch target calculation

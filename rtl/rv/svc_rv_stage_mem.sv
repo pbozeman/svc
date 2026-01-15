@@ -264,6 +264,7 @@ module svc_rv_stage_mem #(
   // RES_M: M extension result (division only - multiply not forwarded from MEM)
   // RES_PC4: PC+4 (used by JAL/JALR)
   // RES_TGT: Jump/branch target (used by AUIPC)
+  // RES_FP: FP-to-int result (FMV.X.W/FCVT.W.S/compare)
   // Default: ALU result (most instructions)
   //
   // Note: Multiply results are not forwarded from MEM (completed in WB stage).
@@ -274,6 +275,7 @@ module svc_rv_stage_mem #(
       RES_M:   result_mem = m_result_mem;
       RES_PC4: result_mem = pc_plus4_mem;
       RES_TGT: result_mem = jb_tgt_mem;
+      RES_FP:  result_mem = fp_result_mem;
       default: result_mem = alu_result_mem;
     endcase
   end

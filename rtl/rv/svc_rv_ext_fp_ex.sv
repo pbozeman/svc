@@ -261,7 +261,49 @@ module svc_rv_ext_fp_ex (
   status_t        fpu_status;
   logic           fpu_busy;
 
-  assign fpu_in_valid = op_valid && use_fpu;
+  //
+  // fpnew input handshake
+  //
+  // op_valid is asserted by the EX stage. If fpnew ever deasserts in_ready_o,
+  // we must hold the request until it is accepted, otherwise the operation can
+  // be dropped and the pipeline will stall forever waiting for a result.
+  //
+  logic           fpu_req_pending;
+  logic           fpu_active;
+
+  // Drive in_valid immediately on op_valid and keep it asserted until accepted.
+  assign fpu_in_valid = use_fpu && !fpu_active && (op_valid || fpu_req_pending);
+
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+      fpu_req_pending <= 1'b0;
+      fpu_active      <= 1'b0;
+    end else if (!use_fpu) begin
+      fpu_req_pending <= 1'b0;
+      fpu_active      <= 1'b0;
+    end else begin
+      // Track request acceptance.
+      // Keep fpu_active high until op_valid goes low. This prevents
+      // fpu_in_valid from going high again after operation completes,
+      // which would cause us to re-issue the same operation.
+      if (!op_valid) begin
+        // Operation consumed, ready for next.
+        fpu_active <= 1'b0;
+      end else if (fpu_in_valid && fpu_in_ready) begin
+        // Operation accepted.
+        fpu_active <= 1'b1;
+      end
+
+      // Latch a request if it wasn't accepted immediately.
+      if (!fpu_active && fpu_in_valid && !fpu_in_ready) begin
+        fpu_req_pending <= 1'b1;
+      end else if (fpu_in_valid && fpu_in_ready) begin
+        fpu_req_pending <= 1'b0;
+      end else if (!op_valid && !fpu_req_pending) begin
+        fpu_req_pending <= 1'b0;
+      end
+    end
+  end
 
   fpnew_top #(
       .Features      (FPU_FEATURES),
@@ -295,30 +337,53 @@ module svc_rv_ext_fp_ex (
 
 
   //
-  // Result capture for multi-cycle operations
+  // Result capture
   //
-  // fpnew clears its result after one cycle (since out_ready_i=1).
-  // For multi-cycle ops, we register the result when it becomes valid.
+  // fpnew asserts out_valid_o when the result is available, but since we tie
+  // out_ready_i=1 the out_valid_o pulse can be missed by the EX stage state
+  // machine (e.g., if it occurs in the issue cycle or during a CPU stall).
+  // Latch the result and hold result_valid high until the next op_valid.
   //
-  logic [31:0] mc_result_reg;
-  logic        mc_result_valid_reg;
+  logic [31:0] result_reg;
+  logic [ 4:0] fflags_reg;
+  logic        result_valid_reg;
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-      mc_result_reg       <= '0;
-      mc_result_valid_reg <= 1'b0;
-    end else if (is_multicycle && fpu_out_valid) begin
-      mc_result_reg       <= fpu_result;
-      mc_result_valid_reg <= 1'b1;
-    end else if (op_valid && is_multicycle) begin
-      // Clear when starting new multi-cycle op
-      mc_result_valid_reg <= 1'b0;
+      result_reg       <= '0;
+      fflags_reg       <= '0;
+      result_valid_reg <= 1'b0;
+    end else if (!use_fpu) begin
+      result_valid_reg <= 1'b0;
+    end else begin
+      // Clear previous completion only when new operation is accepted.
+      // Using fpu_in_valid && fpu_in_ready ensures we only clear once at the
+      // start of a new operation, not continuously while op_valid is high.
+      if (fpu_in_valid && fpu_in_ready) begin
+        result_valid_reg <= 1'b0;
+      end
+
+      // Operation completed: latch result and flags.
+      if (fpu_out_valid) begin
+        result_reg <= fpu_result;
+        fflags_reg <= {
+          fpu_status.NV,
+          fpu_status.DZ,
+          fpu_status.OF,
+          fpu_status.UF,
+          fpu_status.NX
+        };
+        result_valid_reg <= 1'b1;
+      end
     end
   end
 
-  //
-  // Result selection
-  //
+  // Live fflags from FPU status
+  logic [4:0] fflags_live;
+  assign fflags_live = {
+    fpu_status.NV, fpu_status.DZ, fpu_status.OF, fpu_status.UF, fpu_status.NX
+  };
+
   always_comb begin
     if (is_fmv) begin
       // FMV: direct bit copy
@@ -327,20 +392,26 @@ module svc_rv_ext_fp_ex (
       end else begin
         result = rs1;  // FMV.W.X: INT -> FP
       end
-    end else if (is_multicycle && mc_result_valid_reg) begin
-      // Use registered result for multi-cycle ops (only when executing MC op)
-      result = mc_result_reg;
-    end else begin
+    end else if (fpu_out_valid) begin
+      // Use live FPU output when completing (before it's registered)
       result = fpu_result;
+    end else begin
+      result = result_reg;
     end
   end
 
   //
   // Exception flags
   //
-  assign fflags = {
-    fpu_status.NV, fpu_status.DZ, fpu_status.OF, fpu_status.UF, fpu_status.NX
-  };
+  always_comb begin
+    if (is_fmv) begin
+      fflags = '0;
+    end else if (fpu_out_valid) begin
+      fflags = fflags_live;
+    end else begin
+      fflags = fflags_reg;
+    end
+  end
 
   //
   // Valid and busy signals
@@ -356,16 +427,24 @@ module svc_rv_ext_fp_ex (
       // FMV bypasses FPU - always single cycle
       result_valid = op_valid;
       busy         = 1'b0;
+    end else if (fpu_out_valid) begin
+      // Operation completing this cycle - report valid immediately
+      result_valid = 1'b1;
+      busy         = 1'b0;
+    end else if (fpu_in_valid) begin
+      // Issuing new operation - suppress any stale result from previous op
+      result_valid = 1'b0;
+      busy         = is_multicycle ? 1'b1 : 1'b0;
     end else begin
-      // All FPU operations use fpu_out_valid
-      result_valid = fpu_out_valid;
+      // Hold completion until the next op_valid.
+      result_valid = result_valid_reg;
       busy         = is_multicycle ? fpu_busy : 1'b0;
     end
   end
 
   // Unused instruction fields (rd, rs1 handled externally)
   // Unused rs2_field bits (only [0] used for signed/unsigned in FCVT)
-  `SVC_UNUSED({fpu_in_ready, instr[19:15], instr[11:7], rs2_field[4:1]});
+  `SVC_UNUSED({instr[19:15], instr[11:7], rs2_field[4:1]});
 
 `else
   // Stub implementation when EXT_F is not defined
