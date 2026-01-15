@@ -242,7 +242,9 @@ module svc_rv_ext_fp_ex (
   };
 
   localparam fpu_implementation_t FPU_IMPL = '{
-      PipeRegs: '{default: 0},  // No pipeline registers
+      PipeRegs: '{
+          default: 1
+      },  // 1 pipeline register (required for denormal handling)
       UnitTypes: '{
           '{default: PARALLEL},  // ADDMUL
           '{default: MERGED},  // DIVSQRT
@@ -290,6 +292,7 @@ module svc_rv_ext_fp_ex (
       .busy_o        (fpu_busy),
       .early_valid_o ()
   );
+
 
   //
   // Result capture for multi-cycle operations
@@ -342,8 +345,8 @@ module svc_rv_ext_fp_ex (
   //
   // Valid and busy signals
   //
-  // For single-cycle ops: result is valid when op_valid is set
-  // For multi-cycle ops: result is valid when fpu_out_valid is set
+  // With PipeRegs >= 1, all FPU ops have latency, so we use fpu_out_valid
+  // for all operations. The pipeline will stall until fpu_out_valid asserts.
   //
   logic is_multicycle;
   assign is_multicycle = is_fdiv || is_fsqrt;
@@ -353,14 +356,10 @@ module svc_rv_ext_fp_ex (
       // FMV bypasses FPU - always single cycle
       result_valid = op_valid;
       busy         = 1'b0;
-    end else if (is_multicycle) begin
-      // Multi-cycle operations
-      result_valid = fpu_out_valid;
-      busy         = fpu_busy;
     end else begin
-      // Single-cycle FPU operations
-      result_valid = op_valid && use_fpu && fpu_out_valid;
-      busy         = 1'b0;
+      // All FPU operations use fpu_out_valid
+      result_valid = fpu_out_valid;
+      busy         = is_multicycle ? fpu_busy : 1'b0;
     end
   end
 
