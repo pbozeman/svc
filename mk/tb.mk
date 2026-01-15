@@ -101,6 +101,9 @@ VERILATOR_TB_FLAGS += -Wno-ASCRANGE -Wno-UNSIGNED -Wno-UNOPTFLAT
 VERILATOR_TB_FLAGS += -O3
 VERILATOR_TB_FLAGS += $(I_RTL) $(I_EXT) $(I_TB)
 
+# https://github.com/openhwgroup/cv32e40p/issues/308#issuecomment-615371888
+VERILATOR_TB_FLAGS += -Wno-BLKANDNBLK -Wno-fatal
+
 # Optional compile-time enable for RISC-V pipeline debug monitor (svc_rv_dbg.svh)
 # Enabled automatically when any SVC_RV_DBG_* runtime flags are set (requires rebuild).
 # Can be forced with SVC_RV_DBG=1.
