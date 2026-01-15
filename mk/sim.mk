@@ -21,6 +21,13 @@ VERILATOR_SIM_FLAGS += -O3
 VERILATOR_SIM_FLAGS += $(I_RTL) $(I_EXT) -I$(PRJ_TB_DIR)
 VERILATOR_SIM_FLAGS += -LDFLAGS -lutil
 VERILATOR_SIM_FLAGS += -CFLAGS '-Wall -Werror'
+
+# Optional compile-time enable for RISC-V pipeline debug monitor (svc_rv_dbg.svh)
+# Enabled automatically when any SVC_RV_DBG_* runtime flags are set (requires rebuild).
+# Can be forced with SVC_RV_DBG=1.
+ifneq ($(filter-out 0,$(strip $(SVC_RV_DBG) $(SVC_RV_DBG_CPU) $(SVC_RV_DBG_IF) $(SVC_RV_DBG_ID) $(SVC_RV_DBG_EX) $(SVC_RV_DBG_MEM) $(SVC_RV_DBG_WB) $(SVC_RV_DBG_HAZ) $(SVC_RV_DBG_RVFI))),)
+VERILATOR_SIM_FLAGS += -CFLAGS '-Wall -Werror' -DSVC_RV_DBG
+endif
 VERILATOR_SIM := verilator $(VERILATOR_SIM_FLAGS)
 
 # Standalone simulation sources and modules

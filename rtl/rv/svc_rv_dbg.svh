@@ -14,6 +14,7 @@
 // linting, so just disable it.
 //
 `ifndef SYNTHESIS
+`ifdef SVC_RV_DBG
 `include "svc_rv_dasm.svh"
 
 //
@@ -320,26 +321,29 @@ endfunction
 `endif
 
 always @(posedge clk) begin
-  string line;
-  string if_str;
-  string id_str;
-  string ex_str;
-  // verilator lint_off UNUSEDSIGNAL
-  string haz_str;
-  int    if_width;
-  int    id_width;
-  int    ex_width;
-  int    mem_width;
-  int    wb_width;
-  int    haz_width;
-  // verilator lint_on UNUSEDSIGNAL
-
   //
   // Combined debug output
   // Display any enabled stages in pipeline order: IF | ID | EX | MEM | WB | HAZ
   //
+  // NOTE: Declare strings only when debug is enabled to avoid per-cycle string
+  // construction overhead when debug is disabled (important for long-running sims).
+  //
   if (rst_n && (dbg_if || dbg_id || dbg_ex || dbg_mem || dbg_wb || dbg_haz ||
                 dbg_rvfi)) begin
+    string line;
+    string if_str;
+    string id_str;
+    string ex_str;
+    // verilator lint_off UNUSEDSIGNAL
+    string haz_str;
+    int    if_width;
+    int    id_width;
+    int    ex_width;
+    int    mem_width;
+    int    wb_width;
+    int    haz_width;
+    // verilator lint_on UNUSEDSIGNAL
+
     //
     // Print newline before first debug line after reset
     //
@@ -714,4 +718,5 @@ always @(posedge clk) begin
 `endif
   end
 end
+`endif
 `endif
