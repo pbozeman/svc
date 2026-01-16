@@ -3,4 +3,4 @@
 	url = git@github.com:pbozeman/riscv-formal.git
 [submodule "external/fpnew"]
 	path = external/fpnew
-	url = https://github.com/openhwgroup/cvfpu.git
+	url = git@github.com:pbozeman/cvfpu.git

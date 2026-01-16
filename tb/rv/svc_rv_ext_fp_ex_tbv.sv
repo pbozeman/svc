@@ -100,6 +100,9 @@ module svc_rv_ext_fp_ex_tbv;
     fp_rm_dyn   = (instr[14:12] == FRM_DYN);
     op_valid    = 1'b1;
     cycle_count = 0;
+    // Allow combinational DUT outputs to settle after driving op_valid.
+    // Prevents sampling a stale result_valid from the previous operation.
+    `SVC_TINY_TICK;
     // Keep op_valid high until result is ready
     while (!result_valid && cycle_count < TIMEOUT_CYCLES) begin
       `TICK(clk);

@@ -309,10 +309,12 @@ module svc_rv_ext_fp_ex (
   end
 
   fpnew_top #(
-      .Features      (FPU_FEATURES),
+      .Features(FPU_FEATURES),
       .Implementation(FPU_IMPL),
-      .DivSqrtSel    (TH32),          // Use T-Head E906 divsqrt (FP32 only)
-      .TagType       (logic)
+      .DivSqrtSel(TH32),  // Use T-Head E906 divsqrt (FP32 only)
+      .EnableCastPipe(1'b1),  // Pipeline between shifter and rounding
+      .EnableFmaPipe(1'b1),  // Pipeline between norm shift and rounding
+      .TagType(logic)
   ) u_fpnew (
       .clk_i         (clk),
       .rst_ni        (rst_n),
