@@ -41,6 +41,10 @@
 `TEST_CASE(test_fp_load_use);
 `TEST_CASE(test_fp_mixed_int_fp);
 
+// RoPE-style FMUL->FSUB pattern (regression for cache+FPU hazard)
+`TEST_CASE(test_fp_fmul_fsub_pattern);
+`TEST_CASE(test_fp_fmul_fsub_loop);
+
 // CSR tests
 `TEST_CASE(test_fp_csr_frm);
 `TEST_CASE(test_fp_csr_fflags);

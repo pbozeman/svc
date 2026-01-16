@@ -250,7 +250,7 @@ $(foreach tb,$(TBI_MODULES),$(eval $(call tbi_rules,$(tb))))
 define tbv_rules
 # Build rule for $(1)
 .PRECIOUS: $(TBV_BUILD_DIR)/$(1)/V$(1)
-$(TBV_BUILD_DIR)/$(1)/V$(1): $(1).sv $(TB_MAIN_CPP) $(VL_RT_LIB) Makefile | $(TBV_BUILD_DIR)
+$(TBV_BUILD_DIR)/$(1)/V$(1): $(1).sv $(FPNEW_SRCS) $(TB_MAIN_CPP) $(VL_RT_LIB) Makefile | $(TBV_BUILD_DIR)
 	@mkdir -p $(TBV_BUILD_DIR)/$(1)
 	@$$(IVERILOG) -M $(TBV_BUILD_DIR)/$(1).dep -o /dev/null \
 		$$(I_RTL) $$(I_EXT) $$(I_TB) -I$(PRJ_RTL_DIR)/$(patsubst %_tbv,%,$(1)) $$< 2>/dev/null || true

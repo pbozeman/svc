@@ -532,6 +532,94 @@ task automatic test_fp_mixed_int_fp;
 endtask
 
 // ============================================================================
+// RoPE-style FMUL->FSUB pattern test (regression for cache+FPU hazard)
+// ============================================================================
+
+//
+// Test: FMUL immediately followed by FSUB using the result
+//
+// This pattern comes from the RoPE (Rotary Position Encoding) code in llama2:
+//   tmp1 = v0 * fcr
+//   tmp2 = v1 * fci
+//   result = tmp1 - tmp2
+//
+// This has been observed to hang on FPGA when cache stalls occur at certain
+// points relative to FPU operations.
+//
+task automatic test_fp_fmul_fsub_pattern;
+  // Load operands - use values similar to RoPE
+  // fcr (cos) ~ 1.0, fci (sin) ~ 0.0 for pos=0
+  `DMEM_WR(0, FP_TWO);    // v0
+  `DMEM_WR(1, FP_THREE);  // v1
+  `DMEM_WR(2, FP_ONE);    // fcr (cos(0) = 1.0)
+  `DMEM_WR(3, FP_ZERO);   // fci (sin(0) = 0.0)
+
+  LUI(x1, 32'h00001000);
+
+  // Load all operands (causes cache activity)
+  FLW(f1, x1, 0);   // f1 = v0 = 2.0
+  FLW(f2, x1, 4);   // f2 = v1 = 3.0
+  FLW(f3, x1, 8);   // f3 = fcr = 1.0
+  FLW(f4, x1, 12);  // f4 = fci = 0.0
+
+  // RoPE pattern: tmp1 = v0 * fcr, tmp2 = v1 * fci, result = tmp1 - tmp2
+  FMUL_S(f5, f1, f3, RNE);  // f5 = tmp1 = 2.0 * 1.0 = 2.0
+  FMUL_S(f6, f2, f4, RNE);  // f6 = tmp2 = 3.0 * 0.0 = 0.0
+  FSUB_S(f7, f5, f6, RNE);  // f7 = tmp1 - tmp2 = 2.0 - 0.0 = 2.0
+
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk);
+  `CHECK_EQ(`FP_REG(5), FP_TWO);   // tmp1 = 2.0
+  `CHECK_EQ(`FP_REG(6), FP_ZERO);  // tmp2 = 0.0
+  `CHECK_EQ(`FP_REG(7), FP_TWO);   // result = 2.0
+endtask
+
+//
+// Test: Repeated FMUL->FSUB pattern in a loop (stress test)
+//
+// Runs the RoPE-style pattern multiple times to increase chance of hitting
+// timing-sensitive hazards when combined with random cache latency.
+//
+task automatic test_fp_fmul_fsub_loop;
+  // Store operands
+  `DMEM_WR(0, FP_TWO);    // v0
+  `DMEM_WR(1, FP_THREE);  // v1
+  `DMEM_WR(2, FP_ONE);    // fcr
+  `DMEM_WR(3, FP_HALF);   // fci = 0.5
+
+  // Expected: tmp1 = 2.0 * 1.0 = 2.0
+  //           tmp2 = 3.0 * 0.5 = 1.5
+  //           result = 2.0 - 1.5 = 0.5
+
+  LUI(x1, 32'h00001000);  // DMEM base
+  ADDI(x2, x0, 10);       // Loop counter
+
+  // Load operands once
+  FLW(f1, x1, 0);   // f1 = v0 = 2.0
+  FLW(f2, x1, 4);   // f2 = v1 = 3.0
+  FLW(f3, x1, 8);   // f3 = fcr = 1.0
+  FLW(f4, x1, 12);  // f4 = fci = 0.5
+
+  // Loop: repeat FMUL->FSUB pattern
+  // loop:
+  FMUL_S(f5, f1, f3, RNE);  // f5 = tmp1
+  FMUL_S(f6, f2, f4, RNE);  // f6 = tmp2
+  FSUB_S(f7, f5, f6, RNE);  // f7 = tmp1 - tmp2
+  ADDI(x2, x2, -1);         // counter--
+  BNE(x2, x0, -16);         // branch back to FMUL
+
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk, 5000);
+  `CHECK_EQ(`FP_REG(7), FP_HALF);  // 2.0 - 1.5 = 0.5
+endtask
+
+// ============================================================================
 // CSR Tests
 // ============================================================================
 
