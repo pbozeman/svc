@@ -85,7 +85,8 @@ module svc_rv_ext_fp_ex (
   //
   logic is_fadd, is_fsub, is_fmul, is_fdiv, is_fsqrt;
   logic is_fsgnj, is_fminmax, is_fcvtws, is_fmvxw, is_fcmp;
-  logic is_fcvtsw, is_fmvwx;
+  logic is_fcvtsw;
+  logic is_fmvwx;
   logic is_fclass;
 
   assign is_fadd    = op_fp && (funct7 == FP7_FADD);
@@ -242,7 +243,9 @@ module svc_rv_ext_fp_ex (
   };
 
   localparam fpu_implementation_t FPU_IMPL = '{
-      // Verilat0r can't handle per-opgroup PipeReg settings
+      // Verilat0r can't handle per-opgroup PipeReg settings. Once fixed,
+      // restore per-opgroup settings for better timing (e.g., NONCOMP can
+      // be 0 or 1, CONV can be lower than ADDMUL).
       // TODO: make pipeline depth a configurable ext_fp option as timing
       // closure will differ by device. 4 is for artix s7.
       PipeRegs: '{
@@ -271,34 +274,38 @@ module svc_rv_ext_fp_ex (
   // we must hold the request until it is accepted, otherwise the operation can
   // be dropped and the pipeline will stall forever waiting for a result.
   //
+  // TODO: Use fpnew's tag mechanism to track in-flight operations. This would
+  // allow multiple operations in fpnew's pipeline simultaneously, improving
+  // throughput. Currently we serialize operations (only 1 in flight) to ensure
+  // fpu_out_valid corresponds to the current instruction.
+  //
   logic           fpu_req_pending;
-  logic           fpu_active;
+  logic           fpu_in_flight;
 
   // Drive in_valid immediately on op_valid and keep it asserted until accepted.
-  assign fpu_in_valid = use_fpu && !fpu_active && (op_valid || fpu_req_pending);
+  // Block new operations while one is in flight in fpnew's pipeline.
+  assign
+      fpu_in_valid = use_fpu && !fpu_in_flight && (op_valid || fpu_req_pending);
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
       fpu_req_pending <= 1'b0;
-      fpu_active      <= 1'b0;
-    end else if (!use_fpu) begin
-      fpu_req_pending <= 1'b0;
-      fpu_active      <= 1'b0;
+      fpu_in_flight   <= 1'b0;
     end else begin
-      // Track request acceptance.
-      // Keep fpu_active high until op_valid goes low. This prevents
-      // fpu_in_valid from going high again after operation completes,
-      // which would cause us to re-issue the same operation.
-      if (!op_valid) begin
-        // Operation consumed, ready for next.
-        fpu_active <= 1'b0;
+      // Track operation through fpnew's pipeline. Only allow one operation
+      // in flight at a time to ensure fpu_out_valid corresponds to the
+      // instruction we issued. Clear in_flight only when result received,
+      // NOT when a non-FPU instruction (like FMV) executes.
+      if (fpu_out_valid) begin
+        // Result received, pipeline is clear.
+        fpu_in_flight <= 1'b0;
       end else if (fpu_in_valid && fpu_in_ready) begin
-        // Operation accepted.
-        fpu_active <= 1'b1;
+        // Operation accepted into pipeline.
+        fpu_in_flight <= 1'b1;
       end
 
       // Latch a request if it wasn't accepted immediately.
-      if (!fpu_active && fpu_in_valid && !fpu_in_ready) begin
+      if (!fpu_in_flight && fpu_in_valid && !fpu_in_ready) begin
         fpu_req_pending <= 1'b1;
       end else if (fpu_in_valid && fpu_in_ready) begin
         fpu_req_pending <= 1'b0;

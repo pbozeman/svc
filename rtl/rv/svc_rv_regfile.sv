@@ -30,7 +30,15 @@ module svc_rv_regfile #(
     input logic [     4:0] rd_addr,
     input logic [XLEN-1:0] rd_data
 );
-  logic [XLEN-1:0] regs         [32];
+  logic [XLEN-1:0] regs   [32];
+
+  // Debug: expose ra (x1) and sp (x2) for ILA
+  // verilator lint_off UNUSEDSIGNAL
+  logic [XLEN-1:0] dbg_ra;
+  logic [XLEN-1:0] dbg_sp;
+  // verilator lint_on UNUSEDSIGNAL
+  assign dbg_ra = regs[1];
+  assign dbg_sp = regs[2];
 
   logic [XLEN-1:0] rs1_data_raw;
   logic [XLEN-1:0] rs2_data_raw;

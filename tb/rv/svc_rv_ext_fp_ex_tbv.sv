@@ -303,6 +303,21 @@ module svc_rv_ext_fp_ex_tbv;
   endtask
 
   //
+  // Test: FCVT.S.W - convert signed int -26 to -26.0
+  //
+  task automatic test_fcvt_s_w_neg();
+    // rs2[0] = 0 for signed
+    instr = make_fp_r(FP7_FCVTSW, 5'd0, 5'd0, FRM_RNE, 5'd0);
+    rs1   = -32'sd26;  // -26 as signed
+
+    run_op();
+
+    // -26.0 in IEEE 754 single precision = 0xC1D00000
+    `CHECK_EQ(captured_result, 32'hC1D00000);
+    `CHECK_EQ(captured_fflags, 5'b0);
+  endtask
+
+  //
   // Test: FMADD.S - (2.0 * 3.0) + 1.0 = 7.0
   //
   task automatic test_fmadd_basic();
@@ -538,6 +553,7 @@ module svc_rv_ext_fp_ex_tbv;
   `TEST_CASE(test_fmv_w_x);
   `TEST_CASE(test_fcvt_w_s);
   `TEST_CASE(test_fcvt_s_w);
+  `TEST_CASE(test_fcvt_s_w_neg);
   `TEST_CASE(test_fmadd_basic);
   `TEST_CASE(test_fmsub_basic);
   `TEST_CASE(test_fsgnj_basic);

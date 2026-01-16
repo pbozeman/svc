@@ -41,6 +41,11 @@
 `TEST_CASE(test_fp_load_use);
 `TEST_CASE(test_fp_mixed_int_fp);
 
+// FP compute -> FSW forwarding tests
+`TEST_CASE(test_fp_fsw_after_fadd);
+`TEST_CASE(test_fp_fsw_after_fcvt_s_w);
+`TEST_CASE(test_fp_fsw_after_fmul);
+
 // RoPE-style FMUL->FSUB pattern (regression for cache+FPU hazard)
 `TEST_CASE(test_fp_fmul_fsub_pattern);
 `TEST_CASE(test_fp_fmul_fsub_loop);

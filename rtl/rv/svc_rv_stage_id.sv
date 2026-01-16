@@ -37,8 +37,7 @@ module svc_rv_stage_id #(
     parameter int RAS_ENABLE  = 0,
     parameter int EXT_ZMMUL   = 0,
     parameter int EXT_M       = 0,
-    parameter int EXT_F       = 0,
-    parameter int FWD_FP      = 1
+    parameter int EXT_F       = 0
 ) (
     input logic clk,
     input logic rst_n,
@@ -429,11 +428,6 @@ module svc_rv_stage_id #(
   end
 
 
-  // FWD_FP parameter used in future FP forwarding implementation
-  if (FWD_FP == 0) begin : g_fwd_fp_unused
-    // Placeholder - FP forwarding will stall instead of forward
-  end
-
   //
   // ID Stage Forwarding Unit (Integer)
   //
@@ -710,8 +704,6 @@ module svc_rv_stage_id #(
 
   //
   // FP register data: fp_rs1_data, fp_rs2_data, fp_rs3_data
-  //
-  // TODO: Add FP forwarding when FWD_FP is implemented
   //
   localparam int FP_DATA_W = 3 * XLEN;
 

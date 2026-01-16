@@ -146,7 +146,7 @@ module svc_rv_idec #(
       OP_JALR:   c = {y, y, n, n,  RS1, IMM, ADD, PC4,     I, n, y, ALUR,   n,   y,  n,  y,  n};
       OP_SYSTEM: c = {y, y, n, n,   xx,   x,  xx, CSR,     I, n, n,    x,   n,   n,  y,  y,  n};
       OP_RESET:  c = {y, n, n, n,   xx,   x,  xx, xxx,   xxx, n, n,    x,   n,   n,  n,  n,  n};
-      default:   c = {n, n, n, n,   xx,   x,  xx, xxx,   xxx, n, n,    x,   n,   n,  n,  n,  n};
+      default:   c = {n, n, n, n, ZERO,   n, ADD, ALU,     I, n, n,   PC,   n,   n,  n,  n,  n};
     endcase
 
     { valid_opcode, reg_write, mem_read, mem_write,

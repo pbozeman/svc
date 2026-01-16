@@ -47,7 +47,6 @@ module svc_rv #(
     parameter int          PIPELINED   = 0,
     parameter int          FWD_REGFILE = PIPELINED,
     parameter int          FWD         = 0,
-    parameter int          FWD_FP      = 0,
     parameter int          MEM_TYPE    = 0,
     parameter int          BPRED       = 0,
     parameter int          BTB_ENABLE  = 0,
@@ -615,7 +614,6 @@ module svc_rv #(
   if (EXT_F != 0 && PIPELINED == 1) begin : g_fp_hazard
     svc_rv_fp_hazard #(
         .XLEN       (XLEN),
-        .FWD_FP     (FWD_FP),
         .FWD_REGFILE(FWD_REGFILE),
         .MEM_TYPE   (MEM_TYPE)
     ) fp_hazard (
@@ -794,8 +792,7 @@ module svc_rv #(
       .RAS_ENABLE (RAS_ENABLE),
       .EXT_ZMMUL  (EXT_ZMMUL),
       .EXT_M      (EXT_M),
-      .EXT_F      (EXT_F),
-      .FWD_FP     (FWD_FP)
+      .EXT_F      (EXT_F)
   ) stage_id (
       .pred_tgt(pred_tgt_id),
       .*
@@ -808,7 +805,6 @@ module svc_rv #(
       .XLEN      (XLEN),
       .PIPELINED (PIPELINED),
       .FWD       (FWD),
-      .FWD_FP    (FWD_FP),
       .MEM_TYPE  (MEM_TYPE),
       .BPRED     (BPRED),
       .BTB_ENABLE(BTB_ENABLE),

@@ -13,8 +13,6 @@
 //
 // FP-specific hazards detected:
 // - FP RAW (EX/MEM/WB): fp_rs1/fp_rs2/fp_rs3 matches fp_rd in later stages
-// - FP Load-Use: FLW in EX, consumer in ID (data not ready)
-// - FP Multi-cycle: FDIV/FSQRT in progress (handled via op_active_ex)
 //
 // INT<->FP hazards (FMV.W.X, FCVT.S.W use integer rs1) are handled by
 // the integer hazard unit since they use integer source registers.
@@ -24,7 +22,6 @@
 //
 module svc_rv_fp_hazard #(
     parameter int XLEN        = 32,
-    parameter int FWD_FP      = 1,
     parameter int FWD_REGFILE = 1,
     parameter int MEM_TYPE    = 0
 ) (
@@ -162,66 +159,13 @@ module svc_rv_fp_hazard #(
   //
   // Data hazard output
   //
-  if (FWD_FP != 0) begin : g_fp_forwarding
-    //
-    // With FP forwarding enabled: only stall on unavoidable hazards
-    //
-    // FP load-use hazard: FLW in EX, FP consumer in ID
-    // - Data not ready until WB (BRAM) or MEM (SRAM)
-    //
-    // FP compute result: Available in EX, can forward to ID
-    //
-    logic fp_load_use_ex;
-    logic fp_load_use_mem;
-    logic fp_load_use_hazard;
+  // Stall on all FP RAW hazards - no FP forwarding
+  //
+  assign fp_data_hazard_id = (ex_hazard || mem_hazard || wb_hazard) &&
+      !control_flush;
 
-    if (MEM_TYPE != MEM_TYPE_SRAM) begin : g_bram_stall
-      //
-      // BRAM/Cache: FP load data not ready until WB, must stall for EX and MEM
-      //
-      assign fp_load_use_ex     = is_fp_load_ex && ex_hazard;
-      assign fp_load_use_mem    = is_fp_load_mem && mem_hazard;
-      assign fp_load_use_hazard = fp_load_use_ex || fp_load_use_mem;
-    end else begin : g_sram_stall
-      //
-      // SRAM: FP load data ready in MEM, only stall for EX
-      //
-      assign fp_load_use_ex     = is_fp_load_ex && ex_hazard;
-      assign fp_load_use_mem    = 1'b0;
-      assign fp_load_use_hazard = fp_load_use_ex;
-
-      `SVC_UNUSED(is_fp_load_mem);
-    end
-
-    //
-    // Multi-cycle FP op hazard detection
-    //
-    // FDIV/FSQRT do not receive forwarding (svc_rv_fp_fwd_ex disables it when
-    // is_fp_mc_ex=1). If an FP MC op in ID depends on EX or MEM results, we
-    // must stall until the result reaches the regfile (via WB→ID forwarding).
-    //
-    logic fp_mc_hazard;
-    assign fp_mc_hazard = is_fp_mc_id && (ex_hazard || mem_hazard);
-
-    //
-    // With forwarding: only stall on load-use and WB hazards (if no regfile fwd)
-    // Regular EX/MEM hazards resolved by FP forwarding unit
-    //
-    assign fp_data_hazard_id = (fp_load_use_hazard || fp_mc_hazard ||
-                                wb_hazard) && !control_flush;
-
-    `SVC_UNUSED(is_fp_compute_ex);
-  end else begin : g_no_fp_forwarding
-    //
-    // Without FP forwarding: stall on all FP RAW hazards
-    //
-    assign fp_data_hazard_id = (ex_hazard || mem_hazard || wb_hazard) &&
-        !control_flush;
-
-    `SVC_UNUSED(
-        {is_fp_load_ex, is_fp_load_mem, is_fp_compute_ex, MEM_TYPE, is_fp_mc_id
-        });
-  end
+  `SVC_UNUSED({is_fp_load_ex, is_fp_load_mem, is_fp_compute_ex, MEM_TYPE,
+               is_fp_mc_id});
 
 endmodule
 

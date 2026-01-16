@@ -182,7 +182,7 @@ module svc_rv_soc_bram_cache #(
   // Instruction memory interface signals
   //
   logic               imem_ren;
-  logic [       31:0] imem_raddr;
+  logic [       31:0] imem_raddr;  // IF stage PC
   logic [       31:0] imem_rdata;
   logic               imem_stall;
   logic [       31:0] imem_rdata_bram;

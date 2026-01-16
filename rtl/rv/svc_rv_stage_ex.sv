@@ -17,7 +17,6 @@
 `include "svc_rv_ext_fp_ex.sv"
 `include "svc_rv_fp_csr.sv"
 `include "svc_rv_fwd_ex.sv"
-`include "svc_rv_fp_fwd_ex.sv"
 
 // Provide defaults for extension parameters (can be overridden via -D flags)
 `ifndef EXT_F
@@ -49,8 +48,7 @@ module svc_rv_stage_ex #(
     parameter int BTB_ENABLE = 0,
     parameter int EXT_ZMMUL  = 0,
     parameter int EXT_M      = 0,
-    parameter int EXT_F      = `EXT_F,
-    parameter int FWD_FP     = 1
+    parameter int EXT_F      = `EXT_F
 ) (
     input logic clk,
     input logic rst_n,
@@ -474,28 +472,11 @@ module svc_rv_stage_ex #(
   logic [XLEN-1:0] fwd_fp_rs3_ex;
 
   if (EXT_F != 0) begin : g_fp_ext
-    // FP data forwarding unit
-    svc_rv_fp_fwd_ex #(
-        .XLEN    (XLEN),
-        .FWD_FP  ((PIPELINED != 0 && FWD_FP != 0) ? 1 : 0),
-        .MEM_TYPE(MEM_TYPE)
-    ) fp_forward (
-        .fp_rs1_ex       (fp_rs1_ex),
-        .fp_rs2_ex       (fp_rs2_ex),
-        .fp_rs3_ex       (fp_rs3_ex),
-        .fp_rs1_data_ex  (fp_rs1_data_ex),
-        .fp_rs2_data_ex  (fp_rs2_data_ex),
-        .fp_rs3_data_ex  (fp_rs3_data_ex),
-        .is_fp_mc_ex     (is_fp_mc_ex),
-        .fp_rd_mem       (fp_rd_mem),
-        .fp_reg_write_mem(fp_reg_write_mem),
-        .is_fp_load_mem  (is_fp_load_mem),
-        .fp_result_mem   (fp_result_mem),
-        .ld_data_mem     (ld_data_mem),
-        .fwd_fp_rs1_ex   (fwd_fp_rs1_ex),
-        .fwd_fp_rs2_ex   (fwd_fp_rs2_ex),
-        .fwd_fp_rs3_ex   (fwd_fp_rs3_ex)
-    );
+    // No FP forwarding - pass through regfile values directly
+    // (FP hazard unit stalls until values are in regfile)
+    assign fwd_fp_rs1_ex = fp_rs1_data_ex;
+    assign fwd_fp_rs2_ex = fp_rs2_data_ex;
+    assign fwd_fp_rs3_ex = fp_rs3_data_ex;
 
     svc_rv_ext_fp_ex fpu (
         .clk(clk),
@@ -566,8 +547,7 @@ module svc_rv_stage_ex #(
                 fflags_set_en,
                 is_csr_ex,
                 is_fp_fmv,
-                fp_issue,
-                FWD_FP
+                fp_issue
                 });
     // verilog_format: on
   end

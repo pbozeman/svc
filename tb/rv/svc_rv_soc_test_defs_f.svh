@@ -532,6 +532,95 @@ task automatic test_fp_mixed_int_fp;
 endtask
 
 // ============================================================================
+// FP compute -> FSW forwarding tests
+// ============================================================================
+//
+// FIXME: Add more comprehensive FP forwarding tests:
+// - Multiple back-to-back FSW after different FP ops
+// - FSW with different pipeline distances (1, 2, 3 cycles after compute)
+// - FSW during cache stalls
+// - Mixed FP compute and FSW in loops
+//
+
+//
+// Test: FSW immediately after FADD (FP compute -> FP store forwarding)
+//
+// Tests that FSW correctly gets forwarded value when storing a register
+// that was just written by a prior FP compute instruction.
+//
+task automatic test_fp_fsw_after_fadd;
+  `DMEM_WR(0, FP_TWO);
+  `DMEM_WR(1, FP_THREE);
+
+  LUI(x1, 32'h00001000);
+
+  FLW(f1, x1, 0);  // f1 = 2.0
+  FLW(f2, x1, 4);  // f2 = 3.0
+
+  FADD_S(f3, f1, f2, RNE);  // f3 = 5.0
+  FSW(f3, x1, 8);           // Store f3 immediately after compute
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk);
+  `CHECK_EQ(`FP_REG(3), FP_FIVE);
+  `CHECK_EQ(`DMEM_RD(2), FP_FIVE);  // Verify stored value
+endtask
+
+//
+// Test: FSW immediately after FCVT.S.W (int-to-float -> FP store)
+//
+// This is the bug pattern from llama2 my_round():
+//   int n = (int)x;           // FCVT.W.S
+//   float rounded = (float)n; // FCVT.S.W -> write to FP reg
+//   store rounded;            // FSW -> should store float, not raw int
+//
+task automatic test_fp_fsw_after_fcvt_s_w;
+  LUI(x1, 32'h00001000);  // DMEM base
+
+  // x2 = -25 (0xFFFFFFE7)
+  ADDI(x2, x0, -25);
+
+  // Convert int to float: f1 = (float)(-25) = -25.0 = 0xC1C80000
+  FCVT_S_W(f1, x2, RNE);
+
+  // Store immediately after convert
+  FSW(f1, x1, 0);
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk);
+  // -25.0 in IEEE 754 = 0xC1C80000
+  `CHECK_EQ(`FP_REG(1), 32'hC1C80000);
+  `CHECK_EQ(`DMEM_RD(0), 32'hC1C80000);  // Must be float, not raw int!
+endtask
+
+//
+// Test: FSW after FMUL (another compute -> store pattern)
+//
+task automatic test_fp_fsw_after_fmul;
+  `DMEM_WR(0, FP_TWO);
+  `DMEM_WR(1, FP_THREE);
+
+  LUI(x1, 32'h00001000);
+
+  FLW(f1, x1, 0);  // f1 = 2.0
+  FLW(f2, x1, 4);  // f2 = 3.0
+
+  FMUL_S(f3, f1, f2, RNE);  // f3 = 6.0
+  FSW(f3, x1, 8);           // Store f3 immediately after compute
+  EBREAK();
+
+  load_program();
+
+  `CHECK_WAIT_FOR_EBREAK(clk);
+  `CHECK_EQ(`FP_REG(3), FP_SIX);
+  `CHECK_EQ(`DMEM_RD(2), FP_SIX);  // Verify stored value
+endtask
+
+// ============================================================================
 // RoPE-style FMUL->FSUB pattern test (regression for cache+FPU hazard)
 // ============================================================================
 
