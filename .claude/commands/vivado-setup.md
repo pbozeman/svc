@@ -7,7 +7,7 @@ Create a new Vivado project for the SVC RISC-V ecosystem.
 ## Usage
 
 ```
-/vivado-setup <board> <name> [--type rv-bram|rv-ddr3|minimal]
+/vivado-setup <board> <name> [--type rv-bram|rv-ddr3|minimal] [--float]
 ```
 
 ## Arguments
@@ -18,12 +18,16 @@ Create a new Vivado project for the SVC RISC-V ecosystem.
   - `rv-bram`: RISC-V SoC with BRAM memory (100 MHz)
   - `rv-ddr3`: RISC-V SoC with DDR3/cache (85.25 MHz, requires MIG setup)
   - `minimal`: Basic skeleton without RISC-V
+- `--float`: Enable F extension (adds fpnew FPU and related source files)
 
 ## Examples
 
 ```bash
 # Simple BRAM-based RISC-V project (default)
 /vivado-setup arty_s7 hello
+
+# RISC-V project with floating-point support
+/vivado-setup arty_s7 pi --float
 
 # DDR3-backed RISC-V project for benchmarks
 /vivado-setup arty_s7 benchmark --type rv-ddr3

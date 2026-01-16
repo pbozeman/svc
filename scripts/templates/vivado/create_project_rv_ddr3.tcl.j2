@@ -166,6 +166,51 @@ if {[string equal [get_filesets -quiet sources_1] ""]} {
 
 # Set 'sources_1' fileset object
 set obj [get_filesets sources_1]
+
+{% if ext_f %}
+# Add registers.svh as a global include header (required by fpnew)
+set header_file [file normalize "${origin_dir}/../../../svc/external/fpnew/src/common_cells/include/common_cells/registers.svh"]
+add_files -norecurse -fileset $obj $header_file
+set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$header_file"]]
+set_property -name "file_type" -value "Verilog Header" -objects $file_obj
+set_property -name "is_global_include" -value "1" -objects $file_obj
+
+# fpnew SystemVerilog files (packages must be compiled before modules that import them)
+set sv_files [list \
+{% for f in fpnew_sv_files %}
+ [file normalize "${origin_dir}/{{ f }}"] \
+{% endfor %}
+ [file normalize "${origin_dir}/../rtl/top.sv"] \
+]
+
+# T-Head E906 vendor Verilog files (for TH32 divsqrt)
+set v_files [list \
+{% for f in fpnew_v_files %}
+ [file normalize "${origin_dir}/{{ f }}"] \
+{% endfor %}
+]
+
+add_files -norecurse -fileset $obj $sv_files
+add_files -norecurse -fileset $obj $v_files
+
+# Set file type for SystemVerilog files and force enabled
+foreach f $sv_files {
+  set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$f"]]
+  set_property -name "file_type" -value "SystemVerilog" -objects $file_obj
+  set_property -name "is_enabled" -value "1" -objects $file_obj
+}
+
+# Set file type for Verilog files and force enabled
+foreach f $v_files {
+  set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$f"]]
+  set_property -name "file_type" -value "Verilog" -objects $file_obj
+  set_property -name "is_enabled" -value "1" -objects $file_obj
+}
+
+# Force compile order update and disable auto-compile order
+update_compile_order -fileset sources_1
+set_property -name "source_mgmt_mode" -value "DisplayOnly" -objects [current_project]
+{% else %}
 set files [list \
  [file normalize "${origin_dir}/../rtl/top.sv"] \
 ]
@@ -176,15 +221,15 @@ set file "$origin_dir/../rtl/top.sv"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -value "SystemVerilog" -objects $file_obj
-
-
-# Set 'sources_1' fileset file properties for local files
-# None
+{% endif %}
 
 # Set 'sources_1' fileset properties
 set obj [get_filesets sources_1]
 set_property -name "dataflow_viewer_settings" -value "min_width=16" -objects $obj
-set_property -name "include_dirs" -value "[file normalize "$origin_dir/../../../rtl"] [file normalize "$origin_dir/../../../svc/rtl"] [file normalize "$origin_dir/../../../svc/rtl/axi"] [file normalize "$origin_dir/../../../svc/rtl/cdc"] [file normalize "$origin_dir/../../../svc/rtl/common"] [file normalize "$origin_dir/../../../svc/rtl/fifo"] [file normalize "$origin_dir/../../../svc/rtl/gfx"] [file normalize "$origin_dir/../../../svc/rtl/ice40"] [file normalize "$origin_dir/../../../svc/rtl/rv"] [file normalize "$origin_dir/../../../svc/rtl/stats"] [file normalize "$origin_dir/../../../svc/rtl/uart"]" -objects $obj
+set_property -name "include_dirs" -value "{{ include_dirs }}" -objects $obj
+{% if ext_f %}
+set_property -name "verilog_define" -value "EXT_F=1" -objects $obj
+{% endif %}
 set_property -name "top" -value "top" -objects $obj
 set_property -name "top_auto_set" -value "0" -objects $obj
 

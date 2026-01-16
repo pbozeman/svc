@@ -29,6 +29,43 @@ SUPPORTED_BOARDS = {
     }
 }
 
+# fpnew source files relative to svc/external
+FPNEW_SV_FILES = [
+    "common_cells/src/cf_math_pkg.sv",
+    "common_cells/src/lzc.sv",
+    "common_cells/src/rr_arb_tree.sv",
+    "fpnew/src/fpnew_pkg.sv",
+    "fpnew/src/fpnew_cast_multi.sv",
+    "fpnew/src/fpnew_classifier.sv",
+    "fpnew/src/fpnew_divsqrt_multi.sv",
+    "fpnew/src/fpnew_divsqrt_th_32.sv",
+    "fpnew/src/fpnew_divsqrt_th_64_multi.sv",
+    "fpnew/src/fpnew_fma_multi.sv",
+    "fpnew/src/fpnew_fma.sv",
+    "fpnew/src/fpnew_noncomp.sv",
+    "fpnew/src/fpnew_opgroup_block.sv",
+    "fpnew/src/fpnew_opgroup_fmt_slice.sv",
+    "fpnew/src/fpnew_opgroup_multifmt_slice.sv",
+    "fpnew/src/fpnew_rounding.sv",
+    "fpnew/src/fpnew_top.sv",
+]
+
+# T-Head E906 vendor Verilog files for TH32 divsqrt
+FPNEW_V_FILES = [
+    "fpnew/vendor/opene906/E906_RTL_FACTORY/gen_rtl/clk/rtl/gated_clk_cell.v",
+    "fpnew/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_ctrl.v",
+    "fpnew/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_ff1.v",
+    "fpnew/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_pack_single.v",
+    "fpnew/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_prepare.v",
+    "fpnew/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_round_single.v",
+    "fpnew/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_special.v",
+    "fpnew/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_srt_single.v",
+    "fpnew/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fdsu/rtl/pa_fdsu_top.v",
+    "fpnew/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_dp.v",
+    "fpnew/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_frbus.v",
+    "fpnew/vendor/opene906/E906_RTL_FACTORY/gen_rtl/fpu/rtl/pa_fpu_src_type.v",
+]
+
 # Default parameters by project type
 TYPE_DEFAULTS = {
     "rv-bram": {
@@ -37,13 +74,15 @@ TYPE_DEFAULTS = {
         "imem_depth": 2048,
         "dmem_depth": 2048,
         "ext_m": 1,
+        "ext_f": 0,
         "top_template": "top_rv_bram.sv.j2",
     },
     "rv-ddr3": {
-        "clock_freq": "85_250_000",
+        "clock_freq": "81_250_000",
         "baud_rate": "115_200",
         "imem_depth": 8704,
         "ext_m": 1,
+        "ext_f": 0,
         "axi_addr_width": 28,
         "axi_data_width": 128,
         "axi_id_width": 4,
@@ -76,7 +115,9 @@ def find_repo_root():
     return Path.cwd()
 
 
-def build_include_dirs(origin_dir: Path, repo_root: Path, svc_root: Path) -> str:
+def build_include_dirs(
+    origin_dir: Path, repo_root: Path, svc_root: Path, ext_f: bool = False
+) -> str:
     """Build the include_dirs string for the TCL file."""
     # RTL directories to include
     rtl_dirs = [
@@ -92,6 +133,62 @@ def build_include_dirs(origin_dir: Path, repo_root: Path, svc_root: Path) -> str
         svc_root / "rtl" / "stats",
         svc_root / "rtl" / "uart",
     ]
+
+    # Add fpnew include directories if float extension enabled
+    if ext_f:
+        rtl_dirs.extend(
+            [
+                svc_root / "external" / "fpnew" / "src",
+                svc_root / "external" / "fpnew" / "src" / "common_cells" / "include",
+                svc_root / "external" / "common_cells" / "src",
+                svc_root / "external" / "common_cells" / "include",
+                svc_root
+                / "external"
+                / "fpnew"
+                / "vendor"
+                / "opene906"
+                / "E906_RTL_FACTORY"
+                / "gen_rtl"
+                / "fdsu"
+                / "rtl",
+                svc_root
+                / "external"
+                / "fpnew"
+                / "vendor"
+                / "opene906"
+                / "E906_RTL_FACTORY"
+                / "gen_rtl"
+                / "clk"
+                / "rtl",
+                svc_root
+                / "external"
+                / "fpnew"
+                / "vendor"
+                / "opene906"
+                / "E906_RTL_FACTORY"
+                / "gen_rtl"
+                / "fpu"
+                / "rtl",
+                svc_root
+                / "external"
+                / "fpnew"
+                / "vendor"
+                / "openc910"
+                / "C910_RTL_FACTORY"
+                / "gen_rtl"
+                / "vfdsu"
+                / "rtl",
+                svc_root
+                / "external"
+                / "fpnew"
+                / "vendor"
+                / "openc910"
+                / "C910_RTL_FACTORY"
+                / "gen_rtl"
+                / "clk"
+                / "rtl",
+            ]
+        )
 
     # Convert to relative paths from origin_dir (vivado/<project>/vivado/)
     includes = []
@@ -116,7 +213,12 @@ def main():
         help="Project type (default: rv-bram)",
     )
     parser.add_argument(
-        "--force", "-f", action="store_true", help="Overwrite existing project"
+        "--force", action="store_true", help="Overwrite existing project"
+    )
+    parser.add_argument(
+        "--float",
+        action="store_true",
+        help="Enable F extension (fpnew FPU, 75MHz PLL)",
     )
 
     args = parser.parse_args()
@@ -176,13 +278,35 @@ def main():
         lstrip_blocks=True,
     )
 
+    # Apply float extension overrides
+    if args.float:
+        type_config = type_config.copy()  # Don't modify the default
+        type_config["ext_f"] = 1
+
     # Build hex path
-    arch = "rv32im" if type_config.get("ext_m", 0) else "rv32i"
+    ext_m = type_config.get("ext_m", 0)
+    ext_f = type_config.get("ext_f", 0)
+    if ext_f:
+        arch = "rv32imf" if ext_m else "rv32if"
+    else:
+        arch = "rv32im" if ext_m else "rv32i"
     hex_path = f"../../../.build/sw/{arch}/{args.name}/{args.name}.hex"
 
     # Build include directories
     vivado_dir = project_dir / "vivado"
-    include_dirs = build_include_dirs(vivado_dir, repo_root, svc_root)
+    include_dirs = build_include_dirs(vivado_dir, repo_root, svc_root, ext_f=ext_f)
+
+    # Build fpnew file lists for TCL
+    fpnew_sv_files = []
+    fpnew_v_files = []
+    if ext_f:
+        external_dir = svc_root / "external"
+        for f in FPNEW_SV_FILES:
+            rel = os.path.relpath(external_dir / f, vivado_dir)
+            fpnew_sv_files.append(rel)
+        for f in FPNEW_V_FILES:
+            rel = os.path.relpath(external_dir / f, vivado_dir)
+            fpnew_v_files.append(rel)
 
     # Common template variables
     template_vars = {
@@ -194,6 +318,8 @@ def main():
         "board_part": board_config["board_part"],
         "constraints_file": board_config["constraints"],
         "include_dirs": include_dirs,
+        "fpnew_sv_files": fpnew_sv_files,
+        "fpnew_v_files": fpnew_v_files,
         **type_config,
     }
 

@@ -24,7 +24,7 @@ module top (
     output wire        ddr3_reset_n,
     output wire        ddr3_we_n
 );
-  // MIG UI clock is approximately 85.25 MHz (325 MHz / 4)
+  // MIG UI clock is approximately 81.25 MHz (325 MHz / 4)
   localparam CLOCK_FREQ = {{ clock_freq }};
   localparam BAUD_RATE = {{ baud_rate }};
 
@@ -121,6 +121,7 @@ module top (
       .RAS_DEPTH       (8),
       .EXT_ZMMUL       (0),
       .EXT_M           ({{ ext_m }}),
+      .EXT_F           ({{ ext_f }}),
       .PC_REG          (1),
       .IMEM_INIT       ("{{ hex_path }}"),
       .CACHE_SIZE_BYTES({{ cache_size_bytes }}),
@@ -203,13 +204,6 @@ module top (
 
   //
   // MIG block design for DDR3 memory
-  //
-  // NOTE: You need to create this block design in Vivado:
-  // 1. Open the project in Vivado
-  // 2. Create Block Design named "{{ project_name }}_bd"
-  // 3. Add MIG 7 Series IP
-  // 4. Configure for DDR3 with AXI interface
-  // 5. Generate HDL wrapper
   //
   {{ project_name }}_bd {{ project_name }}_bd_i (
       .s_axi_araddr       (ddr_axi_araddr),
