@@ -103,6 +103,14 @@ module svc_axi_mem_latency #(
   localparam logic [1:0] W_DELAY = 2'd1;
   localparam logic [1:0] W_FORWARD = 2'd2;
 
+  // Write channel busy signals for read-after-write ordering
+  //
+  // When writes are buffered in the latency injection logic, reads must wait
+  // to ensure they see the write results. These signals indicate when the
+  // AW or W channels have pending transactions.
+  logic                      aw_busy;
+  logic                      w_busy;
+
   // Internal signals to/from svc_axi_mem
   logic                      mem_axi_awvalid;
   logic [  AXI_ID_WIDTH-1:0] mem_axi_awid;
@@ -204,6 +212,7 @@ module svc_axi_mem_latency #(
       assign mem_axi_awsize  = s_axi_awsize;
       assign mem_axi_awburst = s_axi_awburst;
       assign s_axi_awready   = mem_axi_awready;
+      assign aw_busy         = 1'b0;
 
     end else begin : g_aw_latency
       // Delay AW acceptance
@@ -243,6 +252,7 @@ module svc_axi_mem_latency #(
       assign mem_axi_awburst = aw_burst;
 
       assign s_axi_awready   = (aw_state == AW_IDLE);
+      assign aw_busy         = (aw_state != AW_IDLE);
 
       // State transitions
       always_comb begin
@@ -319,6 +329,7 @@ module svc_axi_mem_latency #(
       assign mem_axi_wstrb  = s_axi_wstrb;
       assign mem_axi_wlast  = s_axi_wlast;
       assign s_axi_wready   = mem_axi_wready;
+      assign w_busy         = 1'b0;
 
     end else begin : g_w_latency
       // Delay W acceptance
@@ -354,6 +365,7 @@ module svc_axi_mem_latency #(
       assign mem_axi_wlast  = w_last;
 
       assign s_axi_wready   = (w_state == W_IDLE);
+      assign w_busy         = (w_state != W_IDLE);
 
       // State transitions
       always_comb begin
@@ -424,14 +436,14 @@ module svc_axi_mem_latency #(
   //
   generate
     if (READ_RESP_LATENCY == 0) begin : g_no_read_latency
-      // Pass through
-      assign mem_axi_arvalid = s_axi_arvalid;
+      // Pass through (but wait for pending writes to preserve ordering)
+      assign mem_axi_arvalid = s_axi_arvalid && !aw_busy && !w_busy;
       assign mem_axi_arid    = s_axi_arid;
       assign mem_axi_araddr  = s_axi_araddr;
       assign mem_axi_arlen   = s_axi_arlen;
       assign mem_axi_arsize  = s_axi_arsize;
       assign mem_axi_arburst = s_axi_arburst;
-      assign s_axi_arready   = mem_axi_arready;
+      assign s_axi_arready   = mem_axi_arready && !aw_busy && !w_busy;
 
       assign s_axi_rvalid    = mem_axi_rvalid;
       assign s_axi_rid       = mem_axi_rid;
@@ -478,7 +490,8 @@ module svc_axi_mem_latency #(
       assign mem_axi_arsize  = rd_size;
       assign mem_axi_arburst = rd_burst;
 
-      assign s_axi_arready   = (rd_state == RD_IDLE);
+      // Wait for pending writes before accepting reads (read-after-write ordering)
+      assign s_axi_arready   = (rd_state == RD_IDLE) && !aw_busy && !w_busy;
 
       // Pass through read data channel
       assign s_axi_rvalid    = mem_axi_rvalid;
