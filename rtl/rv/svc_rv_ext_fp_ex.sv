@@ -242,16 +242,19 @@ module svc_rv_ext_fp_ex (
   };
 
   localparam fpu_implementation_t FPU_IMPL = '{
+      // Verilator can't handle per-opgroup PipeReg settings
+      // TODO: make pipeline depth a configurable ext_fp option as timing
+      // closure will differ by device. 4 is for artix s7.
       PipeRegs: '{
-          default: 1
-      },  // 1 pipeline register (required for denormal handling)
+          default: 4
+      },
       UnitTypes: '{
           '{default: PARALLEL},  // ADDMUL
           '{default: MERGED},  // DIVSQRT
           '{default: PARALLEL},  // NONCOMP
-          '{default: MERGED}
-      },  // CONV
-      PipeConfig: BEFORE
+          '{default: MERGED}  // CONV
+      },
+      PipeConfig: DISTRIBUTED
   };
 
   logic           fpu_in_valid;
