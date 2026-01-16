@@ -22,6 +22,9 @@ VERILATOR_SIM_FLAGS += $(I_RTL) $(I_EXT) -I$(PRJ_TB_DIR)
 VERILATOR_SIM_FLAGS += -LDFLAGS -lutil
 VERILATOR_SIM_FLAGS += -CFLAGS '-Wall -Werror'
 
+# https://github.com/openhwgroup/cv32e40p/issues/308#issuecomment-615371888
+VERILATOR_SIM_FLAGS += -Wno-BLKANDNBLK -Wno-fatal
+
 # Optional compile-time enable for RISC-V pipeline debug monitor (svc_rv_dbg.svh)
 # Enabled automatically when any SVC_RV_DBG_* runtime flags are set (requires rebuild).
 # Can be forced with SVC_RV_DBG=1.
