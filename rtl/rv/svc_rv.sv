@@ -131,8 +131,8 @@ module svc_rv #(
   // Parameter validation
   //
   initial begin
-    if ((MEM_TYPE == MEM_TYPE_BRAM) && (PIPELINED == 0)) begin
-      $fatal(1, "BRAM memory type requires PIPELINED=1");
+    if ((MEM_TYPE != MEM_TYPE_SRAM) && (PIPELINED == 0)) begin
+      $fatal(1, "Non-SRAM memory types require PIPELINED=1");
     end
     if ((FWD_REGFILE == 1) && (PIPELINED == 0)) begin
       $fatal(1, "FWD_REGFILE=1 requires PIPELINED=1");

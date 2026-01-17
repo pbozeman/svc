@@ -174,9 +174,9 @@ module svc_rv_fp_hazard #(
     logic fp_load_use_mem;
     logic fp_load_use_hazard;
 
-    if (MEM_TYPE == MEM_TYPE_BRAM) begin : g_bram_stall
+    if (MEM_TYPE != MEM_TYPE_SRAM) begin : g_bram_stall
       //
-      // BRAM: FP load data not ready until WB, must stall for EX and MEM
+      // BRAM/Cache: FP load data not ready until WB, must stall for EX and MEM
       //
       assign fp_load_use_ex     = is_fp_load_ex && ex_hazard;
       assign fp_load_use_mem    = is_fp_load_mem && mem_hazard;

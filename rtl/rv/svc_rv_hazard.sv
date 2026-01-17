@@ -239,9 +239,9 @@ module svc_rv_hazard #(
     logic load_use_ex;
     logic load_use_mem;
 
-    if (MEM_TYPE == MEM_TYPE_BRAM) begin : g_bram_stall
+    if (MEM_TYPE != MEM_TYPE_SRAM) begin : g_bram_stall
       //
-      // BRAM: Must stall on load-use hazards in EX and MEM stages
+      // BRAM/Cache: Must stall on load-use hazards in EX and MEM stages
       //
       // Load/CSR/M-ext in EX, consumer in ID: Data not computed yet
       //
