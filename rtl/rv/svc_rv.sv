@@ -793,7 +793,8 @@ module svc_rv #(
       .RAS_ENABLE (RAS_ENABLE),
       .EXT_ZMMUL  (EXT_ZMMUL),
       .EXT_M      (EXT_M),
-      .EXT_F      (EXT_F)
+      .EXT_F      (EXT_F),
+      .FWD_FP     (FWD_FP)
   ) stage_id (
       .pred_tgt(pred_tgt_id),
       .*
@@ -806,6 +807,7 @@ module svc_rv #(
       .XLEN      (XLEN),
       .PIPELINED (PIPELINED),
       .FWD       (FWD),
+      .FWD_FP    (FWD_FP),
       .MEM_TYPE  (MEM_TYPE),
       .BPRED     (BPRED),
       .BTB_ENABLE(BTB_ENABLE),
