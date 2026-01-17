@@ -37,6 +37,7 @@ module svc_rv_fp_hazard #(
     input logic       fp_rs1_used_id,
     input logic       fp_rs2_used_id,
     input logic       fp_rs3_used_id,
+    input logic       is_fp_mc_id,
 
     //
     // FP destinations in EX stage
@@ -193,11 +194,21 @@ module svc_rv_fp_hazard #(
     end
 
     //
+    // Multi-cycle FP op hazard detection
+    //
+    // FDIV/FSQRT do not receive forwarding (svc_rv_fp_fwd_ex disables it when
+    // is_fp_mc_ex=1). If an FP MC op in ID depends on EX or MEM results, we
+    // must stall until the result reaches the regfile (via WB→ID forwarding).
+    //
+    logic fp_mc_hazard;
+    assign fp_mc_hazard = is_fp_mc_id && (ex_hazard || mem_hazard);
+
+    //
     // With forwarding: only stall on load-use and WB hazards (if no regfile fwd)
     // Regular EX/MEM hazards resolved by FP forwarding unit
     //
-    assign
-        fp_data_hazard_id = (fp_load_use_hazard || wb_hazard) && !control_flush;
+    assign fp_data_hazard_id = (fp_load_use_hazard || fp_mc_hazard ||
+                                wb_hazard) && !control_flush;
 
     `SVC_UNUSED(is_fp_compute_ex);
   end else begin : g_no_fp_forwarding
@@ -207,7 +218,9 @@ module svc_rv_fp_hazard #(
     assign fp_data_hazard_id = (ex_hazard || mem_hazard || wb_hazard) &&
         !control_flush;
 
-    `SVC_UNUSED({is_fp_load_ex, is_fp_load_mem, is_fp_compute_ex, MEM_TYPE});
+    `SVC_UNUSED(
+        {is_fp_load_ex, is_fp_load_mem, is_fp_compute_ex, MEM_TYPE, is_fp_mc_id
+        });
   end
 
 endmodule

@@ -625,6 +625,7 @@ module svc_rv #(
         .fp_rs1_used_id   (fp_rs1_used_id),
         .fp_rs2_used_id   (fp_rs2_used_id),
         .fp_rs3_used_id   (fp_rs3_used_id),
+        .is_fp_mc_id      (is_fp_mc_id),
         .fp_rd_ex         (fp_rd_ex),
         .fp_reg_write_ex  (fp_reg_write_ex),
         .is_fp_load_ex    (is_fp_load_ex),
