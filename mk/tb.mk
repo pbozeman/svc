@@ -94,10 +94,14 @@ verilator_rt: $(VL_RT_LIB)
 
 # Verilator TB command (without --build, we do our own build step)
 # tbv tests enable EXT_F=1 since they're for advanced SV features like fpnew
+#
+# TODO: The UNOPTFLAT and SYNCASYNCNET flags are because of fpnew. The mixed
+# usage currently works in both sim and fpga, but needs to be looked at very
+# closely.
 VERILATOR_TB_FLAGS := --cc --exe --timing -DEXT_F=1
 VERILATOR_TB_FLAGS += -Wall -Wno-PINCONNECTEMPTY -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM
 VERILATOR_TB_FLAGS += -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-TIMESCALEMOD -Wno-GENUNNAMED
-VERILATOR_TB_FLAGS += -Wno-ASCRANGE -Wno-UNSIGNED -Wno-UNOPTFLAT
+VERILATOR_TB_FLAGS += -Wno-ASCRANGE -Wno-UNSIGNED -Wno-UNOPTFLAT -Wno-SYNCASYNCNET
 VERILATOR_TB_FLAGS += -O3
 VERILATOR_TB_FLAGS += $(I_RTL) $(I_EXT) $(I_TB)
 

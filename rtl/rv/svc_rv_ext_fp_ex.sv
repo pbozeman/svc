@@ -287,7 +287,7 @@ module svc_rv_ext_fp_ex (
   assign
       fpu_in_valid = use_fpu && !fpu_in_flight && (op_valid || fpu_req_pending);
 
-  always_ff @(posedge clk or negedge rst_n) begin
+  always_ff @(posedge clk) begin
     if (!rst_n) begin
       fpu_req_pending <= 1'b0;
       fpu_in_flight   <= 1'b0;
@@ -361,7 +361,7 @@ module svc_rv_ext_fp_ex (
   logic [ 4:0] fflags_reg;
   logic        result_valid_reg;
 
-  always_ff @(posedge clk or negedge rst_n) begin
+  always_ff @(posedge clk) begin
     if (!rst_n) begin
       result_reg       <= '0;
       fflags_reg       <= '0;
